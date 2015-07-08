@@ -11,9 +11,12 @@ import (
 	"log"
 	"net"
 	"os"
+	"runtime"
+
+	"github.com/kavu/go_reuseport"
 )
 
-var listenAddress = "0.0.0.0:8043"
+var listenAddress = "127.0.0.1:8043"
 var privateKeyPath = "server.key"
 var certChainPath = "server.crt"
 var caBundlePath = "ca-bundle.crt"
@@ -56,6 +59,8 @@ func parsePrivateKey(data []byte) (key crypto.PrivateKey, err error) {
 }
 
 func main() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
+
 	caBundleBytes, err := ioutil.ReadFile(caBundlePath)
 	panicOnError(err)
 
@@ -92,8 +97,10 @@ func main() {
 		MinVersion: tls.VersionTLS12,
 	}
 
-	listener, err := tls.Listen("tcp", listenAddress, &config)
+	rawListener, err := reuseport.NewReusablePortListener("tcp4", listenAddress)
 	panicOnError(err)
+
+	listener := tls.NewListener(rawListener, &config)
 
 	log.Printf("Listening on %s", listenAddress)
 
