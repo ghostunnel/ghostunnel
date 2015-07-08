@@ -6,7 +6,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -16,17 +15,22 @@ import (
 	"os/exec"
 	"os/signal"
 	"runtime"
+	"strings"
 	"sync"
 	"syscall"
 
 	"github.com/kardianos/osext"
 	"github.com/kavu/go_reuseport"
+	"gopkg.in/alecthomas/kingpin.v2"
 )
 
-var listenAddress = "127.0.0.1:8043"
-var privateKeyPath = "server.key"
-var certChainPath = "server.crt"
-var caBundlePath = "ca-bundle.crt"
+var (
+	listenAddress  = kingpin.Flag("addr", "Address and port to listen on").Required().TCP()
+	privateKeyPath = kingpin.Flag("key", "Path to private key file (PEM/PKCS1)").Required().String()
+	certChainPath  = kingpin.Flag("cert", "Path to certificate chain file (PEM/X509)").Required().String()
+	caBundlePath   = kingpin.Flag("cacert", "Path to CA certificate bundle file (PEM/X509)").Required().String()
+	gracefulChild  = kingpin.Flag("graceful", "Send SIGTERM to parent after startup (internal)").Bool()
+)
 
 func init() {
 	log.SetPrefix(fmt.Sprintf("[%5d] ", os.Getpid()))
@@ -72,23 +76,21 @@ func parsePrivateKey(data []byte) (key crypto.PrivateKey, err error) {
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	var gracefulChild bool
-	flag.BoolVar(&gracefulChild, "graceful", false, "send sigterm to parent after startup")
-	flag.Parse()
+	kingpin.Parse()
 
-	caBundleBytes, err := ioutil.ReadFile(caBundlePath)
+	caBundleBytes, err := ioutil.ReadFile(*caBundlePath)
 	panicOnError(err)
 
 	caBundle := x509.NewCertPool()
 	caBundle.AppendCertsFromPEM(caBundleBytes)
 
-	privateKeyBytes, err := ioutil.ReadFile(privateKeyPath)
+	privateKeyBytes, err := ioutil.ReadFile(*privateKeyPath)
 	panicOnError(err)
 
 	privateKey, err := parsePrivateKey(privateKeyBytes)
 	panicOnError(err)
 
-	certChainBytes, err := ioutil.ReadFile(certChainPath)
+	certChainBytes, err := ioutil.ReadFile(*certChainPath)
 	panicOnError(err)
 
 	certChain, err := parseCertificates(certChainBytes)
@@ -112,12 +114,19 @@ func main() {
 		MinVersion: tls.VersionTLS12,
 	}
 
-	rawListener, err := reuseport.NewReusablePortListener("tcp4", listenAddress)
+	var proto string
+	if (*listenAddress).IP.To4() != nil {
+		proto = "tcp4"
+	} else {
+		proto = "tcp6"
+	}
+
+	rawListener, err := reuseport.NewReusablePortListener(proto, (*listenAddress).String())
 	panicOnError(err)
 
 	listener := tls.NewListener(rawListener, &config)
 
-	log.Printf("Listening on %s", listenAddress)
+	log.Printf("Listening on %s", *listenAddress)
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -128,7 +137,7 @@ func main() {
 	go sigtermHandler(listener, stopper)
 	go sigusr1Handler()
 
-	if gracefulChild {
+	if *gracefulChild {
 		parent := syscall.Getppid()
 		log.Printf("Sending SIGTERM to parent PID %d", parent)
 		syscall.Kill(parent, syscall.SIGTERM)
@@ -171,9 +180,16 @@ func reexec() {
 		log.Printf("Failed to get executable path: %s", err)
 	}
 
-	log.Printf("Executing self: %s", path)
+	args := []string{"--graceful"}
+	for _, val := range os.Args[1:] {
+		if val != "--graceful" {
+			args = append(args, val)
+		}
+	}
 
-	cmd := exec.Command(path, "-graceful")
+	log.Printf("Executing self: %s %s", path, strings.Join(args, " "))
+
+	cmd := exec.Command(path, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
