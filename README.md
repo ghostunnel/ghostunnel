@@ -1,10 +1,10 @@
 Ghostunnel
 ==========
 
-Ghostunnel is a simple SSL/TLS proxy with support mutual authentication for
+Ghostunnel is a simple SSL/TLS proxy with mutual authentication support for
 securing non-TLS services such as Redis. Ghostunnel runs in front of a backend
 service and accepts TLS-secured connections, which are then forwarded to the
-backend.
+insecure backend.
 
 Ghostunnel supports transparent restarts via `SO_REUSEPORT`. To reload the
 process, simply send the `SIGUSR1` signal. This spawns a child process which
