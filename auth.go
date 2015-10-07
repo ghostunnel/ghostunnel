@@ -12,6 +12,8 @@ func authorized(conn *tls.Conn) bool {
 					return true
 				}
 			}
+
+			logger.Printf("client OU %s is not in %s", clientOU, *clientNames)
 		}
 	}
 

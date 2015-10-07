@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/tls"
 	"io"
-	"log"
 	"net"
 	"sync"
 )
@@ -25,19 +24,29 @@ func accept(listener net.Listener, wg *sync.WaitGroup, stopper chan bool) {
 		conn, err := listener.Accept()
 
 		if err != nil {
-			log.Printf("Error accepting connection: %s", err)
+			logger.Printf("error accepting connection: %s", err)
 			continue
 		}
 
 		tlsConn, ok := conn.(*tls.Conn)
 		if !ok {
-			log.Printf("Received non-TLS connection? Ignoring")
+			logger.Printf("received non-TLS connection from %s? Ignoring", conn.RemoteAddr())
+			conn.Close()
+			continue
+		}
+
+		// Force handshake. Handshake usually happens on first read/write, but
+		// we want to authenticate before reading/writing so we need to force
+		// the handshake to get the client cert.
+		err = tlsConn.Handshake()
+		if err != nil {
+			logger.Printf("failed TLS handshake on %s: %s", conn.RemoteAddr(), err)
 			conn.Close()
 			continue
 		}
 
 		if !authorized(tlsConn) {
-			log.Printf("Rejecting connection, bad client certificate")
+			logger.Printf("rejecting connection from %s: bad client certificate", conn.RemoteAddr())
 			conn.Close()
 			continue
 		}
@@ -46,7 +55,7 @@ func accept(listener net.Listener, wg *sync.WaitGroup, stopper chan bool) {
 		go handle(conn, wg)
 	}
 
-	log.Printf("Closing listening socket")
+	logger.Printf("closing listening socket")
 }
 
 // Handle incoming connection by opening new connection to our backend service
@@ -55,13 +64,13 @@ func handle(conn net.Conn, wg *sync.WaitGroup) {
 	defer wg.Done()
 	defer conn.Close()
 
-	log.Printf("Incoming connection: %s", conn.RemoteAddr())
+	logger.Printf("incoming connection: %s", conn.RemoteAddr())
 
 	backend, err := dialBackend()
 	defer backend.Close()
 
 	if err != nil {
-		log.Printf("Failed to dial backend: %s", err)
+		logger.Printf("failed to dial backend: %s", err)
 		return
 	}
 
@@ -70,21 +79,18 @@ func handle(conn net.Conn, wg *sync.WaitGroup) {
 
 // Fuse connections together
 func fuse(client, backend net.Conn) {
-	defer log.Printf("Closed pipe: %s <-> %s", client.RemoteAddr(), backend.RemoteAddr())
-	log.Printf("Opening pipe: %s <-> %s", client.RemoteAddr(), backend.RemoteAddr())
-
-	go func() {
-		forwardData(client, backend)
-	}()
-
-	forwardData(backend, client)
+	go func() { copyData(client, backend) }()
+	copyData(backend, client)
 }
 
-func forwardData(dst net.Conn, src net.Conn) {
+func copyData(dst net.Conn, src net.Conn) {
+	defer logger.Printf("closed pipe: %s <- %s", dst.RemoteAddr(), src.RemoteAddr())
+	logger.Printf("opening pipe: %s <- %s", dst.RemoteAddr(), src.RemoteAddr())
+
 	_, err := io.Copy(dst, src)
 
 	if err != nil {
-		log.Printf("Error from pipe %s <- (%s)", dst.RemoteAddr(), src.RemoteAddr(), err)
+		logger.Printf("%s", err)
 	}
 }
 

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -17,7 +16,7 @@ func sigtermHandler(listener net.Listener, stopper chan bool) {
 	// Wait for SIGTERM
 	<-signals
 
-	log.Printf("Got SIGTERM, closing listening socket")
+	logger.Printf("got SIGTERM, closing listening socket")
 
 	// Tell other Go routines to stop accepting connections and shut down.
 	stopper <- true
@@ -39,7 +38,7 @@ func sigusr1Handler() {
 		// Wait for SIGUSR1
 		<-signals
 
-		log.Printf("Received SIGUSR1, attempting restart")
+		logger.Printf("received SIGUSR1, attempting restart")
 		go reexec()
 	}
 }

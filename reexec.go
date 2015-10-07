@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -17,7 +16,7 @@ import (
 func reexec() {
 	path, err := osext.Executable()
 	if err != nil {
-		log.Printf("Failed to get executable path: %s", err)
+		logger.Printf("failed to get executable path: %s", err)
 	}
 
 	args := []string{"--graceful"}
@@ -27,7 +26,7 @@ func reexec() {
 		}
 	}
 
-	log.Printf("Executing self: %s %s", path, strings.Join(args, " "))
+	logger.Printf("executing self: %s %s", path, strings.Join(args, " "))
 
 	cmd := exec.Command(path, args...)
 	cmd.Stdout = os.Stdout
@@ -35,6 +34,6 @@ func reexec() {
 	err = cmd.Run()
 
 	if err != nil {
-		log.Printf("Child failed with error: %s", err)
+		logger.Printf("child failed with error: %s", err)
 	}
 }

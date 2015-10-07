@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log"
+	"log/syslog"
 	"os"
 	"runtime"
 	"sync"
@@ -17,18 +18,30 @@ var (
 	// Startup flags
 	listenAddress  = kingpin.Flag("listen", "Address and port to listen on").Required().TCP()
 	forwardAddress = kingpin.Flag("target", "Address to foward connections to").Required().TCP()
-	clientNames    = kingpin.Flag("client-ou", "Expected client organizational unit name").Required().Strings()
+	clientNames    = kingpin.Flag("client", "Expected client organizational unit name (can be repeated)").Required().Strings()
 	privateKeyPath = kingpin.Flag("key", "Path to private key file (PEM/PKCS1)").Required().String()
 	certChainPath  = kingpin.Flag("cert", "Path to certificate chain file (PEM/X509)").Required().String()
 	caBundlePath   = kingpin.Flag("cacert", "Path to certificate authority bundle file (PEM/X509)").Required().String()
+	useSyslog      = kingpin.Flag("syslog", "Send logs to syslog instead of stderr").Bool()
 
 	// Internal flags for reload
 	gracefulChild = kingpin.Flag("graceful", "Send SIGTERM to parent after startup (internal)").Bool()
 )
 
-func init() {
+// Global logger instance
+var logger *log.Logger
+
+func initLogger() {
+	if *useSyslog {
+		var err error
+		logger, err = syslog.NewLogger(syslog.LOG_NOTICE|syslog.LOG_DAEMON, log.LstdFlags|log.Lmicroseconds)
+		panicOnError(err)
+	} else {
+		logger = log.New(os.Stderr, "", log.LstdFlags|log.Lmicroseconds)
+	}
+
 	// Set log prefix to process ID to distinguish parent/child
-	log.SetPrefix(fmt.Sprintf("[%5d] ", os.Getpid()))
+	logger.SetPrefix(fmt.Sprintf("[%5d] ", os.Getpid()))
 }
 
 // panicOnError panics if err is not nil
@@ -41,6 +54,7 @@ func panicOnError(err error) {
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	kingpin.Parse()
+	initLogger()
 
 	// Open listening socket. Take note that we create a "reusable port
 	// listener", meaning we pass SO_REUSEPORT to the kernel. This allows
@@ -54,7 +68,7 @@ func main() {
 
 	// Wrap listening socket with TLS listener.
 	listener := tls.NewListener(rawListener, buildConfig())
-	log.Printf("Listening on %s", *listenAddress)
+	logger.Printf("listening on %s", *listenAddress)
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -71,13 +85,13 @@ func main() {
 	// parent to indicate successful startup.
 	if *gracefulChild {
 		parent := syscall.Getppid()
-		log.Printf("Sending SIGTERM to parent PID %d", parent)
+		logger.Printf("sending SIGTERM to parent PID %d", parent)
 		syscall.Kill(parent, syscall.SIGTERM)
 	}
 
-	log.Printf("Startup completed, waiting for connections")
+	logger.Printf("startup completed, waiting for connections")
 
 	wg.Wait()
 
-	log.Printf("All connections closed, shutting down")
+	logger.Printf("all connections closed, shutting down")
 }
