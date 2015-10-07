@@ -2,26 +2,28 @@ package main
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"io"
 	"net"
 	"sync"
 )
 
 // Accept incoming connections and spawn Go routines to handle them.
-func accept(listener net.Listener, wg *sync.WaitGroup, stopper chan bool) {
+func accept(listener net.Listener, wg *sync.WaitGroup, stopper chan bool, leaf *x509.Certificate) {
 	defer wg.Done()
 	defer listener.Close()
 
 	for {
+		// Wait for new connection
+		conn, err := listener.Accept()
+
 		// Check if we're supposed to stop
 		select {
 		case _ = <-stopper:
+			logger.Printf("closing socket with cert serial no. %d (expiring %s)", leaf.SerialNumber, leaf.NotAfter.String())
 			return
 		default:
 		}
-
-		// Wait for new connection
-		conn, err := listener.Accept()
 
 		if err != nil {
 			logger.Printf("error accepting connection: %s", err)
@@ -54,8 +56,6 @@ func accept(listener net.Listener, wg *sync.WaitGroup, stopper chan bool) {
 		wg.Add(1)
 		go handle(conn, wg)
 	}
-
-	logger.Printf("closing listening socket")
 }
 
 // Handle incoming connection by opening new connection to our backend service
@@ -66,7 +66,7 @@ func handle(conn net.Conn, wg *sync.WaitGroup) {
 
 	logger.Printf("incoming connection: %s", conn.RemoteAddr())
 
-	backend, err := dialBackend()
+	backend, err := net.Dial((*forwardAddress).Network(), (*forwardAddress).String())
 	defer backend.Close()
 
 	if err != nil {
@@ -79,10 +79,12 @@ func handle(conn net.Conn, wg *sync.WaitGroup) {
 
 // Fuse connections together
 func fuse(client, backend net.Conn) {
+	// Copy from client -> backend, and from backend -> client
 	go func() { copyData(client, backend) }()
 	copyData(backend, client)
 }
 
+// Copy data between two connections
 func copyData(dst net.Conn, src net.Conn) {
 	defer logger.Printf("closed pipe: %s <- %s", dst.RemoteAddr(), src.RemoteAddr())
 	logger.Printf("opening pipe: %s <- %s", dst.RemoteAddr(), src.RemoteAddr())
@@ -92,10 +94,6 @@ func copyData(dst net.Conn, src net.Conn) {
 	if err != nil {
 		logger.Printf("%s", err)
 	}
-}
-
-func dialBackend() (net.Conn, error) {
-	return net.Dial((*forwardAddress).Network(), (*forwardAddress).String())
 }
 
 // Helper function to decode a *net.TCPAddr into a tuple of network and

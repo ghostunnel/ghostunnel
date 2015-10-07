@@ -11,7 +11,7 @@ import (
 
 // parseCertificates parses a PEM file containing multiple certificates,
 // and returns them as an array of DER-encoded byte arrays.
-func parseCertificates(data []byte) (certs [][]byte, err error) {
+func parseCertificates(data []byte) (leaf *x509.Certificate, certs [][]byte, err error) {
 	for {
 		var block *pem.Block
 		block, data = pem.Decode(data)
@@ -19,9 +19,14 @@ func parseCertificates(data []byte) (certs [][]byte, err error) {
 			break
 		}
 
-		_, err = x509.ParseCertificate(block.Bytes)
+		var cert *x509.Certificate
+		cert, err = x509.ParseCertificate(block.Bytes)
 		if err != nil {
 			return
+		}
+
+		if leaf == nil {
+			leaf = cert
 		}
 
 		certs = append(certs, block.Bytes)
@@ -61,13 +66,14 @@ func buildConfig() *tls.Config {
 	certChainBytes, err := ioutil.ReadFile(*certChainPath)
 	panicOnError(err)
 
-	certChain, err := parseCertificates(certChainBytes)
+	leaf, certChain, err := parseCertificates(certChainBytes)
 	panicOnError(err)
 
 	certAndKey := []tls.Certificate{
 		tls.Certificate{
 			Certificate: certChain,
 			PrivateKey:  privateKey,
+			Leaf:        leaf,
 		},
 	}
 

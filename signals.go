@@ -4,41 +4,48 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 )
 
-// sigtermHandler listenes for incoming SIGTERM signals. If received, we
-// stop listening for new connections and gracefully terminate the process.
-func sigtermHandler(listener net.Listener, stopper chan bool) {
-	signals := make(chan os.Signal)
-	signal.Notify(signals, syscall.SIGTERM)
-
-	// Wait for SIGTERM
-	<-signals
-
-	logger.Printf("got SIGTERM, closing listening socket")
-
-	// Tell other Go routines to stop accepting connections and shut down.
-	stopper <- true
-
-	// Stop listening for SIGTERM. This way a second SIGTERM will force the
-	// process the quit even if we're not done yet.
-	signal.Stop(signals)
-
-	listener.Close()
-}
-
-// sigusr1Handler listenes for incoming SIGUSR1 signals. If received, we
-// reload the process by spawning a child via reexec().
-func sigusr1Handler() {
+// signalHandler listenes for incoming SIGTERM or SIGUSR1 signals. If we get
+// SIGTERM, stop listening for new connections and gracefully terminate the
+// process.  If we get SIGUSR1, reload certificates.
+func signalHandler(listener net.Listener, stopper chan bool, listeners *sync.WaitGroup) {
 	signals := make(chan os.Signal)
 	signal.Notify(signals, syscall.SIGUSR1)
 
 	for {
-		// Wait for SIGUSR1
-		<-signals
+		// Wait for a signal
+		sig := <-signals
 
-		logger.Printf("received SIGUSR1, attempting restart")
-		go reexec()
+		switch sig {
+		case syscall.SIGTERM:
+			logger.Printf("received SIGUSR1, stopping listener")
+			stopper <- true
+			signal.Stop(signals)
+			listener.Close()
+			return
+
+		case syscall.SIGUSR1:
+			logger.Printf("received SIGUSR1, reloading listener")
+
+			// Start new listener
+			listeners.Add(1)
+			started := make(chan bool, 1)
+			go listen(started, listeners)
+
+			// Wait for new listener to complete startup
+			up := <-started
+			if !up {
+				logger.Printf("failed to reload certificates")
+				continue
+			}
+
+			stopper <- true
+			signal.Stop(signals)
+			listener.Close()
+			return
+		}
 	}
 }
