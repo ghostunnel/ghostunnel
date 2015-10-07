@@ -17,6 +17,7 @@ var (
 	// Startup flags
 	listenAddress  = kingpin.Flag("listen", "Address and port to listen on").Required().TCP()
 	forwardAddress = kingpin.Flag("target", "Address to foward connections to").Required().TCP()
+	clientNames    = kingpin.Flag("client-ou", "Expected client organizational unit name").Required().Strings()
 	privateKeyPath = kingpin.Flag("key", "Path to private key file (PEM/PKCS1)").Required().String()
 	certChainPath  = kingpin.Flag("cert", "Path to certificate chain file (PEM/X509)").Required().String()
 	caBundlePath   = kingpin.Flag("cacert", "Path to certificate authority bundle file (PEM/X509)").Required().String()
