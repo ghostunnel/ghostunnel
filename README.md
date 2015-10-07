@@ -20,7 +20,8 @@ certificate. Once successful, the old listening socket will be closed.
 certificate. It also supports AuthZ via checks of the CN or OU fields on the 
 subject of a connecting client certificate. To set allowed clients, you
 must specify at least one of `--allow-all`, `--allow-cn` or `--allow-ou`. 
-It is possible to use both `--allow-cn` and `--allow-ou` together.
+It's possible to use both `--allow-cn` and `--allow-ou` together or to 
+specify them repeatedly to allow multiple CN/OU values.
 
 Usage
 =====
