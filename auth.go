@@ -4,11 +4,10 @@ import (
 	"crypto/tls"
 )
 
-func authorized(conn *tls.Conn) bool {
+func authorized(conn tls.ConnectionState) bool {
 	// First up: check if we have a valid client certificate. We always require
 	// a valid, signed client certificate to be present.
-	if len(conn.ConnectionState().VerifiedChains) == 0 {
-		logger.Printf("failed auth: client %s has no valid cert chain", conn.RemoteAddr())
+	if len(conn.VerifiedChains) == 0 {
 		return false
 	}
 
@@ -17,7 +16,7 @@ func authorized(conn *tls.Conn) bool {
 		return true
 	}
 
-	cert := conn.ConnectionState().VerifiedChains[0][0]
+	cert := conn.VerifiedChains[0][0]
 
 	// Check CN against --allow-cn flag(s).
 	for _, expectedCN := range *allowedCNs {
@@ -34,8 +33,6 @@ func authorized(conn *tls.Conn) bool {
 			}
 		}
 	}
-
-	logger.Printf("failed auth: client %s with subject '%s' has no matching CN or OU field", conn.RemoteAddr(), cert.Subject)
 
 	return false
 }

@@ -47,7 +47,7 @@ func accept(listener net.Listener, wg *sync.WaitGroup, stopper chan bool, leaf *
 			continue
 		}
 
-		if !authorized(tlsConn) {
+		if !authorized(tlsConn.ConnectionState()) {
 			logger.Printf("rejecting connection from %s: bad client certificate", conn.RemoteAddr())
 			conn.Close()
 			continue
