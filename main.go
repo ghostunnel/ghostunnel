@@ -20,10 +20,10 @@ var (
 	privateKeyPath = kingpin.Flag("key", "Path to private key file (PEM/PKCS1)").Required().String()
 	certChainPath  = kingpin.Flag("cert", "Path to certificate chain file (PEM/X509)").Required().String()
 	caBundlePath   = kingpin.Flag("cacert", "Path to certificate authority bundle file (PEM/X509)").Required().String()
-	useSyslog      = kingpin.Flag("syslog", "Send logs to syslog instead of stderr").Bool()
 	allowAll       = kingpin.Flag("allow-all", "Allow all clients, do not check client cert subject").Bool()
 	allowedCNs     = kingpin.Flag("allow-cn", "Allow clients with given common name (can be repeated)").PlaceHolder("CN").Strings()
 	allowedOUs     = kingpin.Flag("allow-ou", "Allow clients with organizational unit name (can be repeated)").PlaceHolder("OU").Strings()
+	useSyslog      = kingpin.Flag("syslog", "Send logs to syslog instead of stderr").Bool()
 )
 
 // Global logger instance
