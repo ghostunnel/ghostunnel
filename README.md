@@ -23,6 +23,10 @@ must specify at least one of `--allow-all`, `--allow-cn` or `--allow-ou`.
 It's possible to use both `--allow-cn` and `--allow-ou` together or to 
 specify them repeatedly to allow multiple CN/OU values.
 
+**Planned features**: Allow for automatically reloading certificates by
+watching files on disk, support for PKCS#12 key stores to supply the certificate
+chain and private key for the server.
+
 Usage
 =====
 
