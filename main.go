@@ -99,7 +99,7 @@ func main() {
 	}
 
 	if *watchFiles {
-		go watch([]string{*keystorePath})
+		go watch([]string{*keystorePath, *caBundlePath})
 	}
 
 	logger.Printf("initial startup completed, waiting for connections")
