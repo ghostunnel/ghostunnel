@@ -58,4 +58,25 @@ func TestWatchers(t *testing.T) {
 	case _ = <-time.Tick(time.Duration(1) * time.Second):
 		t.Fatalf("timeout, no notification on changed file")
 	}
+
+	// Must detect file being replaced
+	os.Remove(tmpFile.Name())
+	tmpFile, err = os.Create(tmpFile.Name())
+	panicOnError(err)
+
+	tmpFile.WriteString("blubb")
+	tmpFile.Sync()
+	tmpFile.Close()
+
+	select {
+	case _ = <-watcherTimed:
+	case _ = <-time.Tick(time.Duration(1) * time.Second):
+		t.Fatalf("timeout, no notification on changed file")
+	}
+
+	select {
+	case _ = <-watcherAuto:
+	case _ = <-time.Tick(time.Duration(1) * time.Second):
+		t.Fatalf("timeout, no notification on changed file")
+	}
 }
