@@ -78,7 +78,6 @@ func accept(listener net.Listener, wg *sync.WaitGroup, stopper chan bool, leaf *
 // and fusing them together.
 func handle(conn net.Conn, wg *sync.WaitGroup) {
 	defer wg.Done()
-	defer conn.Close()
 
 	logger.Printf("incoming connection: %s", conn.RemoteAddr())
 
@@ -89,7 +88,6 @@ func handle(conn net.Conn, wg *sync.WaitGroup) {
 		return
 	}
 
-	defer backend.Close()
 	fuse(conn, backend)
 }
 
@@ -102,6 +100,8 @@ func fuse(client, backend net.Conn) {
 
 // Copy data between two connections
 func copyData(dst net.Conn, src net.Conn) {
+	defer dst.Close()
+	defer src.Close()
 	defer logger.Printf("closed pipe: %s <- %s", dst.RemoteAddr(), src.RemoteAddr())
 	logger.Printf("opening pipe: %s <- %s", dst.RemoteAddr(), src.RemoteAddr())
 
