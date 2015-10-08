@@ -48,19 +48,19 @@ func parseKeystore(data []byte, password string) (certs, key []byte, err error) 
 }
 
 // buildConfig reads command-line options and builds a tls.Config
-func buildConfig() (*tls.Config, error) {
-	caBundleBytes, err := ioutil.ReadFile(*caBundlePath)
+func buildConfig(keystorePath, keystorePass, caBundlePath string) (*tls.Config, error) {
+	caBundleBytes, err := ioutil.ReadFile(caBundlePath)
 	panicOnError(err)
 
 	caBundle := x509.NewCertPool()
 	caBundle.AppendCertsFromPEM(caBundleBytes)
 
-	keystoreBytes, err := ioutil.ReadFile(*keystorePath)
+	keystoreBytes, err := ioutil.ReadFile(keystorePath)
 	if err != nil {
 		return nil, err
 	}
 
-	certPEM, keyPEM, err := parseKeystore(keystoreBytes, *keystorePass)
+	certPEM, keyPEM, err := parseKeystore(keystoreBytes, keystorePass)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse keystore: %s", err)
 	}

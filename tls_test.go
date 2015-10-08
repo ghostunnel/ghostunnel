@@ -136,7 +136,14 @@ func init() {
 	}
 }
 
-func WriteTempFiles() {
+func TestParseKeystore(t *testing.T) {
+	certs, key, err := parseKeystore(testKeystore, testKeystorePassword)
+	assert.NotNil(t, certs, "must parse certs")
+	assert.NotNil(t, key, "must parse private key")
+	assert.Nil(t, err, "must parse keystore")
+}
+
+func TestBuildConfig(t *testing.T) {
 	tmpKeystore, err := ioutil.TempFile("", "ghostunnel-test")
 	panicOnError(err)
 
@@ -150,28 +157,10 @@ func WriteTempFiles() {
 	tmpKeystore.Sync()
 	tmpCaBundle.Sync()
 
-	*keystorePath = tmpKeystore.Name()
-	*caBundlePath = tmpCaBundle.Name()
-	*keystorePass = testKeystorePassword
-}
+	defer os.Remove(tmpKeystore.Name())
+	defer os.Remove(tmpCaBundle.Name())
 
-func RemoveTempFiles() {
-	os.Remove(*keystorePath)
-	os.Remove(*caBundlePath)
-}
-
-func TestParseKeystore(t *testing.T) {
-	certs, key, err := parseKeystore(testKeystore, testKeystorePassword)
-	assert.NotNil(t, certs, "must parse certs")
-	assert.NotNil(t, key, "must parse private key")
-	assert.Nil(t, err, "must parse keystore")
-}
-
-func TestBuildConfig(t *testing.T) {
-	WriteTempFiles()
-	defer RemoveTempFiles()
-
-	conf, err := buildConfig()
+	conf, err := buildConfig(tmpKeystore.Name(), testKeystorePassword, tmpCaBundle.Name())
 	assert.Nil(t, err, "should be able to build TLS config")
 	assert.NotNil(t, conf.Certificates, "config must have certs")
 	assert.NotNil(t, conf.RootCAs, "config must have CA certs")

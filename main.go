@@ -124,7 +124,7 @@ func listen(started chan bool, listeners *sync.WaitGroup) {
 	}
 
 	// Wrap listening socket with TLS listener.
-	tlsConfig, err := buildConfig()
+	tlsConfig, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath)
 	if err != nil {
 		logger.Printf("error setting up TLS: %s", err)
 		started <- false
