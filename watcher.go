@@ -17,6 +17,7 @@
 package main
 
 import (
+	"path"
 	"syscall"
 
 	"gopkg.in/fsnotify.v1"
@@ -27,15 +28,18 @@ func watch(files []string) {
 	panicOnError(err)
 
 	for _, file := range files {
-		watcher.Add(file)
+		watcher.Add(path.Dir(file))
 	}
 
 	for {
 		select {
 		case event := <-watcher.Events:
-			if event.Op&fsnotify.Write == fsnotify.Write {
-				logger.Printf("found new %s, reloading", event.Name)
-				syscall.Kill(syscall.Getpid(), syscall.SIGUSR1)
+			for _, file := range files {
+				if event.Name == path.Base(file) {
+					logger.Printf("detected change on %s, reloading", event.Name)
+					syscall.Kill(syscall.Getpid(), syscall.SIGUSR1)
+					break
+				}
 			}
 
 		case err := <-watcher.Errors:
