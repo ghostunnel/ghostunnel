@@ -17,9 +17,10 @@ var (
 	// Startup flags
 	listenAddress  = kingpin.Flag("listen", "Address and port to listen on").Required().TCP()
 	forwardAddress = kingpin.Flag("target", "Address to foward connections to").Required().TCP()
-	privateKeyPath = kingpin.Flag("key", "Path to private key file (PEM/PKCS1)").Required().String()
-	certChainPath  = kingpin.Flag("cert", "Path to certificate chain file (PEM/X509)").Required().String()
+	keystorePath   = kingpin.Flag("keystore", "Path to certificate and keystore (PKCS12)").PlaceHolder("PATH").Required().String()
+	keystorePass   = kingpin.Flag("storepass", "Password for certificate and keystore").PlaceHolder("PASS").Required().String()
 	caBundlePath   = kingpin.Flag("cacert", "Path to certificate authority bundle file (PEM/X509)").Required().String()
+	watchFiles     = kingpin.Flag("auto-reload", "Watch keystore file with inotify/fswatch and reload on changes").Bool()
 	allowAll       = kingpin.Flag("allow-all", "Allow all clients, do not check client cert subject").Bool()
 	allowedCNs     = kingpin.Flag("allow-cn", "Allow clients with given common name (can be repeated)").PlaceHolder("CN").Strings()
 	allowedOUs     = kingpin.Flag("allow-ou", "Allow clients with organizational unit name (can be repeated)").PlaceHolder("OU").Strings()
@@ -73,6 +74,10 @@ func main() {
 		os.Exit(1)
 	}
 
+	if *watchFiles {
+		go watch([]string{*keystorePath})
+	}
+
 	logger.Printf("initial startup completed, waiting for connections")
 	listeners.Wait()
 	logger.Printf("all listeners closed, shutting down")
@@ -95,7 +100,13 @@ func listen(started chan bool, listeners *sync.WaitGroup) {
 	}
 
 	// Wrap listening socket with TLS listener.
-	tlsConfig := buildConfig()
+	tlsConfig, err := buildConfig()
+	if err != nil {
+		logger.Printf("error setting up TLS: %s", err)
+		started <- false
+		return
+	}
+
 	leaf := tlsConfig.Certificates[0].Leaf
 
 	listener := tls.NewListener(rawListener, tlsConfig)

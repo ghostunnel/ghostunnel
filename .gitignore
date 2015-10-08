@@ -1,3 +1,5 @@
+*.p12
+*.pfx
 *.key
 *.crt
 ghostunnel

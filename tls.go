@@ -1,85 +1,67 @@
 package main
 
 import (
-	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
-	"errors"
+	"fmt"
 	"io/ioutil"
+	"strings"
+
+	"golang.org/x/crypto/pkcs12"
 )
 
-// parseCertificates parses a PEM file containing multiple certificates,
-// and returns them as an array of DER-encoded byte arrays.
-func parseCertificates(data []byte) (leaf *x509.Certificate, certs [][]byte, err error) {
-	for {
-		var block *pem.Block
-		block, data = pem.Decode(data)
-		if block == nil {
-			break
+// parseKeystore takes a PKCS12 keystore and converts it into a series of
+// serialized PEM blocks for certificates/private key. The keystore is expected
+// to contain exactly one private key and one or more certificates.
+func parseKeystore(data []byte, password string) (certs, key []byte, err error) {
+	blocks, err := pkcs12.ToPEM(data, password)
+	for _, block := range blocks {
+		if strings.Contains(block.Type, "PRIVATE KEY") {
+			if key != nil {
+				return nil, nil, fmt.Errorf("invalid keystore: found multiple private keys in pkcs12 file")
+			}
+			key = pem.EncodeToMemory(block)
+		} else if block.Type == "CERTIFICATE" {
+			certs = append(certs, pem.EncodeToMemory(block)...)
+			certs = append(certs, '\n')
 		}
-
-		var cert *x509.Certificate
-		cert, err = x509.ParseCertificate(block.Bytes)
-		if err != nil {
-			return
-		}
-
-		if leaf == nil {
-			leaf = cert
-		}
-
-		certs = append(certs, block.Bytes)
 	}
 
-	return
-}
-
-// parsePrivateKey parses a PEM file containing a private key, and returns
-// it as a crypto.PrivateKey object.
-func parsePrivateKey(data []byte) (key crypto.PrivateKey, err error) {
-	var block *pem.Block
-	block, _ = pem.Decode(data)
-	if block == nil {
-		err = errors.New("invalid private key pem")
-		return
-	}
-
-	key, err = x509.ParsePKCS1PrivateKey(block.Bytes)
 	return
 }
 
 // buildConfig reads command-line options and builds a tls.Config
-func buildConfig() *tls.Config {
+func buildConfig() (*tls.Config, error) {
 	caBundleBytes, err := ioutil.ReadFile(*caBundlePath)
 	panicOnError(err)
 
 	caBundle := x509.NewCertPool()
 	caBundle.AppendCertsFromPEM(caBundleBytes)
 
-	privateKeyBytes, err := ioutil.ReadFile(*privateKeyPath)
-	panicOnError(err)
+	keystoreBytes, err := ioutil.ReadFile(*keystorePath)
+	if err != nil {
+		return nil, err
+	}
 
-	privateKey, err := parsePrivateKey(privateKeyBytes)
-	panicOnError(err)
+	certPEM, keyPEM, err := parseKeystore(keystoreBytes, *keystorePass)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse keystore: %s", err)
+	}
 
-	certChainBytes, err := ioutil.ReadFile(*certChainPath)
-	panicOnError(err)
+	certAndKey, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse cert chain: %s", err)
+	}
 
-	leaf, certChain, err := parseCertificates(certChainBytes)
-	panicOnError(err)
-
-	certAndKey := []tls.Certificate{
-		tls.Certificate{
-			Certificate: certChain,
-			PrivateKey:  privateKey,
-			Leaf:        leaf,
-		},
+	certAndKey.Leaf, err = x509.ParseCertificate(certAndKey.Certificate[0])
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse cert chain: %s", err)
 	}
 
 	return &tls.Config{
 		// Certificates
-		Certificates: certAndKey,
+		Certificates: []tls.Certificate{certAndKey},
 		RootCAs:      caBundle,
 		ClientCAs:    caBundle,
 
@@ -93,5 +75,5 @@ func buildConfig() *tls.Config {
 			tls.TLS_RSA_WITH_AES_128_CBC_SHA,
 			tls.TLS_RSA_WITH_AES_256_CBC_SHA,
 		},
-	}
+	}, nil
 }

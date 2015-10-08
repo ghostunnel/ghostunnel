@@ -22,24 +22,3 @@ subject of a connecting client certificate. To set allowed clients, you
 must specify at least one of `--allow-all`, `--allow-cn` or `--allow-ou`. 
 It's possible to use both `--allow-cn` and `--allow-ou` together or to 
 specify them repeatedly to allow multiple CN/OU values.
-
-**Planned features**: Allow for automatically reloading certificates by
-watching files on disk, support for PKCS#12 key stores to supply the certificate
-chain and private key for the server.
-
-Usage
-=====
-
-    ghostunnel --listen=LISTEN --target=TARGET --key=KEY --cert=CERT --cacert=CACERT [<flags>]
-    
-    Flags:
-      --help           Show help (also see --help-long and --help-man).
-      --listen=LISTEN  Address and port to listen on
-      --target=TARGET  Address to foward connections to
-      --key=KEY        Path to private key file (PEM/PKCS1)
-      --cert=CERT      Path to certificate chain file (PEM/X509)
-      --cacert=CACERT  Path to certificate authority bundle file (PEM/X509)
-      --allow-all      Allow all clients, do not check client cert subject
-      --allow-cn=CN    Allow clients with given common name (can be repeated)
-      --allow-ou=OU    Allow clients with organizational unit name (can be repeated)
-      --syslog         Send logs to syslog instead of stderr
