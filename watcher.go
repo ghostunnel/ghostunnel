@@ -33,10 +33,8 @@ func watch(files []string) {
 	for {
 		select {
 		case event := <-watcher.Events:
-			if event.Op&fsnotify.Write == fsnotify.Write {
-				logger.Printf("found new %s, reloading", event.Name)
-				syscall.Kill(syscall.Getpid(), syscall.SIGUSR1)
-			}
+			logger.Printf("found new %s, reloading", event.Name)
+			syscall.Kill(syscall.Getpid(), syscall.SIGUSR1)
 
 		case err := <-watcher.Errors:
 			logger.Printf("error watching file: %s", err)
