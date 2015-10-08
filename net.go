@@ -83,13 +83,13 @@ func handle(conn net.Conn, wg *sync.WaitGroup) {
 	logger.Printf("incoming connection: %s", conn.RemoteAddr())
 
 	backend, err := net.Dial((*forwardAddress).Network(), (*forwardAddress).String())
-	defer backend.Close()
 
 	if err != nil {
 		logger.Printf("failed to dial backend: %s", err)
 		return
 	}
 
+	defer backend.Close()
 	fuse(conn, backend)
 }
 
