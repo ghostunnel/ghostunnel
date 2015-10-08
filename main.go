@@ -22,6 +22,7 @@ import (
 	"log"
 	"log/syslog"
 	"os"
+	"regexp"
 	"runtime"
 	"sync"
 
@@ -33,6 +34,7 @@ var (
 	// Startup flags
 	listenAddress  = kingpin.Flag("listen", "Address and port to listen on").Required().TCP()
 	forwardAddress = kingpin.Flag("target", "Address to foward connections to").Required().TCP()
+	unsafeTarget   = kingpin.Flag("unsafe-target", "If set, does not limit target to localhost, 127.0.0.1 or ::1").Bool()
 	keystorePath   = kingpin.Flag("keystore", "Path to certificate and keystore (PKCS12)").PlaceHolder("PATH").Required().String()
 	keystorePass   = kingpin.Flag("storepass", "Password for certificate and keystore").PlaceHolder("PASS").Required().String()
 	caBundlePath   = kingpin.Flag("cacert", "Path to certificate authority bundle file (PEM/X509)").Required().String()
@@ -82,6 +84,10 @@ func main() {
 		fmt.Fprintf(os.Stderr, "ghostunnel: error: --allow-all and --allow-ou are mutually exclusive")
 		os.Exit(1)
 	}
+	if !validateTarget((*forwardAddress).String()) {
+		fmt.Fprintf(os.Stderr, "ghostunnel: error: --target must be localhost:port, 127.0.0.1:port or [::1]:port")
+		os.Exit(1)
+	}
 
 	initLogger()
 
@@ -105,6 +111,22 @@ func main() {
 	logger.Printf("initial startup completed, waiting for connections")
 	listeners.Wait()
 	logger.Printf("all listeners closed, shutting down")
+}
+
+func validateTarget(addr string) bool {
+	if *unsafeTarget {
+		return true
+	}
+	if matched, _ := regexp.MatchString("^127[.]0[.]0[.]1:\\d+$", addr); matched {
+		return true
+	}
+	if matched, _ := regexp.MatchString("^\\[::1\\]:\\d+$", addr); matched {
+		return true
+	}
+	if matched, _ := regexp.MatchString("^localhost:\\d+$", addr); matched {
+		return true
+	}
+	return false
 }
 
 // Open listening socket. Take note that we create a "reusable port
