@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/kavu/go_reuseport"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -37,7 +38,7 @@ var (
 	keystorePath   = kingpin.Flag("keystore", "Path to certificate and keystore (PKCS12).").PlaceHolder("PATH").Required().String()
 	keystorePass   = kingpin.Flag("storepass", "Password for certificate and keystore.").PlaceHolder("PASS").Required().String()
 	caBundlePath   = kingpin.Flag("cacert", "Path to certificate authority bundle file (PEM/X509).").Required().String()
-	watchFiles     = kingpin.Flag("auto-reload", "Watch keystores file with inotify/fswatch and reload on changes.").Bool()
+	autoReload     = kingpin.Flag("auto-reload", "Watch keystores file with inotify/fswatch and reload on changes.").Bool()
 	timedReload    = kingpin.Flag("timed-reload", "Reload keystores every N minutes, refresh listener on changes.").PlaceHolder("N").Int()
 	allowAll       = kingpin.Flag("allow-all", "Allow all clients, do not check client cert subject.").Bool()
 	allowedCNs     = kingpin.Flag("allow-cn", "Allow clients with given common name (can be repeated).").PlaceHolder("CN").Strings()
@@ -46,15 +47,13 @@ var (
 )
 
 // Global logger instance
-var logger *log.Logger
+var logger = log.New(os.Stderr, "", log.LstdFlags|log.Lmicroseconds)
 
 func initLogger() {
 	if *useSyslog {
 		var err error
 		logger, err = syslog.NewLogger(syslog.LOG_NOTICE|syslog.LOG_DAEMON, log.LstdFlags|log.Lmicroseconds)
 		panicOnError(err)
-	} else {
-		logger = log.New(os.Stderr, "", log.LstdFlags|log.Lmicroseconds)
 	}
 
 	// Set log prefix to process ID to distinguish parent/child
@@ -72,6 +71,7 @@ func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	kingpin.Parse()
 
+	// Validate flags
 	if !(*allowAll) && len(*allowedCNs) == 0 && len(*allowedOUs) == 0 {
 		fmt.Fprintf(os.Stderr, "ghostunnel: error: at least one of --allow-all, --allow-cn or --allow-ou is required")
 		os.Exit(1)
@@ -88,28 +88,32 @@ func main() {
 		fmt.Fprintf(os.Stderr, "ghostunnel: error: --target must be localhost:port, 127.0.0.1:port or [::1]:port")
 		os.Exit(1)
 	}
+	if *autoReload && (*timedReload > 0) {
+		fmt.Fprintf(os.Stderr, "ghostunnel: error: --auto-reload and --timed-reload are mutually exclusive")
+		os.Exit(1)
+	}
 
 	initLogger()
 
 	listeners := &sync.WaitGroup{}
 	listeners.Add(1)
 
+	// Set up file watchers (if requested)
+	watcher := make(chan bool, 1)
+	if *autoReload {
+		go watchAuto([]string{*keystorePath, *caBundlePath}, watcher)
+	} else if *timedReload > 0 {
+		go watchTimed([]string{*keystorePath, *caBundlePath}, time.Duration(*timedReload)*time.Second, watcher)
+	}
+
 	// A channel to notify us that the listener is running.
 	started := make(chan bool, 1)
-	go listen(started, listeners)
+	go listen(started, listeners, watcher)
 
 	up := <-started
 	if !up {
 		logger.Printf("failed to start initial listener")
 		os.Exit(1)
-	}
-
-	if *watchFiles {
-		go watchAuto([]string{*keystorePath, *caBundlePath})
-	}
-
-	if *timedReload > 0 {
-		go watchTimer([]string{*keystorePath, *caBundlePath}, *timedReload)
 	}
 
 	logger.Printf("initial startup completed, waiting for connections")
@@ -139,7 +143,7 @@ func validateTarget(addr string) bool {
 // connections. This is useful for the purposes of replacing certificates
 // in-place without having to take downtime, e.g. if a certificate is
 // expiring.
-func listen(started chan bool, listeners *sync.WaitGroup) {
+func listen(started chan bool, listeners *sync.WaitGroup, watcher chan bool) {
 	// Open raw listening socket
 	network, address := decodeAddress(*listenAddress)
 	rawListener, err := reuseport.NewReusablePortListener(network, address)
@@ -171,7 +175,7 @@ func listen(started chan bool, listeners *sync.WaitGroup) {
 	stopper := make(chan bool, 1)
 
 	go accept(listener, handlers, stopper, leaf)
-	go signalHandler(listener, stopper, listeners)
+	go signalHandler(listener, stopper, listeners, watcher)
 
 	started <- true
 
