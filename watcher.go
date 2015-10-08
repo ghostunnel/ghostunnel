@@ -17,13 +17,18 @@
 package main
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"io/ioutil"
 	"path"
 	"syscall"
+	"time"
 
 	"gopkg.in/fsnotify.v1"
 )
 
-func watch(files []string) {
+// Watch files using inotify/fswatch.
+func watchAuto(files []string) {
 	watcher, err := fsnotify.NewWatcher()
 	panicOnError(err)
 
@@ -44,6 +49,46 @@ func watch(files []string) {
 
 		case err := <-watcher.Errors:
 			logger.Printf("error watching file: %s", err)
+		}
+	}
+}
+
+// Watch files with a periodic timer, for filesystems that don't do
+// inotify correctly (e.g. some fuse filesystems or other custom stuff).
+func watchTimer(files []string, minutes int) {
+	hashes := [][32]byte{}
+	for i, file := range files {
+		data, err := ioutil.ReadFile(file)
+		if err != nil {
+			logger.Printf("error watching file: %s", err)
+			continue
+		}
+
+		hashes[i] = sha256.Sum256(data)
+	}
+
+	ticker := time.Tick(time.Duration(minutes) * time.Minute)
+	for {
+		<-ticker
+
+		change := false
+		for i, file := range files {
+			data, err := ioutil.ReadFile(file)
+			if err != nil {
+				logger.Printf("error watching file: %s", err)
+				continue
+			}
+
+			newHash := sha256.Sum256(data)
+			if !bytes.Equal(hashes[i][:], newHash[:]) {
+				// Detected change
+				change = true
+				hashes[i] = newHash
+			}
+		}
+
+		if change {
+			syscall.Kill(syscall.Getpid(), syscall.SIGUSR1)
 		}
 	}
 }

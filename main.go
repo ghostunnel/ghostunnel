@@ -31,18 +31,18 @@ import (
 )
 
 var (
-	// Startup flags
-	listenAddress  = kingpin.Flag("listen", "Address and port to listen on").Required().TCP()
-	forwardAddress = kingpin.Flag("target", "Address to foward connections to").Required().TCP()
+	listenAddress  = kingpin.Flag("listen", "Address and port to listen on.").Required().TCP()
+	forwardAddress = kingpin.Flag("target", "Address to foward connections to.").Required().TCP()
 	unsafeTarget   = kingpin.Flag("unsafe-target", "If set, does not limit target to localhost, 127.0.0.1 or ::1").Bool()
-	keystorePath   = kingpin.Flag("keystore", "Path to certificate and keystore (PKCS12)").PlaceHolder("PATH").Required().String()
-	keystorePass   = kingpin.Flag("storepass", "Password for certificate and keystore").PlaceHolder("PASS").Required().String()
-	caBundlePath   = kingpin.Flag("cacert", "Path to certificate authority bundle file (PEM/X509)").Required().String()
-	watchFiles     = kingpin.Flag("auto-reload", "Watch keystore file with inotify/fswatch and reload on changes").Bool()
-	allowAll       = kingpin.Flag("allow-all", "Allow all clients, do not check client cert subject").Bool()
-	allowedCNs     = kingpin.Flag("allow-cn", "Allow clients with given common name (can be repeated)").PlaceHolder("CN").Strings()
-	allowedOUs     = kingpin.Flag("allow-ou", "Allow clients with organizational unit name (can be repeated)").PlaceHolder("OU").Strings()
-	useSyslog      = kingpin.Flag("syslog", "Send logs to syslog instead of stderr").Bool()
+	keystorePath   = kingpin.Flag("keystore", "Path to certificate and keystore (PKCS12).").PlaceHolder("PATH").Required().String()
+	keystorePass   = kingpin.Flag("storepass", "Password for certificate and keystore.").PlaceHolder("PASS").Required().String()
+	caBundlePath   = kingpin.Flag("cacert", "Path to certificate authority bundle file (PEM/X509).").Required().String()
+	watchFiles     = kingpin.Flag("auto-reload", "Watch keystores file with inotify/fswatch and reload on changes.").Bool()
+	timedReload    = kingpin.Flag("timed-reload", "Reload keystores every N minutes, refresh listener on changes.").PlaceHolder("N").Int()
+	allowAll       = kingpin.Flag("allow-all", "Allow all clients, do not check client cert subject.").Bool()
+	allowedCNs     = kingpin.Flag("allow-cn", "Allow clients with given common name (can be repeated).").PlaceHolder("CN").Strings()
+	allowedOUs     = kingpin.Flag("allow-ou", "Allow clients with organizational unit name (can be repeated).").PlaceHolder("OU").Strings()
+	useSyslog      = kingpin.Flag("syslog", "Send logs to syslog instead of stderr.").Bool()
 )
 
 // Global logger instance
@@ -105,7 +105,11 @@ func main() {
 	}
 
 	if *watchFiles {
-		go watch([]string{*keystorePath, *caBundlePath})
+		go watchAuto([]string{*keystorePath, *caBundlePath})
+	}
+
+	if *timedReload > 0 {
+		go watchTimer([]string{*keystorePath, *caBundlePath}, *timedReload)
 	}
 
 	logger.Printf("initial startup completed, waiting for connections")
