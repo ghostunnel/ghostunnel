@@ -71,7 +71,15 @@ func main() {
 	kingpin.Parse()
 
 	if !(*allowAll) && len(*allowedCNs) == 0 && len(*allowedOUs) == 0 {
-		fmt.Fprintf(os.Stderr, "ghosttunel: error: at least one of --allow-all, --allow-cn or --allow-ou is required")
+		fmt.Fprintf(os.Stderr, "ghostunnel: error: at least one of --allow-all, --allow-cn or --allow-ou is required")
+		os.Exit(1)
+	}
+	if *allowAll && len(*allowedCNs) != 0 {
+		fmt.Fprintf(os.Stderr, "ghostunnel: error: --allow-all and --allow-cn are mutually exclusive")
+		os.Exit(1)
+	}
+	if *allowAll && len(*allowedOUs) != 0 {
+		fmt.Fprintf(os.Stderr, "ghostunnel: error: --allow-all and --allow-ou are mutually exclusive")
 		os.Exit(1)
 	}
 
