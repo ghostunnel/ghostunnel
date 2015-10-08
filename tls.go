@@ -67,12 +67,12 @@ func buildConfig() (*tls.Config, error) {
 
 	certAndKey, err := tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse cert chain: %s", err)
+		return nil, fmt.Errorf("unable to parse key pair: %s", err)
 	}
 
 	certAndKey.Leaf, err = x509.ParseCertificate(certAndKey.Certificate[0])
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse cert chain: %s", err)
+		return nil, fmt.Errorf("unable to parse leaf cert: %s", err)
 	}
 
 	return &tls.Config{
