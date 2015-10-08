@@ -1,6 +1,8 @@
 Ghostunnel
 ==========
 
+[![license](http://img.shields.io/badge/license-apache_2.0-red.svg?style=flat)](https://raw.githubusercontent.com/square/ghostunnel/master/LICENSE)
+
 Ghostunnel is a simple SSL/TLS proxy with mutual authentication support for
 securing non-TLS services such as Redis. Ghostunnel runs in front of a backend
 service and accepts TLS-secured connections, which are then forwarded to the
