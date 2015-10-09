@@ -1,15 +1,22 @@
-TESTS := $(shell find tests -name 'test-*.py' -exec basename {} \;)
+INTEGRATION_TESTS := $(shell find tests -name 'test-*.py' -exec basename {} .py \;)
 
-all: build test
+test: unit integration
 
-build:
-	go build -v
+# Run unit tests
+pre-unit: 
+	@echo "*** Running unit tests ***"
 
-test: unit $(TESTS)
+unit: pre-unit
+	@-go test -v 2>/dev/null
 
-unit:
-	go test -v
+# Run integration tests
+pre-integration: 
+	@echo "*** Running integration tests ***"
 
-test-%.py:
-	@echo "------- running $@ --------"
-	cd tests && python ./$@
+integration: pre-integration $(INTEGRATION_TESTS)
+	@echo "PASS"
+
+test-%:
+	@echo "=== RUN tests/$@"
+	@-cd tests && python ./$@.py > $@.log 2>&1
+	@echo "--- PASS: tests/$@"

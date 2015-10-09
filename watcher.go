@@ -93,6 +93,7 @@ func watchTimed(files []string, duration time.Duration, notify chan bool) {
 			newHash := sha256.Sum256(data)
 			if !bytes.Equal(hashes[i][:], newHash[:]) {
 				// Detected change
+				logger.Printf("detected change on %s, reloading", file)
 				change = true
 				hashes[i] = newHash
 			}
