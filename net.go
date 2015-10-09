@@ -78,6 +78,7 @@ func accept(listener net.Listener, wg *sync.WaitGroup, stopper chan bool, leaf *
 // and fusing them together.
 func handle(conn net.Conn, wg *sync.WaitGroup) {
 	defer wg.Done()
+	defer conn.Close()
 
 	logger.Printf("incoming connection: %s", conn.RemoteAddr())
 
