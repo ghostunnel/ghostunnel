@@ -1,4 +1,7 @@
 *.log
+*.srl
+*.ext
+*.csr
 *.p12
 *.pfx
 *.key
