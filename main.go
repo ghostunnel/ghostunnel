@@ -36,7 +36,7 @@ var (
 	forwardAddress = kingpin.Flag("target", "Address to foward connections to.").Required().TCP()
 	unsafeTarget   = kingpin.Flag("unsafe-target", "If set, does not limit target to localhost, 127.0.0.1 or ::1").Bool()
 	keystorePath   = kingpin.Flag("keystore", "Path to certificate and keystore (PKCS12).").PlaceHolder("PATH").Required().String()
-	keystorePass   = kingpin.Flag("storepass", "Password for certificate and keystore.").PlaceHolder("PASS").Required().String()
+	keystorePass   = kingpin.Flag("storepass", "Password for certificate and keystore.").PlaceHolder("PASS").String()
 	caBundlePath   = kingpin.Flag("cacert", "Path to certificate authority bundle file (PEM/X509).").Required().String()
 	autoReload     = kingpin.Flag("auto-reload", "Watch keystores file with inotify/fswatch and reload on changes.").Bool()
 	timedReload    = kingpin.Flag("timed-reload", "Reload keystores every N seconds, refresh listener on changes.").PlaceHolder("N").Int()
