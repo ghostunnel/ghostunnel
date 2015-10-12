@@ -91,3 +91,31 @@ class SocketPair:
     # if the tunnel doesn't close the connection, recv(1) will raise a Timeout
     self.client_sock.recv(1)
     print_ok(msg)
+
+# Like SocketPair, but uses UNIX sockets for the backend
+class SocketPairUnix(SocketPair):
+  def __init__(self, client, client_port, socket_path):
+    # setup a listening socket
+    l = None
+    try:
+      l = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+      l.settimeout(1)
+      l.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+      l.bind(socket_path)
+      l.listen(1)
+
+      # setup the client socket
+      # TODO: figure out a way to know when the server is ready?
+      time.sleep(1)
+      c = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+      c.settimeout(1)
+      self.client_sock = ssl.wrap_socket(c, keyfile='{0}.key'.format(client),
+        certfile='{0}.crt'.format(client), ssl_version=ssl.PROTOCOL_TLSv1_2,
+        cert_reqs=ssl.CERT_REQUIRED, ca_certs='root.crt')
+      self.client_sock.connect((LOCALHOST, client_port))
+
+      # grab the server socket
+      self.server_sock, _ = l.accept()
+      self.server_sock.settimeout(1)
+    finally:
+      l.close()

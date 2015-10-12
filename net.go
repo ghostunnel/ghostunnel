@@ -105,8 +105,8 @@ func fuse(client, backend net.Conn) {
 func copyData(dst net.Conn, src net.Conn) {
 	defer dst.Close()
 	defer src.Close()
-	defer logger.Printf("closed pipe: %s <- %s", dst.RemoteAddr(), src.RemoteAddr())
-	logger.Printf("opening pipe: %s <- %s", dst.RemoteAddr(), src.RemoteAddr())
+	defer logger.Printf("closed pipe: %s:%s <- %s:%s", dst.RemoteAddr().Network(), dst.RemoteAddr().String(), src.RemoteAddr().Network(), src.RemoteAddr().String())
+	logger.Printf("opening pipe: %s:%s <- %s:%s", dst.RemoteAddr().Network(), dst.RemoteAddr().String(), src.RemoteAddr().Network(), src.RemoteAddr().String())
 
 	_, err := io.Copy(dst, src)
 
