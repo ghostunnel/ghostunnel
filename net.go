@@ -21,11 +21,13 @@ import (
 	"crypto/x509"
 	"io"
 	"net"
+	"os"
+	"strings"
 	"sync"
 )
 
 // Accept incoming connections and spawn Go routines to handle them.
-func accept(listener net.Listener, wg *sync.WaitGroup, stopper chan bool, leaf *x509.Certificate) {
+func accept(listener net.Listener, wg *sync.WaitGroup, stopper chan bool, leaf *x509.Certificate, dial func() (net.Conn, error)) {
 	defer wg.Done()
 	defer listener.Close()
 
@@ -70,19 +72,19 @@ func accept(listener net.Listener, wg *sync.WaitGroup, stopper chan bool, leaf *
 		}
 
 		wg.Add(1)
-		go handle(conn, wg)
+		go handle(conn, wg, dial)
 	}
 }
 
 // Handle incoming connection by opening new connection to our backend service
 // and fusing them together.
-func handle(conn net.Conn, wg *sync.WaitGroup) {
+func handle(conn net.Conn, wg *sync.WaitGroup, dial func() (net.Conn, error)) {
 	defer wg.Done()
 	defer conn.Close()
 
 	logger.Printf("incoming connection: %s", conn.RemoteAddr())
 
-	backend, err := net.Dial((*forwardAddress).Network(), (*forwardAddress).String())
+	backend, err := dial()
 
 	if err != nil {
 		logger.Printf("failed to dial backend: %s", err)
@@ -103,8 +105,8 @@ func fuse(client, backend net.Conn) {
 func copyData(dst net.Conn, src net.Conn) {
 	defer dst.Close()
 	defer src.Close()
-	defer logger.Printf("closed pipe: %s <- %s", dst.RemoteAddr(), src.RemoteAddr())
-	logger.Printf("opening pipe: %s <- %s", dst.RemoteAddr(), src.RemoteAddr())
+	defer logger.Printf("closed pipe: %s:%s <- %s:%s", dst.RemoteAddr().Network(), dst.RemoteAddr().String(), src.RemoteAddr().Network(), src.RemoteAddr().String())
+	logger.Printf("opening pipe: %s:%s <- %s:%s", dst.RemoteAddr().Network(), dst.RemoteAddr().String(), src.RemoteAddr().Network(), src.RemoteAddr().String())
 
 	_, err := io.Copy(dst, src)
 
@@ -125,5 +127,26 @@ func decodeAddress(tuple *net.TCPAddr) (network, address string) {
 	}
 
 	address = tuple.String()
+	return
+}
+
+// Parse a string representing a TCP address or UNIX socket for our backend
+// target. The input can be or the form "HOST:PORT" for TCP or "unix:PATH"
+// for a UNIX socket.
+func parseTarget(input string) (network, address string, err error) {
+	if strings.HasPrefix(input, "unix:") {
+		network = "unix"
+		address = input[5:]
+		_, err = os.Stat(address)
+		return
+	}
+
+	var tcp *net.TCPAddr
+	tcp, err = net.ResolveTCPAddr("tcp", input)
+	if err != nil {
+		return
+	}
+
+	network, address = decodeAddress(tcp)
 	return
 }
