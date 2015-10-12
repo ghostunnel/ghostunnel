@@ -23,7 +23,6 @@ import (
 	"log/syslog"
 	"net"
 	"os"
-	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -130,13 +129,13 @@ func validateTarget(addr string) bool {
 	if strings.HasPrefix(addr, "unix:") {
 		return true
 	}
-	if matched, _ := regexp.MatchString("^127[.]0[.]0[.]1:\\d+$", addr); matched {
+	if strings.HasPrefix(addr, "127.0.0.1:") {
 		return true
 	}
-	if matched, _ := regexp.MatchString("^\\[::1\\]:\\d+$", addr); matched {
+	if strings.HasPrefix(addr, "[::1]:") {
 		return true
 	}
-	if matched, _ := regexp.MatchString("^localhost:\\d+$", addr); matched {
+	if strings.HasPrefix(addr, "localhost:") {
 		return true
 	}
 	return false
