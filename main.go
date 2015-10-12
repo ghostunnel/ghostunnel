@@ -21,9 +21,11 @@ import (
 	"fmt"
 	"log"
 	"log/syslog"
+	"net"
 	"os"
 	"regexp"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,7 +35,7 @@ import (
 
 var (
 	listenAddress  = kingpin.Flag("listen", "Address and port to listen on.").Required().TCP()
-	forwardAddress = kingpin.Flag("target", "Address to foward connections to.").Required().TCP()
+	forwardAddress = kingpin.Flag("target", "Address to foward connections to (HOST:PORT, or unix:PATH).").Required().String()
 	unsafeTarget   = kingpin.Flag("unsafe-target", "If set, does not limit target to localhost, 127.0.0.1 or ::1").Bool()
 	keystorePath   = kingpin.Flag("keystore", "Path to certificate and keystore (PKCS12).").PlaceHolder("PATH").Required().String()
 	keystorePass   = kingpin.Flag("storepass", "Password for certificate and keystore.").PlaceHolder("PASS").String()
@@ -84,7 +86,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "ghostunnel: error: --allow-all and --allow-ou are mutually exclusive")
 		os.Exit(1)
 	}
-	if !validateTarget((*forwardAddress).String()) {
+	if !validateTarget(*forwardAddress) {
 		fmt.Fprintf(os.Stderr, "ghostunnel: error: --target must be localhost:port, 127.0.0.1:port or [::1]:port")
 		os.Exit(1)
 	}
@@ -123,6 +125,9 @@ func main() {
 
 func validateTarget(addr string) bool {
 	if *unsafeTarget {
+		return true
+	}
+	if strings.HasPrefix(addr, "unix:") {
 		return true
 	}
 	if matched, _ := regexp.MatchString("^127[.]0[.]0[.]1:\\d+$", addr); matched {
@@ -174,7 +179,18 @@ func listen(started chan bool, listeners *sync.WaitGroup, watcher chan bool) {
 	// should shut down.
 	stopper := make(chan bool, 1)
 
-	go accept(listener, handlers, stopper, leaf)
+	backendNet, backendAddr, err := parseTarget(*forwardAddress)
+	if err != nil {
+		logger.Printf("invalid backend address: %s", err)
+		started <- false
+		return
+	}
+
+	dial := func() (net.Conn, error) {
+		return net.Dial(backendNet, backendAddr)
+	}
+
+	go accept(listener, handlers, stopper, leaf, dial)
 	go signalHandler(listener, stopper, listeners, watcher)
 
 	started <- true
