@@ -37,42 +37,38 @@ To get started and play around with the implementation, you will need to
 generate some test certificates. If you want to bootstrap a full PKI, one
 good way to get started is to use a package like
 [square/certstrap](https://github.com/square/certstrap). If you only need
-some test certificates for playing around with the tunnel, OpenSSL can
-be used to generate them.
-
-### Generate test keys
-
-You must first generate a root certificate:
-
-    openssl genrsa -out root.key 1024
-    openssl req -x509 -new -key root.key -days 5 -out root.crt -subj /C=US/ST=CA/O=ghostunnel/OU=root
-
-Configure OpenSSL to set extensions and subject alt names:
-
-    cat >openssl.ext <<EOF
-    extendedKeyUsage = clientAuth, serverAuth
-    subjectAltName = IP:127.0.0.1,IP:::1
-    EOF
-
-Finally you can sign server and client certificates:
-
-    openssl genrsa -out server.key 1024
-    openssl req -new -key server.key -out server.csr -subj /C=US/ST=CA/O=ghostunnel/OU=server
-    openssl x509 -req -in server.csr -CA root.crt -CAkey root.key -CAcreateserial -out server.crt -days 5 -extfile openssl.ext
-    openssl pkcs12 -export -out server.p12 -in server.crt -inkey server.key -password pass:
-
-    openssl genrsa -out server.key 1024
-    openssl req -new -key client.key -out client.csr -subj /C=US/ST=CA/O=ghostunnel/OU=client
-    openssl x509 -req -in client.csr -CA root.crt -CAkey root.key -CAcreateserial -out client.crt -days 5 -extfile openssl.ext
-    openssl pkcs12 -export -out client.p12 -in client.crt -inkey client.key -password pass:
+some test certificates for playing around with the tunnel, you can find
+some pre-generated ones in the test-keys/ directory (alongside instructions
+on how to generate new ones with OpenSSL).
 
 ### Launch ghostunnel
 
+This is a short example for how to lunch ghostunnel listening for incoming
+connections on localhost:8443 and forwarding them to localhost:8080. We
+assume that server-keystore.p12 is a PKCS12 keystore with the cert and private
+key for the server, ca-bundle.crt contains your trusted root certificates,
+and the OU of the client cert to accept connections from is "client".
+
 Start a ghostunnel with a server certificate:
 
-    ghostunnel --listen 127.0.0.1:8443 --target 127.0.0.1:8080 --keystore server.p12 --cacert root.crt --allow-ou client
+    ghostunnel \
+        --listen 127.0.0.1:8443 \
+        --target 127.0.0.1:8080 \
+        --keystore server-keystore.p12 \
+        --cacert ca-bundle.crt \
+        --allow-ou client
 
 Verify that the client(s) can connect with their client certificate:
 
-    openssl s_client -connect 127.0.0.1:8443 -cert client.crt -key client.key -CAfile root.crt
+    openssl s_client \
+        -connect 127.0.0.1:8443 \
+        -cert client.crt \
+        -key client.key \
+        -CAfile ca-bundle.crt
 
+If `openssl s_client` can connect, then the tunnel should be working as
+intended! Be sure to check the logs to see incoming connections and other
+information. Note that by default ghostunnel logs to stderr and runs in the
+foreground.  For deamonization, we recommend using a utility such as
+[daemonize](http://software.clapper.org/daemonize/). Ghostunnel supports
+logging to syslog with the `--syslog` flag.
