@@ -27,7 +27,7 @@ if __name__ == "__main__":
 
     # Move new_server.p12 to server.p12 and give the tunnel 1s to read the file
     os.rename('new_server.p12', 'server.p12')
-    time.sleep(1)
+    time.sleep(5)
 
     # Step 4: create connections with client1
     pair2 = SocketPair('client1', 13001, 13000)

@@ -3,7 +3,7 @@
 # Creates a ghostunnel. Ensures that tunnel sees & reloads a root certificate
 # change.
 
-from subprocess import Popen
+from subprocess import Popen, call
 from test_common import create_root_cert, create_signed_cert, LOCALHOST, SocketPair, print_ok, cleanup_certs
 import socket, ssl, time
 
@@ -40,11 +40,17 @@ if __name__ == "__main__":
 
     # TODO: figure out a more reliable way to tell that the tunnel picked up
     # the new cert.
-    time.sleep(1)
+    time.sleep(30)
 
     # Step 5: ensure that client1 can connect
-    pair3 = SocketPair('client1', 13001, 13000)
-    pair3.validate_can_send_from_client("toto", "pair3 works")
+    try:
+      pair3 = SocketPair('client1', 13001, 13000)
+      pair3.validate_can_send_from_client("toto", "pair3 works")
+    except ssl.SSLError:
+      # FIXME: retrying to due flakiness, which for some reason only
+      # seems to appear on travis-ci :(
+      pair3 = SocketPair('client1', 13001, 13000)
+      pair3.validate_can_send_from_client("toto", "pair3 works")
 
     # Step 6: ensure that client2 cannot connect
     try:

@@ -19,6 +19,7 @@ package main
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/hex"
 	"io/ioutil"
 	"path"
 	"time"
@@ -28,6 +29,7 @@ import (
 
 // Watch files using inotify/fswatch.
 func watchAuto(files []string, notify chan bool) {
+	hashes := hashFiles(files)
 	watcher, err := fsnotify.NewWatcher()
 	panicOnError(err)
 
@@ -43,15 +45,22 @@ func watchAuto(files []string, notify chan bool) {
 		select {
 		case event := <-watcher.Events:
 			for _, file := range files {
-				if path.Base(event.Name) == path.Base(file) {
-					logger.Printf("detected change on %s, reloading", event.Name)
-					notify <- true
+				name := path.Base(event.Name)
+				if name == path.Base(file) {
+					logger.Printf("received fs event for %s", name)
 
 					// If we get Create event, it's probably because the file was
 					// removed and then re-added. Need to re-register for events
 					// on file or we won't get them in the future.
 					if event.Op&fsnotify.Create == fsnotify.Create {
 						watcher.Add(file)
+					}
+
+					if fileChanged(hashes, file) {
+						logger.Printf("detected change on %s", name)
+						notify <- true
+					} else {
+						logger.Printf("no change on %s", name)
 					}
 
 					break
@@ -67,40 +76,73 @@ func watchAuto(files []string, notify chan bool) {
 // Watch files with a periodic timer, for filesystems that don't do
 // inotify correctly (e.g. some fuse filesystems or other custom stuff).
 func watchTimed(files []string, duration time.Duration, notify chan bool) {
-	hashes := make([][32]byte, len(files))
-	for i, file := range files {
-		data, err := ioutil.ReadFile(file)
-		if err != nil {
-			logger.Printf("error watching file: %s", err)
-			continue
-		}
-
-		hashes[i] = sha256.Sum256(data)
-	}
-
+	hashes := hashFiles(files)
 	ticker := time.Tick(duration)
+
 	for {
 		<-ticker
+		logger.Printf("running timed reload (timer fired)")
 
 		change := false
-		for i, file := range files {
-			data, err := ioutil.ReadFile(file)
-			if err != nil {
-				logger.Printf("error watching file: %s", err)
-				continue
-			}
-
-			newHash := sha256.Sum256(data)
-			if !bytes.Equal(hashes[i][:], newHash[:]) {
-				// Detected change
-				logger.Printf("detected change on %s, reloading", file)
+		for _, file := range files {
+			if fileChanged(hashes, file) {
+				logger.Printf("detected change on %s, reloading", path.Base(file))
 				change = true
-				hashes[i] = newHash
 			}
 		}
 
 		if change {
 			notify <- true
+		} else {
+			logger.Printf("nothing changed, not reloading")
 		}
 	}
+}
+
+// Hash initial state of files we're watching
+func hashFiles(files []string) map[string][32]byte {
+	hashes := make(map[string][32]byte)
+
+	for _, file := range files {
+		hash, err := hashFile(file)
+		if err != nil {
+			logger.Printf("error reading file: %s", err)
+			continue
+		}
+
+		name := path.Base(file)
+		logger.Printf("sha256(%s) = %s", name, hex.EncodeToString(hash[:]))
+		hashes[name] = hash
+	}
+
+	return hashes
+}
+
+// Read & hash a single file
+func hashFile(file string) ([32]byte, error) {
+	data, err := ioutil.ReadFile(file)
+	if err != nil {
+		return [32]byte{}, err
+	}
+
+	return sha256.Sum256(data), nil
+}
+
+// Check if a file has changed contents, update hash
+func fileChanged(hashes map[string][32]byte, file string) bool {
+	newHash, err := hashFile(file)
+	if err != nil {
+		logger.Printf("error reading file: %s", err)
+		return false
+	}
+
+	name := path.Base(file)
+	oldHash := hashes[name]
+	if !bytes.Equal(oldHash[:], newHash[:]) {
+		logger.Printf("sha256(%s) = %s", name, hex.EncodeToString(newHash[:]))
+		hashes[name] = newHash
+		return true
+	}
+
+	return false
 }

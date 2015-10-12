@@ -35,22 +35,24 @@ func accept(listener net.Listener, wg *sync.WaitGroup, stopper chan bool, leaf *
 		// Wait for new connection
 		conn, err := listener.Accept()
 
-		// Check if we're supposed to stop
-		select {
-		case _ = <-stopper:
-			logger.Printf("closing socket with cert serial no. %d (expiring %s)", leaf.SerialNumber, leaf.NotAfter.String())
-			return
-		default:
-		}
-
 		if err != nil {
+			// Check if we're supposed to stop
+			select {
+			case _ = <-stopper:
+				logger.Printf("closing socket with cert serial no. %d (expiring %s)", leaf.SerialNumber, leaf.NotAfter.String())
+				return
+			default:
+			}
+
 			logger.Printf("error accepting connection: %s", err)
 			continue
 		}
 
+		logger.Printf("incoming connection: %s", conn.RemoteAddr())
+
 		tlsConn, ok := conn.(*tls.Conn)
 		if !ok {
-			logger.Printf("received non-TLS connection from %s? Ignoring", conn.RemoteAddr())
+			logger.Printf("received non-TLS connection from %s? ignoring", conn.RemoteAddr())
 			conn.Close()
 			continue
 		}
@@ -82,7 +84,7 @@ func handle(conn net.Conn, wg *sync.WaitGroup, dial func() (net.Conn, error)) {
 	defer wg.Done()
 	defer conn.Close()
 
-	logger.Printf("incoming connection: %s", conn.RemoteAddr())
+	logger.Printf("successful handshake with %s", conn.RemoteAddr())
 
 	backend, err := dial()
 

@@ -8,13 +8,16 @@ def create_signed_cert(ou, root):
   call("openssl genrsa -out {0}.key 1024".format(ou), shell=True)
   call("openssl req -new -key {0}.key -out {0}.csr -subj /C=US/ST=CA/O=ghostunnel/OU={0}".format(ou), shell=True)
   call("chmod 600 {0}.key".format(ou), shell=True)
-  call("openssl x509 -req -in {0}.csr -CA {1}.crt -CAkey {1}.key -CAcreateserial -out {0}.crt -days 5 -extfile openssl.ext".format(ou, root), shell=True)
-  call("openssl pkcs12 -export -out {0}.p12 -in {0}.crt -inkey {0}.key -password pass:".format(ou), shell=True)
+  call("openssl x509 -req -in {0}.csr -CA {1}.crt -CAkey {1}.key -CAcreateserial -out {0}_temp.crt -days 5 -extfile openssl.ext".format(ou, root), shell=True)
+  call("openssl pkcs12 -export -out {0}_temp.p12 -in {0}_temp.crt -inkey {0}.key -password pass:".format(ou), shell=True)
+  os.rename("{0}_temp.crt".format(ou), "{0}.crt".format(ou))
+  os.rename("{0}_temp.p12".format(ou), "{0}.p12".format(ou))
 
 # Helper function to create a root cert
 def create_root_cert(root):
   call('openssl genrsa -out {0}.key 1024'.format(root), shell=True)
-  call('openssl req -x509 -new -key {0}.key -days 5 -out {0}.crt -subj /C=US/ST=CA/O=ghostunnel/OU={0}'.format(root), shell=True)
+  call('openssl req -x509 -new -key {0}.key -days 5 -out {0}_temp.crt -subj /C=US/ST=CA/O=ghostunnel/OU={0}'.format(root), shell=True)
+  os.rename("{0}_temp.crt".format(root), "{0}.crt".format(root))
   call('chmod 600 {0}.key'.format(root), shell=True)
 
 def cleanup_certs(names):
@@ -38,24 +41,23 @@ class SocketPair:
     l = None
     try:
       l = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-      l.settimeout(1)
+      l.settimeout(30)
       l.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
       l.bind((LOCALHOST, server_port))
       l.listen(1)
 
       # setup the client socket
       # TODO: figure out a way to know when the server is ready?
-      time.sleep(1)
+      time.sleep(15)
       c = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-      c.settimeout(1)
+      c.settimeout(30)
       self.client_sock = ssl.wrap_socket(c, keyfile='{0}.key'.format(client),
-        certfile='{0}.crt'.format(client), ssl_version=ssl.PROTOCOL_TLSv1_2,
-        cert_reqs=ssl.CERT_REQUIRED, ca_certs='root.crt')
+        certfile='{0}.crt'.format(client), cert_reqs=ssl.CERT_REQUIRED, ca_certs='root.crt')
       self.client_sock.connect((LOCALHOST, client_port))
 
       # grab the server socket
       self.server_sock, _ = l.accept()
-      self.server_sock.settimeout(1)
+      self.server_sock.settimeout(30)
     finally:
       l.close()
 
@@ -106,12 +108,11 @@ class SocketPairUnix(SocketPair):
 
       # setup the client socket
       # TODO: figure out a way to know when the server is ready?
-      time.sleep(1)
+      time.sleep(5)
       c = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
       c.settimeout(1)
       self.client_sock = ssl.wrap_socket(c, keyfile='{0}.key'.format(client),
-        certfile='{0}.crt'.format(client), ssl_version=ssl.PROTOCOL_TLSv1_2,
-        cert_reqs=ssl.CERT_REQUIRED, ca_certs='root.crt')
+        certfile='{0}.crt'.format(client), cert_reqs=ssl.CERT_REQUIRED, ca_certs='root.crt')
       self.client_sock.connect((LOCALHOST, client_port))
 
       # grab the server socket
