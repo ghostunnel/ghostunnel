@@ -7,7 +7,7 @@ pre-unit:
 	@echo "*** Running unit tests ***"
 
 unit: pre-unit
-	@-go test -v 2>/dev/null
+	@go test -v
 
 # Run integration tests
 pre-integration: 
@@ -18,5 +18,5 @@ integration: pre-integration $(INTEGRATION_TESTS)
 
 test-%:
 	@echo "=== RUN tests/$@"
-	@-cd tests && python ./$@.py > $@.log 2>&1
+	@cd tests && python ./$@.py
 	@echo "--- PASS: tests/$@"

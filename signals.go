@@ -52,7 +52,7 @@ func signalHandler(listener net.Listener, stopper chan bool, listeners *sync.Wai
 				}
 			}
 		case _ = <-watcher:
-			logger.Printf("detected file change, reloading listener")
+			logger.Printf("reloading listener...")
 			if reloadListener(listeners, watcher) {
 				return
 			}

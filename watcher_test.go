@@ -38,9 +38,9 @@ func TestWatchers(t *testing.T) {
 	watcherTimed := make(chan bool, 1)
 
 	go watchAuto([]string{tmpFile.Name()}, watcherAuto)
-	go watchTimed([]string{tmpFile.Name()}, time.Duration(10)*time.Millisecond, watcherTimed)
+	go watchTimed([]string{tmpFile.Name()}, time.Duration(100)*time.Millisecond, watcherTimed)
 
-	time.Sleep(time.Duration(3) * time.Second)
+	time.Sleep(time.Duration(1) * time.Second)
 
 	// Must detect new writes
 	tmpFile.WriteString("new")
