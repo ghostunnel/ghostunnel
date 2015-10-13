@@ -16,9 +16,10 @@ if __name__ == "__main__":
     create_signed_cert('client1', 'root')
 
     # Step 2: start ghostunnel
-    ghostunnel = Popen(['../ghostunnel', '--listen={0}:13001'.format(LOCALHOST),
-      '--target={0}:13000'.format(LOCALHOST), '--keystore=server.p12',
-      '--storepass=', '--cacert=root.crt', '--allow-ou=client1'])
+    #ghostunnel = Popen(['../ghostunnel', '--listen={0}:13001'.format(LOCALHOST),
+    #  '--target={0}:13000'.format(LOCALHOST), '--keystore=server.p12',
+    #  '--storepass=', '--cacert=root.crt', '--allow-ou=client1'])
+    ghostunnel = Popen(['/usr/local/Cellar/stunnel/5.23/bin/stunnel', 'stunnel-1.conf'])
 
     # Step 3: client should fail to connect since nothing is listening on 13002
     try:

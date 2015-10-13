@@ -6,7 +6,7 @@ LOCALHOST = '127.0.0.1'
 # Helper function to create a signed cert
 def create_signed_cert(ou, root):
   call("openssl genrsa -out {0}.key 1024".format(ou), shell=True)
-  call("openssl req -new -key {0}.key -out {0}.csr -subj /C=US/ST=CA/O=ghostunnel/OU={0}".format(ou), shell=True)
+  call("openssl req -new -key {0}.key -out {0}.csr -subj /C=US/ST=CA/CN={0}/O=ghostunnel/OU={0}".format(ou), shell=True)
   call("chmod 600 {0}.key".format(ou), shell=True)
   call("openssl x509 -req -in {0}.csr -CA {1}.crt -CAkey {1}.key -CAcreateserial -out {0}.crt -days 5 -extfile openssl.ext".format(ou, root), shell=True)
   call("openssl pkcs12 -export -out {0}.p12 -in {0}.crt -inkey {0}.key -password pass:".format(ou), shell=True)
@@ -14,7 +14,7 @@ def create_signed_cert(ou, root):
 # Helper function to create a root cert
 def create_root_cert(root):
   call('openssl genrsa -out {0}.key 1024'.format(root), shell=True)
-  call('openssl req -x509 -new -key {0}.key -days 5 -out {0}.crt -subj /C=US/ST=CA/O=ghostunnel/OU={0}'.format(root), shell=True)
+  call('openssl req -x509 -new -key {0}.key -days 5 -out {0}.crt -subj /C=US/ST=CA/CN={0}/O=ghostunnel/OU={0}'.format(root), shell=True)
   call('chmod 600 {0}.key'.format(root), shell=True)
 
 def cleanup_certs(names):

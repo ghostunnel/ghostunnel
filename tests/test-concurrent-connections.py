@@ -41,9 +41,10 @@ if __name__ == "__main__":
       allow_ou.append("--allow-ou=client{0}".format(i))
 
     # Step 2: start ghostunnel
-    ghostunnel = Popen(['../ghostunnel', '--listen={0}:13001'.format(LOCALHOST),
-      '--target={0}:13000'.format(LOCALHOST), '--keystore=server.p12',
-      '--storepass=', '--cacert=root.crt'] + allow_ou)
+    #ghostunnel = Popen(['../ghostunnel', '--listen={0}:13001'.format(LOCALHOST),
+    #  '--target={0}:13000'.format(LOCALHOST), '--keystore=server.p12',
+    #  '--storepass=', '--cacert=root.crt'] + allow_ou)
+    ghostunnel = Popen(['/usr/local/Cellar/stunnel/5.23/bin/stunnel', 'stunnel-2.conf'])
 
     # Step 3: clients should be able to communicate all at the same time.
     proc = []

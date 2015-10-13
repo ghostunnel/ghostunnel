@@ -20,9 +20,10 @@ if __name__ == "__main__":
     create_signed_cert('other_client1', 'other_root')
 
     # Step 2: start ghostunnel
-    ghostunnel = Popen(['../ghostunnel', '--listen={0}:13001'.format(LOCALHOST),
-      '--target={0}:13000'.format(LOCALHOST), '--keystore=server.p12',
-      '--storepass=', '--cacert=root.crt', '--allow-ou=client1'])
+    #ghostunnel = Popen(['../ghostunnel', '--listen={0}:13001'.format(LOCALHOST),
+    #  '--target={0}:13000'.format(LOCALHOST), '--keystore=server.p12',
+    #  '--storepass=', '--cacert=root.crt', '--allow-ou=client1'])
+    ghostunnel = Popen(['/usr/local/Cellar/stunnel/5.23/bin/stunnel', 'stunnel-1.conf'])
 
     # Step 3: connect with client1, confirm that the tunnel is up
     pair = SocketPair('client1', 13001, 13000)
@@ -34,7 +35,7 @@ if __name__ == "__main__":
     try:
       pair = SocketPair('client2', 13001, 13000)
       raise Exception('failed to reject client2')
-    except socket.timeout:
+    except (socket.timeout, ssl.SSLError) as e:
       # TODO: this should be a ssl.SSLError, but ends up being a timeout. Figure
       # out why.
       print_ok("client2 correctly rejected")
