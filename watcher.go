@@ -23,59 +23,11 @@ import (
 	"io/ioutil"
 	"path"
 	"time"
-
-	"gopkg.in/fsnotify.v1"
 )
-
-// Watch files using inotify/fswatch.
-func watchAuto(files []string, notify chan bool) {
-	hashes := hashFiles(files)
-	watcher, err := fsnotify.NewWatcher()
-	panicOnError(err)
-
-	for _, file := range files {
-		// Need to watch both directory and file, because we want to detect
-		// files being overwritten (gives Write event) but also files being
-		// removed/re-added.
-		watcher.Add(file)
-		watcher.Add(path.Dir(file))
-	}
-
-	for {
-		select {
-		case event := <-watcher.Events:
-			for _, file := range files {
-				name := path.Base(event.Name)
-				if name == path.Base(file) {
-					logger.Printf("received fs event for %s", name)
-
-					// If we get Create event, it's probably because the file was
-					// removed and then re-added. Need to re-register for events
-					// on file or we won't get them in the future.
-					if event.Op&fsnotify.Create == fsnotify.Create {
-						watcher.Add(file)
-					}
-
-					if fileChanged(hashes, file) {
-						logger.Printf("detected change on %s", name)
-						notify <- true
-					} else {
-						logger.Printf("no change on %s", name)
-					}
-
-					break
-				}
-			}
-
-		case err := <-watcher.Errors:
-			logger.Printf("error watching file: %s", err)
-		}
-	}
-}
 
 // Watch files with a periodic timer, for filesystems that don't do
 // inotify correctly (e.g. some fuse filesystems or other custom stuff).
-func watchTimed(files []string, duration time.Duration, notify chan bool) {
+func watchFiles(files []string, duration time.Duration, notify chan bool) {
 	hashes := hashFiles(files)
 	ticker := time.Tick(duration)
 

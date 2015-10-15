@@ -39,7 +39,6 @@ var (
 	keystorePath   = kingpin.Flag("keystore", "Path to certificate and keystore (PKCS12).").PlaceHolder("PATH").Required().String()
 	keystorePass   = kingpin.Flag("storepass", "Password for certificate and keystore.").PlaceHolder("PASS").String()
 	caBundlePath   = kingpin.Flag("cacert", "Path to certificate authority bundle file (PEM/X509).").Required().String()
-	autoReload     = kingpin.Flag("auto-reload", "Watch keystores file with inotify/fswatch and reload on changes.").Bool()
 	timedReload    = kingpin.Flag("timed-reload", "Reload keystores every N seconds, refresh listener on changes.").PlaceHolder("N").Int()
 	allowAll       = kingpin.Flag("allow-all", "Allow all clients, do not check client cert subject.").Bool()
 	allowedCNs     = kingpin.Flag("allow-cn", "Allow clients with given common name (can be repeated).").PlaceHolder("CN").Strings()
@@ -89,10 +88,6 @@ func main() {
 		fmt.Fprintf(os.Stderr, "ghostunnel: error: --target must be localhost:port, 127.0.0.1:port or [::1]:port")
 		os.Exit(1)
 	}
-	if *autoReload && (*timedReload > 0) {
-		fmt.Fprintf(os.Stderr, "ghostunnel: error: --auto-reload and --timed-reload are mutually exclusive")
-		os.Exit(1)
-	}
 
 	initLogger()
 
@@ -101,10 +96,8 @@ func main() {
 
 	// Set up file watchers (if requested)
 	watcher := make(chan bool, 1)
-	if *autoReload {
-		go watchAuto([]string{*keystorePath, *caBundlePath}, watcher)
-	} else if *timedReload > 0 {
-		go watchTimed([]string{*keystorePath, *caBundlePath}, time.Duration(*timedReload)*time.Second, watcher)
+	if *timedReload > 0 {
+		go watchFiles([]string{*keystorePath, *caBundlePath}, time.Duration(*timedReload)*time.Second, watcher)
 	}
 
 	// A channel to notify us that the listener is running.
