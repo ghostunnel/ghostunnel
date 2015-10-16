@@ -34,11 +34,9 @@ func TestWatchers(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 
 	// Start watching
-	watcherAuto := make(chan bool, 1)
-	watcherTimed := make(chan bool, 1)
+	watcher := make(chan bool, 1)
 
-	go watchAuto([]string{tmpFile.Name()}, watcherAuto)
-	go watchTimed([]string{tmpFile.Name()}, time.Duration(100)*time.Millisecond, watcherTimed)
+	go watchFiles([]string{tmpFile.Name()}, time.Duration(100)*time.Millisecond, watcher)
 
 	time.Sleep(time.Duration(1) * time.Second)
 
@@ -48,13 +46,7 @@ func TestWatchers(t *testing.T) {
 	tmpFile.Close()
 
 	select {
-	case _ = <-watcherTimed:
-	case _ = <-time.Tick(time.Duration(1) * time.Second):
-		t.Fatalf("timeout, no notification on changed file")
-	}
-
-	select {
-	case _ = <-watcherAuto:
+	case _ = <-watcher:
 	case _ = <-time.Tick(time.Duration(1) * time.Second):
 		t.Fatalf("timeout, no notification on changed file")
 	}
@@ -69,13 +61,7 @@ func TestWatchers(t *testing.T) {
 	tmpFile.Close()
 
 	select {
-	case _ = <-watcherTimed:
-	case _ = <-time.Tick(time.Duration(1) * time.Second):
-		t.Fatalf("timeout, no notification on changed file")
-	}
-
-	select {
-	case _ = <-watcherAuto:
+	case _ = <-watcher:
 	case _ = <-time.Tick(time.Duration(1) * time.Second):
 		t.Fatalf("timeout, no notification on changed file")
 	}

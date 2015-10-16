@@ -18,10 +18,11 @@ runtime without dropping existing connections. To trigger a reload, simply send
 files and open a new listening socket (via `SO_REUSEPORT`). Once successful,
 the old listening socket will be closed.
 
-Ghostunnel can also reload certificates automatically via inotify/fswatch,
-which can be enabled with the `--auto-reload` flag. If you want to do without
-inotify/fswatch, ghostunnel also supports periodically reloading cert/key files
-from disk at a specified interval with the `--timed-reload` flag.
+Ghostunnel can also reload certificates periodically. You can specify an
+interval with the `--timed-reload` flag. If the timed reload flag is enabled,
+ghostunnel will reload the files periodically and check for changes. If a
+change is detected, it will attempt to reload the listener with the new
+certificates/private key. 
 
 ***AuthN/AuthZ***: Ghostunnel always enforces AuthN by requiring a valid client
 certificate. It also supports AuthZ via checks of the CN or OU fields on the 

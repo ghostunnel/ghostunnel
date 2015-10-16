@@ -5,7 +5,7 @@
 
 from subprocess import Popen, call
 from test_common import create_root_cert, create_signed_cert, LOCALHOST, SocketPair, print_ok, cleanup_certs
-import socket, ssl, time
+import socket, ssl, time, signal
 
 if __name__ == "__main__":
   ghostunnel = None
@@ -19,7 +19,7 @@ if __name__ == "__main__":
     # Step 2: start ghostunnel
     ghostunnel = Popen(['../ghostunnel', '--listen={0}:13001'.format(LOCALHOST),
       '--target={0}:13000'.format(LOCALHOST), '--keystore=server.p12',
-      '--storepass=', '--cacert=root.crt', '--allow-ou=client1', '--allow-ou=client2', '--auto-reload'])
+      '--storepass=', '--cacert=root.crt', '--allow-ou=client1', '--allow-ou=client2'])
 
     # Step 3: create connections with client1 and client2
     pair1 = SocketPair('client1', 13001, 13000)
@@ -38,9 +38,9 @@ if __name__ == "__main__":
     create_signed_cert('client1', 'root')
     print_ok("re-created client1")
 
-    # TODO: figure out a more reliable way to tell that the tunnel picked up
-    # the new cert.
-    time.sleep(30)
+    # Trigger reload
+    ghostunnel.send_signal(signal.SIGUSR1)
+    time.sleep(10)
 
     # Step 5: ensure that client1 can connect
     try:
