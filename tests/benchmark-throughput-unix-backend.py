@@ -1,10 +1,8 @@
 #!/usr/local/bin/python
 
-# Creates a ghostunnel. Ensures when server disconnects that the client
-# connection also disconnects.
-
 from subprocess import Popen
 from test_common import create_root_cert, create_signed_cert, LOCALHOST, SocketPairUnix, print_ok, cleanup_certs
+from timeit import default_timer as timer
 import socket, ssl, tempfile, os
 
 if __name__ == "__main__":
@@ -25,16 +23,31 @@ if __name__ == "__main__":
 
     # Step 3: connect with client1, confirm that the tunnel is up
     pair = SocketPairUnix('client1', 13001, socket_path)
-    pair.validate_can_send_from_server("hello world", "1: server -> client")
-    pair.validate_can_send_from_client("hello world", "1: client -> server")
-    pair.validate_closing_server_closes_client("1: server closed -> client closed")
+    pair.validate_can_send_from_server('hello world', '1: server -> client')
+    pair.validate_can_send_from_client('hello world', '1: client -> server')
 
-    pair = SocketPairUnix('client1', 13001, socket_path)
-    pair.validate_can_send_from_server("hello world", "1: server -> client")
-    pair.validate_can_send_from_client("hello world", "1: client -> server")
-    pair.validate_closing_client_closes_server("1: server closed -> client closed")
+    # Step 4: send large chunks of data, measure throughput
+    start = timer()
 
-    print_ok("OK")
+    print_ok('Sending data...')
+
+    b = b'\x41'
+    n = 100*1024*1024
+    c = 5*1024
+    r = n
+    while r > 0:
+        block = b*c
+        pair.client_sock.send(b*c)
+        resp = pair.server_sock.recv(len(b)*c)
+        r -= len(b)*c
+
+    print_ok('Sent %d bytes' % (n-r))
+
+    end = timer()
+    print_ok('Time elapsed: %.2f sec' % (end - start))
+    print_ok('Throughput: %.2f MiB/sec' % ((n-r)/(end-start)/1024/1024))
+
+    print_ok('OK')
   finally:
     os.remove(socket_path)
     cleanup_certs(['root', 'server', 'client1'])
