@@ -101,7 +101,7 @@ class SocketPairUnix(SocketPair):
     l = None
     try:
       l = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-      l.settimeout(1)
+      l.settimeout(30)
       l.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
       l.bind(socket_path)
       l.listen(1)
@@ -110,13 +110,13 @@ class SocketPairUnix(SocketPair):
       # TODO: figure out a way to know when the server is ready?
       time.sleep(5)
       c = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-      c.settimeout(1)
+      c.settimeout(30)
       self.client_sock = ssl.wrap_socket(c, keyfile='{0}.key'.format(client),
         certfile='{0}.crt'.format(client), cert_reqs=ssl.CERT_REQUIRED, ca_certs='root.crt')
       self.client_sock.connect((LOCALHOST, client_port))
 
       # grab the server socket
       self.server_sock, _ = l.accept()
-      self.server_sock.settimeout(1)
+      self.server_sock.settimeout(30)
     finally:
       l.close()
