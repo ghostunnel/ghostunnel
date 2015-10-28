@@ -22,6 +22,8 @@ import (
 	"log"
 	"log/syslog"
 	"net"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"runtime"
 	"strings"
@@ -33,8 +35,8 @@ import (
 )
 
 var (
-	listenAddress  = kingpin.Flag("listen", "Address and port to listen on.").Required().TCP()
-	forwardAddress = kingpin.Flag("target", "Address to foward connections to (HOST:PORT, or unix:PATH).").Required().String()
+	listenAddress  = kingpin.Flag("listen", "Address and port to listen on.").PlaceHolder("ADDR").Required().TCP()
+	forwardAddress = kingpin.Flag("target", "Address to foward connections to (HOST:PORT, or unix:PATH).").PlaceHolder("ADDR").Required().String()
 	unsafeTarget   = kingpin.Flag("unsafe-target", "If set, does not limit target to localhost, 127.0.0.1 or ::1").Bool()
 	keystorePath   = kingpin.Flag("keystore", "Path to certificate and keystore (PKCS12).").PlaceHolder("PATH").Required().String()
 	keystorePass   = kingpin.Flag("storepass", "Password for certificate and keystore.").PlaceHolder("PASS").String()
@@ -43,6 +45,7 @@ var (
 	allowAll       = kingpin.Flag("allow-all", "Allow all clients, do not check client cert subject.").Bool()
 	allowedCNs     = kingpin.Flag("allow-cn", "Allow clients with given common name (can be repeated).").PlaceHolder("CN").Strings()
 	allowedOUs     = kingpin.Flag("allow-ou", "Allow clients with organizational unit name (can be repeated).").PlaceHolder("OU").Strings()
+	pprofAddress   = kingpin.Flag("pprof", "Enable net/http/pprof on given host:port for profiling").PlaceHolder("ADDR").TCP()
 	useSyslog      = kingpin.Flag("syslog", "Send logs to syslog instead of stderr.").Bool()
 )
 
@@ -91,6 +94,14 @@ func main() {
 
 	initLogger()
 
+	if *pprofAddress != nil {
+		addr := (*pprofAddress).String()
+		logger.Printf("profiling enabled; running pprof on http://%s/debug/pprof", addr)
+		go func() {
+			logger.Fatal(http.ListenAndServe(addr, nil))
+		}()
+	}
+
 	listeners := &sync.WaitGroup{}
 	listeners.Add(1)
 
@@ -106,13 +117,13 @@ func main() {
 
 	up := <-started
 	if !up {
-		logger.Printf("failed to start initial listener")
+		logger.Print("failed to start initial listener")
 		os.Exit(1)
 	}
 
-	logger.Printf("initial startup completed, waiting for connections")
+	logger.Print("initial startup completed, waiting for connections")
 	listeners.Wait()
-	logger.Printf("all listeners closed, shutting down")
+	logger.Print("all listeners closed, shutting down")
 }
 
 func validateTarget(addr string) bool {
