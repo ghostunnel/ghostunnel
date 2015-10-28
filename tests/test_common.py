@@ -1,10 +1,11 @@
 from subprocess import call
-import SocketServer, threading, time, socket, ssl, os
+import SocketServer, threading, time, socket, ssl, os, base64, textwrap
 
 LOCALHOST = '127.0.0.1'
 
 # Helper function to create a signed cert
 def create_signed_cert(ou, root):
+  print_ok("generating {0}.key, {0}.crt, {0}.p12".format(ou))
   call("openssl genrsa -out {0}.key 1024".format(ou), shell=True)
   call("openssl req -new -key {0}.key -out {0}.csr -subj /C=US/ST=CA/O=ghostunnel/OU={0}".format(ou), shell=True)
   call("chmod 600 {0}.key".format(ou), shell=True)
@@ -12,12 +13,28 @@ def create_signed_cert(ou, root):
   call("openssl pkcs12 -export -out {0}_temp.p12 -in {0}_temp.crt -inkey {0}.key -password pass:".format(ou), shell=True)
   os.rename("{0}_temp.crt".format(ou), "{0}.crt".format(ou))
   os.rename("{0}_temp.p12".format(ou), "{0}.p12".format(ou))
+  with open("{0}.p12".format(ou), 'r') as f:
+    print_ok("dump of {0}".format(f.name))
+    print_ok("------")
+    print_ok(textwrap.fill(base64.b64encode(f.read()), 76))
+    print_ok("------")
+  with open("{0}.crt".format(ou), 'r') as f:
+    print_ok("dump of {0}".format(f.name))
+    print_ok("------")
+    print_ok(textwrap.fill(base64.b64encode(f.read()), 76))
+    print_ok("------")
 
 # Helper function to create a root cert
 def create_root_cert(root):
+  print_ok("generating {0}.key, {0}.crt".format(root))
   call('openssl genrsa -out {0}.key 1024'.format(root), shell=True)
   call('openssl req -x509 -new -key {0}.key -days 5 -out {0}_temp.crt -subj /C=US/ST=CA/O=ghostunnel/OU={0}'.format(root), shell=True)
   os.rename("{0}_temp.crt".format(root), "{0}.crt".format(root))
+  with open("{0}.crt".format(root), 'r') as f:
+    print_ok("dump of {0}".format(f.name))
+    print_ok("------")
+    print_ok(textwrap.fill(base64.b64encode(f.read()), 76))
+    print_ok("------")
   call('chmod 600 {0}.key'.format(root), shell=True)
 
 def cleanup_certs(names):
