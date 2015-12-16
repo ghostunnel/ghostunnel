@@ -20,14 +20,13 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 )
 
 // signalHandler listenes for incoming SIGTERM or SIGUSR1 signals. If we get
 // SIGTERM, stop listening for new connections and gracefully terminate the
 // process.  If we get SIGUSR1, reload certificates.
-func signalHandler(listener net.Listener, stopper chan bool, listeners *sync.WaitGroup, watcher chan bool) {
+func signalHandler(listener net.Listener, stopper chan bool, context *Context) {
 	signals := make(chan os.Signal)
 	signal.Notify(signals, syscall.SIGUSR1)
 	defer func() {
@@ -47,13 +46,13 @@ func signalHandler(listener net.Listener, stopper chan bool, listeners *sync.Wai
 
 			case syscall.SIGUSR1:
 				logger.Printf("received SIGUSR1, reloading listener")
-				if reloadListener(listeners, watcher) {
+				if reloadListener(context) {
 					return
 				}
 			}
-		case _ = <-watcher:
+		case _ = <-context.watcher:
 			logger.Printf("reloading listener...")
-			if reloadListener(listeners, watcher) {
+			if reloadListener(context) {
 				return
 			}
 		}
@@ -61,10 +60,11 @@ func signalHandler(listener net.Listener, stopper chan bool, listeners *sync.Wai
 }
 
 // Create a new listener
-func reloadListener(listeners *sync.WaitGroup, watcher chan bool) bool {
-	listeners.Add(1)
+func reloadListener(context *Context) bool {
+	context.listeners.Add(1)
+	context.status.Reloading()
 	started := make(chan bool, 1)
-	go listen(started, listeners, watcher)
+	go listen(started, context)
 
 	// Wait for new listener to complete startup and return status
 	up := <-started
