@@ -23,7 +23,7 @@ import (
 	"log/syslog"
 	"net"
 	"net/http"
-	_ "net/http/pprof"
+	"net/http/pprof"
 	"os"
 	"runtime"
 	"strings"
@@ -45,9 +45,18 @@ var (
 	allowAll       = kingpin.Flag("allow-all", "Allow all clients, do not check client cert subject.").Bool()
 	allowedCNs     = kingpin.Flag("allow-cn", "Allow clients with given common name (can be repeated).").PlaceHolder("CN").Strings()
 	allowedOUs     = kingpin.Flag("allow-ou", "Allow clients with organizational unit name (can be repeated).").PlaceHolder("OU").Strings()
-	pprofAddress   = kingpin.Flag("pprof", "Enable net/http/pprof on given host:port for profiling").PlaceHolder("ADDR").TCP()
+	statusAddress  = kingpin.Flag("status", "Enable serving /_status endpoint on given addr:port (optional)").PlaceHolder("ADDR").TCP()
+	enableProf     = kingpin.Flag("pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling)").Bool()
 	useSyslog      = kingpin.Flag("syslog", "Send logs to syslog instead of stderr.").Bool()
 )
+
+// Context groups listening context data together
+type Context struct {
+	watcher   chan bool
+	listeners *sync.WaitGroup
+	status    *StatusHandler
+	dial      func() (net.Conn, error)
+}
 
 // Global logger instance
 var logger = log.New(os.Stderr, "", log.LstdFlags|log.Lmicroseconds)
@@ -94,11 +103,28 @@ func main() {
 
 	initLogger()
 
-	if *pprofAddress != nil {
-		addr := (*pprofAddress).String()
-		logger.Printf("profiling enabled; running pprof on http://%s/debug/pprof", addr)
+	err, dial := backendDialer()
+	if err != nil {
+		logger.Printf("invalid backend address: %s", err)
+		os.Exit(1)
+	}
+
+	status := NewStatusHandler(dial)
+	if *statusAddress != nil {
+		mux := http.NewServeMux()
+		mux.Handle("/_status", status)
+		if *enableProf {
+			mux.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
+			mux.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
+			mux.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
+			mux.Handle("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
+			mux.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
+		}
+
+		addr := (*statusAddress).String()
+		logger.Printf("status port enabled; serving status on http://%s/_status", addr)
 		go func() {
-			logger.Fatal(http.ListenAndServe(addr, nil))
+			logger.Fatal(http.ListenAndServe(addr, mux))
 		}()
 	}
 
@@ -111,9 +137,9 @@ func main() {
 		go watchFiles([]string{*keystorePath, *caBundlePath}, time.Duration(*timedReload)*time.Second, watcher)
 	}
 
-	// A channel to notify us that the listener is running.
+	// Start listening
 	started := make(chan bool, 1)
-	go listen(started, listeners, watcher)
+	go listen(started, &Context{watcher, listeners, status, dial})
 
 	up := <-started
 	if !up {
@@ -151,7 +177,7 @@ func validateTarget(addr string) bool {
 // connections. This is useful for the purposes of replacing certificates
 // in-place without having to take downtime, e.g. if a certificate is
 // expiring.
-func listen(started chan bool, listeners *sync.WaitGroup, watcher chan bool) {
+func listen(started chan bool, context *Context) {
 	// Open raw listening socket
 	network, address := decodeAddress(*listenAddress)
 	rawListener, err := reuseport.NewReusablePortListener(network, address)
@@ -182,24 +208,26 @@ func listen(started chan bool, listeners *sync.WaitGroup, watcher chan bool) {
 	// should shut down.
 	stopper := make(chan bool, 1)
 
-	backendNet, backendAddr, err := parseTarget(*forwardAddress)
-	if err != nil {
-		logger.Printf("invalid backend address: %s", err)
-		started <- false
-		return
-	}
-
-	dial := func() (net.Conn, error) {
-		return net.Dial(backendNet, backendAddr)
-	}
-
-	go accept(listener, handlers, stopper, leaf, dial)
-	go signalHandler(listener, stopper, listeners, watcher)
+	go accept(listener, handlers, stopper, leaf, context.dial)
+	go signalHandler(listener, stopper, context)
 
 	started <- true
+	context.status.Listening()
 
 	logger.Printf("listening with cert serial no. %d (expiring %s)", leaf.SerialNumber, leaf.NotAfter.String())
 	handlers.Wait()
 
-	listeners.Done()
+	context.listeners.Done()
+}
+
+// Get backend dialer function
+func backendDialer() (error, func() (net.Conn, error)) {
+	backendNet, backendAddr, err := parseTarget(*forwardAddress)
+	if err != nil {
+		return err, nil
+	}
+
+	return nil, func() (net.Conn, error) {
+		return net.Dial(backendNet, backendAddr)
+	}
 }
