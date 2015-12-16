@@ -41,11 +41,11 @@ type statusResponse struct {
 	BackendOk     bool      `json:"backend_ok"`
 	BackendStatus string    `json:"backend_status"`
 	BackendError  string    `json:"backend_error,omitempty"`
-	Time          time.Time `json:"time,omitempty"`
+	Time          time.Time `json:"time"`
 	Hostname      string    `json:"hostname,omitempty"`
-	Message       string    `json:"message,omitempty"`
-	Revision      string    `json:"revision,omitempty"`
-	Compiler      string    `json:"compiler,omitempty"`
+	Message       string    `json:"message"`
+	Revision      string    `json:"revision"`
+	Compiler      string    `json:"compiler"`
 }
 
 func newStatusHandler(dial func() (net.Conn, error)) *statusHandler {
