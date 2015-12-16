@@ -1,40 +1,26 @@
 from subprocess import call
 import SocketServer, threading, time, socket, ssl, os, base64, textwrap
 
+FNULL = open(os.devnull, 'w')
 LOCALHOST = '127.0.0.1'
 
 # Helper function to create a signed cert
 def create_signed_cert(ou, root):
   print_ok("generating {0}.key, {0}.crt, {0}.p12".format(ou))
-  call("openssl genrsa -out {0}.key 1024".format(ou), shell=True)
-  call("openssl req -new -key {0}.key -out {0}.csr -subj /C=US/ST=CA/O=ghostunnel/OU={0}".format(ou), shell=True)
+  call("openssl genrsa -out {0}.key 1024".format(ou), shell=True, stderr=FNULL)
+  call("openssl req -new -key {0}.key -out {0}.csr -subj /C=US/ST=CA/O=ghostunnel/OU={0}".format(ou), shell=True, stderr=FNULL)
   call("chmod 600 {0}.key".format(ou), shell=True)
-  call("openssl x509 -req -in {0}.csr -CA {1}.crt -CAkey {1}.key -CAcreateserial -out {0}_temp.crt -days 5 -extfile openssl.ext".format(ou, root), shell=True)
+  call("openssl x509 -req -in {0}.csr -CA {1}.crt -CAkey {1}.key -CAcreateserial -out {0}_temp.crt -days 5 -extfile openssl.ext".format(ou, root), shell=True, stderr=FNULL)
   call("openssl pkcs12 -export -out {0}_temp.p12 -in {0}_temp.crt -inkey {0}.key -password pass:".format(ou), shell=True)
   os.rename("{0}_temp.crt".format(ou), "{0}.crt".format(ou))
   os.rename("{0}_temp.p12".format(ou), "{0}.p12".format(ou))
-  with open("{0}.p12".format(ou), 'r') as f:
-    print_ok("dump of {0}".format(f.name))
-    print_ok("------")
-    print_ok(textwrap.fill(base64.b64encode(f.read()), 76))
-    print_ok("------")
-  with open("{0}.crt".format(ou), 'r') as f:
-    print_ok("dump of {0}".format(f.name))
-    print_ok("------")
-    print_ok(textwrap.fill(base64.b64encode(f.read()), 76))
-    print_ok("------")
 
 # Helper function to create a root cert
 def create_root_cert(root):
   print_ok("generating {0}.key, {0}.crt".format(root))
-  call('openssl genrsa -out {0}.key 1024'.format(root), shell=True)
+  call('openssl genrsa -out {0}.key 1024'.format(root), shell=True, stderr=FNULL)
   call('openssl req -x509 -new -key {0}.key -days 5 -out {0}_temp.crt -subj /C=US/ST=CA/O=ghostunnel/OU={0}'.format(root), shell=True)
   os.rename("{0}_temp.crt".format(root), "{0}.crt".format(root))
-  with open("{0}.crt".format(root), 'r') as f:
-    print_ok("dump of {0}".format(f.name))
-    print_ok("------")
-    print_ok(textwrap.fill(base64.b64encode(f.read()), 76))
-    print_ok("------")
   call('chmod 600 {0}.key'.format(root), shell=True)
 
 def cleanup_certs(names):
@@ -58,23 +44,23 @@ class SocketPair:
     l = None
     try:
       l = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-      l.settimeout(30)
+      l.settimeout(10)
       l.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
       l.bind((LOCALHOST, server_port))
       l.listen(1)
 
       # setup the client socket
       # TODO: figure out a way to know when the server is ready?
-      time.sleep(15)
+      time.sleep(5)
       c = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-      c.settimeout(30)
+      c.settimeout(10)
       self.client_sock = ssl.wrap_socket(c, keyfile='{0}.key'.format(client),
         certfile='{0}.crt'.format(client), cert_reqs=ssl.CERT_REQUIRED, ca_certs='root.crt')
       self.client_sock.connect((LOCALHOST, client_port))
 
       # grab the server socket
       self.server_sock, _ = l.accept()
-      self.server_sock.settimeout(30)
+      self.server_sock.settimeout(10)
     finally:
       l.close()
 
@@ -118,7 +104,7 @@ class SocketPairUnix(SocketPair):
     l = None
     try:
       l = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-      l.settimeout(1)
+      l.settimeout(10)
       l.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
       l.bind(socket_path)
       l.listen(1)
@@ -127,7 +113,7 @@ class SocketPairUnix(SocketPair):
       # TODO: figure out a way to know when the server is ready?
       time.sleep(5)
       c = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-      c.settimeout(1)
+      c.settimeout(10)
       self.client_sock = ssl.wrap_socket(c, keyfile='{0}.key'.format(client),
         certfile='{0}.crt'.format(client), cert_reqs=ssl.CERT_REQUIRED, ca_certs='root.crt')
       self.client_sock.connect((LOCALHOST, client_port))
