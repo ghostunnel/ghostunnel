@@ -35,18 +35,18 @@ import (
 )
 
 var (
-	listenAddress  = kingpin.Flag("listen", "Address and port to listen on.").PlaceHolder("ADDR").Required().TCP()
+	listenAddress  = kingpin.Flag("listen", "Address and port to listen on (HOST:PORT).").PlaceHolder("ADDR").Required().TCP()
 	forwardAddress = kingpin.Flag("target", "Address to foward connections to (HOST:PORT, or unix:PATH).").PlaceHolder("ADDR").Required().String()
 	unsafeTarget   = kingpin.Flag("unsafe-target", "If set, does not limit target to localhost, 127.0.0.1 or ::1").Bool()
 	keystorePath   = kingpin.Flag("keystore", "Path to certificate and keystore (PKCS12).").PlaceHolder("PATH").Required().String()
-	keystorePass   = kingpin.Flag("storepass", "Password for certificate and keystore.").PlaceHolder("PASS").String()
+	keystorePass   = kingpin.Flag("storepass", "Password for certificate and keystore (optional).").PlaceHolder("PASS").String()
 	caBundlePath   = kingpin.Flag("cacert", "Path to certificate authority bundle file (PEM/X509).").Required().String()
 	timedReload    = kingpin.Flag("timed-reload", "Reload keystores every N seconds, refresh listener on changes.").PlaceHolder("N").Int()
 	allowAll       = kingpin.Flag("allow-all", "Allow all clients, do not check client cert subject.").Bool()
 	allowedCNs     = kingpin.Flag("allow-cn", "Allow clients with given common name (can be repeated).").PlaceHolder("CN").Strings()
 	allowedOUs     = kingpin.Flag("allow-ou", "Allow clients with organizational unit name (can be repeated).").PlaceHolder("OU").Strings()
-	statusAddress  = kingpin.Flag("status", "Enable serving /_status endpoint on given addr:port (optional)").PlaceHolder("ADDR").TCP()
-	enableProf     = kingpin.Flag("pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling)").Bool()
+	statusAddress  = kingpin.Flag("status", "Enable serving /_status on given HOST:PORT (shows tunnel and backend health status).").PlaceHolder("ADDR").TCP()
+	enableProf     = kingpin.Flag("pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
 	useSyslog      = kingpin.Flag("syslog", "Send logs to syslog instead of stderr.").Bool()
 )
 
