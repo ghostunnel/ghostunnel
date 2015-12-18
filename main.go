@@ -34,27 +34,33 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
+// These are initialized via -ldflags
+var buildRevision = "unknown"
+var buildCompiler = "unknown"
+
+var app = kingpin.New("ghostunnel", "A simple SSL/TLS proxy with mutual authentication for securing non-TLS services.")
+
 var (
-	listenAddress  = kingpin.Flag("listen", "Address and port to listen on (HOST:PORT).").PlaceHolder("ADDR").Required().TCP()
-	forwardAddress = kingpin.Flag("target", "Address to foward connections to (HOST:PORT, or unix:PATH).").PlaceHolder("ADDR").Required().String()
-	unsafeTarget   = kingpin.Flag("unsafe-target", "If set, does not limit target to localhost, 127.0.0.1 or ::1").Bool()
-	keystorePath   = kingpin.Flag("keystore", "Path to certificate and keystore (PKCS12).").PlaceHolder("PATH").Required().String()
-	keystorePass   = kingpin.Flag("storepass", "Password for certificate and keystore (optional).").PlaceHolder("PASS").String()
-	caBundlePath   = kingpin.Flag("cacert", "Path to certificate authority bundle file (PEM/X509).").Required().String()
-	timedReload    = kingpin.Flag("timed-reload", "Reload keystores every N seconds, refresh listener on changes.").PlaceHolder("N").Int()
-	allowAll       = kingpin.Flag("allow-all", "Allow all clients, do not check client cert subject.").Bool()
-	allowedCNs     = kingpin.Flag("allow-cn", "Allow clients with given common name (can be repeated).").PlaceHolder("CN").Strings()
-	allowedOUs     = kingpin.Flag("allow-ou", "Allow clients with organizational unit name (can be repeated).").PlaceHolder("OU").Strings()
-	statusAddress  = kingpin.Flag("status", "Enable serving /_status on given HOST:PORT (shows tunnel and backend health status).").PlaceHolder("ADDR").TCP()
-	enableProf     = kingpin.Flag("pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
-	useSyslog      = kingpin.Flag("syslog", "Send logs to syslog instead of stderr.").Bool()
+	listenAddress  = app.Flag("listen", "Address and port to listen on (HOST:PORT).").PlaceHolder("ADDR").Required().TCP()
+	forwardAddress = app.Flag("target", "Address to foward connections to (HOST:PORT, or unix:PATH).").PlaceHolder("ADDR").Required().String()
+	unsafeTarget   = app.Flag("unsafe-target", "If set, does not limit target to localhost, 127.0.0.1 or [::1].").Bool()
+	keystorePath   = app.Flag("keystore", "Path to certificate and keystore (PKCS12).").PlaceHolder("PATH").Required().String()
+	keystorePass   = app.Flag("storepass", "Password for certificate and keystore (optional).").PlaceHolder("PASS").String()
+	caBundlePath   = app.Flag("cacert", "Path to certificate authority bundle file (PEM/X509).").Required().String()
+	timedReload    = app.Flag("timed-reload", "Reload keystores every N seconds, refresh listener on changes.").PlaceHolder("N").Int()
+	allowAll       = app.Flag("allow-all", "Allow all clients, do not check client cert subject.").Bool()
+	allowedCNs     = app.Flag("allow-cn", "Allow clients with given common name (can be repeated).").PlaceHolder("CN").Strings()
+	allowedOUs     = app.Flag("allow-ou", "Allow clients with organizational unit name (can be repeated).").PlaceHolder("OU").Strings()
+	statusAddress  = app.Flag("status", "Enable serving /_status on given HOST:PORT (shows tunnel and backend health status).").PlaceHolder("ADDR").TCP()
+	enableProf     = app.Flag("pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
+	useSyslog      = app.Flag("syslog", "Send logs to syslog instead of stderr.").Bool()
 )
 
 // Context groups listening context data together
 type Context struct {
 	watcher   chan bool
 	listeners *sync.WaitGroup
-	status    *StatusHandler
+	status    *statusHandler
 	dial      func() (net.Conn, error)
 }
 
@@ -79,29 +85,43 @@ func panicOnError(err error) {
 	}
 }
 
-func main() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
-	kingpin.Parse()
-
-	// Validate flags
+// Validate flags
+func validateFlags(app *kingpin.Application) error {
 	if !(*allowAll) && len(*allowedCNs) == 0 && len(*allowedOUs) == 0 {
-		fmt.Fprintf(os.Stderr, "ghostunnel: error: at least one of --allow-all, --allow-cn or --allow-ou is required")
-		os.Exit(1)
+		return fmt.Errorf("at least one of --allow-all, --allow-cn or --allow-ou is required")
 	}
 	if *allowAll && len(*allowedCNs) != 0 {
-		fmt.Fprintf(os.Stderr, "ghostunnel: error: --allow-all and --allow-cn are mutually exclusive")
-		os.Exit(1)
+		return fmt.Errorf("--allow-all and --allow-cn are mutually exclusive")
 	}
 	if *allowAll && len(*allowedOUs) != 0 {
-		fmt.Fprintf(os.Stderr, "ghostunnel: error: --allow-all and --allow-ou are mutually exclusive")
-		os.Exit(1)
+		return fmt.Errorf("--allow-all and --allow-ou are mutually exclusive")
+	}
+	if *enableProf && *statusAddress == nil {
+		return fmt.Errorf("--pprof requires --status to be set")
 	}
 	if !validateTarget(*forwardAddress) {
-		fmt.Fprintf(os.Stderr, "ghostunnel: error: --target must be localhost:port, 127.0.0.1:port or [::1]:port")
+		return fmt.Errorf("--target must be localhost:port, 127.0.0.1:port or [::1]:port")
+	}
+	return nil
+}
+
+func main() {
+	initLogger()
+	runtime.GOMAXPROCS(runtime.NumCPU())
+
+	app.Version(fmt.Sprintf("rev %s built with %s", buildRevision, buildCompiler))
+	app.Validate(validateFlags)
+
+	if len(os.Args) == 1 {
+		fmt.Fprintf(os.Stderr, "error: no flags provided, try --help\n")
 		os.Exit(1)
 	}
 
-	initLogger()
+	_, err := app.Parse(os.Args[1:])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %s, try --help\n", err)
+		os.Exit(1)
+	}
 
 	err, dial := backendDialer()
 	if err != nil {
@@ -109,7 +129,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	status := NewStatusHandler(dial)
+	status := newStatusHandler(dial)
 	if *statusAddress != nil {
 		mux := http.NewServeMux()
 		mux.Handle("/_status", status)

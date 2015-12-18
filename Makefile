@@ -1,5 +1,11 @@
 INTEGRATION_TESTS := $(shell find tests -name 'test-*.py' -exec basename {} .py \;)
 
+build: depends
+	go build -ldflags "-X \"main.buildRevision=`git rev-parse HEAD`\" -X \"main.buildCompiler=`go version`\"" 
+
+depends:
+	go get ./...
+
 test: unit integration
 
 # Run unit tests
@@ -7,7 +13,8 @@ pre-unit:
 	@echo "*** Running unit tests ***"
 
 unit: pre-unit
-	@go test -v
+	go get github.com/stretchr/testify/assert
+	go test -v
 
 # Run integration tests
 pre-integration: 

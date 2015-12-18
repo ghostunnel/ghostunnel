@@ -25,7 +25,7 @@ import (
 	"time"
 )
 
-type StatusHandler struct {
+type statusHandler struct {
 	// Mutex for locking
 	mu *sync.Mutex
 	// Backend dialer to check if target is up and running
@@ -35,7 +35,7 @@ type StatusHandler struct {
 	reloading bool
 }
 
-type StatusResponse struct {
+type statusResponse struct {
 	Ok            bool      `json:"ok"`
 	Status        string    `json:"status"`
 	BackendOk     bool      `json:"backend_ok"`
@@ -43,33 +43,37 @@ type StatusResponse struct {
 	BackendError  string    `json:"backend_error,omitempty"`
 	Time          time.Time `json:"time"`
 	Hostname      string    `json:"hostname,omitempty"`
-	Message       string    `json:"message,omitempty"`
+	Message       string    `json:"message"`
+	Revision      string    `json:"revision"`
+	Compiler      string    `json:"compiler"`
 }
 
-func NewStatusHandler(dial func() (net.Conn, error)) *StatusHandler {
-	return &StatusHandler{&sync.Mutex{}, dial, false, false}
+func newStatusHandler(dial func() (net.Conn, error)) *statusHandler {
+	return &statusHandler{&sync.Mutex{}, dial, false, false}
 }
 
-func (s *StatusHandler) Listening() {
+func (s *statusHandler) Listening() {
 	s.mu.Lock()
 	s.listening = true
 	s.reloading = false
 	s.mu.Unlock()
 }
 
-func (s *StatusHandler) Reloading() {
+func (s *statusHandler) Reloading() {
 	s.mu.Lock()
 	s.reloading = true
 	s.mu.Unlock()
 }
 
-func (s *StatusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	resp := StatusResponse{
+func (s *statusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	resp := statusResponse{
 		Time: time.Now(),
 	}
 
 	conn, err := s.dial()
 	resp.BackendOk = err == nil
+	resp.Revision = buildRevision
+	resp.Compiler = buildCompiler
 
 	if resp.BackendOk {
 		defer conn.Close()

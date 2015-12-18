@@ -13,9 +13,7 @@ before_install:
   - openssl version
 
 install:
-  - go get -v ./...
-  - go build -v
+  - make build 
 
 script:
-  - go get github.com/stretchr/testify/assert
   - make test
