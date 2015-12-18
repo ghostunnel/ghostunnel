@@ -110,5 +110,9 @@ func (s *statusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
+	if !resp.Ok {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}
+
 	w.Write(out)
 }
