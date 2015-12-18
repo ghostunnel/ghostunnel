@@ -51,8 +51,8 @@ var (
 	allowAll       = app.Flag("allow-all", "Allow all clients, do not check client cert subject.").Bool()
 	allowedCNs     = app.Flag("allow-cn", "Allow clients with given common name (can be repeated).").PlaceHolder("CN").Strings()
 	allowedOUs     = app.Flag("allow-ou", "Allow clients with organizational unit name (can be repeated).").PlaceHolder("OU").Strings()
-	statusAddress  = app.Flag("status", "Enable serving /_status on given HOST:PORT (shows tunnel and backend health status).").PlaceHolder("ADDR").TCP()
-	enableProf     = app.Flag("pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
+	statusPort     = app.Flag("status-port", "Enable serving /_status on given localhost:PORT (shows tunnel/backend health status).").PlaceHolder("PORT").Int()
+	enableProf     = app.Flag("enable-pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
 	useSyslog      = app.Flag("syslog", "Send logs to syslog instead of stderr.").Bool()
 )
 
@@ -96,8 +96,11 @@ func validateFlags(app *kingpin.Application) error {
 	if *allowAll && len(*allowedOUs) != 0 {
 		return fmt.Errorf("--allow-all and --allow-ou are mutually exclusive")
 	}
-	if *enableProf && *statusAddress == nil {
-		return fmt.Errorf("--pprof requires --status to be set")
+	if *enableProf && *statusPort == 0 {
+		return fmt.Errorf("--enable-pprof requires --status-port to be set")
+	}
+	if *statusPort < 0 || *statusPort > 65535 {
+		return fmt.Errorf("--status-port invalid, must be 1 <= PORT <= 65535")
 	}
 	if !validateTarget(*forwardAddress) {
 		return fmt.Errorf("--target must be localhost:port, 127.0.0.1:port or [::1]:port")
@@ -125,12 +128,12 @@ func main() {
 
 	err, dial := backendDialer()
 	if err != nil {
-		logger.Printf("invalid backend address: %s", err)
+		fmt.Fprintf(os.Stderr, "error: invalid backend address: %s", err)
 		os.Exit(1)
 	}
 
 	status := newStatusHandler(dial)
-	if *statusAddress != nil {
+	if *statusPort != 0 {
 		mux := http.NewServeMux()
 		mux.Handle("/_status", status)
 		if *enableProf {
@@ -141,10 +144,19 @@ func main() {
 			mux.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
 		}
 
-		addr := (*statusAddress).String()
-		logger.Printf("status port enabled; serving status on http://%s/_status", addr)
+		listener, err := reuseport.NewReusablePortListener("tcp4", fmt.Sprintf("localhost:%d", *statusPort))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: unable to bind on status port: %s", err)
+			os.Exit(1)
+		}
+
+		logger.Printf("status port enabled; serving status on http://localhost:%d/_status", *statusPort)
 		go func() {
-			logger.Fatal(http.ListenAndServe(addr, mux))
+			server := &http.Server{
+				Handler:  mux,
+				ErrorLog: logger,
+			}
+			logger.Fatal(server.Serve(listener))
 		}()
 	}
 
