@@ -7,7 +7,7 @@ Ghostunnel
 
 Ghostunnel is a simple SSL/TLS proxy with mutual authentication support for
 securing non-TLS backend applications. Ghostunnel runs in front of a backend
-service and accepts TLS-secured connections, which are then forwarded to the
+service and accepts TLS-secured connections, which are then proxied to the
 (insecure) backend. A backend can be a TCP domain/port or a UNIX socket path.
 In other words, ghostunnel is a very limited replacement for stunnel in server
 mode.
@@ -27,8 +27,8 @@ without dropping existing connections. To trigger a reload, simply send
 files and open a new listening socket (via `SO_REUSEPORT`). Once successful,
 the old listening socket will be closed.
 
-***Automatic reloading***: Ghostunnel can automatically reload certificates
-periodically. You can specify an interval with the `--timed-reload` flag. If
+***Automatic reloading***: Ghostunnel can be configured to automatically reload
+certificates. You can specify an interval with the `--timed-reload` flag. If
 the timed reload flag is enabled, ghostunnel will reload the files periodically
 and check for changes. If a change is detected, it will attempt to reload the
 listener with the new certificates/private key. 
@@ -46,7 +46,7 @@ on how to generate new ones with OpenSSL).
 
 ### Launch ghostunnel
 
-This is a short example for how to lunch ghostunnel listening for incoming
+This is a short example for how to launch ghostunnel listening for incoming
 connections on `localhost:8443` and forwarding them to `localhost:8080`. We
 assume that `server.p12` is a PKCS12 keystore with the cert and private key for
 the server and `root.crt` contains your trusted root certificate(s). To set
@@ -54,7 +54,7 @@ allowed clients, you must specify at least one of `--allow-all`, `--allow-cn`
 or `--allow-ou`.  It's possible to use both `--allow-cn` and `--allow-ou`
 together or to specify them repeatedly to allow multiple CN/OU values. In this
 example, we assume that the CN of the client cert to accept connections from is
-`client`
+`client`.
 
 Start a ghostunnel with a server certificate:
 
