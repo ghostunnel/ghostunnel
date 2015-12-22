@@ -30,7 +30,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kavu/go_reuseport"
+	"github.com/jbenet/go-reuseport"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
@@ -144,7 +144,7 @@ func main() {
 			mux.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
 		}
 
-		listener, err := reuseport.NewReusablePortListener("tcp4", fmt.Sprintf("localhost:%d", *statusPort))
+		listener, err := reuseport.Listen("tcp", fmt.Sprintf("localhost:%d", *statusPort))
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: unable to bind on status port: %s", err)
 			os.Exit(1)
@@ -211,8 +211,8 @@ func validateTarget(addr string) bool {
 // expiring.
 func listen(started chan bool, context *Context) {
 	// Open raw listening socket
-	network, address := decodeAddress(*listenAddress)
-	rawListener, err := reuseport.NewReusablePortListener(network, address)
+	network, address := (*listenAddress).Network(), (*listenAddress).String()
+	rawListener, err := reuseport.Listen(network, address)
 	if err != nil {
 		logger.Printf("error opening socket: %s", err)
 		started <- false
