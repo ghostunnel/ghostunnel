@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var fakeConn = tls.ConnectionState{
+var fakeConnectionState = tls.ConnectionState{
 	VerifiedChains: [][]*x509.Certificate{
 		[]*x509.Certificate{
 			&x509.Certificate{
@@ -51,7 +51,7 @@ func TestAuthorizeReject(t *testing.T) {
 	*allowedCNs = []string{"test"}
 	*allowedOUs = []string{"test"}
 
-	assert.False(t, authorized(fakeConn), "should reject cert w/o matching CN/OU")
+	assert.False(t, authorized(fakeConnectionState), "should reject cert w/o matching CN/OU")
 }
 
 func TestAuthorizeAllowAll(t *testing.T) {
@@ -59,7 +59,7 @@ func TestAuthorizeAllowAll(t *testing.T) {
 	*allowedCNs = []string{}
 	*allowedOUs = []string{}
 
-	assert.True(t, authorized(fakeConn), "allow-all should always allow authed clients")
+	assert.True(t, authorized(fakeConnectionState), "allow-all should always allow authed clients")
 }
 
 func TestAuthorizeAllowCN(t *testing.T) {
@@ -67,7 +67,7 @@ func TestAuthorizeAllowCN(t *testing.T) {
 	*allowedCNs = []string{"gopher"}
 	*allowedOUs = []string{}
 
-	assert.True(t, authorized(fakeConn), "allow-cn should allow clients with matching CN")
+	assert.True(t, authorized(fakeConnectionState), "allow-cn should allow clients with matching CN")
 }
 
 func TestAuthorizeAllowOU(t *testing.T) {
@@ -75,5 +75,5 @@ func TestAuthorizeAllowOU(t *testing.T) {
 	*allowedCNs = []string{}
 	*allowedOUs = []string{"circle"}
 
-	assert.True(t, authorized(fakeConn), "allow-cn should allow clients with matching CN")
+	assert.True(t, authorized(fakeConnectionState), "allow-cn should allow clients with matching CN")
 }
