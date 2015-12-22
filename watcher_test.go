@@ -66,3 +66,16 @@ func TestWatchers(t *testing.T) {
 		t.Fatalf("timeout, no notification on changed file")
 	}
 }
+
+func TestHashFilesNonExistent(t *testing.T) {
+	res := hashFiles([]string{"./does-not-exist"})
+	if len(res) > 0 {
+		t.Error("hash files generated hash for non-existent file")
+	}
+}
+
+func TestFileChangedNonExistent(t *testing.T) {
+	if fileChanged(map[string][32]byte{}, "./does-not-exist") {
+		t.Error("hash files generated hash for non-existent file")
+	}
+}
