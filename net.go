@@ -24,6 +24,8 @@ import (
 	"os"
 	"strings"
 	"sync"
+
+	"github.com/rcrowley/go-metrics"
 )
 
 // Accept incoming connections and spawn Go routines to handle them.
@@ -31,11 +33,22 @@ func accept(listener net.Listener, wg *sync.WaitGroup, stopper chan bool, leaf *
 	defer wg.Done()
 	defer listener.Close()
 
+	openCounter := metrics.GetOrRegisterCounter("conn.open", metrics.DefaultRegistry)
+	totalCounter := metrics.GetOrRegisterCounter("accept.total", metrics.DefaultRegistry)
+	successCounter := metrics.GetOrRegisterCounter("accept.success", metrics.DefaultRegistry)
+	errorCounter := metrics.GetOrRegisterCounter("accept.error", metrics.DefaultRegistry)
+	timer := metrics.GetOrRegisterTimer("conn.lifetime", metrics.DefaultRegistry)
+
 	for {
 		// Wait for new connection
 		conn, err := listener.Accept()
+		openCounter.Inc(1)
+		totalCounter.Inc(1)
 
 		if err != nil {
+			openCounter.Dec(1)
+			errorCounter.Inc(1)
+
 			// Check if we're supposed to stop
 			select {
 			case _ = <-stopper:
@@ -52,6 +65,8 @@ func accept(listener net.Listener, wg *sync.WaitGroup, stopper chan bool, leaf *
 
 		tlsConn, ok := conn.(*tls.Conn)
 		if !ok {
+			openCounter.Dec(1)
+			errorCounter.Inc(1)
 			logger.Printf("received non-TLS connection from %s? ignoring", conn.RemoteAddr())
 			conn.Close()
 			continue
@@ -62,37 +77,45 @@ func accept(listener net.Listener, wg *sync.WaitGroup, stopper chan bool, leaf *
 		// the handshake to get the client cert.
 		err = tlsConn.Handshake()
 		if err != nil {
+			openCounter.Dec(1)
+			errorCounter.Inc(1)
 			logger.Printf("failed TLS handshake on %s: %s", conn.RemoteAddr(), err)
 			conn.Close()
 			continue
 		}
 
 		if !authorized(tlsConn.ConnectionState()) {
+			openCounter.Dec(1)
+			errorCounter.Inc(1)
 			logger.Printf("rejecting connection from %s: bad client certificate", conn.RemoteAddr())
 			conn.Close()
 			continue
 		}
 
+		logger.Printf("successful handshake with %s", conn.RemoteAddr())
+
 		wg.Add(1)
-		go handle(conn, wg, dial)
+		go timer.Time(func() {
+			defer wg.Done()
+			defer conn.Close()
+			defer openCounter.Dec(1)
+			handle(conn, successCounter, errorCounter, dial)
+		})
 	}
 }
 
 // Handle incoming connection by opening new connection to our backend service
 // and fusing them together.
-func handle(conn net.Conn, wg *sync.WaitGroup, dial func() (net.Conn, error)) {
-	defer wg.Done()
-	defer conn.Close()
-
-	logger.Printf("successful handshake with %s", conn.RemoteAddr())
-
+func handle(conn net.Conn, successCounter metrics.Counter, errorCounter metrics.Counter, dial func() (net.Conn, error)) {
 	backend, err := dial()
 
 	if err != nil {
+		errorCounter.Inc(1)
 		logger.Printf("failed to dial backend: %s", err)
 		return
 	}
 
+	successCounter.Inc(1)
 	fuse(conn, backend)
 }
 
