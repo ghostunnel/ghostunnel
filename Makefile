@@ -4,7 +4,7 @@ build: depends
 	go build -ldflags "-X \"main.buildRevision=`git rev-parse HEAD`\" -X \"main.buildCompiler=`go version`\"" 
 
 depends:
-	go get ./...
+	go get -u ./...
 
 test: unit integration
 
