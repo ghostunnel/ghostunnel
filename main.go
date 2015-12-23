@@ -30,7 +30,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cyberdelia/go-metrics-graphite"
+	"github.com/csstaub/go-metrics-graphite"
 	"github.com/kavu/go_reuseport"
 	"github.com/rcrowley/go-metrics"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -73,7 +73,7 @@ var (
 	allowedOUs     = app.Flag("allow-ou", "Allow clients with organizational unit name (can be repeated).").PlaceHolder("OU").Strings()
 	graphiteAddr   = app.Flag("graphite", "Collect metrics and report them to the given graphite instance.").PlaceHolder("ADDR").TCP()
 	metricsPrefix  = app.Flag("metrics-prefix", fmt.Sprintf("Set prefix string for all reported metrics (default: %s).", defaultMetricsPrefix)).PlaceHolder("PREFIX").Default(defaultMetricsPrefix).String()
-	statusPort     = app.Flag("status-port", "Enable serving /_status on given localhost:PORT (shows tunnel/backend health status).").PlaceHolder("PORT").Int()
+	statusPort     = app.Flag("status-port", "Enable serving /_status and /_metrics on given localhost:PORT (shows tunnel/backend health status).").PlaceHolder("PORT").Int()
 	enableProf     = app.Flag("enable-pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
 	useSyslog      = app.Flag("syslog", "Send logs to syslog instead of stderr.").Bool()
 )
@@ -154,14 +154,24 @@ func main() {
 		os.Exit(1)
 	}
 
+	metricsConfig := graphite.GraphiteConfig{
+		Registry:      metrics.DefaultRegistry,
+		FlushInterval: 1 * time.Second,
+		DurationUnit:  time.Nanosecond,
+		Prefix:        *metricsPrefix,
+		Percentiles:   []float64{0.5, 0.75, 0.95, 0.99, 0.999},
+	}
+
 	if *graphiteAddr != nil {
-		go graphite.Graphite(metrics.DefaultRegistry, 1*time.Second, *metricsPrefix, *graphiteAddr)
+		metricsConfig.Addr = *graphiteAddr
+		go graphite.GraphiteWithConfig(metricsConfig)
 	}
 
 	status := newStatusHandler(dial)
 	if *statusPort != 0 {
 		mux := http.NewServeMux()
 		mux.Handle("/_status", status)
+		mux.Handle("/_metrics", metricsHandler{metricsConfig})
 		if *enableProf {
 			mux.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
 			mux.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
