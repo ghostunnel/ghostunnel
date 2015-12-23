@@ -59,66 +59,52 @@ func (mb *metricsConfig) postMetrics() {
 	http.Post(mb.url, "application/json", bytes.NewReader(raw))
 }
 
-func (mb *metricsConfig) serializeMetric(now int64, name string, value interface{}) map[string]interface{} {
+func (mb *metricsConfig) serializeMetric(now int64, metric tuple) map[string]interface{} {
 	return map[string]interface{}{
 		"timestamp": now,
-		"metric":    fmt.Sprintf("%s.%s", mb.prefix, name),
-		"value":     value,
+		"metric":    fmt.Sprintf("%s.%s", mb.prefix, metric.name),
+		"value":     metric.value,
 		"hostname":  mb.hostname,
 	}
 }
 
+type tuple struct {
+	name  string
+	value interface{}
+}
+
 func (mb *metricsConfig) serializeMetrics() []map[string]interface{} {
-	names := []string{}
-	values := []interface{}{}
-	du := float64(1 * time.Nanosecond)
+	nvs := []tuple{}
 
 	mb.registry.Each(func(name string, i interface{}) {
 		switch metric := i.(type) {
 		case metrics.Counter:
-			names = append(names, name)
-			values = append(values, metric.Count())
+			nvs = append(nvs, tuple{name, metric.Count()})
 		case metrics.Timer:
 			timer := metric.Snapshot()
-			names = append(names, []string{
-				fmt.Sprintf("%s.count", name),
-				fmt.Sprintf("%s.min", name),
-				fmt.Sprintf("%s.max", name),
-				fmt.Sprintf("%s.mean", name),
-				fmt.Sprintf("%s.std-dev", name),
-				fmt.Sprintf("%s.one-minute", name),
-				fmt.Sprintf("%s.five-minute", name),
-				fmt.Sprintf("%s.fifteen-minute", name),
-				fmt.Sprintf("%s.mean-rate", name),
-				fmt.Sprintf("%s.50-percentile", name),
-				fmt.Sprintf("%s.75-percentile", name),
-				fmt.Sprintf("%s.95-percentile", name),
-				fmt.Sprintf("%s.99-percentile", name),
-				fmt.Sprintf("%s.999-percentile", name),
-			}...)
-			values = append(values, []interface{}{
-				timer.Count(),
-				timer.Min() / int64(du),
-				timer.Max() / int64(du),
-				timer.Mean() / du,
-				timer.StdDev() / du,
-				timer.Rate1(),
-				timer.Rate5(),
-				timer.Rate15(),
-				timer.RateMean(),
-				timer.Percentile(0.5) / du,
-				timer.Percentile(0.75) / du,
-				timer.Percentile(0.95) / du,
-				timer.Percentile(0.99) / du,
-				timer.Percentile(0.999) / du,
+			nvs = append(nvs, []tuple{
+				{fmt.Sprintf("%s.count", name), timer.Count()},
+				{fmt.Sprintf("%s.min", name), timer.Min()},
+				{fmt.Sprintf("%s.max", name), timer.Max()},
+				{fmt.Sprintf("%s.mean", name), timer.Mean()},
+				{fmt.Sprintf("%s.std-dev", name), timer.StdDev()},
+				{fmt.Sprintf("%s.one-minute", name), timer.Rate1()},
+				{fmt.Sprintf("%s.five-minute", name), timer.Rate5()},
+				{fmt.Sprintf("%s.fifteen-minute", name), timer.Rate15()},
+				{fmt.Sprintf("%s.mean-rate", name), timer.RateMean()},
+				{fmt.Sprintf("%s.50-percentile", name), timer.Percentile(0.5)},
+				{fmt.Sprintf("%s.75-percentile", name), timer.Percentile(0.75)},
+				{fmt.Sprintf("%s.95-percentile", name), timer.Percentile(0.95)},
+				{fmt.Sprintf("%s.99-percentile", name), timer.Percentile(0.99)},
+				{fmt.Sprintf("%s.999-percentile", name), timer.Percentile(0.999)},
 			}...)
 		}
 	})
 
 	now := time.Now().Unix()
 	out := []map[string]interface{}{}
-	for i, name := range names {
-		out = append(out, mb.serializeMetric(now, name, values[i]))
+	for _, nv := range nvs {
+		out = append(out, mb.serializeMetric(now, nv))
 	}
 
 	return out
