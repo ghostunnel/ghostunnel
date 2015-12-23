@@ -17,16 +17,109 @@
 package main
 
 import (
-	"bufio"
+	"bytes"
+	"encoding/json"
+	"fmt"
 	"net/http"
+	"time"
 
-	"github.com/csstaub/go-metrics-graphite"
+	"github.com/rcrowley/go-metrics"
 )
 
-type metricsHandler struct {
-	metricsConfig graphite.GraphiteConfig
+// Metrics bridge posts metrics to an HTTP/JSON bridge endpoint
+type metricsConfig struct {
+	url      string
+	registry metrics.Registry
+	prefix   string
+	hostname string
 }
 
-func (mh metricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	graphite.SerializeMetrics(&mh.metricsConfig, bufio.NewWriter(w))
+func (mb metricsConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	metrics := mb.serializeMetrics()
+	raw, err := json.Marshal(metrics)
+	if err != nil {
+		logger.Printf("%s", err)
+	}
+	w.Write(raw)
+}
+
+// Publish metrics to bridge
+func (mb *metricsConfig) publishMetrics() {
+	for _ = range time.Tick(1 * time.Second) {
+		mb.postMetrics()
+	}
+}
+
+func (mb *metricsConfig) postMetrics() {
+	metrics := mb.serializeMetrics()
+	raw, err := json.Marshal(metrics)
+	if err != nil {
+		logger.Printf("%s", err)
+	}
+	http.Post(mb.url, "application/json", bytes.NewReader(raw))
+}
+
+func (mb *metricsConfig) serializeMetric(now int64, name string, value interface{}) map[string]interface{} {
+	return map[string]interface{}{
+		"timestamp": now,
+		"metric":    fmt.Sprintf("%s.%s", mb.prefix, name),
+		"value":     value,
+		"hostname":  mb.hostname,
+	}
+}
+
+func (mb *metricsConfig) serializeMetrics() []map[string]interface{} {
+	names := []string{}
+	values := []interface{}{}
+	du := float64(1 * time.Nanosecond)
+
+	mb.registry.Each(func(name string, i interface{}) {
+		switch metric := i.(type) {
+		case metrics.Counter:
+			names = append(names, name)
+			values = append(values, metric.Count())
+		case metrics.Timer:
+			timer := metric.Snapshot()
+			names = append(names, []string{
+				fmt.Sprintf("%s.count", name),
+				fmt.Sprintf("%s.min", name),
+				fmt.Sprintf("%s.max", name),
+				fmt.Sprintf("%s.mean", name),
+				fmt.Sprintf("%s.std-dev", name),
+				fmt.Sprintf("%s.one-minute", name),
+				fmt.Sprintf("%s.five-minute", name),
+				fmt.Sprintf("%s.fifteen-minute", name),
+				fmt.Sprintf("%s.mean-rate", name),
+				fmt.Sprintf("%s.50-percentile", name),
+				fmt.Sprintf("%s.75-percentile", name),
+				fmt.Sprintf("%s.95-percentile", name),
+				fmt.Sprintf("%s.99-percentile", name),
+				fmt.Sprintf("%s.999-percentile", name),
+			}...)
+			values = append(values, []interface{}{
+				timer.Count(),
+				timer.Min() / int64(du),
+				timer.Max() / int64(du),
+				timer.Mean() / du,
+				timer.StdDev() / du,
+				timer.Rate1(),
+				timer.Rate5(),
+				timer.Rate15(),
+				timer.RateMean(),
+				timer.Percentile(0.5) / du,
+				timer.Percentile(0.75) / du,
+				timer.Percentile(0.95) / du,
+				timer.Percentile(0.99) / du,
+				timer.Percentile(0.999) / du,
+			}...)
+		}
+	})
+
+	now := time.Now().Unix()
+	out := []map[string]interface{}{}
+	for i, name := range names {
+		out = append(out, mb.serializeMetric(now, name, values[i]))
+	}
+
+	return out
 }
