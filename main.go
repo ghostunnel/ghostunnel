@@ -55,7 +55,7 @@ var (
 	allowedCNs     = app.Flag("allow-cn", "Allow clients with given common name (can be repeated).").PlaceHolder("CN").Strings()
 	allowedOUs     = app.Flag("allow-ou", "Allow clients with organizational unit name (can be repeated).").PlaceHolder("OU").Strings()
 	graphiteAddr   = app.Flag("graphite", "Collect metrics and report them to the given graphite instance.").PlaceHolder("ADDR").TCP()
-	metricsUrl     = app.Flag("metrics-bridge", "Collect metrics and report them to the given URL (over HTTP/JSON).").PlaceHolder("URL").String()
+	metricsURL     = app.Flag("metrics-bridge", "Collect metrics and report them to the given URL (over HTTP/JSON).").PlaceHolder("URL").String()
 	metricsPrefix  = app.Flag("metrics-prefix", fmt.Sprintf("Set prefix string for all reported metrics (default: %s).", defaultMetricsPrefix)).PlaceHolder("PREFIX").Default(defaultMetricsPrefix).String()
 	statusPort     = app.Flag("status-port", "Enable serving /_status and /_metrics on given localhost:PORT (shows tunnel/backend health status).").PlaceHolder("PORT").Int()
 	enableProf     = app.Flag("enable-pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
@@ -111,7 +111,7 @@ func validateFlags(app *kingpin.Application) error {
 	if !validateTarget(*forwardAddress) {
 		return fmt.Errorf("--target must be localhost:port, 127.0.0.1:port or [::1]:port")
 	}
-	if *metricsUrl != "" && (strings.HasPrefix(*metricsUrl, "http://") || strings.HasPrefix(*metricsUrl, "https://")) {
+	if *metricsURL != "" && !strings.HasPrefix(*metricsURL, "http://") && strings.HasPrefix(*metricsURL, "https://") {
 		return fmt.Errorf("--metrics-bridge should start with http:// or https://")
 	}
 	return nil
@@ -152,7 +152,7 @@ func main() {
 	}
 
 	metrics := metricsConfig{
-		url:      *metricsUrl,
+		url:      *metricsURL,
 		registry: metrics.DefaultRegistry,
 		prefix:   *metricsPrefix,
 		hostname: hostname,
