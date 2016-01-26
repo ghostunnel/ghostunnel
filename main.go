@@ -112,7 +112,7 @@ func validateFlags(app *kingpin.Application) error {
 		return fmt.Errorf("--target must be localhost:port, 127.0.0.1:port or [::1]:port")
 	}
 	if *metricsURL != "" && !strings.HasPrefix(*metricsURL, "http://") && strings.HasPrefix(*metricsURL, "https://") {
-		return fmt.Errorf("--metrics-bridge should start with http:// or https://")
+		return fmt.Errorf("--metrics-url should start with http:// or https://")
 	}
 	return nil
 }
