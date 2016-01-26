@@ -41,20 +41,21 @@ generate some test certificates. If you want to bootstrap a full PKI, one
 good way to get started is to use a package like
 [square/certstrap](https://github.com/square/certstrap). If you only need
 some test certificates for playing around with the tunnel, you can find
-some pre-generated ones in the test-keys/ directory (alongside instructions
+some pre-generated ones in the `test-keys` directory (alongside instructions
 on how to generate new ones with OpenSSL).
 
 ### Launch ghostunnel
 
 This is a short example for how to launch ghostunnel listening for incoming
 connections on `localhost:8443` and forwarding them to `localhost:8080`. We
-assume that `server.p12` is a PKCS12 keystore with the cert and private key for
-the server and `root.crt` contains your trusted root certificate(s). To set
-allowed clients, you must specify at least one of `--allow-all`, `--allow-cn`
-or `--allow-ou`.  It's possible to use both `--allow-cn` and `--allow-ou`
-together or to specify them repeatedly to allow multiple CN/OU values. In this
-example, we assume that the CN of the client cert to accept connections from is
-`client`.
+assume that `server.p12` is a PKCS12 keystore with the certificate and private
+key for the server, and that `root.crt` contains your trusted root certificate(s).
+
+To set allowed clients, you must specify at least one of `--allow-all`,
+`--allow-cn` or `--allow-ou`.  It's possible to use both `--allow-cn` and
+`--allow-ou` together or to specify them repeatedly to allow multiple CN/OU
+values. In this example, we assume that the CN of the client cert we want to
+accept connections from is `client`.
 
 Start a ghostunnel with a server certificate:
 
