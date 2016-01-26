@@ -19,7 +19,7 @@ if __name__ == "__main__":
     ghostunnel = Popen(['../ghostunnel', '--listen={0}:13001'.format(LOCALHOST),
       '--target={0}:13100'.format(LOCALHOST), '--keystore=server.p12',
       '--storepass=', '--cacert=root.crt', '--allow-ou=client1',
-      '--status-port=13100'])
+      '--status=localhost:13100'])
 
     # Step 3: read status information
     time.sleep(5)

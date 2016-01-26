@@ -57,7 +57,7 @@ var (
 	graphiteAddr   = app.Flag("graphite", "Collect metrics and report them to the given graphite instance (raw TCP).").PlaceHolder("ADDR").TCP()
 	metricsURL     = app.Flag("metrics-url", "Collect metrics and POST them periodically to the given URL (via HTTP/JSON).").PlaceHolder("URL").String()
 	metricsPrefix  = app.Flag("metrics-prefix", fmt.Sprintf("Set prefix string for all reported metrics (default: %s).", defaultMetricsPrefix)).PlaceHolder("PREFIX").Default(defaultMetricsPrefix).String()
-	statusPort     = app.Flag("status-port", "Enable serving /_status and /_metrics on given localhost:PORT (shows tunnel/backend health status).").PlaceHolder("PORT").Int()
+	statusAddr     = app.Flag("status", "Enable serving /_status and /_metrics on given HOST:PORT (shows tunnel/backend health status).").PlaceHolder("ADDR").TCP()
 	enableProf     = app.Flag("enable-pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
 	useSyslog      = app.Flag("syslog", "Send logs to syslog instead of stderr.").Bool()
 )
@@ -68,6 +68,7 @@ type Context struct {
 	listeners *sync.WaitGroup
 	status    *statusHandler
 	dial      func() (net.Conn, error)
+	metrics   *metricsConfig
 }
 
 // Global logger instance
@@ -102,11 +103,8 @@ func validateFlags(app *kingpin.Application) error {
 	if *allowAll && len(*allowedOUs) != 0 {
 		return fmt.Errorf("--allow-all and --allow-ou are mutually exclusive")
 	}
-	if *enableProf && *statusPort == 0 {
-		return fmt.Errorf("--enable-pprof requires --status-port to be set")
-	}
-	if *statusPort < 0 || *statusPort > 65535 {
-		return fmt.Errorf("--status-port invalid, must be 1 <= PORT <= 65535")
+	if *enableProf && *statusAddr == nil {
+		return fmt.Errorf("--enable-pprof requires --status to be set")
 	}
 	if !validateTarget(*forwardAddress) {
 		return fmt.Errorf("--target must be localhost:port, 127.0.0.1:port or [::1]:port")
@@ -151,7 +149,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	metrics := metricsConfig{
+	metrics := &metricsConfig{
 		url:      *metricsURL,
 		registry: metrics.DefaultRegistry,
 		prefix:   *metricsPrefix,
@@ -160,35 +158,6 @@ func main() {
 
 	if metrics.url != "" {
 		go metrics.publishMetrics()
-	}
-
-	status := newStatusHandler(dial)
-	if *statusPort != 0 {
-		mux := http.NewServeMux()
-		mux.Handle("/_status", status)
-		mux.Handle("/_metrics", metrics)
-		if *enableProf {
-			mux.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
-			mux.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
-			mux.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
-			mux.Handle("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
-			mux.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
-		}
-
-		listener, err := reuseport.NewReusablePortListener("tcp4", fmt.Sprintf("localhost:%d", *statusPort))
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: unable to bind on status port: %s", err)
-			os.Exit(1)
-		}
-
-		logger.Printf("status port enabled; serving status on http://localhost:%d/_status", *statusPort)
-		go func() {
-			server := &http.Server{
-				Handler:  mux,
-				ErrorLog: logger,
-			}
-			logger.Fatal(server.Serve(listener))
-		}()
 	}
 
 	listeners := &sync.WaitGroup{}
@@ -200,9 +169,13 @@ func main() {
 		go watchFiles([]string{*keystorePath, *caBundlePath}, time.Duration(*timedReload)*time.Second, watcher)
 	}
 
+	status := newStatusHandler(dial)
+	context := &Context{watcher, listeners, status, dial, metrics}
+	serveStatus(context)
+
 	// Start listening
 	started := make(chan bool, 1)
-	go listen(started, &Context{watcher, listeners, status, dial})
+	go listen(started, context)
 
 	up := <-started
 	if !up {
@@ -281,6 +254,36 @@ func listen(started chan bool, context *Context) {
 	handlers.Wait()
 
 	context.listeners.Done()
+}
+
+// Serve /_status (if configured)
+func serveStatus(context *Context) {
+	mux := http.NewServeMux()
+	mux.Handle("/_status", context.status)
+	mux.Handle("/_metrics", context.metrics)
+	if *enableProf {
+		mux.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
+		mux.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
+		mux.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
+		mux.Handle("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
+		mux.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
+	}
+
+	network, address := decodeAddress(*statusAddr)
+	listener, err := reuseport.NewReusablePortListener(network, address)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: unable to bind on status port: %s", err)
+		os.Exit(1)
+	}
+
+	logger.Printf("status port enabled; serving status on https://%s/_status", address)
+	go func() {
+		server := &http.Server{
+			Handler:  mux,
+			ErrorLog: logger,
+		}
+		logger.Fatal(server.Serve(listener))
+	}()
 }
 
 // Get backend dialer function
