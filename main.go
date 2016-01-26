@@ -30,7 +30,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cyberdelia/go-metrics-graphite"
 	"github.com/kavu/go_reuseport"
+	"github.com/rcrowley/go-metrics"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
@@ -38,9 +40,10 @@ import (
 var buildRevision = "unknown"
 var buildCompiler = "unknown"
 
-var app = kingpin.New("ghostunnel", "A simple SSL/TLS proxy with mutual authentication for securing non-TLS services.")
+var defaultMetricsPrefix = "ghostunnel"
 
 var (
+	app            = kingpin.New("ghostunnel", "A simple SSL/TLS proxy with mutual authentication for securing non-TLS services.")
 	listenAddress  = app.Flag("listen", "Address and port to listen on (HOST:PORT).").PlaceHolder("ADDR").Required().TCP()
 	forwardAddress = app.Flag("target", "Address to foward connections to (HOST:PORT, or unix:PATH).").PlaceHolder("ADDR").Required().String()
 	unsafeTarget   = app.Flag("unsafe-target", "If set, does not limit target to localhost, 127.0.0.1 or [::1].").Bool()
@@ -51,7 +54,10 @@ var (
 	allowAll       = app.Flag("allow-all", "Allow all clients, do not check client cert subject.").Bool()
 	allowedCNs     = app.Flag("allow-cn", "Allow clients with given common name (can be repeated).").PlaceHolder("CN").Strings()
 	allowedOUs     = app.Flag("allow-ou", "Allow clients with organizational unit name (can be repeated).").PlaceHolder("OU").Strings()
-	statusPort     = app.Flag("status-port", "Enable serving /_status on given localhost:PORT (shows tunnel/backend health status).").PlaceHolder("PORT").Int()
+	graphiteAddr   = app.Flag("graphite", "Collect metrics and report them to the given graphite instance (raw TCP).").PlaceHolder("ADDR").TCP()
+	metricsURL     = app.Flag("metrics-url", "Collect metrics and POST them periodically to the given URL (via HTTP/JSON).").PlaceHolder("URL").String()
+	metricsPrefix  = app.Flag("metrics-prefix", fmt.Sprintf("Set prefix string for all reported metrics (default: %s).", defaultMetricsPrefix)).PlaceHolder("PREFIX").Default(defaultMetricsPrefix).String()
+	statusPort     = app.Flag("status-port", "Enable serving /_status and /_metrics on given localhost:PORT (shows tunnel/backend health status).").PlaceHolder("PORT").Int()
 	enableProf     = app.Flag("enable-pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
 	useSyslog      = app.Flag("syslog", "Send logs to syslog instead of stderr.").Bool()
 )
@@ -105,6 +111,9 @@ func validateFlags(app *kingpin.Application) error {
 	if !validateTarget(*forwardAddress) {
 		return fmt.Errorf("--target must be localhost:port, 127.0.0.1:port or [::1]:port")
 	}
+	if *metricsURL != "" && !strings.HasPrefix(*metricsURL, "http://") && strings.HasPrefix(*metricsURL, "https://") {
+		return fmt.Errorf("--metrics-bridge should start with http:// or https://")
+	}
 	return nil
 }
 
@@ -132,10 +141,32 @@ func main() {
 		os.Exit(1)
 	}
 
+	if *graphiteAddr != nil {
+		go graphite.Graphite(metrics.DefaultRegistry, time.Nanosecond, *metricsPrefix, *graphiteAddr)
+	}
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: unable to get hostname: %s", err)
+		os.Exit(1)
+	}
+
+	metrics := metricsConfig{
+		url:      *metricsURL,
+		registry: metrics.DefaultRegistry,
+		prefix:   *metricsPrefix,
+		hostname: hostname,
+	}
+
+	if metrics.url != "" {
+		go metrics.publishMetrics()
+	}
+
 	status := newStatusHandler(dial)
 	if *statusPort != 0 {
 		mux := http.NewServeMux()
 		mux.Handle("/_status", status)
+		mux.Handle("/_metrics", metrics)
 		if *enableProf {
 			mux.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
 			mux.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))

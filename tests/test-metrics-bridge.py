@@ -4,7 +4,16 @@
 
 from subprocess import Popen
 from test_common import create_root_cert, create_signed_cert, LOCALHOST, SocketPair, print_ok, cleanup_certs
-import urllib2, socket, ssl, time, os, signal, json
+import urllib2, socket, ssl, time, os, signal, json, BaseHTTPServer, threading
+
+received_metrics = None
+
+class FakeMetricsBridgeHandler(BaseHTTPServer.BaseHTTPRequestHandler):
+  def do_POST(self):
+    global received_metrics
+    print_ok("handling POST to fake bridge")
+    length = int(self.headers['Content-Length'])
+    received_metrics = json.loads(self.rfile.read(length).decode('utf-8'))
 
 if __name__ == "__main__":
   ghostunnel = None
@@ -15,22 +24,24 @@ if __name__ == "__main__":
     create_signed_cert('new_server', 'root')
     create_signed_cert('client1', 'root')
 
+    httpd = BaseHTTPServer.HTTPServer(('localhost',13080), FakeMetricsBridgeHandler)
+    server = threading.Thread(target=httpd.handle_request)
+    server.start()
+
     # Step 2: start ghostunnel
     ghostunnel = Popen(['../ghostunnel', '--listen={0}:13001'.format(LOCALHOST),
       '--target={0}:13100'.format(LOCALHOST), '--keystore=server.p12',
       '--storepass=', '--cacert=root.crt', '--allow-ou=client1',
-      '--status-port=13100'])
+      '--status-port=13100', '--metrics-url=http://localhost:13080/post'])
 
-    # Step 3: read status information
+    # Step 3: wait for metrics to post
     time.sleep(5)
-    status = json.loads(urllib2.urlopen("http://localhost:13100/_status").read())
-    metrics = json.loads(urllib2.urlopen("http://localhost:13100/_metrics").read())
 
-    if not status['ok']:
-        raise Exception("ghostunnel reported non-ok status")
-
-    if type(metrics) != list:
+    if received_metrics:
+      if type(received_metrics) != list:
         raise Exception("ghostunnel metrics expected to be JSON list")
+    else:
+      raise Exception("did not receive metrics from instance")
 
     print_ok("OK")
   finally:
