@@ -32,7 +32,7 @@ if __name__ == "__main__":
     ghostunnel = Popen(['../ghostunnel', '--listen={0}:13001'.format(LOCALHOST),
       '--target={0}:13100'.format(LOCALHOST), '--keystore=server.p12',
       '--storepass=', '--cacert=root.crt', '--allow-ou=client1',
-      '--status-port=13100', '--metrics-bridge=http://localhost:13080/post'])
+      '--status-port=13100', '--metrics-url=http://localhost:13080/post'])
 
     # Step 3: wait for metrics to post
     time.sleep(5)
