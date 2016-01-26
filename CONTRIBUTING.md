@@ -9,7 +9,7 @@ sure all tests pass by running `make test`, and format your code with `go fmt`.
 We also recommend using `golint` and `errcheck`.
 
 Note that ghostunnel relies heavily on integration tests written in Python that
-run checks on a live instance. If you are adding new features or chaging 
+run checks on a live instance. If you are adding new features or changing 
 existing behavior, please add/update the integration tests in the tests directory
 accordingly.
 
