@@ -49,7 +49,8 @@ type statusResponse struct {
 }
 
 func newStatusHandler(dial func() (net.Conn, error)) *statusHandler {
-	return &statusHandler{&sync.Mutex{}, dial, false, false}
+	status := &statusHandler{&sync.Mutex{}, dial, false, false}
+	return status
 }
 
 func (s *statusHandler) Listening() {
@@ -70,13 +71,14 @@ func (s *statusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Time: time.Now(),
 	}
 
-	conn, err := s.dial()
-	resp.BackendOk = err == nil
 	resp.Revision = buildRevision
 	resp.Compiler = buildCompiler
 
+	conn, err := s.dial()
+	resp.BackendOk = err == nil
+
 	if resp.BackendOk {
-		defer conn.Close()
+		conn.Close()
 		resp.BackendStatus = "ok"
 	} else {
 		resp.BackendError = err.Error()

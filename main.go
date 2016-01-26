@@ -171,7 +171,6 @@ func main() {
 
 	status := newStatusHandler(dial)
 	context := &Context{watcher, listeners, status, dial, metrics}
-	serveStatus(context)
 
 	// Start listening
 	started := make(chan bool, 1)
@@ -233,6 +232,11 @@ func listen(started chan bool, context *Context) {
 
 	leaf := tlsConfig.Certificates[0].Leaf
 
+	var statusListener net.Listener
+	if *statusAddr != nil {
+		statusListener = serveStatus(*tlsConfig, context)
+	}
+
 	listener := tls.NewListener(rawListener, tlsConfig)
 	logger.Printf("listening on %s", *listenAddress)
 	defer listener.Close()
@@ -245,7 +249,7 @@ func listen(started chan bool, context *Context) {
 	stopper := make(chan bool, 1)
 
 	go accept(listener, handlers, stopper, leaf, context.dial)
-	go signalHandler(listener, stopper, context)
+	go signalHandler(listener, statusListener, stopper, context)
 
 	started <- true
 	context.status.Listening()
@@ -257,7 +261,7 @@ func listen(started chan bool, context *Context) {
 }
 
 // Serve /_status (if configured)
-func serveStatus(context *Context) {
+func serveStatus(tlsConfig tls.Config, context *Context) net.Listener {
 	mux := http.NewServeMux()
 	mux.Handle("/_status", context.status)
 	mux.Handle("/_metrics", context.metrics)
@@ -270,20 +274,26 @@ func serveStatus(context *Context) {
 	}
 
 	network, address := decodeAddress(*statusAddr)
-	listener, err := reuseport.NewReusablePortListener(network, address)
+	rawListener, err := reuseport.NewReusablePortListener(network, address)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: unable to bind on status port: %s", err)
 		os.Exit(1)
 	}
 
+	// Disable client certs for /_status port
+	tlsConfig.ClientAuth = tls.NoClientCert
+
+	listener := tls.NewListener(rawListener, &tlsConfig)
 	logger.Printf("status port enabled; serving status on https://%s/_status", address)
 	go func() {
 		server := &http.Server{
 			Handler:  mux,
 			ErrorLog: logger,
 		}
-		logger.Fatal(server.Serve(listener))
+		server.Serve(listener)
 	}()
+
+	return listener
 }
 
 // Get backend dialer function
