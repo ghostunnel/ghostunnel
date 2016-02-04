@@ -27,6 +27,12 @@ import (
 	"golang.org/x/crypto/pkcs12"
 )
 
+var minVersion = map[string]uint16{
+	"1.0": tls.VersionTLS10,
+	"1.1": tls.VersionTLS11,
+	"1.2": tls.VersionTLS12,
+}
+
 // parseKeystore takes a PKCS12 keystore and converts it into a series of
 // serialized PEM blocks for certificates/private key. The keystore is expected
 // to contain exactly one private key and one or more certificates.
@@ -48,7 +54,7 @@ func parseKeystore(data []byte, password string) (certs, key []byte, err error) 
 }
 
 // buildConfig reads command-line options and builds a tls.Config
-func buildConfig(keystorePath, keystorePass, caBundlePath string) (*tls.Config, error) {
+func buildConfig(keystorePath, keystorePass, caBundlePath, tlsVersion string) (*tls.Config, error) {
 	caBundleBytes, err := ioutil.ReadFile(caBundlePath)
 	if err != nil {
 		return nil, err
@@ -87,7 +93,7 @@ func buildConfig(keystorePath, keystorePass, caBundlePath string) (*tls.Config, 
 		// of Python running on Travis-CI by default only does TLS v1.1 right
 		// now unfortunately.
 		ClientAuth: tls.RequireAndVerifyClientCert,
-		MinVersion: tls.VersionTLS11,
+		MinVersion: minVersion[tlsVersion],
 		CipherSuites: []uint16{
 			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
 			tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,

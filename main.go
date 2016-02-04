@@ -41,6 +41,7 @@ var buildRevision = "unknown"
 var buildCompiler = "unknown"
 
 var defaultMetricsPrefix = "ghostunnel"
+var defaultMinTLSVersion = "1.1"
 
 var (
 	app            = kingpin.New("ghostunnel", "A simple SSL/TLS proxy with mutual authentication for securing non-TLS services.")
@@ -50,6 +51,7 @@ var (
 	keystorePath   = app.Flag("keystore", "Path to certificate and keystore (PKCS12).").PlaceHolder("PATH").Required().String()
 	keystorePass   = app.Flag("storepass", "Password for certificate and keystore (optional).").PlaceHolder("PASS").String()
 	caBundlePath   = app.Flag("cacert", "Path to certificate authority bundle file (PEM/X509).").Required().String()
+	tlsVersion     = app.Flag("min-tls", fmt.Sprintf("Set the minimum required TLS version (1.0, 1.1, 1.2; default: %s).", defaultMinTLSVersion)).Default(defaultMinTLSVersion).PlaceHolder("X.Y").String()
 	timedReload    = app.Flag("timed-reload", "Reload keystores every N seconds, refresh listener on changes.").PlaceHolder("N").Int()
 	allowAll       = app.Flag("allow-all", "Allow all clients, do not check client cert subject.").Bool()
 	allowedCNs     = app.Flag("allow-cn", "Allow clients with given common name (can be repeated).").PlaceHolder("CN").Strings()
@@ -223,7 +225,7 @@ func listen(started chan bool, context *Context) {
 	}
 
 	// Wrap listening socket with TLS listener.
-	tlsConfig, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath)
+	tlsConfig, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath, *tlsVersion)
 	if err != nil {
 		logger.Printf("error setting up TLS: %s", err)
 		started <- false
