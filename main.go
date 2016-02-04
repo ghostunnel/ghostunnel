@@ -140,7 +140,7 @@ func main() {
 	}
 
 	if *graphiteAddr != nil {
-		go graphite.Graphite(metrics.DefaultRegistry, time.Nanosecond, *metricsPrefix, *graphiteAddr)
+		go graphite.Graphite(metrics.DefaultRegistry, 1*time.Second, *metricsPrefix, *graphiteAddr)
 	}
 
 	hostname, err := os.Hostname()
