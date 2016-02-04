@@ -1,2 +1,2 @@
 extendedKeyUsage = clientAuth, serverAuth
-subjectAltName = IP:127.0.0.1,IP:::1
+subjectAltName = IP:127.0.0.1,IP:::1,DNS:localhost

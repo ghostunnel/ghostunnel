@@ -26,13 +26,16 @@ import (
 // signalHandler listenes for incoming SIGTERM or SIGUSR1 signals. If we get
 // SIGTERM, stop listening for new connections and gracefully terminate the
 // process.  If we get SIGUSR1, reload certificates.
-func signalHandler(listener net.Listener, stopper chan bool, context *Context) {
+func signalHandler(listener net.Listener, statusListener net.Listener, stopper chan bool, context *Context) {
 	signals := make(chan os.Signal)
 	signal.Notify(signals, syscall.SIGUSR1)
 	defer func() {
 		stopper <- true
 		signal.Stop(signals)
 		listener.Close()
+		if statusListener != nil {
+			statusListener.Close()
+		}
 	}()
 
 	for {

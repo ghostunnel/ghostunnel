@@ -34,7 +34,7 @@ type metricsConfig struct {
 	hostname string
 }
 
-func (mb metricsConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (mb *metricsConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	metrics := mb.serializeMetrics()
 	raw, err := json.Marshal(metrics)
 	if err != nil {
