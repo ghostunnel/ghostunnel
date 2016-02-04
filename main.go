@@ -140,6 +140,7 @@ func main() {
 	}
 
 	if *graphiteAddr != nil {
+		logger.Printf("metrics enabled; reporting metrics via TCP to %s", *graphiteAddr)
 		go graphite.Graphite(metrics.DefaultRegistry, 1*time.Second, *metricsPrefix, *graphiteAddr)
 	}
 
@@ -157,6 +158,7 @@ func main() {
 	}
 
 	if metrics.url != "" {
+		logger.Printf("metrics enabled; reporting metrics via POST to %s", *graphiteAddr)
 		go metrics.publishMetrics()
 	}
 
