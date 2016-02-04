@@ -11,6 +11,9 @@ go:
   - 1.5
   - tip
 
+before_script:
+  - go vet ./...
+
 before_install:
   - python --version
   - openssl version
