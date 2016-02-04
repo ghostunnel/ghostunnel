@@ -17,6 +17,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"encoding/base64"
 	"io/ioutil"
 	"os"
@@ -160,9 +161,16 @@ func TestBuildConfig(t *testing.T) {
 	defer os.Remove(tmpKeystore.Name())
 	defer os.Remove(tmpCaBundle.Name())
 
-	conf, err := buildConfig(tmpKeystore.Name(), testKeystorePassword, tmpCaBundle.Name())
+	conf, err := buildConfig(tmpKeystore.Name(), testKeystorePassword, tmpCaBundle.Name(), "1.2")
 	assert.Nil(t, err, "should be able to build TLS config")
 	assert.NotNil(t, conf.Certificates, "config must have certs")
 	assert.NotNil(t, conf.RootCAs, "config must have CA certs")
 	assert.NotNil(t, conf.ClientCAs, "config must have CA certs")
+	assert.True(t, conf.MinVersion == tls.VersionTLS12, "must have correct TLS min version")
+
+	conf, err = buildConfig(tmpKeystore.Name(), testKeystorePassword, tmpCaBundle.Name(), "1.1")
+	assert.True(t, conf.MinVersion == tls.VersionTLS11, "must have correct TLS min version")
+
+	conf, err = buildConfig(tmpKeystore.Name(), testKeystorePassword, tmpCaBundle.Name(), "1.0")
+	assert.True(t, conf.MinVersion == tls.VersionTLS10, "must have correct TLS min version")
 }
