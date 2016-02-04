@@ -83,17 +83,16 @@ func buildConfig(keystorePath, keystorePass, caBundlePath string) (*tls.Config, 
 		RootCAs:      caBundle,
 		ClientCAs:    caBundle,
 
-		// We want MinVersion to be tls.Version12 eventually, but the version
-		// of Python running on Travis-CI by default only does TLS v1.1 right
-		// now unfortunately.
 		ClientAuth: tls.RequireAndVerifyClientCert,
 		MinVersion: tls.VersionTLS11,
 		CipherSuites: []uint16{
+			// Modern cipher suites
 			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+			// Compatibility cipher suites
 			tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-			tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
 			tls.TLS_RSA_WITH_AES_128_CBC_SHA,
-			tls.TLS_RSA_WITH_AES_256_CBC_SHA,
 		},
 	}, nil
 }
