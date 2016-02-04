@@ -227,21 +227,29 @@ func listen(started chan bool, context *Context) {
 	}
 
 	// Wrap listening socket with TLS listener.
-	tlsConfig, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath, *tlsVersion)
+	tlsConfigProxy, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath, *tlsVersion)
 	if err != nil {
 		logger.Printf("error setting up TLS: %s", err)
 		started <- false
 		return
 	}
 
-	leaf := tlsConfig.Certificates[0].Leaf
+	leaf := tlsConfigProxy.Certificates[0].Leaf
 
 	var statusListener net.Listener
 	if *statusAddr != nil {
-		statusListener = serveStatus(*tlsConfig, context)
+		tlsConfigStatus, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath, *tlsVersion)
+		tlsConfigStatus.ClientAuth = tls.NoClientCert
+		if err != nil {
+			logger.Printf("error setting up TLS: %s", err)
+			started <- false
+			return
+		}
+
+		statusListener = serveStatus(tlsConfigStatus, context)
 	}
 
-	listener := tls.NewListener(rawListener, tlsConfig)
+	listener := tls.NewListener(rawListener, tlsConfigProxy)
 	logger.Printf("listening on %s", *listenAddress)
 	defer listener.Close()
 
@@ -265,7 +273,7 @@ func listen(started chan bool, context *Context) {
 }
 
 // Serve /_status (if configured)
-func serveStatus(tlsConfig tls.Config, context *Context) net.Listener {
+func serveStatus(tlsConfig *tls.Config, context *Context) net.Listener {
 	mux := http.NewServeMux()
 	mux.Handle("/_status", context.status)
 	mux.Handle("/_metrics", context.metrics)
@@ -284,10 +292,7 @@ func serveStatus(tlsConfig tls.Config, context *Context) net.Listener {
 		os.Exit(1)
 	}
 
-	// Disable client certs for /_status port
-	tlsConfig.ClientAuth = tls.NoClientCert
-
-	listener := tls.NewListener(rawListener, &tlsConfig)
+	listener := tls.NewListener(rawListener, tlsConfig)
 	logger.Printf("status port enabled; serving status on https://%s/_status", address)
 	go func() {
 		server := &http.Server{
