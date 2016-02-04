@@ -1,4 +1,4 @@
-#!/usr/local/bin/python
+#!/usr/bin/env python3
 
 # Creates a ghostunnel. Ensures that tunnel sees & reloads a root certificate
 # change.

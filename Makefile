@@ -39,5 +39,5 @@ integration: pre-integration $(INTEGRATION_TESTS)
 
 test-%:
 	@echo "=== RUN tests/$@"
-	@cd tests && python ./$@.py
+	@cd tests && ./$@.py
 	@echo "--- PASS: tests/$@"

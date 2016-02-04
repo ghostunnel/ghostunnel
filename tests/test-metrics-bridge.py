@@ -1,14 +1,14 @@
-#!/usr/local/bin/python
+#!/usr/bin/env python3
 
 # Creates a ghostunnel. Ensures that /_status endpoint works.
 
 from subprocess import Popen
 from test_common import create_root_cert, create_signed_cert, LOCALHOST, SocketPair, print_ok, cleanup_certs
-import urllib2, socket, ssl, time, os, signal, json, BaseHTTPServer, threading
+import urllib.request, urllib.error, urllib.parse, socket, ssl, time, os, signal, json, http.server, threading
 
 received_metrics = None
 
-class FakeMetricsBridgeHandler(BaseHTTPServer.BaseHTTPRequestHandler):
+class FakeMetricsBridgeHandler(http.server.BaseHTTPRequestHandler):
   def do_POST(self):
     global received_metrics
     print_ok("handling POST to fake bridge")
@@ -24,7 +24,7 @@ if __name__ == "__main__":
     create_signed_cert('new_server', 'root')
     create_signed_cert('client1', 'root')
 
-    httpd = BaseHTTPServer.HTTPServer(('localhost',13080), FakeMetricsBridgeHandler)
+    httpd = http.server.HTTPServer(('localhost',13080), FakeMetricsBridgeHandler)
     server = threading.Thread(target=httpd.handle_request)
     server.start()
 
