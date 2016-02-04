@@ -1,7 +1,7 @@
 INTEGRATION_TESTS := $(shell find tests -name 'test-*.py' -exec basename {} .py \;)
 
 build: depends
-	go build -ldflags "-X \"main.buildRevision=`git rev-parse HEAD`\" -X \"main.buildCompiler=`go version`\"" 
+	go build -ldflags "-X \"main.buildRevision=`git describe --long --always --abbrev=8 HEAD`\" -X \"main.buildCompiler=`go version`\""
 
 depends:
 	go get ./...
