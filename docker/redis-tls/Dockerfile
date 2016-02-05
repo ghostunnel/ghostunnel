@@ -51,7 +51,6 @@ RUN \
 RUN echo "port 0" >> /etc/redis/redis.conf
 RUN echo "unixsocket /tmp/redis.sock" >> /etc/redis/redis.conf
 RUN echo "unixsocketperm 700" >> /etc/redis/redis.conf
-
 RUN useradd -ms /bin/false redis
 
 # Install ghostunnel.
@@ -59,14 +58,15 @@ RUN mkdir /ghostunnel
 COPY run.sh /ghostunnel/run.sh
 RUN go get github.com/square/ghostunnel
 
-# Install sudo.
-RUN apt-get update && apt-get install -y sudo --no-install-recommends
-
 # Define mountable directories.
+RUN mkdir -p /data && chown -R redis:redis /data
 VOLUME ["/data"]
 
 # Define working directory.
 WORKDIR /data
+
+# Drop privs to non-root
+USER redis
 
 # Define default command.
 ENTRYPOINT ["/ghostunnel/run.sh"]
