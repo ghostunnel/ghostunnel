@@ -3,7 +3,7 @@ Redis with ghostunnel
 
 This directory contains a Dockerfile for building a Docker container that
 runs redis with ghostunnel as a SSL/TLS proxy. It serves as an example for how
-use ghostunnel to proxy connections to applications that do not natively
+to use ghostunnel to proxy connections to applications that do not natively
 support SSL/TLS.
 
 ### Building
