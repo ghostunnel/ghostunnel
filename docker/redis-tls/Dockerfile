@@ -44,17 +44,23 @@ RUN \
   sed -i 's/^\(bind .*\)$/# \1/' /etc/redis/redis.conf && \
   sed -i 's/^\(daemonize .*\)$/# \1/' /etc/redis/redis.conf && \
   sed -i 's/^\(dir .*\)$/# \1\ndir \/data/' /etc/redis/redis.conf && \
-  sed -i 's/^\(logfile .*\)$/# \1/' /etc/redis/redis.conf
+  sed -i 's/^\(logfile .*\)$/# \1/' /etc/redis/redis.conf && \
+  sed -i 's/^\(port .*\)$/# \1/' /etc/redis/redis.conf
 
 # Configure redis to listen on UNIX socket.
 RUN echo "port 0" >> /etc/redis/redis.conf
 RUN echo "unixsocket /tmp/redis.sock" >> /etc/redis/redis.conf
 RUN echo "unixsocketperm 700" >> /etc/redis/redis.conf
 
+RUN useradd -ms /bin/false redis
+
 # Install ghostunnel.
 RUN mkdir /ghostunnel
 COPY run.sh /ghostunnel/run.sh
 RUN go get github.com/square/ghostunnel
+
+# Install sudo.
+RUN apt-get update && apt-get install -y sudo --no-install-recommends
 
 # Define mountable directories.
 VOLUME ["/data"]
