@@ -14,7 +14,7 @@ To build the container:
 
 ### Running 
 
-In this example, we assume that the $SECRETS_PATH directory contains your
+In this example, we assume that the `$SECRETS_PATH` directory contains your
 keystore and root certificate for the ghostunnel instance, and that the CN of
 clients you want to allow is `client`.
 
