@@ -77,6 +77,7 @@ Verify that the client(s) can connect with their client certificate:
 If `openssl s_client` can connect, then the tunnel should be working as
 intended! Be sure to check the logs to see incoming connections and other
 information. Note that by default ghostunnel logs to stderr and runs in the
-foreground.  For deamonization, we recommend using a utility such as
-[daemonize](http://software.clapper.org/daemonize/). If you prefer, ghostunnel
-also supports logging to syslog with the `--syslog` flag.
+foreground (set `--syslog` to log to syslog). For deamonization, we recommend
+using a utility such as [daemonize](http://software.clapper.org/daemonize/).
+For an example on how to use ghostunnel in a Docker container, see the `docker`
+subdirectory.
