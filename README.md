@@ -44,7 +44,18 @@ some test certificates for playing around with the tunnel, you can find
 some pre-generated ones in the `test-keys` directory (alongside instructions
 on how to generate new ones with OpenSSL).
 
-### Launch ghostunnel
+### Build
+
+To build ghostunnel and run tests:
+
+    make build
+    make test
+
+To update vendored dependencies:
+
+    make update-depends
+
+### Launch
 
 This is a short example for how to launch ghostunnel listening for incoming
 connections on `localhost:8443` and forwarding them to `localhost:8080`. We
