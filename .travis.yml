@@ -2,6 +2,9 @@ language: go
 
 sudo: false
 
+env:
+  - GO15VENDOREXPERIMENT=1
+
 matrix:
   fast_finish: true
   allow_failures:
@@ -12,11 +15,12 @@ go:
   - tip
 
 before_script:
-  - go vet ./...
+  - go vet .
 
 before_install:
   - python --version
   - openssl version
+  - go get github.com/Masterminds/glide
 
 install:
   - make build 

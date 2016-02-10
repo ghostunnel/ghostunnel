@@ -1,11 +1,19 @@
+export GO15VENDOREXPERIMENT = 1
+
 INTEGRATION_TESTS := $(shell find tests -name 'test-*.py' -exec basename {} .py \;)
 
+# Build
 build: depends
 	go build -ldflags "-X \"main.buildRevision=`git describe --long --always --abbrev=8 HEAD`\" -X \"main.buildCompiler=`go version`\""
 
+# Dependencies 
 depends:
-	go get ./...
+	@glide install
 
+update-depends:
+	@glide update
+
+# Run all tests
 test: unit integration
 
 # Run unit tests
@@ -13,7 +21,6 @@ pre-unit:
 	@echo "*** Running unit tests ***"
 
 unit: pre-unit
-	go get github.com/stretchr/testify/assert
 	go test -v
 
 # Run integration tests
