@@ -1,0 +1,12 @@
+package: github.com/square/ghostunnel
+import:
+- package: github.com/cyberdelia/go-metrics-graphite
+- package: github.com/kavu/go_reuseport
+- package: github.com/rcrowley/go-metrics
+- package: golang.org/x/crypto
+  subpackages:
+  - /pkcs12
+- package: gopkg.in/alecthomas/kingpin.v2
+- package: github.com/stretchr/testify
+  subpackages:
+  - assert

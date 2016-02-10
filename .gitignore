@@ -7,4 +7,5 @@
 *.key
 *.pyc
 *.crt
+vendor/
 ghostunnel
