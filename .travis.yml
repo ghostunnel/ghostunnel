@@ -21,6 +21,7 @@ before_install:
   - python --version
   - openssl version
   - go get github.com/Masterminds/glide
+  - make depends
 
 install:
   - make build 

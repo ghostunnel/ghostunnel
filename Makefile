@@ -3,15 +3,22 @@ export GO15VENDOREXPERIMENT = 1
 INTEGRATION_TESTS := $(shell find tests -name 'test-*.py' -exec basename {} .py \;)
 
 # Build
-build: depends
+build: depends git-fsck
 	go build -ldflags "-X \"main.buildRevision=`git describe --long --always --abbrev=8 HEAD`\" -X \"main.buildCompiler=`go version`\""
 
 # Dependencies 
 depends:
-	@glide install
+	glide -q install
 
 update-depends:
-	@glide update
+	glide -q update
+
+# Check integrity of dependencies
+git-fsck: 
+	@for repo in `find vendor -name .git`; do \
+		echo "git --git-dir=$$repo fsck --full --strict --no-dangling"; \
+		git --git-dir=$$repo fsck --full --strict --no-dangling || exit 1; \
+	done
 
 # Run all tests
 test: unit integration
