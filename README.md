@@ -46,12 +46,16 @@ on how to generate new ones with OpenSSL).
 
 ### Build
 
-To build ghostunnel and run tests:
+We use [glide](https://github.com/Masterminds/glide) to manage dependencies.
+Use `go get github.com/Masterminds/glide` or `brew install glide` to install it
+first.
+
+Then, build ghostunnel and run tests:
 
     make build
     make test
 
-To update vendored dependencies:
+If you want to update vendored dependencies:
 
     make update-depends
 
