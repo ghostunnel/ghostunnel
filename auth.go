@@ -42,9 +42,25 @@ func authorized(conn tls.ConnectionState) bool {
 	}
 
 	// Check OUs against --allow-ou flag(s).
-	for _, clientOU := range cert.Subject.OrganizationalUnit {
-		for _, expectedOU := range *allowedOUs {
+	for _, expectedOU := range *allowedOUs {
+		for _, clientOU := range cert.Subject.OrganizationalUnit {
 			if clientOU == expectedOU {
+				return true
+			}
+		}
+	}
+
+	for _, expectedDNS := range *allowedDNSs {
+		for _, clientDNS := range cert.DNSNames {
+			if clientDNS == expectedDNS {
+				return true
+			}
+		}
+	}
+
+	for _, expectedIP := range *allowedIPs {
+		for _, clientIP := range cert.IPAddresses {
+			if expectedIP.Equal(clientIP) {
 				return true
 			}
 		}
