@@ -50,5 +50,13 @@ func authorized(conn tls.ConnectionState) bool {
 		}
 	}
 
+	for _, clientSAN := range cert.DNSNames {
+		for _, expectedSAN := range *allowedSANs {
+			if clientSAN == expectedSAN {
+				return true
+			}
+		}
+	}
+
 	return false
 }

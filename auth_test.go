@@ -33,6 +33,7 @@ var fakeConnectionState = tls.ConnectionState{
 					CommonName:         "gopher",
 					OrganizationalUnit: []string{"triangle", "circle"},
 				},
+				DNSNames: []string{"circle"},
 			},
 		},
 	},
@@ -42,6 +43,7 @@ func TestAuthorizeNotVerified(t *testing.T) {
 	*allowAll = true
 	*allowedCNs = []string{}
 	*allowedOUs = []string{}
+	*allowedSANs = []string{}
 
 	assert.False(t, authorized(tls.ConnectionState{}), "conn w/o cert should be rejected")
 }
@@ -50,6 +52,7 @@ func TestAuthorizeReject(t *testing.T) {
 	*allowAll = false
 	*allowedCNs = []string{"test"}
 	*allowedOUs = []string{"test"}
+	*allowedSANs = []string{"test"}
 
 	assert.False(t, authorized(fakeConnectionState), "should reject cert w/o matching CN/OU")
 }
@@ -58,6 +61,7 @@ func TestAuthorizeAllowAll(t *testing.T) {
 	*allowAll = true
 	*allowedCNs = []string{}
 	*allowedOUs = []string{}
+	*allowedSANs = []string{}
 
 	assert.True(t, authorized(fakeConnectionState), "allow-all should always allow authed clients")
 }
@@ -66,6 +70,7 @@ func TestAuthorizeAllowCN(t *testing.T) {
 	*allowAll = false
 	*allowedCNs = []string{"gopher"}
 	*allowedOUs = []string{}
+	*allowedSANs = []string{}
 
 	assert.True(t, authorized(fakeConnectionState), "allow-cn should allow clients with matching CN")
 }
@@ -74,6 +79,16 @@ func TestAuthorizeAllowOU(t *testing.T) {
 	*allowAll = false
 	*allowedCNs = []string{}
 	*allowedOUs = []string{"circle"}
+	*allowedSANs = []string{}
 
-	assert.True(t, authorized(fakeConnectionState), "allow-cn should allow clients with matching CN")
+	assert.True(t, authorized(fakeConnectionState), "allow-ou should allow clients with matching OU")
+}
+
+func TestAuthorizeAllowSAN(t *testing.T) {
+	*allowAll = false
+	*allowedCNs = []string{}
+	*allowedOUs = []string{}
+	*allowedSANs = []string{"circle"}
+
+	assert.True(t, authorized(fakeConnectionState), "allow-san should allow clients with matching DNS name")
 }
