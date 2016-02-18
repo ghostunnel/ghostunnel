@@ -160,7 +160,7 @@ func main() {
 	}
 
 	if metrics.url != "" {
-		logger.Printf("metrics enabled; reporting metrics via POST to %s", *graphiteAddr)
+		logger.Printf("metrics enabled; reporting metrics via POST to %s", metrics.url)
 		go metrics.publishMetrics()
 	}
 
