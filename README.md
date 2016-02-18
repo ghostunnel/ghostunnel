@@ -67,10 +67,10 @@ assume that `server.p12` is a PKCS12 keystore with the certificate and private
 key for the server, and that `root.crt` contains your trusted root certificate(s).
 
 To set allowed clients, you must specify at least one of `--allow-all`,
-`--allow-cn`, `--allow-ou`, or `--allow-san`. It's possible to use these
-together or to specify them repeatedly to allow multiple clients. In this
-example, we assume that the CN of the client cert we want to accept connections
-from is `client`.
+`--allow-cn`, `--allow-ou`, `--allow-dns-san`, or `--allow-ip-san`. It's
+possible to use these together or to specify them repeatedly to allow multiple
+clients. In this example, we assume that the CN of the client cert we want to
+accept connections from is `client`.
 
 Start a ghostunnel with a server certificate:
 
