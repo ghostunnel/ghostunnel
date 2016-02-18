@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"runtime"
 	"time"
 
 	"github.com/rcrowley/go-metrics"
@@ -47,6 +48,40 @@ func (mb *metricsConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (mb *metricsConfig) publishMetrics() {
 	for _ = range time.Tick(1 * time.Second) {
 		mb.postMetrics()
+	}
+}
+
+// Collect memory usage metrics
+func (mb *metricsConfig) collectSystemMetrics() {
+	var mem runtime.MemStats
+
+	alloc := metrics.GetOrRegisterGauge("mem.alloc", mb.registry)
+	totalAlloc := metrics.GetOrRegisterGauge("mem.total-alloc", mb.registry)
+	sys := metrics.GetOrRegisterGauge("mem.sys", mb.registry)
+	heapAlloc := metrics.GetOrRegisterGauge("mem.heap.alloc", mb.registry)
+	heapSys := metrics.GetOrRegisterGauge("mem.heap.sys", mb.registry)
+	heapInUse := metrics.GetOrRegisterGauge("mem.heap.in-use", mb.registry)
+	stackSys := metrics.GetOrRegisterGauge("mem.stack.sys", mb.registry)
+	stackInUse := metrics.GetOrRegisterGauge("mem.stack.in-use", mb.registry)
+	gcPauseTotal := metrics.GetOrRegisterGauge("mem.gc.pause-total", mb.registry)
+	gcCPUFraction := metrics.GetOrRegisterGaugeFloat64("mem.gc.cpu-fraction", mb.registry)
+
+	for _ = range time.Tick(1 * time.Second) {
+		runtime.ReadMemStats(&mem)
+
+		alloc.Update(int64(mem.Alloc))
+		totalAlloc.Update(int64(mem.TotalAlloc))
+		sys.Update(int64(mem.Sys))
+
+		heapAlloc.Update(int64(mem.HeapAlloc))
+		heapSys.Update(int64(mem.HeapSys))
+		heapInUse.Update(int64(mem.HeapInuse))
+
+		stackSys.Update(int64(mem.StackSys))
+		stackInUse.Update(int64(mem.StackInuse))
+
+		gcPauseTotal.Update(int64(mem.PauseTotalNs))
+		gcCPUFraction.Update(mem.GCCPUFraction)
 	}
 }
 
@@ -80,6 +115,10 @@ func (mb *metricsConfig) serializeMetrics() []map[string]interface{} {
 		switch metric := i.(type) {
 		case metrics.Counter:
 			nvs = append(nvs, tuple{name, metric.Count()})
+		case metrics.Gauge:
+			nvs = append(nvs, tuple{name, metric.Value()})
+		case metrics.GaugeFloat64:
+			nvs = append(nvs, tuple{name, metric.Value()})
 		case metrics.Timer:
 			timer := metric.Snapshot()
 			nvs = append(nvs, []tuple{

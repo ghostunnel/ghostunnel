@@ -166,6 +166,12 @@ func main() {
 		go metrics.publishMetrics()
 	}
 
+	if metrics.url != "" || *graphiteAddr != nil || *statusAddr != nil {
+		// We only bother collecting memory usage metrics if we're
+		// actually configured to expose them somewhere.
+		go metrics.collectSystemMetrics()
+	}
+
 	listeners := &sync.WaitGroup{}
 	listeners.Add(1)
 
