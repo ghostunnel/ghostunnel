@@ -1,7 +1,9 @@
 Ghostunnel
 ==========
 
-[![license](http://img.shields.io/badge/license-apache_2.0-red.svg?style=flat)](https://raw.githubusercontent.com/square/ghostunnel/master/LICENSE) [![build](https://img.shields.io/travis/square/ghostunnel/master.svg?style=flat)](https://travis-ci.org/square/ghostunnel)
+[![license](http://img.shields.io/badge/license-apache_2.0-red.svg?style=flat)](https://raw.githubusercontent.com/square/ghostunnel/master/LICENSE)
+[![build](https://img.shields.io/travis/square/ghostunnel/master.svg?style=flat)](https://travis-ci.org/square/ghostunnel)
+[![report](https://goreportcard.com/badge/github.com/square/ghostunnel)](https://goreportcard.com/report/github.com/square/ghostunnel)
 
 👻
 
