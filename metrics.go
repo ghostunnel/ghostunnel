@@ -96,7 +96,10 @@ func (mb *metricsConfig) postMetrics() {
 	if err != nil {
 		logger.Printf("%s", err)
 	}
-	http.Post(mb.url, "application/json", bytes.NewReader(raw))
+	resp, err := http.Post(mb.url, "application/json", bytes.NewReader(raw))
+	if err == nil {
+		resp.Body.Close()
+	}
 }
 
 func (mb *metricsConfig) serializeMetric(now int64, metric tuple) map[string]interface{} {
