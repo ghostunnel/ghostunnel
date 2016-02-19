@@ -28,8 +28,8 @@ import (
 
 var fakeConnectionState = tls.ConnectionState{
 	VerifiedChains: [][]*x509.Certificate{
-		[]*x509.Certificate{
-			&x509.Certificate{
+		{
+			{
 				Subject: pkix.Name{
 					CommonName:         "gopher",
 					OrganizationalUnit: []string{"triangle", "circle"},

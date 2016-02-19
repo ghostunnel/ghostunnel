@@ -46,7 +46,7 @@ func (mb *metricsConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // Publish metrics to bridge
 func (mb *metricsConfig) publishMetrics() {
-	for _ = range time.Tick(1 * time.Second) {
+	for range time.Tick(1 * time.Second) {
 		mb.postMetrics()
 	}
 }
@@ -68,7 +68,7 @@ func (mb *metricsConfig) collectSystemMetrics() {
 	numGoRoutines := metrics.GetOrRegisterGauge("runtime.goroutines", mb.registry)
 	numCgoCalls := metrics.GetOrRegisterGauge("runtime.cgo-calls", mb.registry)
 
-	for _ = range time.Tick(1 * time.Second) {
+	for range time.Tick(1 * time.Second) {
 		runtime.ReadMemStats(&mem)
 
 		alloc.Update(int64(mem.Alloc))

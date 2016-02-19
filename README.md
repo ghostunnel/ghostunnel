@@ -1,7 +1,9 @@
 Ghostunnel
 ==========
 
-[![license](http://img.shields.io/badge/license-apache_2.0-red.svg?style=flat)](https://raw.githubusercontent.com/square/ghostunnel/master/LICENSE) [![build](https://img.shields.io/travis/square/ghostunnel/master.svg?style=flat)](https://travis-ci.org/square/ghostunnel)
+[![license](http://img.shields.io/badge/license-apache_2.0-red.svg?style=flat)](https://raw.githubusercontent.com/square/ghostunnel/master/LICENSE)
+[![build](https://img.shields.io/travis/square/ghostunnel/master.svg?style=flat)](https://travis-ci.org/square/ghostunnel)
+[![report](https://goreportcard.com/badge/github.com/square/ghostunnel)](https://goreportcard.com/report/github.com/square/ghostunnel)
 
 👻
 
@@ -46,9 +48,8 @@ on how to generate new ones with OpenSSL).
 
 ### Build
 
-We use [glide](https://github.com/Masterminds/glide) to manage dependencies.
-Use `go get github.com/Masterminds/glide` or `brew install glide` to install it
-first.
+We use [glide](https://github.com/Masterminds/glide) for vendoring.
+Use `go get github.com/Masterminds/glide` or `brew install glide` to install it.
 
 Then, build ghostunnel and run tests:
 
