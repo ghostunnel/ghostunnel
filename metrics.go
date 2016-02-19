@@ -55,16 +55,17 @@ func (mb *metricsConfig) publishMetrics() {
 func (mb *metricsConfig) collectSystemMetrics() {
 	var mem runtime.MemStats
 
-	alloc := metrics.GetOrRegisterGauge("mem.alloc", mb.registry)
-	totalAlloc := metrics.GetOrRegisterGauge("mem.total-alloc", mb.registry)
-	sys := metrics.GetOrRegisterGauge("mem.sys", mb.registry)
-	heapAlloc := metrics.GetOrRegisterGauge("mem.heap.alloc", mb.registry)
-	heapSys := metrics.GetOrRegisterGauge("mem.heap.sys", mb.registry)
-	heapInUse := metrics.GetOrRegisterGauge("mem.heap.in-use", mb.registry)
-	stackSys := metrics.GetOrRegisterGauge("mem.stack.sys", mb.registry)
-	stackInUse := metrics.GetOrRegisterGauge("mem.stack.in-use", mb.registry)
-	gcPauseTotal := metrics.GetOrRegisterGauge("mem.gc.pause-total", mb.registry)
-	gcCPUFraction := metrics.GetOrRegisterGaugeFloat64("mem.gc.cpu-fraction", mb.registry)
+	alloc := metrics.GetOrRegisterGauge("runtime.mem.alloc", mb.registry)
+	totalAlloc := metrics.GetOrRegisterGauge("runtime.mem.total-alloc", mb.registry)
+	sys := metrics.GetOrRegisterGauge("runtime.mem.sys", mb.registry)
+	heapAlloc := metrics.GetOrRegisterGauge("runtime.mem.heap.alloc", mb.registry)
+	heapSys := metrics.GetOrRegisterGauge("runtime.mem.heap.sys", mb.registry)
+	heapInUse := metrics.GetOrRegisterGauge("runtime.mem.heap.in-use", mb.registry)
+	stackSys := metrics.GetOrRegisterGauge("runtime.mem.stack.sys", mb.registry)
+	stackInUse := metrics.GetOrRegisterGauge("runtime.mem.stack.in-use", mb.registry)
+	gcPauseTotal := metrics.GetOrRegisterGauge("runtime.mem.gc.pause-total", mb.registry)
+	gcCPUFraction := metrics.GetOrRegisterGaugeFloat64("runtime.mem.gc.cpu-fraction", mb.registry)
+	numGoRoutines := metrics.GetOrRegisterGauge("runtime.goroutines", mb.registry)
 
 	for _ = range time.Tick(1 * time.Second) {
 		runtime.ReadMemStats(&mem)
@@ -82,6 +83,8 @@ func (mb *metricsConfig) collectSystemMetrics() {
 
 		gcPauseTotal.Update(int64(mem.PauseTotalNs))
 		gcCPUFraction.Update(mem.GCCPUFraction)
+
+		numGoRoutines.Update(int64(runtime.NumGoroutine()))
 	}
 }
 
