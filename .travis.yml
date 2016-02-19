@@ -5,9 +5,15 @@ sudo: false
 env:
   - GO15VENDOREXPERIMENT=1
 
+matrix:
+  fast_finish: true
+  allow_failures:
+    - go: tip
+
 go:
   - 1.5
   - 1.6
+  - tip
 
 before_script:
   - go vet .
