@@ -66,6 +66,7 @@ func (mb *metricsConfig) collectSystemMetrics() {
 	gcPauseTotal := metrics.GetOrRegisterGauge("runtime.mem.gc.pause-total", mb.registry)
 	gcCPUFraction := metrics.GetOrRegisterGaugeFloat64("runtime.mem.gc.cpu-fraction", mb.registry)
 	numGoRoutines := metrics.GetOrRegisterGauge("runtime.goroutines", mb.registry)
+	numCgoCalls := metrics.GetOrRegisterGauge("runtime.cgo-calls", mb.registry)
 
 	for _ = range time.Tick(1 * time.Second) {
 		runtime.ReadMemStats(&mem)
@@ -85,6 +86,7 @@ func (mb *metricsConfig) collectSystemMetrics() {
 		gcCPUFraction.Update(mem.GCCPUFraction)
 
 		numGoRoutines.Update(int64(runtime.NumGoroutine()))
+		numCgoCalls.Update(int64(runtime.NumCgoCall()))
 	}
 }
 
