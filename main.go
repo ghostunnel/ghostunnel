@@ -98,20 +98,17 @@ func panicOnError(err error) {
 
 // Validate flags
 func validateFlags(app *kingpin.Application) error {
-	if !(*allowAll) && len(*allowedCNs) == 0 && len(*allowedOUs) == 0 {
-		return fmt.Errorf("at least one of --allow-all, --allow-cn or --allow-ou is required")
+	if !(*allowAll) && len(*allowedCNs) == 0 && len(*allowedOUs) == 0 && len(*allowedDNSs) == 0 && len(*allowedIPs) == 0 {
+		return fmt.Errorf("at least one of --allow-all, --allow-cn, --allow-ou, --allow-dns-san or --allow-ip-san is required")
 	}
-	if *allowAll && len(*allowedCNs) != 0 {
-		return fmt.Errorf("--allow-all and --allow-cn are mutually exclusive")
-	}
-	if *allowAll && len(*allowedOUs) != 0 {
-		return fmt.Errorf("--allow-all and --allow-ou are mutually exclusive")
+	if *allowAll && (len(*allowedCNs) > 0 || len(*allowedOUs) > 0 || len(*allowedDNSs) > 0 || len(*allowedIPs) > 0) {
+		return fmt.Errorf("--allow-all and other access control flags are mutually exclusive")
 	}
 	if *enableProf && *statusAddr == nil {
 		return fmt.Errorf("--enable-pprof requires --status to be set")
 	}
 	if !validateTarget(*forwardAddress) {
-		return fmt.Errorf("--target must be localhost:port, 127.0.0.1:port or [::1]:port")
+		return fmt.Errorf("--target must be unix:PATH, localhost:PORT, 127.0.0.1:PORT or [::1]:PORT (unless --unsafe-target is set)")
 	}
 	if *metricsURL != "" && !strings.HasPrefix(*metricsURL, "http://") && !strings.HasPrefix(*metricsURL, "https://") {
 		return fmt.Errorf("--metrics-url should start with http:// or https://")
