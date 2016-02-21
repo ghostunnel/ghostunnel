@@ -1,5 +1,5 @@
 from subprocess import call
-import SocketServer, threading, time, socket, ssl, os, base64, textwrap
+import socketserver, threading, time, socket, ssl, os, base64, textwrap
 
 FNULL = open(os.devnull, 'w')
 LOCALHOST = '127.0.0.1'
@@ -32,7 +32,7 @@ def cleanup_certs(names):
         pass
 
 def print_ok(msg):
-  print "\033[92m{0}\033[0m".format(msg)
+  print(("\033[92m{0}\033[0m".format(msg)))
 
 # This is whacky but works. This class represents a pair of sockets which
 # correspond to each end of the tunnel. The class lets you verify that sending
@@ -70,16 +70,18 @@ class SocketPair:
     print_ok(msg)
 
   def validate_can_send_from_client(self, string, msg):
-    self.client_sock.send(string)
-    data = self.server_sock.recv(len(string))
-    if data != string:
+    encoded = bytes(string, 'utf-8')
+    self.client_sock.send(encoded)
+    data = self.server_sock.recv(len(encoded))
+    if data != encoded:
       raise Exception("did not receive expected string")
     print_ok(msg)
 
   def validate_can_send_from_server(self, string, msg):
-    self.server_sock.send(string)
-    data = self.client_sock.recv(len(string))
-    if data != string:
+    encoded = bytes(string, 'utf-8')
+    self.server_sock.send(encoded)
+    data = self.client_sock.recv(len(encoded))
+    if data != encoded:
       raise Exception("did not receive expected string")
     print_ok(msg)
 

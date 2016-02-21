@@ -1,4 +1,4 @@
-#!/usr/local/bin/python
+#!/usr/bin/env python3
 
 # Creates a ghostunnel. Ensures that client gets a timeout if there is no
 # server.

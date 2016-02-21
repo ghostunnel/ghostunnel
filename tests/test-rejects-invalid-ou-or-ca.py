@@ -1,4 +1,4 @@
-#!/usr/local/bin/python
+#!/usr/bin/env python3
 
 # Creates a ghostunnel. Ensures client1 can connect but that clients with
 # ou=client2 or ca=other_root can't connect.

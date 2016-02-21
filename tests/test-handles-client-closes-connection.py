@@ -1,4 +1,4 @@
-#!/usr/local/bin/python
+#!/usr/bin/env python3
 
 # Creates a ghostunnel. Ensures when client disconnects that the server
 # connection also disconnects.

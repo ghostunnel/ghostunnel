@@ -1,10 +1,10 @@
-#!/usr/local/bin/python
+#!/usr/bin/env python3
 
 # Creates a ghostunnel. Ensures that /_status endpoint works.
 
 from subprocess import Popen
 from test_common import create_root_cert, create_signed_cert, LOCALHOST, SocketPair, print_ok, cleanup_certs
-import urllib2, socket, ssl, time, os, signal, json, sys
+import urllib.request, urllib.error, urllib.parse, socket, ssl, time, os, signal, json, sys
 
 if __name__ == "__main__":
   ghostunnel = None
@@ -22,15 +22,11 @@ if __name__ == "__main__":
       '--status=localhost:13100'])
     time.sleep(5)
 
-    # urrllib2.urlopen() needs Python >= 2.7.9 for cafile support...
-    if sys.version_info >= (2,7,9):
-        urlopen = lambda path: urllib2.urlopen(path, cafile='root.crt')
-    else:
-        urlopen = lambda path: urllib2.urlopen(path)
+    urlopen = lambda path: urllib.request.urlopen(path, cafile='root.crt')
 
     # Step 3: read status information
-    status = json.loads(urlopen("https://localhost:13100/_status").read())
-    metrics = json.loads(urlopen("https://localhost:13100/_metrics").read())
+    status = json.loads(str(urlopen("https://localhost:13100/_status").read(), 'utf-8'))
+    metrics = json.loads(str(urlopen("https://localhost:13100/_metrics").read(), 'utf-8'))
 
     if not status['ok']:
         raise Exception("ghostunnel reported non-ok status")
@@ -44,9 +40,8 @@ if __name__ == "__main__":
     time.sleep(10)
 
     # Step 3: read status information
-    # expecting tunnel to use "new_server" cert, setting cafile accordingly
-    status = json.loads(urlopen("https://localhost:13100/_status").read())
-    metrics = json.loads(urlopen("https://localhost:13100/_metrics").read())
+    status = json.loads(str(urlopen("https://localhost:13100/_status").read(), 'utf-8'))
+    metrics = json.loads(str(urlopen("https://localhost:13100/_metrics").read(), 'utf-8'))
 
     if not status['ok']:
         raise Exception("ghostunnel reported non-ok status")
