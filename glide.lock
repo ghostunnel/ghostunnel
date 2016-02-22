@@ -1,8 +1,10 @@
-hash: e18d05ddd519a442554926bd8c81cde99d18f57e16db3fe89e91ec39cb8b3362
-updated: 2016-02-09T17:10:43.362282901-08:00
+hash: 6c4f2d58b06cd426b0f9e0ed11f3f2b77c27f7b2375d0d32dac3fb54ec85e9aa
+updated: 2016-02-21T21:02:50.208300205-08:00
 imports:
 - name: github.com/alecthomas/template
   version: 14fd436dd20c3cc65242a9f396b61bfc8a3926fc
+  subpackages:
+  - parse
 - name: github.com/alecthomas/units
   version: 2efee857e7cfd4f3d0138cc3cbb1b4966962b93a
 - name: github.com/cyberdelia/go-metrics-graphite
@@ -19,18 +21,19 @@ imports:
   - difflib
 - name: github.com/rcrowley/go-metrics
   version: 51425a2415d21afadfd55cd93432c0bc69e9598d
-- name: github.com/stathat/go
-  version: cf69b0bcb80478755dc0ea1120b36000e35dcbbb
 - name: github.com/stretchr/objx
   version: cbeaeb16a013161a98496fad62933b1d21786672
 - name: github.com/stretchr/testify
   version: 9f9027faeb0dad515336ed2f28317f9f8f527ab4
   subpackages:
   - assert
+  - http
+  - mock
 - name: golang.org/x/crypto
   version: 1f22c0103821b9390939b6776727195525381532
   subpackages:
-  - /pkcs12
+  - pkcs12
+  - pkcs12/internal/rc2
 - name: gopkg.in/alecthomas/kingpin.v2
   version: 24b74030480f0aa98802b51ff4622a7eb09dfddd
 devImports: []
