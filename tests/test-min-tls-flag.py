@@ -3,7 +3,7 @@
 # Creates a ghostunnel. Ensures that /_status endpoint works.
 
 from subprocess import Popen
-from test_common import create_root_cert, create_signed_cert, LOCALHOST, SocketPair, print_ok, cleanup_certs
+from test_common import create_root_cert, create_signed_cert, LOCALHOST, SocketPair, print_ok, cleanup_certs, wait_for_status
 import urllib.request, urllib.error, urllib.parse, socket, ssl, time, os, signal, json, sys
 
 if __name__ == "__main__":
@@ -20,10 +20,10 @@ if __name__ == "__main__":
       '--target={0}:13100'.format(LOCALHOST), '--keystore=server.p12',
       '--storepass=', '--cacert=root.crt', '--allow-ou=client1',
       '--status={0}:13100'.format(LOCALHOST), '--min-tls=1.2'])
-    time.sleep(5)
+    wait_for_status(13100)
 
     # Step 3: try to connect with TLS < 1.2
-    urllib.request.urlopen('https://localhost:13100/_status', context=ssl.SSLContext(ssl.PROTOCOL_SSLv23 & ssl.OP_NO_TLSv1_2))
+    urllib.request.urlopen('https://{0}:13100/_status'.format(LOCALHOST), context=ssl.SSLContext(ssl.PROTOCOL_SSLv23 & ssl.OP_NO_TLSv1_2))
 
     # should fail with value error, because we set min TLS version to v1.2
     # but we tried to connect with TLS < 1.2. if we didn't get an exception,

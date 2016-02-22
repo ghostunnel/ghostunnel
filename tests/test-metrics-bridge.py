@@ -3,7 +3,7 @@
 # Creates a ghostunnel. Ensures that /_status endpoint works.
 
 from subprocess import Popen
-from test_common import create_root_cert, create_signed_cert, LOCALHOST, SocketPair, print_ok, cleanup_certs
+from test_common import create_root_cert, create_signed_cert, LOCALHOST, SocketPair, print_ok, cleanup_certs, wait_for_status
 import urllib.request, urllib.error, urllib.parse, socket, ssl, time, os, signal, json, http.server, threading
 
 received_metrics = None
@@ -32,16 +32,21 @@ if __name__ == "__main__":
     ghostunnel = Popen(['../ghostunnel', '--listen={0}:13001'.format(LOCALHOST),
       '--target={0}:13100'.format(LOCALHOST), '--keystore=server.p12',
       '--storepass=', '--cacert=root.crt', '--allow-ou=client1',
-      '--status=localhost:13100', '--metrics-url=http://localhost:13080/post'])
+      '--status={0}:13100'.format(LOCALHOST), '--metrics-url=http://localhost:13080/post'])
 
     # Step 3: wait for metrics to post
-    time.sleep(5)
+    for i in range(0, 10):
+      if received_metrics:
+        break
+      else:
+        # wait a little longer...
+        time.sleep(1)
 
-    if received_metrics:
-      if type(received_metrics) != list:
-        raise Exception("ghostunnel metrics expected to be JSON list")
-    else:
+    if not received_metrics:
       raise Exception("did not receive metrics from instance")
+
+    if type(received_metrics) != list:
+      raise Exception("ghostunnel metrics expected to be JSON list")
 
     print_ok("OK")
   finally:

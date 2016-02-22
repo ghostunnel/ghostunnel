@@ -29,8 +29,6 @@ if __name__ == "__main__":
       '--status=localhost:13100', '--graphite=localhost:13099'])
 
     # Step 3: wait for metrics to be sent
-    time.sleep(10)
-
     conn, addr = m.accept()
     for line in conn.makefile().readlines():
       if len(line.partition(' ')) != 3:

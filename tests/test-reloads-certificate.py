@@ -3,7 +3,7 @@
 # Creates a ghostunnel. Ensures that tunnel sees & reloads a certificate change.
 
 from subprocess import Popen
-from test_common import create_root_cert, create_signed_cert, LOCALHOST, SocketPair, print_ok, cleanup_certs
+from test_common import create_root_cert, create_signed_cert, LOCALHOST, SocketPair, print_ok, cleanup_certs, wait_for_cert
 import socket, ssl, time, os, signal
 
 if __name__ == "__main__":
@@ -18,7 +18,8 @@ if __name__ == "__main__":
     # Step 2: start ghostunnel
     ghostunnel = Popen(['../ghostunnel', '--listen={0}:13001'.format(LOCALHOST),
       '--target={0}:13000'.format(LOCALHOST), '--keystore=server.p12',
-      '--storepass=', '--cacert=root.crt', '--allow-ou=client1'])
+      '--storepass=', '--cacert=root.crt', '--allow-ou=client1',
+      '--status={0}:13100'.format(LOCALHOST)])
 
     # Step 3: create connections with client1
     pair1 = SocketPair('client1', 13001, 13000)
@@ -28,7 +29,7 @@ if __name__ == "__main__":
     # Replace keystore and trigger reload
     os.rename('new_server.p12', 'server.p12')
     ghostunnel.send_signal(signal.SIGUSR1)
-    time.sleep(10)
+    wait_for_cert(13100, 'new_server.crt')
 
     # Step 4: create connections with client1
     pair2 = SocketPair('client1', 13001, 13000)
