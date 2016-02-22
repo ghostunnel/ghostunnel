@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Creates a ghostunnel. Ensures that /_status endpoint works.
+# Creates a ghostunnel. Ensures that --min-tls flag works.
 
 from subprocess import Popen
 from test_common import create_root_cert, create_signed_cert, LOCALHOST, SocketPair, print_ok, cleanup_certs, wait_for_status
