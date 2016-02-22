@@ -89,6 +89,8 @@ func buildConfig(keystorePath, keystorePass, caBundlePath, tlsVersion string) (*
 		RootCAs:      caBundle,
 		ClientCAs:    caBundle,
 
+		PreferServerCipherSuites: true,
+
 		ClientAuth: tls.RequireAndVerifyClientCert,
 		MinVersion: minVersion[tlsVersion],
 		CipherSuites: []uint16{
