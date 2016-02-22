@@ -1,9 +1,10 @@
 #!/bin/sh
 
-REDIS_SOCKET=/tmp/redis.sock
+REDIS_CONFIG='/etc/redis.conf'
+REDIS_SOCKET=`grep 'unixsocket .*' $REDIS_CONFIG | cut -d' ' -f2`
 
 # Launch redis
-redis-server /etc/redis/redis.conf &
+redis-server $REDIS_CONFIG &
 
 while ! [ -S $REDIS_SOCKET ]; do
   echo "Waiting for $REDIS_SOCKET to appear..."
