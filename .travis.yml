@@ -16,17 +16,16 @@ go:
   - 1.6
   - tip
 
-before_script:
-  - go vet .
-
 before_install:
-  - python --version
-  - openssl version
+  - sudo `which pip3` install pyopenssl
   - go get github.com/Masterminds/glide
   - make depends
 
 install:
   - make build 
+
+before_script:
+  - go vet .
 
 script:
   - make test

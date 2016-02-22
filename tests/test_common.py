@@ -1,5 +1,6 @@
 from subprocess import call
-import socketserver, threading, time, socket, ssl, os, base64, textwrap
+import OpenSSL.crypto as crypto
+import socketserver, threading, time, socket, ssl, os, base64, textwrap, urllib.request
 
 FNULL = open(os.devnull, 'w')
 LOCALHOST = '127.0.0.1'
@@ -33,6 +34,37 @@ def cleanup_certs(names):
 
 def print_ok(msg):
   print(("\033[92m{0}\033[0m".format(msg)))
+
+# Wait for tunnel to come up by checking /_status
+def wait_for_status(port):
+  context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+  context.verify_mode = ssl.CERT_NONE
+  for i in range(1, 20):
+    print_ok('waiting for tunnel to come up...')
+    try:
+      urllib.request.urlopen('https://{0}:{1}/_status'.format(LOCALHOST, port), context=context)
+      return
+    except Exception:
+      # wait a little longer...
+      time.sleep(1)
+  raise Exception("timing out. tunnel process did not come up? (can't read status)")
+
+# Wait for tunnel to come up with a particular certificate
+def wait_for_cert(port, expected_cert):
+  expected_serial = int(crypto.load_certificate(crypto.FILETYPE_PEM, open(expected_cert, 'rt').read()).get_serial_number())
+  for i in range(1, 20):
+    print_ok('waiting for tunnel to come up with cert serial {0}...'.format(expected_serial))
+    try:
+      sock = ssl.wrap_socket(socket.socket(socket.AF_INET, socket.SOCK_STREAM), cert_reqs=ssl.CERT_REQUIRED, ca_certs='root.crt')
+      sock.connect((LOCALHOST, port))
+      sock.do_handshake()
+      if int(sock.getpeercert()['serialNumber'], 16) == expected_serial:
+        return
+      # wait a little longer...
+      time.sleep(1)
+    except Exception as e:
+      time.sleep(1)
+  raise Exception('timing out. tunnel process did not come up with expected cert?')
 
 # This is whacky but works. This class represents a pair of sockets which
 # correspond to each end of the tunnel. The class lets you verify that sending

@@ -3,7 +3,7 @@
 # Creates a ghostunnel. Ensures that /_status endpoint works.
 
 from subprocess import Popen
-from test_common import create_root_cert, create_signed_cert, LOCALHOST, SocketPair, print_ok, cleanup_certs
+from test_common import create_root_cert, create_signed_cert, LOCALHOST, SocketPair, print_ok, cleanup_certs, wait_for_status, wait_for_cert
 import urllib.request, urllib.error, urllib.parse, socket, ssl, time, os, signal, json, sys
 
 if __name__ == "__main__":
@@ -19,14 +19,14 @@ if __name__ == "__main__":
     ghostunnel = Popen(['../ghostunnel', '--listen={0}:13001'.format(LOCALHOST),
       '--target={0}:13100'.format(LOCALHOST), '--keystore=server.p12',
       '--storepass=', '--cacert=root.crt', '--allow-ou=client1',
-      '--status=localhost:13100'])
-    time.sleep(5)
+      '--status={0}:13100'.format(LOCALHOST)])
+    wait_for_status(13100)
 
     urlopen = lambda path: urllib.request.urlopen(path, cafile='root.crt')
 
     # Step 3: read status information
-    status = json.loads(str(urlopen("https://localhost:13100/_status").read(), 'utf-8'))
-    metrics = json.loads(str(urlopen("https://localhost:13100/_metrics").read(), 'utf-8'))
+    status = json.loads(str(urlopen("https://{0}:13100/_status".format(LOCALHOST)).read(), 'utf-8'))
+    metrics = json.loads(str(urlopen("https://{0}:13100/_metrics".format(LOCALHOST)).read(), 'utf-8'))
 
     if not status['ok']:
         raise Exception("ghostunnel reported non-ok status")
@@ -37,11 +37,11 @@ if __name__ == "__main__":
     # Step 4: reload
     os.rename('new_server.p12', 'server.p12')
     ghostunnel.send_signal(signal.SIGUSR1)
-    time.sleep(10)
+    wait_for_cert(13100, 'new_server.crt')
 
     # Step 3: read status information
-    status = json.loads(str(urlopen("https://localhost:13100/_status").read(), 'utf-8'))
-    metrics = json.loads(str(urlopen("https://localhost:13100/_metrics").read(), 'utf-8'))
+    status = json.loads(str(urlopen("https://{0}:13100/_status".format(LOCALHOST)).read(), 'utf-8'))
+    metrics = json.loads(str(urlopen("https://{0}:13100/_metrics".format(LOCALHOST)).read(), 'utf-8'))
 
     if not status['ok']:
         raise Exception("ghostunnel reported non-ok status")
