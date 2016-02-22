@@ -47,7 +47,7 @@ def wait_for_status(port):
     except Exception:
       # wait a little longer...
       time.sleep(1)
-  raise Exception('timing out. tunnel process did not come up with expected cert?')
+  raise Exception("timing out. tunnel process did not come up? (can't read status)")
 
 # Wait for tunnel to come up with a particular certificate
 def wait_for_cert(port, expected_cert):
@@ -64,7 +64,7 @@ def wait_for_cert(port, expected_cert):
       time.sleep(1)
     except Exception as e:
       time.sleep(1)
-  raise Exception('timing out. tunnel process did not come up?')
+  raise Exception('timing out. tunnel process did not come up with expected cert?')
 
 # This is whacky but works. This class represents a pair of sockets which
 # correspond to each end of the tunnel. The class lets you verify that sending
