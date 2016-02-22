@@ -3,18 +3,14 @@ language: go
 sudo: required
 dist: trusty
 
+services:
+  - docker
+
 env:
   - GO15VENDOREXPERIMENT=1
 
-matrix:
-  fast_finish: true
-  allow_failures:
-    - go: tip
-
 go:
-  - 1.5
   - 1.6
-  - tip
 
 before_install:
   - sudo `which pip3` install pyopenssl
@@ -23,6 +19,8 @@ before_install:
 
 install:
   - make build 
+  - docker build -t square/ghostunnel .
+  - docker build -t redis-tls docker/redis-tls
 
 before_script:
   - go vet .

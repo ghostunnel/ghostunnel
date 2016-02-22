@@ -1,9 +1,10 @@
 #!/bin/sh
 
-REDIS_SOCKET=/tmp/redis.sock
+REDIS_CONFIG='/etc/redis.conf'
+REDIS_SOCKET=`grep 'unixsocket .*' $REDIS_CONFIG | cut -d' ' -f2`
 
 # Launch redis
-redis-server /etc/redis/redis.conf &
+redis-server $REDIS_CONFIG &
 
 while ! [ -S $REDIS_SOCKET ]; do
   echo "Waiting for $REDIS_SOCKET to appear..."
@@ -13,10 +14,10 @@ done
 # Launch ghostunnel
 # Terminate redis if tunnel shuts down
 (
-  /go/bin/ghostunnel --listen 0.0.0.0:6379 --target unix:$REDIS_SOCKET "$@"
+  ghostunnel --listen 0.0.0.0:6379 --target unix:$REDIS_SOCKET "$@"
   redis-cli -s $REDIS_SOCKET shutdown
 ) &
 
 # Wait for redis; terminate tunnel if redis stops
 wait %1
-killall ghostunnel
+kill %2
