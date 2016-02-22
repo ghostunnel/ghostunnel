@@ -1,5 +1,18 @@
 # Dockerfile for redis with ghostunnel as SSL/TLS proxy.
 #
+# To build this image:
+#     docker build -t redis-tls .
+#
+# To run, with given arguments to terminate TLS connections (for example):
+#     docker run \
+#       --name redis-tls \
+#       -p 6379:6379 \
+#       -v $SECRETS_PATH:/secrets \
+#       redis-tls \
+#       --keystore=/secrets/server-keystore.p12 \
+#       --cacert=/secrets/ca-bundle.crt \
+#       --allow-cn client
+#
 # This is a fork of dockerfile/redis, licensed under:
 # -----------------------------------------------------------------------------
 # The MIT License (MIT)
@@ -25,11 +38,14 @@
 # THE SOFTWARE.
 # -----------------------------------------------------------------------------
 
-FROM golang 
+FROM square/ghostunnel
 
 MAINTAINER Cedric Staub "cs@squareup.com"
 
-# Install redis.
+# Install dependencies for build
+RUN apk add --update make gcc libc-dev linux-headers
+
+# Download and compile redis
 RUN \
   cd /tmp && \
   wget http://download.redis.io/redis-stable.tar.gz && \
@@ -47,19 +63,17 @@ RUN \
   sed -i 's/^\(logfile .*\)$/# \1/' /etc/redis/redis.conf && \
   sed -i 's/^\(port .*\)$/# \1/' /etc/redis/redis.conf
 
-# Configure redis to listen on UNIX socket.
-RUN echo "port 0" >> /etc/redis/redis.conf
-RUN echo "unixsocket /tmp/redis.sock" >> /etc/redis/redis.conf
-RUN echo "unixsocketperm 700" >> /etc/redis/redis.conf
-RUN useradd -ms /bin/false redis
-
-# Install ghostunnel.
-RUN mkdir /ghostunnel
-COPY run.sh /ghostunnel/run.sh
-RUN go get github.com/square/ghostunnel
+# Configure redis, set up user
+RUN \
+  echo "port 0" >> /etc/redis/redis.conf && \
+  echo "unixsocket /tmp/redis.sock" >> /etc/redis/redis.conf && \
+  echo "unixsocketperm 700" >> /etc/redis/redis.conf && \
+  addgroup redis && \
+  adduser -S -s /bin/false redis && \
+  mkdir -p /data && \
+  chown -R redis:redis /data
 
 # Define mountable directories.
-RUN mkdir -p /data && chown -R redis:redis /data
 VOLUME ["/data"]
 
 # Define working directory.
@@ -69,7 +83,8 @@ WORKDIR /data
 USER redis
 
 # Define default command.
-ENTRYPOINT ["/ghostunnel/run.sh"]
+COPY entry.sh /entry.sh
+ENTRYPOINT ["/entry.sh"]
 
 # Expose ports.
 EXPOSE 6379
