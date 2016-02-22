@@ -19,7 +19,7 @@ if __name__ == "__main__":
     ghostunnel = Popen(['../ghostunnel', '--listen={0}:13001'.format(LOCALHOST),
       '--target={0}:13100'.format(LOCALHOST), '--keystore=server.p12',
       '--storepass=', '--cacert=root.crt', '--allow-ou=client1',
-      '--status=localhost:13100'])
+      '--status={0}:13100'.format(LOCALHOST)])
     time.sleep(5)
 
     urlopen = lambda path: urllib.request.urlopen(path, cafile='root.crt')
