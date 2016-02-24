@@ -5,8 +5,9 @@ import:
 - package: github.com/rcrowley/go-metrics
 - package: golang.org/x/crypto
   subpackages:
-  - /pkcs12
+  - pkcs12
 - package: gopkg.in/alecthomas/kingpin.v2
 - package: github.com/stretchr/testify
   subpackages:
   - assert
+- package: github.com/square/go-sq-metrics
