@@ -3,28 +3,27 @@
 # Creates a ghostunnel. Ensures that /_status endpoint works.
 
 from subprocess import Popen
-from test_common import create_root_cert, create_signed_cert, LOCALHOST, SocketPair, print_ok, cleanup_certs, wait_for_status, wait_for_cert
+from test_common import RootCert, LOCALHOST, SocketPair, print_ok, wait_for_status, wait_for_cert
 import urllib.request, urllib.error, urllib.parse, socket, ssl, time, os, signal, json, sys
 
 if __name__ == "__main__":
   ghostunnel = None
   try:
-    # Step 1: create certs
-    create_root_cert('root')
-    create_signed_cert('server', 'root')
-    create_signed_cert('new_server', 'root')
-    create_signed_cert('client1', 'root')
+    # create certs
+    root = RootCert('root')
+    root.create_signed_cert('server')
+    root.create_signed_cert('new_server')
 
-    # Step 2: start ghostunnel
+    # start ghostunnel
     ghostunnel = Popen(['../ghostunnel', '--listen={0}:13001'.format(LOCALHOST),
       '--target={0}:13100'.format(LOCALHOST), '--keystore=server.p12',
-      '--storepass=', '--cacert=root.crt', '--allow-ou=client1',
+      '--cacert=root.crt', '--allow-ou=client',
       '--status={0}:13100'.format(LOCALHOST)])
     wait_for_status(13100)
 
     urlopen = lambda path: urllib.request.urlopen(path, cafile='root.crt')
 
-    # Step 3: read status information
+    # read status information
     status = json.loads(str(urlopen("https://{0}:13100/_status".format(LOCALHOST)).read(), 'utf-8'))
     metrics = json.loads(str(urlopen("https://{0}:13100/_metrics".format(LOCALHOST)).read(), 'utf-8'))
 
@@ -34,12 +33,12 @@ if __name__ == "__main__":
     if type(metrics) != list:
         raise Exception("ghostunnel metrics expected to be JSON list")
 
-    # Step 4: reload
+    # reload
     os.rename('new_server.p12', 'server.p12')
     ghostunnel.send_signal(signal.SIGUSR1)
     wait_for_cert(13100, 'new_server.crt')
 
-    # Step 3: read status information
+    # read status information
     status = json.loads(str(urlopen("https://{0}:13100/_status".format(LOCALHOST)).read(), 'utf-8'))
     metrics = json.loads(str(urlopen("https://{0}:13100/_metrics".format(LOCALHOST)).read(), 'utf-8'))
 
@@ -53,4 +52,3 @@ if __name__ == "__main__":
   finally:
     if ghostunnel:
       ghostunnel.kill()
-    cleanup_certs(['root', 'server', 'new_server', 'client1'])

@@ -1,36 +1,50 @@
 from subprocess import call
+from tempfile import mkstemp
 import OpenSSL.crypto as crypto
 import socketserver, threading, time, socket, ssl, os, base64, textwrap, urllib.request
 
 FNULL = open(os.devnull, 'w')
 LOCALHOST = '127.0.0.1'
 
-# Helper function to create a signed cert
-def create_signed_cert(ou, root):
-  print_ok("generating {0}.key, {0}.crt, {0}.p12".format(ou))
-  call("openssl genrsa -out {0}.key 1024".format(ou), shell=True, stderr=FNULL)
-  call("openssl req -new -key {0}.key -out {0}.csr -subj /C=US/ST=CA/O=ghostunnel/OU={0}".format(ou), shell=True, stderr=FNULL)
-  call("chmod 600 {0}.key".format(ou), shell=True)
-  call("openssl x509 -req -in {0}.csr -CA {1}.crt -CAkey {1}.key -CAcreateserial -out {0}_temp.crt -days 5 -extfile openssl.ext".format(ou, root), shell=True, stderr=FNULL)
-  call("openssl pkcs12 -export -out {0}_temp.p12 -in {0}_temp.crt -inkey {0}.key -password pass:".format(ou), shell=True)
-  os.rename("{0}_temp.crt".format(ou), "{0}.crt".format(ou))
-  os.rename("{0}_temp.p12".format(ou), "{0}.p12".format(ou))
+# Helper class to create root + signed certs
+class RootCert:
+  def __init__(self, name):
+    self.name = name
+    self.leaf_certs = []
+    print_ok("generating {0}.key, {0}.crt".format(name))
+    call('openssl genrsa -out {0}.key 1024'.format(name), shell=True, stderr=FNULL)
+    call('openssl req -x509 -new -key {0}.key -days 5 -out {0}_temp.crt -subj /C=US/ST=CA/O=ghostunnel/OU={0}'.format(name), shell=True)
+    os.rename("{0}_temp.crt".format(name), "{0}.crt".format(name))
+    call('chmod 600 {0}.key'.format(name), shell=True)
 
-# Helper function to create a root cert
-def create_root_cert(root):
-  print_ok("generating {0}.key, {0}.crt".format(root))
-  call('openssl genrsa -out {0}.key 1024'.format(root), shell=True, stderr=FNULL)
-  call('openssl req -x509 -new -key {0}.key -days 5 -out {0}_temp.crt -subj /C=US/ST=CA/O=ghostunnel/OU={0}'.format(root), shell=True)
-  os.rename("{0}_temp.crt".format(root), "{0}.crt".format(root))
-  call('chmod 600 {0}.key'.format(root), shell=True)
+  def create_signed_cert(self, ou, san="IP:127.0.0.1,IP:::1,DNS:localhost"):
+    print_ok("generating {0}.key, {0}.crt, {0}.p12".format(ou))
+    fd, openssl_config = mkstemp(dir='.')
+    os.write(fd, "extendedKeyUsage=clientAuth,serverAuth\n".encode('utf-8'))
+    os.write(fd, "subjectAltName = {0}".format(san).encode('utf-8'))
+    call("openssl genrsa -out {0}.key 1024".format(ou), shell=True, stderr=FNULL)
+    call("openssl req -new -key {0}.key -out {0}.csr -subj /C=US/ST=CA/O=ghostunnel/OU={0}".format(ou), shell=True, stderr=FNULL)
+    call("chmod 600 {0}.key".format(ou), shell=True)
+    call("openssl x509 -req -in {0}.csr -CA {1}.crt -CAkey {1}.key -CAcreateserial -out {0}_temp.crt -days 5 -extfile {2}".format(ou, self.name, openssl_config), shell=True, stderr=FNULL)
+    call("openssl pkcs12 -export -out {0}_temp.p12 -in {0}_temp.crt -inkey {0}.key -password pass:".format(ou), shell=True)
+    os.rename("{0}_temp.crt".format(ou), "{0}.crt".format(ou))
+    os.rename("{0}_temp.p12".format(ou), "{0}.p12".format(ou))
+    os.close(fd)
+    os.remove(openssl_config)
+    self.leaf_certs.append(ou)
 
-def cleanup_certs(names):
-  for name in names:
-    for ext in ["crt", "key", "csr", "srl", "p12"]:
-      try:
-        os.remove('{0}.{1}'.format(name, ext))
-      except OSError:
-        pass
+  def __del__(self):
+    RootCert.cleanup_certs([self.name])
+    RootCert.cleanup_certs(self.leaf_certs)
+
+  @staticmethod
+  def cleanup_certs(names):
+    for name in names:
+      for ext in ["crt", "key", "csr", "srl", "p12"]:
+        try:
+          os.remove('{0}.{1}'.format(name, ext))
+        except OSError:
+          pass
 
 def print_ok(msg):
   print(("\033[92m{0}\033[0m".format(msg)))

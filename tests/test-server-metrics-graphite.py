@@ -3,17 +3,15 @@
 # Creates a ghostunnel. Ensures that /_status endpoint works.
 
 from subprocess import Popen
-from test_common import create_root_cert, create_signed_cert, LOCALHOST, SocketPair, print_ok, cleanup_certs
+from test_common import RootCert, LOCALHOST, SocketPair, print_ok
 import urllib.request, urllib.error, urllib.parse, socket, ssl, time, os, signal, json, http.server, threading
 
 if __name__ == "__main__":
   ghostunnel = None
   try:
-    # Step 1: create certs
-    create_root_cert('root')
-    create_signed_cert('server', 'root')
-    create_signed_cert('new_server', 'root')
-    create_signed_cert('client1', 'root')
+    # create certs
+    root = RootCert('root')
+    root.create_signed_cert('server')
 
     # Mock out a graphite server
     m = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -22,13 +20,13 @@ if __name__ == "__main__":
     m.bind((LOCALHOST, 13099))
     m.listen(1)
 
-    # Step 2: start ghostunnel
+    # start ghostunnel
     ghostunnel = Popen(['../ghostunnel', '--listen={0}:13001'.format(LOCALHOST),
       '--target={0}:13100'.format(LOCALHOST), '--keystore=server.p12',
-      '--storepass=', '--cacert=root.crt', '--allow-ou=client1',
+      '--cacert=root.crt', '--allow-ou=client',
       '--status=localhost:13100', '--graphite=localhost:13099'])
 
-    # Step 3: wait for metrics to be sent
+    # wait for metrics to be sent
     conn, addr = m.accept()
     for line in conn.makefile().readlines():
       if len(line.partition(' ')) != 3:
@@ -38,4 +36,3 @@ if __name__ == "__main__":
   finally:
     if ghostunnel:
       ghostunnel.kill()
-    cleanup_certs(['root', 'server', 'new_server', 'client1'])
