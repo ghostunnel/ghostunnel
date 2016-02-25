@@ -33,6 +33,7 @@ import (
 	"github.com/cyberdelia/go-metrics-graphite"
 	"github.com/kavu/go_reuseport"
 	"github.com/rcrowley/go-metrics"
+	"github.com/square/go-sq-metrics"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
@@ -72,7 +73,7 @@ type Context struct {
 	listeners *sync.WaitGroup
 	status    *statusHandler
 	dial      func() (net.Conn, error)
-	metrics   *metricsConfig
+	metrics   *sqmetrics.SquareMetrics
 }
 
 // Global logger instance
@@ -145,29 +146,11 @@ func main() {
 		go graphite.Graphite(metrics.DefaultRegistry, 1*time.Second, *metricsPrefix, *graphiteAddr)
 	}
 
-	hostname, err := os.Hostname()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: unable to get hostname: %s", err)
-		os.Exit(1)
+	if *metricsURL != "" {
+		logger.Printf("metrics enabled; reporting metrics via POST to %s", *metricsURL)
 	}
 
-	metrics := &metricsConfig{
-		url:      *metricsURL,
-		registry: metrics.DefaultRegistry,
-		prefix:   *metricsPrefix,
-		hostname: hostname,
-	}
-
-	if metrics.url != "" {
-		logger.Printf("metrics enabled; reporting metrics via POST to %s", metrics.url)
-		go metrics.publishMetrics()
-	}
-
-	if metrics.url != "" || *graphiteAddr != nil || *statusAddr != nil {
-		// We only bother collecting memory usage metrics if we're
-		// actually configured to expose them somewhere.
-		go metrics.collectSystemMetrics()
-	}
+	metrics := sqmetrics.NewMetrics(*metricsURL, *metricsPrefix, metrics.DefaultRegistry)
 
 	listeners := &sync.WaitGroup{}
 	listeners.Add(1)
