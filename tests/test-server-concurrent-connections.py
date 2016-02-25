@@ -4,7 +4,7 @@
 
 from subprocess import Popen
 from multiprocessing import Process
-from test_common import create_root_cert, create_signed_cert, LOCALHOST, SocketPair, print_ok, cleanup_certs
+from test_common import RootCert, LOCALHOST, SocketPair, print_ok
 import socket, ssl, time, random
 
 def send_data(i, p):
@@ -29,21 +29,19 @@ def send_data(i, p):
 if __name__ == "__main__":
   ghostunnel = None
   n_clients = 10
-  certs = ['root', 'server']
   allow_ou = []
   try:
-    # Step 1: create certs
-    create_root_cert('root')
-    create_signed_cert('server', 'root')
+    # create certs
+    root = RootCert('root')
+    root.create_signed_cert('server')
     for i in range(1, n_clients):
-      create_signed_cert("client{0}".format(i), 'root')
-      certs.append("client{0}".format(i))
+      root.create_signed_cert("client{0}".format(i))
       allow_ou.append("--allow-ou=client{0}".format(i))
 
     # Step 2: start ghostunnel
     ghostunnel = Popen(['../ghostunnel', '--listen={0}:13001'.format(LOCALHOST),
       '--target={0}:13000'.format(LOCALHOST), '--keystore=server.p12',
-      '--storepass=', '--cacert=root.crt'] + allow_ou)
+      '--cacert=root.crt'] + allow_ou)
 
     # Step 3: clients should be able to communicate all at the same time.
     proc = []
@@ -57,6 +55,5 @@ if __name__ == "__main__":
 
     print_ok("OK")
   finally:
-    cleanup_certs(certs)
     if ghostunnel:
       ghostunnel.kill()
