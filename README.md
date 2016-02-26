@@ -60,6 +60,9 @@ If you want to update vendored dependencies:
 
     make update-depends
 
+Ghostunnel is tested with Go 1.6, and our integration test suite requires
+Python 3.5 with pyOpenSSL installed.
+
 ### Launch
 
 This is a short example for how to launch ghostunnel listening for incoming
