@@ -28,7 +28,7 @@ import (
 // process.  If we get SIGUSR1, reload certificates.
 func signalHandler(listener net.Listener, statusListener net.Listener, stopper chan bool, context *Context) {
 	signals := make(chan os.Signal)
-	signal.Notify(signals, syscall.SIGUSR1)
+	signal.Notify(signals, syscall.SIGUSR1, syscall.SIGTERM)
 	defer func() {
 		stopper <- true
 		signal.Stop(signals)
