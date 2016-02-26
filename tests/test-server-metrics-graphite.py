@@ -3,7 +3,7 @@
 # Creates a ghostunnel. Ensures that /_status endpoint works.
 
 from subprocess import Popen
-from test_common import RootCert, LOCALHOST, SocketPair, print_ok
+from test_common import RootCert, LOCALHOST, STATUS_PORT, SocketPair, print_ok
 import urllib.request, urllib.error, urllib.parse, socket, ssl, time, os, signal, json, http.server, threading
 
 if __name__ == "__main__":
@@ -24,7 +24,8 @@ if __name__ == "__main__":
     ghostunnel = Popen(['../ghostunnel', '--listen={0}:13001'.format(LOCALHOST),
       '--target={0}:13100'.format(LOCALHOST), '--keystore=server.p12',
       '--cacert=root.crt', '--allow-ou=client',
-      '--status=localhost:13100', '--graphite=localhost:13099'])
+      '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT),
+      '--graphite=localhost:13099'])
 
     # wait for metrics to be sent
     conn, addr = m.accept()

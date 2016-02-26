@@ -1,10 +1,12 @@
 from subprocess import call
-from tempfile import mkstemp
+from tempfile import mkstemp, mkdtemp
 import OpenSSL.crypto as crypto
 import socketserver, threading, time, socket, ssl, os, base64, textwrap, urllib.request
 
 FNULL = open(os.devnull, 'w')
 LOCALHOST = '127.0.0.1'
+STATUS_PORT = 13100
+TIMEOUT = 5
 
 # Helper class to create root + signed certs
 class RootCert:
@@ -49,125 +51,265 @@ class RootCert:
 def print_ok(msg):
   print(("\033[92m{0}\033[0m".format(msg)))
 
-# Wait for tunnel to come up by checking /_status
-def wait_for_status(port):
-  context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
-  context.verify_mode = ssl.CERT_NONE
-  for i in range(1, 20):
-    print_ok('waiting for tunnel to come up...')
-    try:
-      urllib.request.urlopen('https://{0}:{1}/_status'.format(LOCALHOST, port), context=context)
-      return
-    except Exception:
-      # wait a little longer...
-      time.sleep(1)
-  raise Exception("timing out. tunnel process did not come up? (can't read status)")
+######################### Abstract #########################
+class MySocket():
+  def __init__(self):
+    self.socket = None
 
-# Wait for tunnel to come up with a particular certificate
-def wait_for_cert(port, expected_cert):
-  expected_serial = int(crypto.load_certificate(crypto.FILETYPE_PEM, open(expected_cert, 'rt').read()).get_serial_number())
-  for i in range(1, 20):
-    print_ok('waiting for tunnel to come up with cert serial {0}...'.format(expected_serial))
-    try:
-      sock = ssl.wrap_socket(socket.socket(socket.AF_INET, socket.SOCK_STREAM), cert_reqs=ssl.CERT_REQUIRED, ca_certs='root.crt')
-      sock.connect((LOCALHOST, port))
-      sock.do_handshake()
-      if int(sock.getpeercert()['serialNumber'], 16) == expected_serial:
+  def get_socket(self):
+    return self.socket
+
+  def cleanup(self):
+    self.socket = None # automatically calls close()
+
+######################### TCP #########################
+
+class TcpClient(MySocket):
+  def __init__(self, port):
+    super().__init__()
+    self.port = port
+
+  def connect(self, attempts=1, msg=''):
+    for i in range(0, attempts):
+      try:
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socket.settimeout(TIMEOUT)
+        self.socket.connect((LOCALHOST, self.port))
+        print_ok(msg)
         return
-      # wait a little longer...
+      except Exception as e:
+        print(e)
+      print("failed to connect to {0}. Trying again...".format(self.port))
       time.sleep(1)
-    except Exception as e:
+
+    raise Exception("Failed to connect to {0}".format(self.port))
+
+class TcpServer(MySocket):
+  def __init__(self, port):
+    super().__init__()
+    self.port = port
+    self.listener = None
+
+  def listen(self):
+    self.listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    self.listener.settimeout(TIMEOUT)
+    self.listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+#    self.listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+    self.listener.bind((LOCALHOST, self.port))
+    self.listener.listen(1)
+
+  def accept(self):
+    self.socket, _ = self.listener.accept()
+    self.socket.settimeout(TIMEOUT)
+    self.listener.close()
+
+  def cleanup(self):
+    super().cleanup()
+    self.listener = None
+
+######################### TLS #########################
+
+class TlsClient(MySocket):
+  def __init__(self, cert, ca, port):
+    super().__init__()
+    self.cert = cert
+    self.ca = ca
+    self.port = port
+    self.tls_listener = None
+
+  def connect(self, attempts=1, peer=None):
+    for i in range(0, attempts):
+      try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(TIMEOUT)
+        if self.cert != None:
+          self.socket = ssl.wrap_socket(sock,
+            keyfile='{0}.key'.format(self.cert),
+            certfile='{0}.crt'.format(self.cert),
+            ca_certs='{0}.crt'.format(self.ca),
+            cert_reqs=ssl.CERT_REQUIRED)
+        else:
+          self.socket = ssl.wrap_socket(sock,
+            ca_certs='{0}.crt'.format(self.ca),
+            cert_reqs=ssl.CERT_REQUIRED)
+        self.socket.connect((LOCALHOST, self.port))
+
+        if peer != None:
+          if self.socket.getpeercert()['subject'][3][0][1] == peer:
+            return self
+          else:
+            print("Did not connect to expected peer: {0}".format(self.socket.getpeercert()))
+        else:
+          return self
+      except Exception as e:
+        print(e)
+        if attempts==1:
+          raise e
+      print("Trying to connect to {0}...".format(self.port))
       time.sleep(1)
-  raise Exception('timing out. tunnel process did not come up with expected cert?')
+    raise Exception("did not connect to peer")
+
+class TlsServer(MySocket):
+  def __init__(self, cert, ca, port, cert_reqs=ssl.CERT_REQUIRED):
+    super().__init__()
+    self.cert = cert
+    self.ca = ca
+    self.port = port
+    self.cert_reqs = cert_reqs
+    self.tls_listener = None
+
+  def listen(self):
+    super().listen()
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.settimeout(TIMEOUT)
+    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+#    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+    listener.bind((LOCALHOST, self.port))
+    listener.listen(1)
+    self.tls_listener = ssl.wrap_socket(listener,
+      server_side=True,
+      keyfile='{0}.key'.format(self.cert),
+      certfile='{0}.crt'.format(self.cert),
+      ca_certs='{0}.crt'.format(self.ca),
+      cert_reqs=self.cert_reqs)
+
+  def accept(self):
+    self.socket, _ = self.tls_listener.accept()
+    self.socket.settimeout(TIMEOUT)
+    self.listener.close()
+
+  def validate_client_cert(self, ou):
+    if self.socket.getpeercert()['subject'][3][0][1] == ou:
+      return
+    raise Exception("did not connect to expected peer: ", self.server_sock.getpeercert())
+
+  def cleanup(self):
+    super().cleanup()
+    self.tls_listener = None
+
+######################### UNIX SOCKET #########################
+
+class UnixClient(MySocket):
+  def __init__(self, port):
+    super().__init__()
+    self.port = port
+
+  def connect(self, attempts=1, msg=''):
+    for i in range(0, attempts):
+      try:
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socket.settimeout(TIMEOUT)
+        self.socket.connect((LOCALHOST, self.port))
+        print_ok(msg)
+        return
+      except Exception as e:
+        print(e)
+      print("failed to connect to {0}. Trying again...".format(self.port))
+      time.sleep(1)
+
+    raise Exception("Failed to connect to {0}".format(self.port))
+
+class UnixServer(MySocket):
+  def __init__(self):
+    super().__init__()
+    self.socket_path = os.path.join(mkdtemp(), 'ghostunnel-test-socket')
+    self.listener = None
+
+  def get_socket_path(self):
+    return self.socket_path
+
+  def listen(self):
+    self.listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    self.listener.settimeout(TIMEOUT)
+    self.listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    self.listener.bind(self.socket_path)
+    self.listener.listen(1)
+
+  def accept(self):
+    self.socket, _ = self.listener.accept()
+    self.socket.settimeout(TIMEOUT)
+
+  def cleanup(self):
+    super().cleanup()
+    self.listener = None
+    os.remove(self.socket_path)
+
+######################### SocketPair #########################
 
 # This is whacky but works. This class represents a pair of sockets which
 # correspond to each end of the tunnel. The class lets you verify that sending
 # data in one socket shows up on the other. It also allows testing that closing
 # one socket closes the other.
-class SocketPair:
-  def __init__(self, client, client_port, server_port):
-    # setup a listening socket
-    l = None
-    try:
-      l = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-      l.settimeout(10)
-      l.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-      l.bind((LOCALHOST, server_port))
-      l.listen(1)
+class SocketPair():
+  def __init__(self, client, server):
+    self.client = client
+    self.server = server
+    self.client_sock = None
+    self.server_sock = None
+    self.connect()
 
-      # setup the client socket
-      # TODO: figure out a way to know when the server is ready?
-      time.sleep(5)
-      c = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-      c.settimeout(10)
-      self.client_sock = ssl.wrap_socket(c, keyfile='{0}.key'.format(client),
-        certfile='{0}.crt'.format(client), cert_reqs=ssl.CERT_REQUIRED, ca_certs='root.crt')
-      self.client_sock.connect((LOCALHOST, client_port))
+  def cleanup(self):
+    self.client.cleanup()
+    self.server.cleanup()
 
-      # grab the server socket
-      self.server_sock, _ = l.accept()
-      self.server_sock.settimeout(10)
-    finally:
-      l.close()
+  def connect(self):
+    # calling accept() on a socket blocks until a connection arrives. Ghostunnel
+    # doesn't create the backend connection until a connection arrives. This
+    # implies we either need to create threads or we create the server/client
+    # sockets in a specific order.
+    self.server.listen()
 
-  def validate_tunnel_ou(self, string, msg):
-    if self.client_sock.getpeercert()['subject'][3][0][1] != string:
-      raise Exception("did not connect to expected peer: ", self.client_sock.getpeercert())
-    print_ok(msg)
+    # note: there might be a bug in the way we handle unix sockets. Ideally,
+    # the check below should be the first thing we do in SocketPair().
+    TcpClient(STATUS_PORT).connect(20)
+
+    self.client.connect()
+    self.server.accept()
 
   def validate_can_send_from_client(self, string, msg):
     encoded = bytes(string, 'utf-8')
-    self.client_sock.send(encoded)
-    data = self.server_sock.recv(len(encoded))
+    self.client.get_socket().send(encoded)
+    data = self.server.get_socket().recv(len(encoded))
     if data != encoded:
-      raise Exception("did not receive expected string")
+      raise Exception("did not received expected string")
     print_ok(msg)
 
   def validate_can_send_from_server(self, string, msg):
     encoded = bytes(string, 'utf-8')
-    self.server_sock.send(encoded)
-    data = self.client_sock.recv(len(encoded))
+    self.server.get_socket().send(encoded)
+    data = self.client.get_socket().recv(len(encoded))
     if data != encoded:
-      raise Exception("did not receive expected string")
+      raise Exception("did not received expected string")
     print_ok(msg)
 
   def validate_closing_client_closes_server(self, msg):
-    self.client_sock.shutdown(socket.SHUT_RDWR)
-    self.client_sock.close()
+    self.client.get_socket().shutdown(socket.SHUT_RDWR)
+    self.client.get_socket().close()
     # if the tunnel doesn't close the connection, recv(1) will raise a Timeout
-    self.server_sock.recv(1)
-    print_ok(msg)
+    self.server.get_socket().recv(1)
 
   def validate_closing_server_closes_client(self, msg):
-    self.server_sock.shutdown(socket.SHUT_RDWR)
-    self.server_sock.close()
+    self.server.get_socket().shutdown(socket.SHUT_RDWR)
+    self.server.get_socket().close()
     # if the tunnel doesn't close the connection, recv(1) will raise a Timeout
-    self.client_sock.recv(1)
+    self.client.get_socket().recv(1)
+
+  def validate_client_cert(self, ou, msg):
+    for i in range(1, 20):
+      try:
+        self.server.validate_client_cert(ou)
+        print_ok(msg)
+        return
+      except Exception as e:
+        print(e)
+      print("validate client cert failed, trying again...")
+      time.sleep(1)
+      self.cleanup()
+      self.connect()
+    raise Exception("did not connect to expected peer.")
+
+  def validate_tunnel_ou(self, ou, msg):
+    peercert = self.client.get_socket().getpeercert()
+    if peercert['subject'][3][0][1] != ou:
+      raise Exception("did not connect to expected peer: ", peercert)
     print_ok(msg)
-
-# Like SocketPair, but uses UNIX sockets for the backend
-class SocketPairUnix(SocketPair):
-  def __init__(self, client, client_port, socket_path):
-    # setup a listening socket
-    l = None
-    try:
-      l = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-      l.settimeout(10)
-      l.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-      l.bind(socket_path)
-      l.listen(1)
-
-      # setup the client socket
-      # TODO: figure out a way to know when the server is ready?
-      time.sleep(5)
-      c = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-      c.settimeout(10)
-      self.client_sock = ssl.wrap_socket(c, keyfile='{0}.key'.format(client),
-        certfile='{0}.crt'.format(client), cert_reqs=ssl.CERT_REQUIRED, ca_certs='root.crt')
-      self.client_sock.connect((LOCALHOST, client_port))
-
-      # grab the server socket
-      self.server_sock, _ = l.accept()
-      self.server_sock.settimeout(1)
-    finally:
-      l.close()
