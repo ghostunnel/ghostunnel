@@ -4,7 +4,7 @@
 # server.
 
 from subprocess import Popen
-from test_common import RootCert, LOCALHOST, SocketPair, print_ok
+from test_common import RootCert, LOCALHOST, STATUS_PORT, SocketPair, print_ok, TlsClient, TcpServer
 import socket, ssl
 
 if __name__ == "__main__":
@@ -17,18 +17,19 @@ if __name__ == "__main__":
 
     # start ghostunnel
     ghostunnel = Popen(['../ghostunnel', '--listen={0}:13001'.format(LOCALHOST),
-      '--target={0}:13000'.format(LOCALHOST), '--keystore=server.p12',
+      '--target={0}:13002'.format(LOCALHOST), '--keystore=server.p12',
+      '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT),
       '--cacert=root.crt', '--allow-ou=client'])
 
-    # client should fail to connect since nothing is listening on 13002
+    # client should fail to connect since nothing is listening on 13003
     try:
-      pair = SocketPair('client', 13001, 13002)
+      pair = SocketPair(TlsClient('client', 'root', 13001), TcpServer(13003))
       raise Exception('client should have failed to connect')
     except socket.timeout:
-      print_ok("timeout when nothing is listening on 13000")
+      print_ok("timeout when nothing is listening on 13003")
 
     # Step 4: client should connect
-    pair = SocketPair('client', 13001, 13000)
+    pair = SocketPair(TlsClient('client', 'root', 13001), TcpServer(13002))
     print_ok("OK")
   finally:
     if ghostunnel:

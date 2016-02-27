@@ -3,7 +3,7 @@
 # Creates a ghostunnel. Ensures that --min-tls flag works.
 
 from subprocess import Popen
-from test_common import RootCert, LOCALHOST, SocketPair, print_ok, wait_for_status
+from test_common import RootCert, LOCALHOST, STATUS_PORT, SocketPair, print_ok, TlsClient, TcpServer
 import urllib.request, urllib.error, urllib.parse, socket, ssl, time, os, signal, json, sys
 
 if __name__ == "__main__":
@@ -14,15 +14,15 @@ if __name__ == "__main__":
     root.create_signed_cert('server')
     root.create_signed_cert('client')
 
-    # Step 2: start ghostunnel, set min TLS version to v1.2
+    # start ghostunnel, set min TLS version to v1.2
     ghostunnel = Popen(['../ghostunnel', '--listen={0}:13001'.format(LOCALHOST),
-      '--target={0}:13100'.format(LOCALHOST), '--keystore=server.p12',
+      '--target={0}:13002'.format(LOCALHOST), '--keystore=server.p12',
       '--cacert=root.crt', '--allow-ou=client',
-      '--status={0}:13100'.format(LOCALHOST), '--min-tls=1.2'])
-    wait_for_status(13100)
+      '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT), '--min-tls=1.2'])
+    pair = SocketPair(TlsClient('client', 'root', 13001), TcpServer(13002))
 
-    # Step 3: try to connect with TLS < 1.2
-    urllib.request.urlopen('https://{0}:13100/_status'.format(LOCALHOST), context=ssl.SSLContext(ssl.PROTOCOL_SSLv23 & ssl.OP_NO_TLSv1_2))
+    # try to connect with TLS < 1.2
+    urllib.request.urlopen('https://{0}:{1}/_status'.format(LOCALHOST, STATUS_PORT), context=ssl.SSLContext(ssl.PROTOCOL_SSLv23 & ssl.OP_NO_TLSv1_2))
 
     # should fail with value error, because we set min TLS version to v1.2
     # but we tried to connect with TLS < 1.2. if we didn't get an exception,
