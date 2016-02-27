@@ -23,19 +23,19 @@ import (
 )
 
 func TestAllowsAllTargets(t *testing.T) {
-	*unsafeTarget = true
+	*serverUnsafeTarget = true
 	assert.True(t, validateTarget("foo.com:1234"), "foo.com should be allowed")
 }
 
 func TestAllowsLocalhost(t *testing.T) {
-	*unsafeTarget = false
+	*serverUnsafeTarget = false
 	assert.True(t, validateTarget("localhost:1234"), "localhost should be allowed")
 	assert.True(t, validateTarget("127.0.0.1:1234"), "127.0.0.1 should be allowed")
 	assert.True(t, validateTarget("[::1]:1234"), "[::1] should be allowed")
 }
 
 func TestDisallowsFooDotCom(t *testing.T) {
-	*unsafeTarget = false
+	*serverUnsafeTarget = false
 	assert.False(t, validateTarget("foo.com:1234"), "foo.com should be disallowed")
 	assert.False(t, validateTarget("alocalhost.com:1234"), "alocalhost.com should be disallowed")
 	assert.False(t, validateTarget("74.122.190.83:1234"), "random ip address should be disallowed")

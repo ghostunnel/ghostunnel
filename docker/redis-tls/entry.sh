@@ -14,7 +14,7 @@ done
 # Launch ghostunnel
 # Terminate redis if tunnel shuts down
 (
-  ghostunnel --listen 0.0.0.0:6379 --target unix:$REDIS_SOCKET "$@"
+  ghostunnel server --listen 0.0.0.0:6379 --target unix:$REDIS_SOCKET "$@"
   redis-cli -s $REDIS_SOCKET shutdown
 ) &
 

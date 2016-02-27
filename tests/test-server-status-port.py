@@ -17,7 +17,7 @@ if __name__ == "__main__":
 
     # start ghostunnel
     # hack: point target to STATUS_PORT so that /_status doesn't 503.
-    ghostunnel = Popen(['../ghostunnel', '--listen={0}:13001'.format(LOCALHOST),
+    ghostunnel = Popen(['../ghostunnel', 'server', '--listen={0}:13001'.format(LOCALHOST),
       '--target={0}:{1}'.format(LOCALHOST, STATUS_PORT), '--keystore=server.p12',
       '--cacert=root.crt', '--allow-ou=client',
       '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])

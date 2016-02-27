@@ -21,7 +21,7 @@ if __name__ == "__main__":
     m.listen(1)
 
     # start ghostunnel
-    ghostunnel = Popen(['../ghostunnel', '--listen={0}:13001'.format(LOCALHOST),
+    ghostunnel = Popen(['../ghostunnel', 'server', '--listen={0}:13001'.format(LOCALHOST),
       '--target={0}:13100'.format(LOCALHOST), '--keystore=server.p12',
       '--cacert=root.crt', '--allow-ou=client',
       '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT),

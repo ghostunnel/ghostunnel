@@ -78,7 +78,7 @@ accept connections from is `client`.
 
 Start a ghostunnel with a server certificate:
 
-    ghostunnel \
+    ghostunnel server \
         --listen 127.0.0.1:8443 \
         --target 127.0.0.1:8080 \
         --keystore test-keys/server.p12 \
