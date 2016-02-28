@@ -94,7 +94,6 @@ class TcpServer(MySocket):
     self.listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     self.listener.settimeout(TIMEOUT)
     self.listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-#    self.listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
     self.listener.bind((LOCALHOST, self.port))
     self.listener.listen(1)
 
@@ -110,11 +109,12 @@ class TcpServer(MySocket):
 ######################### TLS #########################
 
 class TlsClient(MySocket):
-  def __init__(self, cert, ca, port):
+  def __init__(self, cert, ca, port, ssl_version=ssl.PROTOCOL_SSLv23):
     super().__init__()
     self.cert = cert
     self.ca = ca
     self.port = port
+    self.ssl_version = ssl_version
     self.tls_listener = None
 
   def connect(self, attempts=1, peer=None):
@@ -127,11 +127,13 @@ class TlsClient(MySocket):
             keyfile='{0}.key'.format(self.cert),
             certfile='{0}.crt'.format(self.cert),
             ca_certs='{0}.crt'.format(self.ca),
-            cert_reqs=ssl.CERT_REQUIRED)
+            cert_reqs=ssl.CERT_REQUIRED,
+            ssl_version=self.ssl_version)
         else:
           self.socket = ssl.wrap_socket(sock,
             ca_certs='{0}.crt'.format(self.ca),
-            cert_reqs=ssl.CERT_REQUIRED)
+            cert_reqs=ssl.CERT_REQUIRED,
+            ssl_version=self.ssl_version)
         self.socket.connect((LOCALHOST, self.port))
 
         if peer != None:
@@ -150,20 +152,19 @@ class TlsClient(MySocket):
     raise Exception("did not connect to peer")
 
 class TlsServer(MySocket):
-  def __init__(self, cert, ca, port, cert_reqs=ssl.CERT_REQUIRED):
+  def __init__(self, cert, ca, port, cert_reqs=ssl.CERT_REQUIRED, ssl_version=ssl.PROTOCOL_SSLv23):
     super().__init__()
     self.cert = cert
     self.ca = ca
     self.port = port
     self.cert_reqs = cert_reqs
+    self.ssl_version = ssl_version
     self.tls_listener = None
 
   def listen(self):
-    super().listen()
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     listener.settimeout(TIMEOUT)
     listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-#    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
     listener.bind((LOCALHOST, self.port))
     listener.listen(1)
     self.tls_listener = ssl.wrap_socket(listener,
@@ -171,17 +172,18 @@ class TlsServer(MySocket):
       keyfile='{0}.key'.format(self.cert),
       certfile='{0}.crt'.format(self.cert),
       ca_certs='{0}.crt'.format(self.ca),
-      cert_reqs=self.cert_reqs)
+      cert_reqs=self.cert_reqs,
+      ssl_version=self.ssl_version)
 
   def accept(self):
     self.socket, _ = self.tls_listener.accept()
     self.socket.settimeout(TIMEOUT)
-    self.listener.close()
+    self.tls_listener.close()
 
   def validate_client_cert(self, ou):
     if self.socket.getpeercert()['subject'][3][0][1] == ou:
       return
-    raise Exception("did not connect to expected peer: ", self.server_sock.getpeercert())
+    raise Exception("did not connect to expected peer: ", self.socket.getpeercert())
 
   def cleanup(self):
     super().cleanup()
@@ -190,24 +192,32 @@ class TlsServer(MySocket):
 ######################### UNIX SOCKET #########################
 
 class UnixClient(MySocket):
-  def __init__(self, port):
+  def __init__(self):
     super().__init__()
-    self.port = port
+    self.socket_path = os.path.join(mkdtemp(), 'ghostunnel-test-socket')
+
+  def get_socket_path(self):
+    return self.socket_path
 
   def connect(self, attempts=1, msg=''):
     for i in range(0, attempts):
       try:
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.socket.settimeout(TIMEOUT)
-        self.socket.connect((LOCALHOST, self.port))
+        self.socket.connect(self.socket_path)
         print_ok(msg)
         return
       except Exception as e:
         print(e)
-      print("failed to connect to {0}. Trying again...".format(self.port))
+      print("failed to connect to {0}. Trying again...".format(self.socket_path))
       time.sleep(1)
 
-    raise Exception("Failed to connect to {0}".format(self.port))
+    raise Exception("Failed to connect to {0}".format(self.socket_path))
+
+  def cleanup(self):
+    super().cleanup()
+    self.socket = None
+    os.remove(self.socket_path)
 
 class UnixServer(MySocket):
   def __init__(self):

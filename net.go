@@ -21,16 +21,20 @@ import (
 	"crypto/x509"
 	"io"
 	"net"
-	"os"
 	"strings"
 	"sync"
 
 	"github.com/rcrowley/go-metrics"
 )
 
-// Accept incoming connections and spawn Go routines to handle them.
-func accept(listener net.Listener, wg *sync.WaitGroup, stopper chan bool, leaf *x509.Certificate, dial func() (net.Conn, error)) {
+// Accept incoming connections in server mode and spawn Go routines to handle them.
+// The signal handler (serverSignalHandle) can close the listener socket and
+// send true to the stopper channel. When that happens, we stop accepting new
+// connections and wait for outstanding connections to end.
+func serverAccept(listener net.Listener, wg *sync.WaitGroup, stopper chan bool, leaf *x509.Certificate, dial func() (net.Conn, error)) {
 	defer wg.Done()
+	// TODO: defer listener.Close() is redundant because serverSignalHandler closes
+	// the socket.
 	defer listener.Close()
 
 	openCounter := metrics.GetOrRegisterCounter("conn.open", metrics.DefaultRegistry)
@@ -104,6 +108,56 @@ func accept(listener net.Listener, wg *sync.WaitGroup, stopper chan bool, leaf *
 	}
 }
 
+// Accept incoming connections in client mode and spawn Go routines to handle them.
+func clientAccept(listener net.Listener, stopper chan bool, dial func() (net.Conn, error)) {
+	// TODO: defer listener.Close() is redundant because serverSignalHandler closes
+	// the socket.
+	defer listener.Close()
+
+	openCounter := metrics.GetOrRegisterCounter("conn.open", metrics.DefaultRegistry)
+	totalCounter := metrics.GetOrRegisterCounter("accept.total", metrics.DefaultRegistry)
+	successCounter := metrics.GetOrRegisterCounter("accept.success", metrics.DefaultRegistry)
+	errorCounter := metrics.GetOrRegisterCounter("accept.error", metrics.DefaultRegistry)
+	timer := metrics.GetOrRegisterTimer("conn.lifetime", metrics.DefaultRegistry)
+
+	handlers := &sync.WaitGroup{}
+
+	for {
+		// Wait for new conenction
+		conn, err := listener.Accept()
+		openCounter.Inc(1)
+		totalCounter.Inc(1)
+
+		if err != nil {
+			openCounter.Dec(1)
+			errorCounter.Inc(1)
+
+			// Check if we're supposed to stop
+			select {
+			case _ = <-stopper:
+				logger.Printf("closing listening socket")
+				// wait for all the connects to end
+				handlers.Wait()
+				return
+			default:
+			}
+
+			logger.Printf("error accepting connection: %s", err)
+			continue
+		}
+
+		logger.Printf("incoming connection: %s", conn.RemoteAddr())
+
+		handlers.Add(1)
+		go timer.Time(func() {
+			defer handlers.Done()
+			defer conn.Close()
+			defer openCounter.Dec(1)
+			handle(conn, successCounter, errorCounter, dial)
+		})
+	}
+}
+
 // Handle incoming connection by opening new connection to our backend service
 // and fusing them together.
 func handle(conn net.Conn, successCounter metrics.Counter, errorCounter metrics.Counter, dial func() (net.Conn, error)) {
@@ -158,11 +212,15 @@ func decodeAddress(tuple *net.TCPAddr) (network, address string) {
 // Parse a string representing a TCP address or UNIX socket for our backend
 // target. The input can be or the form "HOST:PORT" for TCP or "unix:PATH"
 // for a UNIX socket.
-func parseTarget(input string) (network, address string, err error) {
+func parseUnixOrTcpAddress(input string) (network, address, host string, err error) {
 	if strings.HasPrefix(input, "unix:") {
 		network = "unix"
 		address = input[5:]
-		_, err = os.Stat(address)
+		return
+	}
+
+	host, _, err = net.SplitHostPort(input)
+	if err != nil {
 		return
 	}
 

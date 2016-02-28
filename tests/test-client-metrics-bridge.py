@@ -20,16 +20,16 @@ if __name__ == "__main__":
   try:
     # create certs
     root = RootCert('root')
-    root.create_signed_cert('server')
+    root.create_signed_cert('client')
 
     httpd = http.server.HTTPServer(('localhost',13080), FakeMetricsBridgeHandler)
     server = threading.Thread(target=httpd.handle_request)
     server.start()
 
     # start ghostunnel
-    ghostunnel = Popen(['../ghostunnel', 'server', '--listen={0}:13001'.format(LOCALHOST),
-      '--target={0}:13002'.format(LOCALHOST), '--keystore=server.p12',
-      '--cacert=root.crt', '--allow-ou=client',
+    ghostunnel = Popen(['../ghostunnel', 'client', '--listen={0}:13004'.format(LOCALHOST),
+      '--target={0}:13005'.format(LOCALHOST), '--keystore=client.p12',
+      '--cacert=root.crt',
       '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT),
       '--metrics-url=http://localhost:13080/post'])
 

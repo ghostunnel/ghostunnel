@@ -28,7 +28,7 @@ if __name__ == "__main__":
     except socket.timeout:
       print_ok("timeout when nothing is listening on 13003")
 
-    # Step 4: client should connect
+    # client should connect
     pair = SocketPair(TlsClient('client', 'root', 13001), TcpServer(13002))
     print_ok("OK")
   finally:

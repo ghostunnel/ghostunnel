@@ -22,6 +22,7 @@ if __name__ == "__main__":
     pair = SocketPair(TlsClient('client', 'root', 13001), TcpServer(13002))
 
     # try to connect with TLS < 1.2
+    # TODO: also test port 13001.
     urllib.request.urlopen('https://{0}:{1}/_status'.format(LOCALHOST, STATUS_PORT), context=ssl.SSLContext(ssl.PROTOCOL_SSLv23 & ssl.OP_NO_TLSv1_2))
 
     # should fail with value error, because we set min TLS version to v1.2
