@@ -28,21 +28,21 @@ func authorized(conn tls.ConnectionState) bool {
 	}
 
 	// If --allow-all has been set, a valid cert is sufficient to connect.
-	if *allowAll {
+	if *serverAllowAll {
 		return true
 	}
 
 	cert := conn.VerifiedChains[0][0]
 
 	// Check CN against --allow-cn flag(s).
-	for _, expectedCN := range *allowedCNs {
+	for _, expectedCN := range *serverAllowedCNs {
 		if cert.Subject.CommonName == expectedCN {
 			return true
 		}
 	}
 
 	// Check OUs against --allow-ou flag(s).
-	for _, expectedOU := range *allowedOUs {
+	for _, expectedOU := range *serverAllowedOUs {
 		for _, clientOU := range cert.Subject.OrganizationalUnit {
 			if clientOU == expectedOU {
 				return true
@@ -50,7 +50,7 @@ func authorized(conn tls.ConnectionState) bool {
 		}
 	}
 
-	for _, expectedDNS := range *allowedDNSs {
+	for _, expectedDNS := range *serverAllowedDNSs {
 		for _, clientDNS := range cert.DNSNames {
 			if clientDNS == expectedDNS {
 				return true
@@ -58,7 +58,7 @@ func authorized(conn tls.ConnectionState) bool {
 		}
 	}
 
-	for _, expectedIP := range *allowedIPs {
+	for _, expectedIP := range *serverAllowedIPs {
 		for _, clientIP := range cert.IPAddresses {
 			if expectedIP.Equal(clientIP) {
 				return true

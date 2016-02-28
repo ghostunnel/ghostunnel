@@ -21,7 +21,7 @@ if __name__ == "__main__":
     new_root.create_signed_cert('client3')
 
     # start ghostunnel
-    ghostunnel = Popen(['../ghostunnel', '--listen={0}:13001'.format(LOCALHOST),
+    ghostunnel = Popen(['../ghostunnel', 'server', '--listen={0}:13001'.format(LOCALHOST),
       '--target={0}:13002'.format(LOCALHOST), '--keystore=server.p12',
       '--cacert=root.crt', '--allow-ou=client1', '--allow-ou=client2',
       '--allow-ou=client3', '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
