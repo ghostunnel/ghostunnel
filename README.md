@@ -116,7 +116,7 @@ Verify that clients can connect with their client certificate:
         -CAfile test-keys/root.crt
 
 Now we have a TLS proxy running for our backend service. We terminate TLS in
-ghostunnel and foward the connections to the insecure backend.
+ghostunnel and forward the connections to the insecure backend.
 
 ### Client mode
 
