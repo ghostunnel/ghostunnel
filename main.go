@@ -47,7 +47,7 @@ var defaultMinTLSVersion = "1.2"
 var (
 	app = kingpin.New("ghostunnel", "A simple SSL/TLS proxy with mutual authentication for securing non-TLS services.")
 
-	serverCommand        = app.Command("server", "Server mode (TLS listener -> raw TCP/UNIX target).")
+	serverCommand        = app.Command("server", "Server mode (TLS listener -> plain TCP/UNIX target).")
 	serverListenAddress  = serverCommand.Flag("listen", "Address and port to listen on (HOST:PORT).").PlaceHolder("ADDR").Required().TCP()
 	serverForwardAddress = serverCommand.Flag("target", "Address to foward connections to (HOST:PORT, or unix:PATH).").PlaceHolder("ADDR").Required().String()
 	serverUnsafeTarget   = serverCommand.Flag("unsafe-target", "If set, does not limit target to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
@@ -57,7 +57,7 @@ var (
 	serverAllowedDNSs    = serverCommand.Flag("allow-dns-san", "Allow clients with given DNS subject alternative name (can be repeated).").PlaceHolder("SAN").Strings()
 	serverAllowedIPs     = serverCommand.Flag("allow-ip-san", "Allow clients with given IP subject alternative name (can be repeated).").PlaceHolder("SAN").IPList()
 
-	clientCommand       = app.Command("client", "Client mode (raw TCP/UNIX listener -> TLS target).")
+	clientCommand       = app.Command("client", "Client mode (plain TCP/UNIX listener -> TLS target).")
 	clientListenAddress = clientCommand.Flag("listen", "Address and port to listen on (HOST:PORT, or unix:PATH).").PlaceHolder("ADDR").Required().String()
 	// Note: can't use .TCP() for clientForwardAddress because we need to set the original string in tls.Config.ServerName.
 	clientForwardAddress = clientCommand.Flag("target", "Address to foward connections to (HOST:PORT).").PlaceHolder("ADDR").Required().String()
