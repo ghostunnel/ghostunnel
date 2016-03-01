@@ -17,31 +17,30 @@
 package main
 
 import (
-  "fmt"
 	"testing"
 )
 
 func TestParseUnixOrTcpAddress(t *testing.T) {
-	network, address, host, _ := parseUnixOrTcpAddress("unix:/tmp/foo")
+	network, address, host, _ := parseUnixOrTCPAddress("unix:/tmp/foo")
 	if network != "unix" {
-		t.Error(fmt.Sprintf("unexpected network: %s", network))
+		t.Errorf("unexpected network: %s", network)
 	}
 	if address != "/tmp/foo" {
-		t.Error(fmt.Sprintf("unexpected address: %s", address))
+		t.Errorf("unexpected address: %s", address)
 	}
 	if host != "" {
-		t.Error(fmt.Sprintf("unexpected host: %s", host))
+		t.Errorf("unexpected host: %s", host)
 	}
 
-	network, address, host, _ = parseUnixOrTcpAddress("localhost:8080")
+	network, address, host, _ = parseUnixOrTCPAddress("localhost:8080")
 	// note: ipv6 test is proabably fragile, we don't expand ::1.
 	if network != "tcp4" && network != "tcp6" {
-		t.Error(fmt.Sprintf("unexpected network: %s", network))
+		t.Errorf("unexpected network: %s", network)
 	}
 	if address != "127.0.0.1:8080" && address != "[::1]:8080" {
-		t.Error(fmt.Sprintf("unexpected address: %s", address))
+		t.Errorf("unexpected address: %s", address)
 	}
 	if host != "localhost" {
-		t.Error(fmt.Sprintf("unexpected host: %s", host))
+		t.Errorf("unexpected host: %s", host)
 	}
 }

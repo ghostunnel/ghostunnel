@@ -212,7 +212,7 @@ func decodeAddress(tuple *net.TCPAddr) (network, address string) {
 // Parse a string representing a TCP address or UNIX socket for our backend
 // target. The input can be or the form "HOST:PORT" for TCP or "unix:PATH"
 // for a UNIX socket.
-func parseUnixOrTcpAddress(input string) (network, address, host string, err error) {
+func parseUnixOrTCPAddress(input string) (network, address, host string, err error) {
 	if strings.HasPrefix(input, "unix:") {
 		network = "unix"
 		address = input[5:]
