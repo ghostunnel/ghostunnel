@@ -45,7 +45,7 @@ listener with the new certificates/private key.
 by default. In server mode, the target connection must live on localhost or
 a UNIX socket (unless --unsafe-target is specified). In a similar way, in client
 mode the listening socket must live on localhost or a UNIX socket (unless --unsafe-listen
-is specified). Ghostunnel negotiates TLS 1.1 (by default) and a small set of ciphers.
+is specified). Ghostunnel negotiates TLSv1.2 (by default) and uses safe ciphers.
 
 
 Getting started

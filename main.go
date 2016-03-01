@@ -42,7 +42,7 @@ var buildRevision = "unknown"
 var buildCompiler = "unknown"
 
 var defaultMetricsPrefix = "ghostunnel"
-var defaultMinTLSVersion = "1.1"
+var defaultMinTLSVersion = "1.2"
 
 var (
 	app = kingpin.New("ghostunnel", "A simple SSL/TLS proxy with mutual authentication for securing non-TLS services.")
