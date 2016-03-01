@@ -1,5 +1,5 @@
 hash: 4e52ba006f324bae4f861d87f1192052f6f6cf8e89c70ac6458add23c62d9399
-updated: 2016-02-24T15:03:14.408350103-08:00
+updated: 2016-02-29T19:02:23.120756412-08:00
 imports:
 - name: github.com/alecthomas/template
   version: 14fd436dd20c3cc65242a9f396b61bfc8a3926fc
@@ -25,5 +25,5 @@ imports:
   - pkcs12
   - pkcs12/internal/rc2
 - name: gopkg.in/alecthomas/kingpin.v2
-  version: 24b74030480f0aa98802b51ff4622a7eb09dfddd
+  version: 8cccfa8eb2e3183254457fb1749b2667fbc364c7
 devImports: []
