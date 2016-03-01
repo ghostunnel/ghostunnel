@@ -42,32 +42,32 @@ var buildRevision = "unknown"
 var buildCompiler = "unknown"
 
 var defaultMetricsPrefix = "ghostunnel"
-var defaultMinTLSVersion = "1.1"
+var defaultMinTLSVersion = "1.2"
 
 var (
 	app = kingpin.New("ghostunnel", "A simple SSL/TLS proxy with mutual authentication for securing non-TLS services.")
 
-	serverCommand        = app.Command("server", "Server mode (TLS listener -> TCP port).")
+	serverCommand        = app.Command("server", "Server mode (TLS listener -> plain TCP/UNIX target).")
 	serverListenAddress  = serverCommand.Flag("listen", "Address and port to listen on (HOST:PORT).").PlaceHolder("ADDR").Required().TCP()
 	serverForwardAddress = serverCommand.Flag("target", "Address to foward connections to (HOST:PORT, or unix:PATH).").PlaceHolder("ADDR").Required().String()
-	serverUnsafeTarget   = serverCommand.Flag("unsafe-target", "If set, does not limit target to localhost, 127.0.0.1 or [::1].").Bool()
+	serverUnsafeTarget   = serverCommand.Flag("unsafe-target", "If set, does not limit target to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
 	serverAllowAll       = serverCommand.Flag("allow-all", "Allow all clients, do not check client cert subject.").Bool()
 	serverAllowedCNs     = serverCommand.Flag("allow-cn", "Allow clients with given common name (can be repeated).").PlaceHolder("CN").Strings()
 	serverAllowedOUs     = serverCommand.Flag("allow-ou", "Allow clients with tiven organizational unit name (can be repeated).").PlaceHolder("OU").Strings()
 	serverAllowedDNSs    = serverCommand.Flag("allow-dns-san", "Allow clients with given DNS subject alternative name (can be repeated).").PlaceHolder("SAN").Strings()
 	serverAllowedIPs     = serverCommand.Flag("allow-ip-san", "Allow clients with given IP subject alternative name (can be repeated).").PlaceHolder("SAN").IPList()
 
-	clientCommand       = app.Command("client", "Client mode (TCP listener -> TLS port).")
-	clientListenAddress = clientCommand.Flag("listen", "Address and port to listen on (HOST:PORT), or unix:PATH.").PlaceHolder("ADDR").Required().String()
-	// Note: can't use TCP for clientForwardAddress because we need to set the original string in tls.Config.ServerName.
+	clientCommand       = app.Command("client", "Client mode (plain TCP/UNIX listener -> TLS target).")
+	clientListenAddress = clientCommand.Flag("listen", "Address and port to listen on (HOST:PORT, or unix:PATH).").PlaceHolder("ADDR").Required().String()
+	// Note: can't use .TCP() for clientForwardAddress because we need to set the original string in tls.Config.ServerName.
 	clientForwardAddress = clientCommand.Flag("target", "Address to foward connections to (HOST:PORT).").PlaceHolder("ADDR").Required().String()
-	clientUnsafeListen   = clientCommand.Flag("unsafe-listen", "If set, does not limit listen to localhost, 127.0.0.1 or [::1].").Bool()
+	clientUnsafeListen   = clientCommand.Flag("unsafe-listen", "If set, does not limit listen to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
 
 	keystorePath  = app.Flag("keystore", "Path to certificate and keystore (PKCS12).").PlaceHolder("PATH").Required().String()
 	keystorePass  = app.Flag("storepass", "Password for certificate and keystore (optional).").PlaceHolder("PASS").String()
 	caBundlePath  = app.Flag("cacert", "Path to certificate authority bundle file (PEM/X509).").Required().String()
 	tlsVersion    = app.Flag("min-tls", fmt.Sprintf("Set the minimum required TLS version (1.0, 1.1, 1.2; default: %s).", defaultMinTLSVersion)).Default(defaultMinTLSVersion).PlaceHolder("X.Y").String()
-	timedReload   = app.Flag("timed-reload", "Reload keystores every N seconds, refresh listener on changes.").PlaceHolder("N").Int()
+	timedReload   = app.Flag("timed-reload", "Reload keystores every N seconds, refresh listener/client on changes.").PlaceHolder("N").Int()
 	graphiteAddr  = app.Flag("graphite", "Collect metrics and report them to the given graphite instance (raw TCP).").PlaceHolder("ADDR").TCP()
 	metricsURL    = app.Flag("metrics-url", "Collect metrics and POST them periodically to the given URL (via HTTP/JSON).").PlaceHolder("URL").String()
 	metricsPrefix = app.Flag("metrics-prefix", fmt.Sprintf("Set prefix string for all reported metrics (default: %s).", defaultMetricsPrefix)).PlaceHolder("PREFIX").Default(defaultMetricsPrefix).String()
