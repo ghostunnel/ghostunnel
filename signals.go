@@ -23,10 +23,10 @@ import (
 	"syscall"
 )
 
-// signalHandler listens for incoming SIGTERM or SIGUSR1 signals. If we get
-// SIGTERM, stop listening for new connections and gracefully terminate the
-// process.  If we get SIGUSR1, reload certificates.
-func signalHandler(listener net.Listener, statusListener net.Listener, stopper chan bool, context *Context) {
+// signalHandler for server mode. Listens for incoming SIGTERM or SIGUSR1
+// signals. If we get SIGTERM, stop listening for new connections and gracefully
+// terminate the process. If we get SIGUSR1, reload certificates.
+func serverSignalHandler(listener net.Listener, statusListener net.Listener, stopper chan bool, context *Context) {
 	signals := make(chan os.Signal)
 	signal.Notify(signals, syscall.SIGUSR1, syscall.SIGTERM)
 	defer func() {
@@ -49,13 +49,13 @@ func signalHandler(listener net.Listener, statusListener net.Listener, stopper c
 
 			case syscall.SIGUSR1:
 				logger.Printf("received SIGUSR1, reloading listener")
-				if reloadListener(context) {
+				if serverReloadListener(context) {
 					return
 				}
 			}
 		case _ = <-context.watcher:
 			logger.Printf("reloading listener...")
-			if reloadListener(context) {
+			if serverReloadListener(context) {
 				return
 			}
 		}
@@ -63,11 +63,11 @@ func signalHandler(listener net.Listener, statusListener net.Listener, stopper c
 }
 
 // Create a new listener
-func reloadListener(context *Context) bool {
+func serverReloadListener(context *Context) bool {
 	context.listeners.Add(1)
 	context.status.Reloading()
 	started := make(chan bool, 1)
-	go listen(started, context)
+	go serverListen(started, context)
 
 	// Wait for new listener to complete startup and return status
 	up := <-started
@@ -75,4 +75,33 @@ func reloadListener(context *Context) bool {
 		logger.Printf("failed to reload certificates")
 	}
 	return up
+}
+
+// signalHandler for client mode. Listens for incoming SIGTERM or SIGUSR1
+// signals. If we get SIGTERM, stop listening for new connections and gracefully
+// terminate the process. If we get SIGUSR1, reload certificates.
+func clientSignalHandler(listener net.Listener, reloadClient chan bool, stopper chan bool, reloadStatus chan bool, context *Context) {
+	signals := make(chan os.Signal)
+	signal.Notify(signals, syscall.SIGUSR1, syscall.SIGTERM)
+	for {
+		select {
+		case sig := <-signals:
+			switch sig {
+			case syscall.SIGTERM:
+				logger.Printf("received SIGTERM, stopping listener")
+				stopper <- true
+				listener.Close()
+				return
+
+			case syscall.SIGUSR1:
+				logger.Printf("received SIGUSR1, reloading client")
+				reloadClient <- true
+				reloadStatus <- true
+			}
+		case _ = <-context.watcher:
+			logger.Printf("reloading client...")
+			reloadClient <- true
+			reloadStatus <- true
+		}
+	}
 }

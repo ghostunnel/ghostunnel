@@ -22,21 +22,18 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestAllowsAllTargets(t *testing.T) {
-	*serverUnsafeTarget = true
-	assert.True(t, validateTarget("foo.com:1234"), "foo.com should be allowed")
-}
-
 func TestAllowsLocalhost(t *testing.T) {
 	*serverUnsafeTarget = false
-	assert.True(t, validateTarget("localhost:1234"), "localhost should be allowed")
-	assert.True(t, validateTarget("127.0.0.1:1234"), "127.0.0.1 should be allowed")
-	assert.True(t, validateTarget("[::1]:1234"), "[::1] should be allowed")
+	assert.True(t, validateUnixOrLocalhost("localhost:1234"), "localhost should be allowed")
+	assert.True(t, validateUnixOrLocalhost("127.0.0.1:1234"), "127.0.0.1 should be allowed")
+	assert.True(t, validateUnixOrLocalhost("[::1]:1234"), "[::1] should be allowed")
+	assert.True(t, validateUnixOrLocalhost("unix:/tmp/foo"), "unix:/tmp/foo should be allowed")
 }
 
 func TestDisallowsFooDotCom(t *testing.T) {
 	*serverUnsafeTarget = false
-	assert.False(t, validateTarget("foo.com:1234"), "foo.com should be disallowed")
-	assert.False(t, validateTarget("alocalhost.com:1234"), "alocalhost.com should be disallowed")
-	assert.False(t, validateTarget("74.122.190.83:1234"), "random ip address should be disallowed")
+	assert.False(t, validateUnixOrLocalhost("foo.com:1234"), "foo.com should be disallowed")
+	assert.False(t, validateUnixOrLocalhost("alocalhost.com:1234"), "alocalhost.com should be disallowed")
+	assert.False(t, validateUnixOrLocalhost("localhost.com.foo.com:1234"), "localhost.com.foo.com should be disallowed")
+	assert.False(t, validateUnixOrLocalhost("74.122.190.83:1234"), "random ip address should be disallowed")
 }
