@@ -195,7 +195,7 @@ func main() {
 		}
 		logger.Printf("starting ghostunnel in server mode")
 
-		err, dial := serverBackendDialer()
+		dial, err := serverBackendDialer()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: invalid target address: %s", err)
 			os.Exit(1)
@@ -221,7 +221,7 @@ func main() {
 		// whole thing into a re-usable package. Keywhiz-fs has some similar logic.
 		reloadClient := make(chan bool, 1)
 
-		err, dial := clientBackendDialer(reloadClient)
+		dial, err := clientBackendDialer(reloadClient)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: invalid target address: (%s)", err)
 			os.Exit(1)
@@ -397,33 +397,33 @@ func serveStatus(tlsConfig *tls.Config, context *Context) net.Listener {
 }
 
 // Get backend dialer function in server mode (connecting to a unix socket or tcp port)
-func serverBackendDialer() (error, func() (net.Conn, error)) {
+func serverBackendDialer() (func() (net.Conn, error), error) {
 	backendNet, backendAddr, _, err := parseUnixOrTcpAddress(*serverForwardAddress)
 	if err != nil {
-		return err, nil
+		return nil, err
 	}
 	if backendNet == "unix" {
 		// ensure file exists
 		_, err = os.Stat(backendAddr)
 		if err != nil {
-			return err, nil
+			return nil, err
 		}
 	}
 
-	return nil, func() (net.Conn, error) {
+	return func() (net.Conn, error) {
 		return net.Dial(backendNet, backendAddr)
-	}
+	}, nil
 }
 
 // Get backend dialer function in client mode (connecting to a tls port)
-func clientBackendDialer(reloadClient chan bool) (error, func() (net.Conn, error)) {
+func clientBackendDialer(reloadClient chan bool) (func() (net.Conn, error), error) {
 	initial, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath, *tlsVersion)
 	if err != nil {
-		return err, nil
+		return nil, err
 	}
 	network, address, host, err := parseUnixOrTcpAddress(*clientForwardAddress)
 	if err != nil {
-		return err, nil
+		return nil, err
 	}
 	initial.ServerName = host
 	// We use a channel to periodically refresh the tlsConfig
@@ -449,7 +449,7 @@ func clientBackendDialer(reloadClient chan bool) (error, func() (net.Conn, error
 			}
 		}
 	}()
-	return nil, func() (net.Conn, error) {
+	return func() (net.Conn, error) {
 		return tls.Dial(network, address, getConfig())
-	}
+	}, nil
 }
