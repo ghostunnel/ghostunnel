@@ -8,16 +8,18 @@ Ghostunnel
 👻
 
 Ghostunnel is a simple SSL/TLS proxy with mutual authentication support for
-securing non-TLS backend applications. Ghostunnel in server mode runs in front
-of a backend service and accepts TLS-secured connections, which are then proxied
-to the (insecure) backend. A backend can be a TCP domain/port or a UNIX socket path.
+securing non-TLS backend applications.
 
-Ghostunnel in client mode accepts (insecure) TCP or UNIX socket connections and
-proxies them to a TLS-secured service.
+* Ghostunnel in server mode runs in front of a backend service and accepts
+  TLS-secured connections, which are then proxied to the (insecure) backend. A
+  backend can be a TCP domain/port or a UNIX socket path.
+
+* Ghostunnel in client mode accepts (insecure) TCP or UNIX domain socket
+  connections and proxies them to a TLS-secured service.
 
 In other words, ghostunnel is a replacement for stunnel.
 
-See ghostunnel --help, ghostunnel server --help and ghostunnel client --help.
+See `ghostunnel --help`, `ghostunnel server --help` and `ghostunnel client --help`.
 
 Features
 ========
@@ -57,6 +59,12 @@ some test certificates for playing around with the tunnel, you can find
 some pre-generated ones in the `test-keys` directory (alongside instructions
 on how to generate new ones with OpenSSL).
 
+Note that by default ghostunnel logs to stderr and runs in the foreground. You
+can set set `--syslog` to log to syslog. For deamonization, we recommend using
+a utility such as [daemonize](http://software.clapper.org/daemonize/). For an
+example on how to use ghostunnel in a Docker container, see the `docker`
+subdirectory.
+
 ### Build
 
 We use [glide](https://github.com/Masterminds/glide) for vendoring.
@@ -74,14 +82,11 @@ If you want to update vendored dependencies:
 Ghostunnel is tested with Go 1.6, and our integration test suite requires
 Python 3.5 with pyOpenSSL installed.
 
-### Launch (in server mode)
+### Server mode 
 
-This is a short example for how to launch ghostunnel listening for incoming
-TLS connections on `localhost:8443` and forwarding them to `localhost:8080`. We
-assume that `server.p12` is a PKCS12 keystore with the certificate and private
-key for the server, and that `root.crt` contains your trusted root certificate(s).
-
-This example has been tested with OpenSSL 1.0.1.
+This is an example for how to launch ghostunnel in server mode, listening for
+incoming TLS connections on `localhost:8443` and forwarding them to
+`localhost:8080`. 
 
 To set allowed clients, you must specify at least one of `--allow-all`,
 `--allow-cn`, `--allow-ou`, `--allow-dns-san`, or `--allow-ip-san`. It's
@@ -89,41 +94,36 @@ possible to use these together or to specify them repeatedly to allow multiple
 clients. In this example, we assume that the CN of the client cert we want to
 accept connections from is `client`.
 
-Start netcat on port 8080:
+Start a backend server:
 
-    nc -l 127.0.0.1 8080
+    nc -l localhost 8080
 
-Start a ghostunnel with a server certificate:
+Start a ghostunnel in server mode to proxy connections:
 
     ghostunnel server \
-        --listen 127.0.0.1:8443 \
-        --target 127.0.0.1:8080 \
+        --listen localhost:8443 \
+        --target localhost:8080 \
         --keystore test-keys/server.p12 \
         --cacert test-keys/root.crt \
         --allow-cn client
 
-Verify that the client(s) can connect with their client certificate:
+Verify that clients can connect with their client certificate:
 
     openssl s_client \
-        -connect 127.0.0.1:8443 \
+        -connect localhost:8443 \
         -cert test-keys/client.crt \
         -key test-keys/client.key \
         -CAfile test-keys/root.crt
 
-If `openssl s_client` can connect, then the tunnel should be working as
-intended! Be sure to check the logs to see incoming connections and other
-information. Note that by default ghostunnel logs to stderr and runs in the
-foreground (set `--syslog` to log to syslog). For deamonization, we recommend
-using a utility such as [daemonize](http://software.clapper.org/daemonize/).
-For an example on how to use ghostunnel in a Docker container, see the `docker`
-subdirectory.
+Now we have a TLS proxy running for our backend service. We terminate TLS in
+ghostunnel and foward the connections to the insecure backend.
 
-### Launch (in client mode)
+### Client mode
 
-In client mode, we want ghostunnel to listen for incoming TCP connections
-and forward them to a TLS server.
+This is an example for how to launch ghostunnel in client mode, listening on
+`localhost:8080` and proxying requests to a TLS server on `localhost:8443`. 
 
-Start a TLS server:
+Start a backend TLS server:
 
     openssl s_server \
         -accept 8443 \
@@ -131,45 +131,51 @@ Start a TLS server:
         -key test-keys/server.key \
         -CAfile test-keys/root.crt
 
-Start a ghostunnel with a client certificate. The client certificate is also
-used to serve the `/_status` endpoint (when enabled):
+Start a ghostunnel with a client certificate to forward connections:
 
     ghostunnel client \
-        --listen 127.0.0.1:8080 \
-        --target 127.0.0.1:8443 \
+        --listen localhost:8080 \
+        --target localhost:8443 \
         --keystore test-keys/client.p12 \
         --cacert test-keys/root.crt
 
 Verify that we can connect to `8080`:
 
-    nc -v 127.0.0.1 8080
+    nc -v localhost 8080
 
-### Two ghostunnels which talk to each other
+Not we have a TLS proxy running for our client. We take the insecure local
+connection, wrap them in TLS, and forward them to the secure backend.
 
-We can combine the above two examples. Notice how you can start the ghostunnels
-in either order.
+### Full tunnel (client plus server)
+
+We can combine the above two examples to get a full tunnel. Note that you can
+start the ghostunnels in either order.
 
 Start netcat on port 8001:
 
-    nc -l 127.0.0.1 8001
+    nc -l localhost 8001
 
-Start the first ghostunnel:
+Start the ghostunnel server:
 
     ghostunnel server \
-        --listen 127.0.0.1:8002 \
-        --target 127.0.0.1:8001 \
+        --listen localhost:8002 \
+        --target localhost:8001 \
         --keystore test-keys/server.p12 \
         --cacert test-keys/root.crt \
         --allow-cn client
 
-Start the second ghostunnel:
+Start the ghostunnel client:
 
     ghostunnel client \
-        --listen 127.0.0.1:8003 \
-        --target 127.0.0.1:8002 \
+        --listen localhost:8003 \
+        --target localhost:8002 \
         --keystore test-keys/client.p12 \
         --cacert test-keys/root.crt
 
 Verify that we can connect to `8003`:
 
-    nc -v 127.0.0.1 8003
+    nc -v localhost 8003
+
+Now we have a full tunnel running. We take insecure client connections, 
+forward them to the server side of the tunnel via TLS, and finally terminate
+and proxy the connection to the insecure backend.
