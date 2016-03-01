@@ -322,7 +322,7 @@ func clientListen(started chan bool, reloadClient chan bool, context *Context) {
 		reloadStatus = make(chan bool, 1)
 		go func() {
 			for {
-				_ = <- reloadStatus
+				_ = <-reloadStatus
 				logger.Printf("reloading /_status")
 				oldListener := statusListener
 				tlsConfigStatus, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath, *tlsVersion)
@@ -338,7 +338,7 @@ func clientListen(started chan bool, reloadClient chan bool, context *Context) {
 	}
 
 	// Setup listening socket
-	network, address, _, err := parseUnixOrTcpAddress(*clientListenAddress)
+	network, address, _, err := parseUnixOrTCPAddress(*clientListenAddress)
 	if err != nil {
 		logger.Printf("error parsing client listen address: %s", err)
 		started <- false
@@ -398,7 +398,7 @@ func serveStatus(tlsConfig *tls.Config, context *Context) net.Listener {
 
 // Get backend dialer function in server mode (connecting to a unix socket or tcp port)
 func serverBackendDialer() (func() (net.Conn, error), error) {
-	backendNet, backendAddr, _, err := parseUnixOrTcpAddress(*serverForwardAddress)
+	backendNet, backendAddr, _, err := parseUnixOrTCPAddress(*serverForwardAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -421,7 +421,7 @@ func clientBackendDialer(reloadClient chan bool) (func() (net.Conn, error), erro
 	if err != nil {
 		return nil, err
 	}
-	network, address, host, err := parseUnixOrTcpAddress(*clientForwardAddress)
+	network, address, host, err := parseUnixOrTCPAddress(*clientForwardAddress)
 	if err != nil {
 		return nil, err
 	}
