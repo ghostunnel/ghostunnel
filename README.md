@@ -60,7 +60,7 @@ some pre-generated ones in the `test-keys` directory (alongside instructions
 on how to generate new ones with OpenSSL).
 
 Note that by default ghostunnel logs to stderr and runs in the foreground. You
-can set set `--syslog` to log to syslog. For deamonization, we recommend using
+can set set `--syslog` to log to syslog. For daemonization, we recommend using
 a utility such as [daemonize](http://software.clapper.org/daemonize/). For an
 example on how to use ghostunnel in a Docker container, see the `docker`
 subdirectory.
@@ -116,7 +116,7 @@ Verify that clients can connect with their client certificate:
         -CAfile test-keys/root.crt
 
 Now we have a TLS proxy running for our backend service. We terminate TLS in
-ghostunnel and foward the connections to the insecure backend.
+ghostunnel and forward the connections to the insecure backend.
 
 ### Client mode
 

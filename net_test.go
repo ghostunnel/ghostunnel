@@ -33,7 +33,7 @@ func TestParseUnixOrTcpAddress(t *testing.T) {
 	}
 
 	network, address, host, _ = parseUnixOrTCPAddress("localhost:8080")
-	// note: ipv6 test is proabably fragile, we don't expand ::1.
+	// note: ipv6 test is probably fragile, we don't expand ::1.
 	if network != "tcp4" && network != "tcp6" {
 		t.Errorf("unexpected network: %s", network)
 	}
