@@ -123,7 +123,7 @@ func clientAccept(listener net.Listener, stopper chan bool, dial func() (net.Con
 	handlers := &sync.WaitGroup{}
 
 	for {
-		// Wait for new conenction
+		// Wait for new connection
 		conn, err := listener.Accept()
 		openCounter.Inc(1)
 		totalCounter.Inc(1)
