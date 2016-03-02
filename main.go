@@ -62,6 +62,7 @@ var (
 	// Note: can't use .TCP() for clientForwardAddress because we need to set the original string in tls.Config.ServerName.
 	clientForwardAddress = clientCommand.Flag("target", "Address to forward connections to (HOST:PORT).").PlaceHolder("ADDR").Required().String()
 	clientUnsafeListen   = clientCommand.Flag("unsafe-listen", "If set, does not limit listen to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
+	clientServerName     = clientCommand.Flag("override-server-name", "If set, overrides the hostname used in certificate verification.").String()
 
 	keystorePath  = app.Flag("keystore", "Path to certificate and keystore (PKCS12).").PlaceHolder("PATH").Required().String()
 	keystorePass  = app.Flag("storepass", "Password for certificate and keystore (optional).").PlaceHolder("PASS").String()
@@ -421,18 +422,27 @@ func clientBackendDialer(reloadClient chan bool) (func() (net.Conn, error), erro
 	if err != nil {
 		return nil, err
 	}
+
 	network, address, host, err := parseUnixOrTCPAddress(*clientForwardAddress)
 	if err != nil {
 		return nil, err
 	}
-	initial.ServerName = host
+
+	if *clientServerName == "" {
+		initial.ServerName = host
+	} else {
+		initial.ServerName = *clientServerName
+	}
+
 	// We use a channel to periodically refresh the tlsConfig
 	reqc := make(chan *tls.Config)
+
 	// Getter from channel.
 	getConfig := func() *tls.Config {
 		config := <-reqc
 		return config
 	}
+
 	go func() {
 		current := initial
 		for {
@@ -442,13 +452,18 @@ func clientBackendDialer(reloadClient chan bool) (func() (net.Conn, error), erro
 				if config, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath, *tlsVersion); err != nil {
 					logger.Printf("Error refreshing client: %s", err)
 				} else {
-					config.ServerName = host
+					if *clientServerName == "" {
+						config.ServerName = host
+					} else {
+						config.ServerName = *clientServerName
+					}
 					current = config
 				}
 			case reqc <- current: // Service request for current config
 			}
 		}
 	}()
+
 	return func() (net.Conn, error) {
 		return tls.Dial(network, address, getConfig())
 	}, nil
