@@ -10,12 +10,12 @@ Ghostunnel
 Ghostunnel is a simple SSL/TLS proxy with mutual authentication support for
 securing non-TLS backend applications.
 
-* Ghostunnel in server mode runs in front of a backend service and accepts
-  TLS-secured connections, which are then proxied to the (insecure) backend. A
-  backend can be a TCP domain/port or a UNIX socket path.
-
-* Ghostunnel in client mode accepts (insecure) TCP or UNIX domain socket
-  connections and proxies them to a TLS-secured service.
+Ghostunnel supports two modes, client mode and server mode. Ghostunnel in
+server mode runs in front of a backend server and accepts TLS-secured
+connections, which are then proxied to the (insecure) backend. A backend can be
+a TCP domain/port or a UNIX domain socket. Ghostunnel in client mode accepts
+(insecure) connections through a TCP or UNIX domain socket and proxies them to
+a TLS-secured service.
 
 In other words, ghostunnel is a replacement for stunnel.
 
@@ -41,12 +41,12 @@ the timed reload flag is enabled, ghostunnel will reload the files periodically
 and check for changes. If a change is detected, it will attempt to reload the
 listener with the new certificates/private key.
 
-***Emphasis on security***: We have put some thought into making ghostunnel secure
-by default. In server mode, the target connection must live on localhost or
-a UNIX socket (unless --unsafe-target is specified). In a similar way, in client
-mode the listening socket must live on localhost or a UNIX socket (unless --unsafe-listen
-is specified). Ghostunnel negotiates TLSv1.2 (by default) and uses safe ciphers.
-
+***Emphasis on security***: We have put some thought into making ghostunnel
+secure by default. In server mode, the target connection must live on localhost
+or a UNIX socket (unless `--unsafe-target` is specified). In a similar way, in
+client mode the listening socket must live on localhost or a UNIX socket
+(unless `--unsafe-listen` is specified). Ghostunnel negotiates TLSv1.2 (by
+default) and uses safe ciphers.
 
 Getting started
 ===============
