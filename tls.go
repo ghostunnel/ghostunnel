@@ -27,12 +27,6 @@ import (
 	"golang.org/x/crypto/pkcs12"
 )
 
-var minVersion = map[string]uint16{
-	"1.0": tls.VersionTLS10,
-	"1.1": tls.VersionTLS11,
-	"1.2": tls.VersionTLS12,
-}
-
 // parseKeystore takes a PKCS12 keystore and converts it into a series of
 // serialized PEM blocks for certificates/private key. The keystore is expected
 // to contain exactly one private key and one or more certificates.
@@ -54,7 +48,7 @@ func parseKeystore(data []byte, password string) (certs, key []byte, err error) 
 }
 
 // buildConfig reads command-line options and builds a tls.Config
-func buildConfig(keystorePath, keystorePass, caBundlePath, tlsVersion string) (*tls.Config, error) {
+func buildConfig(keystorePath, keystorePass, caBundlePath string) (*tls.Config, error) {
 	caBundleBytes, err := ioutil.ReadFile(caBundlePath)
 	if err != nil {
 		return nil, err
@@ -92,20 +86,12 @@ func buildConfig(keystorePath, keystorePass, caBundlePath, tlsVersion string) (*
 		PreferServerCipherSuites: true,
 
 		ClientAuth: tls.RequireAndVerifyClientCert,
-		MinVersion: minVersion[tlsVersion],
+		MinVersion: tls.VersionTLS12,
 		CipherSuites: []uint16{
-			// Modern cipher suites
 			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
 			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
 			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
 			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-			// Compatibility cipher suites
-			tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
-			tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
-			tls.TLS_RSA_WITH_AES_128_CBC_SHA,
-			tls.TLS_RSA_WITH_AES_256_CBC_SHA,
 		},
 	}, nil
 }

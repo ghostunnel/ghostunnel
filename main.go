@@ -42,7 +42,6 @@ var buildRevision = "unknown"
 var buildCompiler = "unknown"
 
 var defaultMetricsPrefix = "ghostunnel"
-var defaultMinTLSVersion = "1.2"
 
 var (
 	app = kingpin.New("ghostunnel", "A simple SSL/TLS proxy with mutual authentication for securing non-TLS services.")
@@ -67,7 +66,6 @@ var (
 	keystorePath  = app.Flag("keystore", "Path to certificate and keystore (PKCS12).").PlaceHolder("PATH").Required().String()
 	keystorePass  = app.Flag("storepass", "Password for certificate and keystore (optional).").PlaceHolder("PASS").String()
 	caBundlePath  = app.Flag("cacert", "Path to certificate authority bundle file (PEM/X509).").Required().String()
-	tlsVersion    = app.Flag("min-tls", fmt.Sprintf("Set the minimum required TLS version (1.0, 1.1, 1.2; default: %s).", defaultMinTLSVersion)).Default(defaultMinTLSVersion).PlaceHolder("X.Y").String()
 	timedReload   = app.Flag("timed-reload", "Reload keystores every N seconds, refresh listener/client on changes.").PlaceHolder("N").Int()
 	graphiteAddr  = app.Flag("graphite", "Collect metrics and report them to the given graphite instance (raw TCP).").PlaceHolder("ADDR").TCP()
 	metricsURL    = app.Flag("metrics-url", "Collect metrics and POST them periodically to the given URL (via HTTP/JSON).").PlaceHolder("URL").String()
@@ -260,7 +258,7 @@ func serverListen(started chan bool, context *Context) {
 	}
 
 	// Wrap listening socket with TLS listener.
-	tlsConfigProxy, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath, *tlsVersion)
+	tlsConfigProxy, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath)
 	if err != nil {
 		logger.Printf("error setting up TLS: %s", err)
 		started <- false
@@ -271,7 +269,7 @@ func serverListen(started chan bool, context *Context) {
 
 	var statusListener net.Listener
 	if *statusAddr != nil {
-		tlsConfigStatus, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath, *tlsVersion)
+		tlsConfigStatus, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath)
 		if err != nil {
 			logger.Printf("error setting up TLS: %s", err)
 			started <- false
@@ -311,7 +309,7 @@ func clientListen(started chan bool, reloadClient chan bool, context *Context) {
 	// reloadStatus is a channel which causes /_status to reload.
 	var reloadStatus chan bool
 	if *statusAddr != nil {
-		tlsConfigStatus, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath, *tlsVersion)
+		tlsConfigStatus, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath)
 		if err != nil {
 			logger.Printf("failed to load tls config")
 			started <- false
@@ -326,7 +324,7 @@ func clientListen(started chan bool, reloadClient chan bool, context *Context) {
 				_ = <-reloadStatus
 				logger.Printf("reloading /_status")
 				oldListener := statusListener
-				tlsConfigStatus, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath, *tlsVersion)
+				tlsConfigStatus, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath)
 				if err != nil {
 					logger.Printf("failed to reload tls config")
 					continue
@@ -418,7 +416,7 @@ func serverBackendDialer() (func() (net.Conn, error), error) {
 
 // Get backend dialer function in client mode (connecting to a tls port)
 func clientBackendDialer(reloadClient chan bool) (func() (net.Conn, error), error) {
-	initial, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath, *tlsVersion)
+	initial, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath)
 	if err != nil {
 		return nil, err
 	}
@@ -449,7 +447,7 @@ func clientBackendDialer(reloadClient chan bool) (func() (net.Conn, error), erro
 			select {
 			case _ = <-reloadClient:
 				logger.Printf("Updating client")
-				if config, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath, *tlsVersion); err != nil {
+				if config, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath); err != nil {
 					logger.Printf("Error refreshing client: %s", err)
 				} else {
 					if *clientServerName == "" {
