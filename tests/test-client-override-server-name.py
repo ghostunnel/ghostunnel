@@ -4,7 +4,7 @@
 # not root2.
 
 from subprocess import Popen
-from test_common import RootCert, LOCALHOST, STATUS_PORT, SocketPair, print_ok, TcpClient, TlsServer
+from test_common import *
 import socket, ssl
 
 if __name__ == "__main__":
@@ -20,7 +20,7 @@ if __name__ == "__main__":
     other_root.create_signed_cert('other_server')
 
     # start ghostunnel
-    ghostunnel = Popen(['../ghostunnel', 'client', '--listen={0}:13004'.format(LOCALHOST),
+    ghostunnel = run_ghostunnel(['client', '--listen={0}:13004'.format(LOCALHOST),
       '--target=localhost:13005', '--keystore=client.p12', '--cacert=root.crt',
       '--override-server-name=foobar', '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
 
@@ -46,5 +46,5 @@ if __name__ == "__main__":
 
     print_ok("OK")
   finally:
-    if ghostunnel:
-      ghostunnel.kill()
+    terminate(ghostunnel)
+      

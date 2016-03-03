@@ -28,11 +28,13 @@ pre-unit:
 	@echo "*** Running unit tests ***"
 
 unit: pre-unit
-	go test -v
+	go test -v -covermode=set -coverprofile=coverage.out
 
 # Run integration tests
+# Builds test binary with integration test coverage
 pre-integration: 
 	@echo "*** Running integration tests ***"
+	go test -c -covermode=set -coverpkg .
 
 integration: pre-integration $(INTEGRATION_TESTS)
 	@echo "PASS"

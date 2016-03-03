@@ -8,7 +8,7 @@
 # - tunnel picks up client cert change and uses it on the status port.
 
 from subprocess import Popen
-from test_common import RootCert, LOCALHOST, STATUS_PORT, SocketPair, TcpClient, TlsServer, TlsClient, print_ok
+from test_common import *
 import socket, ssl, time, os, signal
 
 if __name__ == "__main__":
@@ -25,7 +25,7 @@ if __name__ == "__main__":
     root2.create_signed_cert('client2')
 
     # start ghostunnel
-    ghostunnel = Popen(['../ghostunnel', 'client', '--listen={0}:13004'.format(LOCALHOST),
+    ghostunnel = run_ghostunnel(['client', '--listen={0}:13004'.format(LOCALHOST),
       '--target={0}:13005'.format(LOCALHOST), '--keystore=client1.p12',
       '--cacert=root1.crt', '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
 
@@ -47,12 +47,13 @@ if __name__ == "__main__":
     pair2 = SocketPair(TcpClient(13004), TlsServer('server1', 'root1', 13005))
     pair2.validate_can_send_from_client("toto", "pair2 works")
     pair2.validate_client_cert("new_client1", "pair2: ou=new_client1 -> ...")
+    pair2.cleanup()
 
     # ensure ghostunnel won't connect to server2
     try:
       pair3 = SocketPair(TcpClient(13004), TlsServer('server2', 'root1', 13005))
       pair3.validate_can_send_from_client("toto", "pair3 works")
-      raise Exception("pair2 worked")
+      raise Exception("pair3 worked")
     except ssl.SSLError as e:
       print_ok("ghostunnel did not connect to incorrect CA")
 
@@ -66,11 +67,13 @@ if __name__ == "__main__":
     pair4 = SocketPair(TcpClient(13004), TlsServer('server2', 'root1', 13005))
     pair4.validate_can_send_from_client("toto", "pair4 works")
     pair4.validate_client_cert("client2", "pair2: ou=client2 -> server2")
+    pair4.cleanup()
 
     # ensure that pair1 is still alive
     pair1.validate_can_send_from_client("toto", "pair1 still works")
+    pair1.cleanup()
     print_ok("OK")
 
   finally:
-    if ghostunnel:
-      ghostunnel.kill()
+    terminate(ghostunnel)
+      

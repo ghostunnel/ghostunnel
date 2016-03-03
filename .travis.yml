@@ -15,6 +15,9 @@ go:
 before_install:
   - sudo `which pip3` install pyopenssl
   - go get github.com/Masterminds/glide
+  - go get github.com/axw/gocov/gocov
+  - go get github.com/mattn/goveralls
+  - go get golang.org/x/tools/cmd/cover
   - make depends
 
 install:
@@ -27,3 +30,8 @@ before_script:
 
 script:
   - make test
+
+after_success:
+  - gocov convert *.out */*.out > gocov.json
+  - $HOME/gopath/bin/goveralls -gocovdata gocov.json -service=travis-ci
+

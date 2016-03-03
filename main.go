@@ -156,12 +156,16 @@ func clientValidateFlags() error {
 }
 
 func main() {
+	run(os.Args[1:])
+}
+
+func run(args []string) {
 	initLogger()
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	app.Version(fmt.Sprintf("rev %s built with %s", buildRevision, buildCompiler))
 	app.Validate(validateFlags)
-	command := kingpin.MustParse(app.Parse(os.Args[1:]))
+	command := kingpin.MustParse(app.Parse(args))
 
 	// metrics
 	if *graphiteAddr != nil {

@@ -17,10 +17,28 @@
 package main
 
 import (
+	"encoding/json"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func TestIntegrationMain(t *testing.T) {
+	// This function serves as an entry point for running integration tests.
+	// We're wrapping it in a test case so that we can record the test coverage.
+	isIntegration := os.Getenv("GHOSTUNNEL_INTEGRATION_TEST")
+
+	if isIntegration == "true" {
+		var wrappedArgs []string
+		err := json.Unmarshal([]byte(os.Getenv("GHOSTUNNEL_INTEGRATION_ARGS")), &wrappedArgs)
+		if err != nil {
+			panic(err)
+		}
+
+		run(wrappedArgs)
+	}
+}
 
 func TestAllowsLocalhost(t *testing.T) {
 	*serverUnsafeTarget = false
