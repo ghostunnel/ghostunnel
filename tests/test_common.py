@@ -1,12 +1,40 @@
-from subprocess import call
+from subprocess import call, Popen
 from tempfile import mkstemp, mkdtemp
 import OpenSSL.crypto as crypto
-import socketserver, threading, time, socket, ssl, os, base64, textwrap, urllib.request
+import socketserver, json, sys, threading, time, socket, ssl, os, base64, textwrap, urllib.request
 
 FNULL = open(os.devnull, 'w')
 LOCALHOST = '127.0.0.1'
 STATUS_PORT = 13100
 TIMEOUT = 5
+
+# Helper to run ghostunnel in integration test mode
+def run_ghostunnel(args):
+  os.environ["GHOSTUNNEL_INTEGRATION_TEST"] = "true"
+  os.environ["GHOSTUNNEL_INTEGRATION_ARGS"] = json.dumps(args)
+  test = os.path.basename(sys.argv[0]).replace('.py', '.out')
+  cmd = [
+      '../ghostunnel.test',
+      '-test.run=TestIntegrationMain',
+      '-test.coverprofile=coverage-{0}'.format(test)]
+  return Popen(cmd)
+
+# Gracefully terminate ghostunnel (with timeout)
+def terminate(ghostunnel):
+  print_ok("terminating ghostunnel instance")
+  if ghostunnel:
+    ghostunnel.terminate()
+    for i in range(0, 10):
+      try:
+        ghostunnel.wait(timeout=1)
+      except:
+        pass
+      if ghostunnel.returncode != None:
+        print_ok("ghostunnel stopped with exit code {0}".format(ghostunnel.returncode))
+        return
+      time.sleep(1)
+    print_ok("timeout, killing ghostunnel")
+    ghostunnel.kill()
 
 # Helper class to create root + signed certs
 class RootCert:

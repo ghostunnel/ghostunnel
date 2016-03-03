@@ -3,7 +3,7 @@
 # Creates a ghostunnel. Ensures ghostunnel can connect to a unix socket.
 
 from subprocess import Popen
-from test_common import RootCert, LOCALHOST, STATUS_PORT, SocketPair, print_ok, TlsClient, UnixServer
+from test_common import *
 import socket, ssl, tempfile, os
 
 if __name__ == "__main__":
@@ -16,7 +16,7 @@ if __name__ == "__main__":
 
     # start ghostunnel
     socket = UnixServer()
-    ghostunnel = Popen(['../ghostunnel', 'server', '--listen={0}:13001'.format(LOCALHOST),
+    ghostunnel = run_ghostunnel(['server', '--listen={0}:13001'.format(LOCALHOST),
       '--target=unix:{0}'.format(socket.get_socket_path()), '--keystore=server.p12',
       '--cacert=root.crt', '--allow-ou=client', '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
 
@@ -28,5 +28,5 @@ if __name__ == "__main__":
 
     print_ok("OK")
   finally:
-    if ghostunnel:
-      ghostunnel.kill()
+    terminate(ghostunnel)
+      

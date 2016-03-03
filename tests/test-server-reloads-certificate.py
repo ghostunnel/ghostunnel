@@ -3,7 +3,7 @@
 # Creates a ghostunnel. Ensures that tunnel sees & reloads a certificate change.
 
 from subprocess import Popen
-from test_common import RootCert, LOCALHOST, STATUS_PORT, SocketPair, print_ok, TlsClient, TcpServer
+from test_common import *
 import socket, ssl, time, os, signal
 
 if __name__ == "__main__":
@@ -16,7 +16,7 @@ if __name__ == "__main__":
     root.create_signed_cert('client')
 
     # start ghostunnel
-    ghostunnel = Popen(['../ghostunnel', 'server', '--listen={0}:13001'.format(LOCALHOST),
+    ghostunnel = run_ghostunnel(['server', '--listen={0}:13001'.format(LOCALHOST),
       '--target={0}:13002'.format(LOCALHOST), '--keystore=server.p12',
       '--cacert=root.crt', '--allow-ou=client',
       '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
@@ -37,11 +37,13 @@ if __name__ == "__main__":
     pair2 = SocketPair(TlsClient('client', 'root', 13001), TcpServer(13002))
     pair2.validate_can_send_from_client("toto", "pair2 works")
     pair2.validate_tunnel_ou("new_server", "pair2 -> ou=new_server")
+    pair2.cleanup()
 
     # ensure that pair1 is still alive
     pair1.validate_can_send_from_client("toto", "pair1 still works")
+    pair1.cleanup()
 
     print_ok("OK")
   finally:
-    if ghostunnel:
-      ghostunnel.kill()
+    terminate(ghostunnel)
+      

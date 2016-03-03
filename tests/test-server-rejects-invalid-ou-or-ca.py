@@ -4,7 +4,7 @@
 # ou=client2 or ca=other_root can't connect.
 
 from subprocess import Popen
-from test_common import RootCert, LOCALHOST, STATUS_PORT, SocketPair, print_ok, TlsClient, TcpServer
+from test_common import *
 import socket, ssl
 
 if __name__ == "__main__":
@@ -20,7 +20,7 @@ if __name__ == "__main__":
     other_root.create_signed_cert('other_client1')
 
     # start ghostunnel
-    ghostunnel = Popen(['../ghostunnel', 'server', '--listen={0}:13001'.format(LOCALHOST),
+    ghostunnel = run_ghostunnel(['server', '--listen={0}:13001'.format(LOCALHOST),
       '--target={0}:13002'.format(LOCALHOST), '--keystore=server.p12',
       '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT),
       '--cacert=root.crt', '--allow-ou=client1'])
@@ -49,5 +49,5 @@ if __name__ == "__main__":
 
     print_ok("OK")
   finally:
-    if ghostunnel:
-      ghostunnel.kill()
+    terminate(ghostunnel)
+      

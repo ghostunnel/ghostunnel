@@ -4,7 +4,7 @@
 
 from subprocess import Popen
 from multiprocessing import Process
-from test_common import RootCert, LOCALHOST, STATUS_PORT, SocketPair, print_ok, TcpClient, TlsServer
+from test_common import *
 import socket, ssl, time, random
 
 def send_data(i, p):
@@ -37,7 +37,7 @@ if __name__ == "__main__":
       root.create_signed_cert("server{0}".format(i))
 
     # start ghostunnel
-    ghostunnel = Popen(['../ghostunnel', 'client', '--listen={0}:13004'.format(LOCALHOST),
+    ghostunnel = run_ghostunnel(['client', '--listen={0}:13004'.format(LOCALHOST),
       '--target={0}:13005'.format(LOCALHOST), '--keystore=client.p12',
       '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT),
       '--cacert=root.crt'])
@@ -54,5 +54,4 @@ if __name__ == "__main__":
 
     print_ok("OK")
   finally:
-    if ghostunnel:
-      ghostunnel.kill()
+    terminate(ghostunnel)

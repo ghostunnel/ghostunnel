@@ -4,7 +4,7 @@
 # change.
 
 from subprocess import Popen, call
-from test_common import RootCert, LOCALHOST, STATUS_PORT, SocketPair, print_ok, TlsClient, TcpServer
+from test_common import *
 import socket, ssl, time, signal, os
 
 if __name__ == "__main__":
@@ -21,7 +21,7 @@ if __name__ == "__main__":
     new_root.create_signed_cert('client3')
 
     # start ghostunnel
-    ghostunnel = Popen(['../ghostunnel', 'server', '--listen={0}:13001'.format(LOCALHOST),
+    ghostunnel = run_ghostunnel(['server', '--listen={0}:13001'.format(LOCALHOST),
       '--target={0}:13002'.format(LOCALHOST), '--keystore=server.p12',
       '--cacert=root.crt', '--allow-ou=client1', '--allow-ou=client2',
       '--allow-ou=client3', '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
@@ -45,6 +45,7 @@ if __name__ == "__main__":
     # ensure that client3 can connect
     pair3 = SocketPair(TlsClient('client3', 'root', 13001), TcpServer(13002))
     pair3.validate_can_send_from_client("toto", "pair3 works")
+    pair3.cleanup()
 
     # ensure that client2 cannot connect
     try:
@@ -56,8 +57,10 @@ if __name__ == "__main__":
     # ensure that pair1 and pair2 are still alive
     pair1.validate_can_send_from_client("toto", "pair1 still works")
     pair2.validate_can_send_from_client("toto", "pair2 still works")
+    pair1.cleanup()
+    pair2.cleanup()
 
     print_ok("OK")
   finally:
-    if ghostunnel:
-      ghostunnel.kill()
+    terminate(ghostunnel)
+      
