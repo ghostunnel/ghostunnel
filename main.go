@@ -61,7 +61,7 @@ var (
 	// Note: can't use .TCP() for clientForwardAddress because we need to set the original string in tls.Config.ServerName.
 	clientForwardAddress = clientCommand.Flag("target", "Address to forward connections to (HOST:PORT).").PlaceHolder("ADDR").Required().String()
 	clientUnsafeListen   = clientCommand.Flag("unsafe-listen", "If set, does not limit listen to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
-	clientServerName     = clientCommand.Flag("override-server-name", "If set, overrides the hostname used in certificate verification.").String()
+	clientServerName     = clientCommand.Flag("override-server-name", "If set, overrides the server name used for hostname verification .").PlaceHolder("NAME").String()
 
 	keystorePath  = app.Flag("keystore", "Path to certificate and keystore (PKCS12).").PlaceHolder("PATH").Required().String()
 	keystorePass  = app.Flag("storepass", "Password for certificate and keystore (optional).").PlaceHolder("PASS").String()
