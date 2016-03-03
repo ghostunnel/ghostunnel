@@ -31,7 +31,8 @@ import (
 // serialized PEM blocks for certificates/private key. The keystore is expected
 // to contain exactly one private key and one or more certificates.
 func parseKeystore(data []byte, password string) (certs, key []byte, err error) {
-	blocks, err := pkcs12.ToPEM(data, password)
+	var blocks []*pem.Block
+	blocks, err = pkcs12.ToPEM(data, password)
 	for _, block := range blocks {
 		if strings.Contains(block.Type, "PRIVATE KEY") {
 			if key != nil {
@@ -42,6 +43,10 @@ func parseKeystore(data []byte, password string) (certs, key []byte, err error) 
 			certs = append(certs, pem.EncodeToMemory(block)...)
 			certs = append(certs, '\n')
 		}
+	}
+
+	if certs == nil || key == nil {
+		err = fmt.Errorf("missing certifiate and/or key")
 	}
 
 	return

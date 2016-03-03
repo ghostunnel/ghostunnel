@@ -13,11 +13,10 @@ def run_ghostunnel(args):
   os.environ["GHOSTUNNEL_INTEGRATION_TEST"] = "true"
   os.environ["GHOSTUNNEL_INTEGRATION_ARGS"] = json.dumps(args)
   test = os.path.basename(sys.argv[0]).replace('.py', '.out')
-  cmd = [
+  return Popen([
       '../ghostunnel.test',
       '-test.run=TestIntegrationMain',
-      '-test.coverprofile=coverage-{0}'.format(test)]
-  return Popen(cmd)
+      '-test.coverprofile=coverage-{0}'.format(test)])
 
 # Gracefully terminate ghostunnel (with timeout)
 def terminate(ghostunnel):

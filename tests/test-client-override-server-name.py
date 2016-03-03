@@ -5,7 +5,7 @@
 
 from subprocess import Popen
 from test_common import *
-import socket, ssl
+import socket, ssl, time, os, signal
 
 if __name__ == "__main__":
   ghostunnel = None
@@ -22,7 +22,8 @@ if __name__ == "__main__":
     # start ghostunnel
     ghostunnel = run_ghostunnel(['client', '--listen={0}:13004'.format(LOCALHOST),
       '--target=localhost:13005', '--keystore=client.p12', '--cacert=root.crt',
-      '--override-server-name=foobar', '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
+      '--timed-reload=1', '--override-server-name=foobar',
+      '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
 
     # connect to server1, confirm that the tunnel is up
     pair = SocketPair(TcpClient(13004), TlsServer('server2', 'root', 13005))
@@ -43,6 +44,17 @@ if __name__ == "__main__":
       raise Exception('failed to reject server1')
     except ssl.SSLError:
       print_ok("server1 correctly rejected")
+
+    # make sure also works after reload
+    ghostunnel.send_signal(signal.SIGUSR1)
+    TlsClient(None, 'root', STATUS_PORT).connect(20, 'client')
+    print_ok("reload done")
+
+    pair2 = SocketPair(TcpClient(13004), TlsServer('server2', 'root', 13005))
+    pair2.validate_can_send_from_client("hello world", "1: client -> server")
+    pair2.validate_can_send_from_server("hello world", "1: server -> client")
+    pair2.validate_closing_client_closes_server("1: client closed -> server closed")
+    pair2.cleanup()
 
     print_ok("OK")
   finally:

@@ -53,9 +53,7 @@ func (c fakeConn) SetWriteDeadline(t time.Time) error {
 
 func dummyDial() (net.Conn, error) {
 	f, err := os.Open("/dev/null")
-	if err != nil {
-		panic(err)
-	}
+	panicOnError(err)
 	return fakeConn{f}, nil
 }
 

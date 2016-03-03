@@ -69,11 +69,7 @@ func serverAccept(listener net.Listener, wg *sync.WaitGroup, stopper chan bool, 
 
 		tlsConn, ok := conn.(*tls.Conn)
 		if !ok {
-			openCounter.Dec(1)
-			errorCounter.Inc(1)
-			logger.Printf("received non-TLS connection from %s? ignoring", conn.RemoteAddr())
-			conn.Close()
-			continue
+			panic("got non-TLS socket from a TLS listener")
 		}
 
 		// Force handshake. Handshake usually happens on first read/write, but
