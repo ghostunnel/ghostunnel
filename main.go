@@ -252,6 +252,8 @@ func run(args []string) {
 // connections. This is useful for the purpose of replacing certificates
 // in-place without having to take downtime, e.g. if a certificate is expiring.
 func serverListen(started chan bool, context *Context) {
+	defer context.listeners.Done()
+
 	// Open raw listening socket
 	network, address := decodeAddress(*serverListenAddress)
 	rawListener, err := reuseport.NewReusablePortListener(network, address)
@@ -260,6 +262,7 @@ func serverListen(started chan bool, context *Context) {
 		started <- false
 		return
 	}
+	defer rawListener.Close()
 
 	// Wrap listening socket with TLS listener.
 	tlsConfigProxy, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath)
@@ -303,8 +306,6 @@ func serverListen(started chan bool, context *Context) {
 
 	logger.Printf("listening with cert serial no. %d (expiring %s)", leaf.SerialNumber, leaf.NotAfter.String())
 	handlers.Wait()
-
-	context.listeners.Done()
 }
 
 // Open listening socket in client mode.
@@ -450,9 +451,9 @@ func clientBackendDialer(reloadClient chan bool) (func() (net.Conn, error), erro
 		for {
 			select {
 			case _ = <-reloadClient:
-				logger.Printf("Updating client")
+				logger.Print("updating client")
 				if config, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath); err != nil {
-					logger.Printf("Error refreshing client: %s", err)
+					logger.Printf("error refreshing client: %s", err)
 				} else {
 					if *clientServerName == "" {
 						config.ServerName = host

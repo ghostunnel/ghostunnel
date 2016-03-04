@@ -72,6 +72,7 @@ func serverReloadListener(context *Context) bool {
 	// Wait for new listener to complete startup and return status
 	up := <-started
 	if !up {
+		context.status.Listening()
 		logger.Printf("failed to reload certificates")
 	}
 	return up

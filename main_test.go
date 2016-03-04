@@ -18,6 +18,7 @@ package main
 
 import (
 	"encoding/json"
+	"net"
 	"os"
 	"testing"
 
@@ -32,12 +33,65 @@ func TestIntegrationMain(t *testing.T) {
 	if isIntegration == "true" {
 		var wrappedArgs []string
 		err := json.Unmarshal([]byte(os.Getenv("GHOSTUNNEL_INTEGRATION_ARGS")), &wrappedArgs)
-		if err != nil {
-			panic(err)
-		}
+		panicOnError(err)
 
 		run(wrappedArgs)
 	}
+}
+
+func TestFlagValidation(t *testing.T) {
+	*enableProf = true
+	*statusAddr = nil
+	err := validateFlags(nil)
+	assert.NotNil(t, err, "--enable-pprof implies --status")
+
+	*enableProf = false
+	*metricsURL = "127.0.0.1"
+	err = validateFlags(nil)
+	assert.NotNil(t, err, "invalid --metrics-url should be rejected")
+}
+
+func TestServerFlagValidation(t *testing.T) {
+	*serverAllowAll = false
+	*serverAllowedCNs = nil
+	*serverAllowedOUs = nil
+	*serverAllowedDNSs = nil
+	*serverAllowedIPs = nil
+	err := serverValidateFlags()
+	assert.NotNil(t, err, "invalid access control flags accepted")
+
+	*serverAllowAll = true
+	*serverAllowedCNs = []string{"test"}
+	err = serverValidateFlags()
+	assert.NotNil(t, err, "--allow-all and --allow-cn are mutually exclusive")
+
+	*serverAllowedCNs = nil
+	*serverAllowedOUs = []string{"test"}
+	err = serverValidateFlags()
+	assert.NotNil(t, err, "--allow-all and --allow-ou are mutually exclusive")
+
+	*serverAllowedOUs = nil
+	*serverAllowedDNSs = []string{"test"}
+	err = serverValidateFlags()
+	assert.NotNil(t, err, "--allow-all and --allow-dns-san are mutually exclusive")
+
+	*serverAllowedDNSs = nil
+	*serverAllowedIPs = []net.IP{net.IPv4(0, 0, 0, 0)}
+	err = serverValidateFlags()
+	assert.NotNil(t, err, "--allow-all and --allow-ip-san are mutually exclusive")
+
+	*serverAllowAll = false
+	*serverUnsafeTarget = false
+	*serverForwardAddress = "foo.com"
+	err = serverValidateFlags()
+	assert.NotNil(t, err, "unsafe target should be rejected")
+}
+
+func TestClientFlagValidation(t *testing.T) {
+	*clientUnsafeListen = false
+	*clientListenAddress = "0.0.0.0:8080"
+	err := clientValidateFlags()
+	assert.NotNil(t, err, "unsafe listen should be rejected")
 }
 
 func TestAllowsLocalhost(t *testing.T) {
