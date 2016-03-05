@@ -17,11 +17,11 @@ if __name__ == "__main__":
     # start ghostunnel
     socket = UnixClient()
     ghostunnel = run_ghostunnel(['client', '--listen=unix:{0}'.format(socket.get_socket_path()),
-      '--target={0}:13005'.format(LOCALHOST), '--keystore=client.p12',
+      '--target={0}:13002'.format(LOCALHOST), '--keystore=client.p12',
       '--cacert=root.crt', '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
 
     # connect with client, confirm that the tunnel is up
-    pair = SocketPair(socket, TlsServer('server', 'root', 13005))
+    pair = SocketPair(socket, TlsServer('server', 'root', 13002))
 
     pair.validate_can_send_from_server("hello world", "1: server -> client")
     pair.validate_can_send_from_client("hello world", "1: client -> server")

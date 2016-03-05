@@ -37,15 +37,15 @@ if __name__ == "__main__":
       root.create_signed_cert("server{0}".format(i))
 
     # start ghostunnel
-    ghostunnel = run_ghostunnel(['client', '--listen={0}:13004'.format(LOCALHOST),
-      '--target={0}:13005'.format(LOCALHOST), '--keystore=client.p12',
+    ghostunnel = run_ghostunnel(['client', '--listen={0}:13001'.format(LOCALHOST),
+      '--target={0}:13002'.format(LOCALHOST), '--keystore=client.p12',
       '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT),
       '--cacert=root.crt'])
 
     # servers should be able to communicate all at the same time.
     proc = []
     for i in range(1, n_clients):
-      pair = SocketPair(TcpClient(13004), TlsServer("server{0}".format(i), 'root', 13005))
+      pair = SocketPair(TcpClient(13001), TlsServer("server{0}".format(i), 'root', 13002))
       p = Process(target=send_data, args=(i,pair,))
       p.start()
       proc.append(p)

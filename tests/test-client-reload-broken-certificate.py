@@ -20,12 +20,12 @@ if __name__ == "__main__":
     root1.create_signed_cert('client1')
 
     # start ghostunnel
-    ghostunnel = run_ghostunnel(['client', '--listen={0}:13004'.format(LOCALHOST),
-      '--target={0}:13005'.format(LOCALHOST), '--keystore=client1.p12',
+    ghostunnel = run_ghostunnel(['client', '--listen={0}:13001'.format(LOCALHOST),
+      '--target={0}:13002'.format(LOCALHOST), '--keystore=client1.p12',
       '--cacert=root1.crt', '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
 
     # ensure ghostunnel connects with server1
-    pair1 = SocketPair(TcpClient(13004), TlsServer('server1', 'root1', 13005))
+    pair1 = SocketPair(TcpClient(13001), TlsServer('server1', 'root1', 13002))
     pair1.validate_can_send_from_client("toto", "pair1 works")
     pair1.validate_client_cert("client1", "pair1: ou=client1 -> ...")
 
@@ -42,7 +42,7 @@ if __name__ == "__main__":
     TlsClient(None, 'root1', STATUS_PORT).connect(20, 'client1')
     print_ok("reload done")
 
-    pair2 = SocketPair(TcpClient(13004), TlsServer('server1', 'root1', 13005))
+    pair2 = SocketPair(TcpClient(13001), TlsServer('server1', 'root1', 13002))
     pair2.validate_can_send_from_client("toto", "pair2 works")
     pair2.validate_client_cert("client1", "pair2: ou=client1 -> ...")
     pair2.cleanup()

@@ -16,19 +16,19 @@ if __name__ == "__main__":
     root.create_signed_cert('client')
 
     # start ghostunnel
-    ghostunnel = run_ghostunnel(['client', '--listen={0}:13004'.format(LOCALHOST),
-      '--target={0}:13005'.format(LOCALHOST), '--keystore=client.p12',
+    ghostunnel = run_ghostunnel(['client', '--listen={0}:13001'.format(LOCALHOST),
+      '--target={0}:13002'.format(LOCALHOST), '--keystore=client.p12',
       '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT), '--cacert=root.crt'])
 
-    # client should fail to connect since nothing is listening on 13006
+    # client should fail to connect since nothing is listening on 13003
     try:
-      pair = SocketPair(TcpClient(13004), TlsServer('server', 'root', 13006))
+      pair = SocketPair(TcpClient(13001), TlsServer('server', 'root', 13003))
       raise Exception('client should have failed to connect')
     except socket.timeout:
-      print_ok("timeout when nothing is listening on 13006")
+      print_ok("timeout when nothing is listening on 13003")
 
     # client should connect
-    pair = SocketPair(TcpClient(13004), TlsServer('server', 'root', 13005))
+    pair = SocketPair(TcpClient(13001), TlsServer('server', 'root', 13002))
     pair.cleanup()
     print_ok("OK")
   finally:
