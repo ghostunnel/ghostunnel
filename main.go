@@ -316,7 +316,7 @@ func clientListen(started chan bool, reloadClient chan bool, context *Context) {
 	if *statusAddr != nil {
 		tlsConfigStatus, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath)
 		if err != nil {
-			logger.Printf("failed to load tls config")
+			logger.Printf("failed to load TLS config")
 			started <- false
 			return
 		}
@@ -331,7 +331,7 @@ func clientListen(started chan bool, reloadClient chan bool, context *Context) {
 				oldListener := statusListener
 				tlsConfigStatus, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath)
 				if err != nil {
-					logger.Printf("failed to reload tls config")
+					logger.Printf("failed to reload TLS config")
 					continue
 				}
 				tlsConfigStatus.ClientAuth = tls.NoClientCert
@@ -419,7 +419,7 @@ func serverBackendDialer() (func() (net.Conn, error), error) {
 	}, nil
 }
 
-// Get backend dialer function in client mode (connecting to a tls port)
+// Get backend dialer function in client mode (connecting to a TLS port)
 func clientBackendDialer(reloadClient chan bool) (func() (net.Conn, error), error) {
 	initial, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath)
 	if err != nil {
