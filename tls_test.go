@@ -130,57 +130,45 @@ NUaDHIWe9N0sXAPSx4cwwThqErDvc7qKw9yuXH28XUOAg55cRBrIIn/w0RRk9uM9
 CLdyMSoQneGHAgIIAA==`)
 
 var testKeystoreNoPrivKey, _ = base64.StdEncoding.DecodeString(`
-aS2WupjMK5N7BPXzzjDbsu6bGFP1m+rxTF+ViGYbZY753I9o0dTULBo1rubCpQzT
-6Gwhy2gs9PrS0RmV7ohhuFL15c+bbOlqsmxYvvkNYRKiZenp04M4kZUPr8qkA/IK
-Yjzb9I2xQxlJ3BRxNCYO8asodaSyC9JP4DdZ2pCrY8F7WiZpBzy0XEODgQrTAdfe
-infTN3eJzyV8igXOlo1Axmo4AX30m5PZa5U6ZpIF+Rl2NeYL9lU/vJlngKf66vZO
-SSadFQ/08oXZjYNp98wCxvprmcoQ29Spae9qPruXu1PcysopFknZstJ+PiOcutkY
-Bi8roRGs3+oIcKvQwEUZM8O6FtsABnLVQaJQaB88Q54Tp17NQDUb7D2aGY0YJIi6
-a9BlkeNGbz3xoYPcIj2ygM2+e7r5YbRVylP79aO162S0worYYSP282u2kQgdL0yd
-1CXlkx66VxTjgPE2sV+3fHWJcGiyVOf9LepWZu9qFkxtvlCrab/fHJQHwRWkuJ93
-iZokDPLDwNYhFqa01iFFUlO9A/GJ+ptRSesE8MmKO9bOgU1X+qtF4MC4+z1cEkMc
-JTYoNh2CjNgEpcx8CGFjsxyQMpvVfSah1n30kMrZmH+0peVdS0ojLJLvaT37PX1y
-u0KsewRI2yB5MNPzX+rZr5BK4UOCrvM+AKvzV6mH3IZ9uBw6GuNikdrA8Ql1JirU
-K+/0HuqdHfog04Y3qR5G/xD3qjau69wJEaqb30Q8qVtxX6hhCj+6rmj+cR3UvRxQ
-3nuy6SLKn5wVDl/I51sbGiNXcq6Dk7Nzgd96QfuYCWA/UOATl8xruYiNMX85C98o
-jI1sB28WlKGTMmZsb7XbJ+5So1TyxGyF1GiUPFk19fwaV2+b36oIzW+ixgZNUOy1
-WR18HLB3BUKWdB0FT1RjaJBT+DFcgkmOdYL+kyfCeikf6KhmDStp75mIula1RDPd
-Jk0AZRSAWAk0Qh4GdHLfvH11Apo5v0/LxHvct4F1AXope8KShmA0zoTkIrgmley7
-eN2k0O4s/HQzHRlyNmYyTrxABp9CwTEcBYTfRYMDEwITAJBgUrDgMCGgUABBQPT6
-fJErWb+LYoXcZt/VyFB4otEAQI/BZn7NX+OiQCAggA`)
+MIIEdAIBAzCCBDoGCSqGSIb3DQEHAaCCBCsEggQnMIIEIzCCBB8GCSqGSIb3DQEH
+BqCCBBAwggQMAgEAMIIEBQYJKoZIhvcNAQcBMBwGCiqGSIb3DQEMAQYwDgQIMajQ
+SoGOIUACAggAgIID2BD884Z9xHNWs//HQneMjFjUhH0J6UwuNgY/tYF3Ol3OoCaq
+A9wRPSryJ8/YfAFs3EHpJb+0RYDgT3sJxrHEXwJuVR0hmUzP4rfUhq6z2fvjMYbL
+eHWtiEi9aL+lv8Eoczszsqp8KMlbdthskjOIwZiiOBMxTu4Zv7eku0Cwz53U1NCm
+wyAFe6n7D/09pvPTURaX0FjmhYdIN+Yb1CnFDC2rHHv3LMRofmYXu6cu0IvY9uvd
+Z372R15uIfDr8oyvpQKPhJjEUQ9EfrhLVekWO48LWi4/XoJH6hpnZ8VFHw7M3QIO
+CKkITThRhZ5gTTFJi+4/n0q+DzIan9SnniaDeXXgS3zvL7uIm5QWZV7SWIHvnXCA
+Mkho6/iDrlu4l0zeLaAiLWg+fuXmnONmX/dGA+AXtK+1wY1dMmrV+kDqBJfuICIb
+oXQYxaJ3TgzJnsRXNfXXtX2WSMBfdj+668NdaUcKf/goTrOcznVpGx8Pkm6oHUQ0
+r0eK6iV4ApNS9ph7cHS67RQVqbw9PidWYCqYjfasZmcZvLyyVqrSfbUJnjzQARuA
+Nblsj0AWGRQIvJHcnrw5Qc3zMtiJh8GhAXCJOKLKlbsjo/aJnn+3KiVwl8BpQhmz
+NLbsx8DPdcWUIAxJves8S3UyDaJA6fj4nf1KMNqLu6vpnFptiIiF9pCQcvXTHYc6
+tW5nZC5KExxME+Ldkh1Hsp/1DkOsfuFhVAKZrm4F/7Pz5W6BMHteQKeTX3fl1uz0
+E/IT5/8yYOan/vYSQNWCcVpc4Z1jcbVkgRtBWqCZ88kq87jvYaFi28znp1qpxGka
+q8DDrDQ2ZovXp1KBvLfBzQwRigupi1wQCeKu7pX+TbuTEMkbGPZh0U2dpGm/fxrZ
+Nr//yF7N5NLzPWq7qApfZ0Z6DFi+NS5kU6S405ZNHgmwQV+VC324IjuWrEX+AprH
+cUSL7wJ34HMsejTaaU4AiqYrN9MdIkn+qsGrQNurzEFJ6NRyAanUwUXyuDN4Yq5m
+zgyC07LU5vRRmfdjyBsiJ+QyKLFU6zkQCyCdmENQJr90U596wE9nYDEWABGMSppe
+wxQ5fj7+z1alRQZu6jHIal4JH2dJlMAP+MT6Ixokou2GJjuB7qznmpdYTGh2veyj
+W7Wvo/eciyujzQ72eO2sRqhzX+SeP+i669ucbYlMBA6DCO101iINxi8LzgOEguWd
+KYMB/SV5VsjIOckZuBIn8mMQIAqFGIvqeCS2qovntjHZMyuAbenOFLfi+WRg1KZZ
+YAnq2h6R3bmXYwpZzI/S+E/0PQDXHArbsM4XgimleOle+O2bqjAxMCEwCQYFKw4D
+AhoFAAQUMdr6fwPsXl5nAlbi51zv2YJHelkECLJyvuiCk4LpAgIIAA==`)
 
 var testKeystorePassword = "password"
 
-func init() {
-	if testKeystore == nil {
-		panic("invalid test keystore data")
-	}
-}
-
-func TestParseKeystore(t *testing.T) {
-	certs, key, err := parseKeystore(testKeystore, testKeystorePassword)
-	assert.NotNil(t, certs, "must parse certs")
-	assert.NotNil(t, key, "must parse private key")
-	assert.Nil(t, err, "must parse keystore")
-
-	certs, key, err = parseKeystore([]byte{0x00}, "invalid")
-	assert.Nil(t, certs, "must not parse certs from invalid keystore")
-	assert.Nil(t, key, "must not parse private key from invalid keystore")
-	assert.NotNil(t, err, "must not parse invalid keystore")
-
-	_, key, err = parseKeystore(testKeystoreNoPrivKey, "")
-	assert.Nil(t, key, "no private key in keystore, should be nil")
-	assert.NotNil(t, err, "must not parse invalid keystore")
-}
-
 func TestBuildConfig(t *testing.T) {
 	tmpKeystore, err := ioutil.TempFile("", "ghostunnel-test")
+	panicOnError(err)
+
+	tmpKeystoreNoPrivKey, err := ioutil.TempFile("", "ghostunnel-test")
 	panicOnError(err)
 
 	tmpCaBundle, err := ioutil.TempFile("", "ghostunnel-test")
 	panicOnError(err)
 
 	tmpKeystore.Write(testKeystore)
+	tmpKeystoreNoPrivKey.Write(testKeystoreNoPrivKey)
 	tmpCaBundle.WriteString(testCertificate)
 	tmpCaBundle.WriteString("\n")
 
@@ -189,6 +177,7 @@ func TestBuildConfig(t *testing.T) {
 
 	defer os.Remove(tmpKeystore.Name())
 	defer os.Remove(tmpCaBundle.Name())
+	defer os.Remove(tmpKeystoreNoPrivKey.Name())
 
 	conf, err := buildConfig(tmpKeystore.Name(), testKeystorePassword, tmpCaBundle.Name())
 	assert.Nil(t, err, "should be able to build TLS config")
@@ -197,9 +186,23 @@ func TestBuildConfig(t *testing.T) {
 	assert.NotNil(t, conf.ClientCAs, "config must have CA certs")
 	assert.True(t, conf.MinVersion == tls.VersionTLS12, "must have correct TLS min version")
 
-	_, err = buildConfig(tmpKeystore.Name(), testKeystorePassword, "does-not-exist")
+	conf, err = buildConfig(tmpKeystore.Name(), testKeystorePassword, "does-not-exist")
+	assert.Nil(t, conf, "conf with invalid params should be nil")
 	assert.NotNil(t, err, "should reject invalid CA cert bundle")
 
-	_, err = buildConfig("does-not-exist", testKeystorePassword, tmpCaBundle.Name())
+	conf, err = buildConfig(tmpKeystore.Name(), "totes invalid", tmpCaBundle.Name())
+	assert.Nil(t, conf, "conf with invalid params should be nil")
+	assert.NotNil(t, err, "should reject invalid CA cert bundle")
+
+	conf, err = buildConfig("does-not-exist", testKeystorePassword, tmpCaBundle.Name())
+	assert.Nil(t, conf, "conf with invalid params should be nil")
 	assert.NotNil(t, err, "should reject missing keystore (not found)")
+
+	conf, err = buildConfig(tmpKeystoreNoPrivKey.Name(), "", tmpCaBundle.Name())
+	assert.Nil(t, conf, "conf with invalid params should be nil")
+	assert.NotNil(t, err, "should reject invalid keystore (no private key)")
+
+	conf, err = buildConfig("/dev/null", "", tmpCaBundle.Name())
+	assert.Nil(t, conf, "conf with invalid params should be nil")
+	assert.NotNil(t, err, "should reject invalid keystore (empty)")
 }
