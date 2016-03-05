@@ -20,37 +20,10 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
-	"fmt"
 	"io/ioutil"
-	"strings"
 
 	"golang.org/x/crypto/pkcs12"
 )
-
-// parseKeystore takes a PKCS12 keystore and converts it into a series of
-// serialized PEM blocks for certificates/private key. The keystore is expected
-// to contain exactly one private key and one or more certificates.
-func parseKeystore(data []byte, password string) (certs, key []byte, err error) {
-	var blocks []*pem.Block
-	blocks, err = pkcs12.ToPEM(data, password)
-	for _, block := range blocks {
-		if strings.Contains(block.Type, "PRIVATE KEY") {
-			if key != nil {
-				return nil, nil, fmt.Errorf("invalid keystore: found multiple private keys in pkcs12 file")
-			}
-			key = pem.EncodeToMemory(block)
-		} else if block.Type == "CERTIFICATE" {
-			certs = append(certs, pem.EncodeToMemory(block)...)
-			certs = append(certs, '\n')
-		}
-	}
-
-	if certs == nil || key == nil {
-		err = fmt.Errorf("missing certifiate and/or key")
-	}
-
-	return
-}
 
 // buildConfig reads command-line options and builds a tls.Config
 func buildConfig(keystorePath, keystorePass, caBundlePath string) (*tls.Config, error) {
@@ -67,19 +40,19 @@ func buildConfig(keystorePath, keystorePass, caBundlePath string) (*tls.Config, 
 		return nil, err
 	}
 
-	certPEM, keyPEM, err := parseKeystore(keystoreBytes, keystorePass)
+	pemBlocks, err := pkcs12.ToPEM(keystoreBytes, keystorePass)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse keystore: %v", err)
+		return nil, err
 	}
 
-	certAndKey, err := tls.X509KeyPair(certPEM, keyPEM)
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse key pair: %v", err)
+	var pemBytes []byte
+	for _, block := range pemBlocks {
+		pemBytes = append(pemBytes, pem.EncodeToMemory(block)...)
 	}
 
-	certAndKey.Leaf, err = x509.ParseCertificate(certAndKey.Certificate[0])
+	certAndKey, err := tls.X509KeyPair(pemBytes, pemBytes)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse leaf cert: %v", err)
+		return nil, err
 	}
 
 	return &tls.Config{
