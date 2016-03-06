@@ -13,7 +13,6 @@ go:
   - 1.6
 
 before_install:
-  - sudo `which pip3` install pyopenssl
   - go get github.com/Masterminds/glide
   - go get github.com/axw/gocov/gocov
   - go get github.com/mattn/goveralls

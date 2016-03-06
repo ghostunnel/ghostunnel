@@ -1,6 +1,5 @@
 from subprocess import call, Popen
 from tempfile import mkstemp, mkdtemp
-import OpenSSL.crypto as crypto
 import socketserver, json, sys, threading, time, socket, ssl, os, base64, textwrap, urllib.request
 
 FNULL = open(os.devnull, 'w')
