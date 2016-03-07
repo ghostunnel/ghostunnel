@@ -151,7 +151,7 @@ connection, wrap them in TLS, and forward them to the secure backend.
 We can combine the above two examples to get a full tunnel. Note that you can
 start the ghostunnels in either order.
 
-Start netcat on port 8001:
+Start netcat on port `8001`:
 
     nc -l localhost 8001
 
