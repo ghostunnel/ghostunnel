@@ -25,8 +25,9 @@ Features
 
 ***Authentication/access control***: Ghostunnel enforces mutual authentication
 by always requiring a valid client certificate. We also support access control
-via checks of the CN/OU fields on the subject of a client certificate. This is
-useful for restricting access to services that don't have native access control.
+via checks on the subject (or subject alternative names) of a client certificate.
+This is useful for restricting access to services that don't have native access
+control.
 
 ***Certificate hotswapping***: Ghostunnel can reload certificates at runtime
 without dropping existing connections. To trigger a reload, simply send
@@ -35,15 +36,15 @@ files and open a new listening socket (via `SO_REUSEPORT`). Once successful,
 the old listening socket will be closed.
 
 ***Automatic reloading***: Ghostunnel can be configured to automatically reload
-certificates. You can specify an interval with the `--timed-reload` flag. If
+certificates. You can specify an interval with the `--timed-reload` flag. If 
 the timed reload flag is enabled, ghostunnel will reload the files periodically
 and check for changes. If a change is detected, it will attempt to reload the
 listener with the new certificates/private key.
 
 ***Emphasis on security***: We have put some thought into making ghostunnel
-secure by default. In server mode, the target connection must live on localhost
-or a UNIX socket (unless `--unsafe-target` is specified). In a similar way, in
-client mode the listening socket must live on localhost or a UNIX socket
+secure by default. In server mode, the target backend must live on localhost
+or be a UNIX socket (unless `--unsafe-target` is specified). In a similar way,
+in client mode the listening socket must live on localhost or be a UNIX socket
 (unless `--unsafe-listen` is specified). Ghostunnel negotiates TLSv1.2
 and uses safe ciphers.
 
@@ -150,7 +151,7 @@ connection, wrap them in TLS, and forward them to the secure backend.
 We can combine the above two examples to get a full tunnel. Note that you can
 start the ghostunnels in either order.
 
-Start netcat on port 8001:
+Start netcat on port `8001`:
 
     nc -l localhost 8001
 
