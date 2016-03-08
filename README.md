@@ -74,10 +74,6 @@ Then, build ghostunnel and run tests:
     make build
     make test
 
-If you want to update vendored dependencies:
-
-    make update-depends
-
 Ghostunnel is tested with Go 1.6, and our integration test suite requires
 Python 3.5.
 

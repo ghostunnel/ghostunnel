@@ -37,11 +37,11 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
-// These are initialized via -ldflags
-var buildRevision = "unknown"
-var buildCompiler = "unknown"
-
-var defaultMetricsPrefix = "ghostunnel"
+var (
+	// Initialized via -ldflags
+	buildRevision        = "unknown"
+	defaultMetricsPrefix = "ghostunnel"
+)
 
 var (
 	app = kingpin.New("ghostunnel", "A simple SSL/TLS proxy with mutual authentication for securing non-TLS services.")
@@ -163,7 +163,7 @@ func run(args []string) {
 	initLogger()
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	app.Version(fmt.Sprintf("rev %s built with %s", buildRevision, buildCompiler))
+	app.Version(fmt.Sprintf("rev %s built with %s", buildRevision, runtime.Version()))
 	app.Validate(validateFlags)
 	command := kingpin.MustParse(app.Parse(args))
 
