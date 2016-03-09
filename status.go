@@ -21,6 +21,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -72,7 +73,7 @@ func (s *statusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp.Revision = buildRevision
-	resp.Compiler = buildCompiler
+	resp.Compiler = runtime.Version()
 
 	conn, err := s.dial()
 	resp.BackendOk = err == nil

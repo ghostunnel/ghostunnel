@@ -1,45 +1,24 @@
-export GO15VENDOREXPERIMENT = 1
+### Build
+REVISION := $(shell git describe --long --always --abbrev=8 HEAD)
 
-INTEGRATION_TESTS := $(shell find tests -name 'test-*.py' -exec basename {} .py \;)
+build: depends
+	go build -ldflags "-X main.buildRevision=$(REVISION)"
 
-# Build
-build: depends git-fsck
-	go build -ldflags "-X \"main.buildRevision=`git describe --long --always --abbrev=8 HEAD`\" -X \"main.buildCompiler=`go version`\""
-
-# Dependencies 
 depends:
 	glide -q install
 
-update-depends:
-	glide -q update
+### Tests
+INTEGRATION_TESTS := $(shell find tests -name 'test-*.py' -exec basename {} .py \;)
 
-# Check integrity of dependencies
-git-fsck: 
-	@for repo in `find vendor -name .git`; do \
-		echo "git --git-dir=$$repo fsck --full --strict --no-dangling"; \
-		git --git-dir=$$repo fsck --full --strict --no-dangling || exit 1; \
-	done
-
-# Run all tests
 test: unit integration
 
-# Run unit tests
-pre-unit: 
-	@echo "*** Running unit tests ***"
-
-unit: pre-unit
+unit:
 	go test -v -covermode=count -coverprofile=coverage.out
 
-# Run integration tests
-# Builds test binary with integration test coverage
 pre-integration: 
-	@echo "*** Running integration tests ***"
 	go test -c -covermode=count -coverpkg .
 
 integration: pre-integration $(INTEGRATION_TESTS)
-	@echo "PASS"
 
 test-%:
-	@echo "=== RUN tests/$@"
-	@cd tests && python3 ./$@.py
-	@echo "--- PASS: tests/$@"
+	@cd tests && ./test_runner.py $@
