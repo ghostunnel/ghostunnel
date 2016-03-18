@@ -4,7 +4,7 @@
 
 from subprocess import Popen
 from test_common import *
-import socket, ssl, tempfile, os
+import socket, ssl, tempfile, os, os.path
 
 if __name__ == "__main__":
   ghostunnel = None
@@ -22,7 +22,6 @@ if __name__ == "__main__":
 
     # connect with client, confirm that the tunnel is up
     pair = SocketPair(socket, TlsServer('server', 'root', 13002))
-
     pair.validate_can_send_from_server("hello world", "1: server -> client")
     pair.validate_can_send_from_client("hello world", "1: client -> server")
     pair.validate_closing_server_closes_client("1: server closed -> client closed")
@@ -30,4 +29,5 @@ if __name__ == "__main__":
     print_ok("OK")
   finally:
     terminate(ghostunnel)
-      
+    if os.path.exists(socket.get_socket_path()):
+      raise Exception('failed to clean up unix socket')

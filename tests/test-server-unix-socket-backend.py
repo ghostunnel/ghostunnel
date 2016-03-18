@@ -29,4 +29,5 @@ if __name__ == "__main__":
     print_ok("OK")
   finally:
     terminate(ghostunnel)
-      
+    if os.path.exists(socket.get_socket_path()):
+      raise Exception('failed to clean up unix socket')
