@@ -187,6 +187,14 @@ func run(args []string) {
 		go watchFiles([]string{*keystorePath, *caBundlePath}, time.Duration(*timedReload)*time.Second, watcher)
 	}
 
+	// Clean up UNIX sockets before we exit (if there were any left over)
+	for _, arg := range []string{*clientListenAddress, *serverForwardAddress} {
+		net, addr, _, err := parseUnixOrTCPAddress(arg)
+		if err == nil && net == "unix" {
+			defer os.Remove(addr)
+		}
+	}
+
 	// channel to know if ghostunnel has started
 	started := make(chan bool, 1)
 
