@@ -63,16 +63,17 @@ var (
 	clientUnsafeListen   = clientCommand.Flag("unsafe-listen", "If set, does not limit listen to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
 	clientServerName     = clientCommand.Flag("override-server-name", "If set, overrides the server name used for hostname verification.").PlaceHolder("NAME").String()
 
-	keystorePath  = app.Flag("keystore", "Path to certificate and keystore (PKCS12).").PlaceHolder("PATH").Required().String()
-	keystorePass  = app.Flag("storepass", "Password for certificate and keystore (optional).").PlaceHolder("PASS").String()
-	caBundlePath  = app.Flag("cacert", "Path to certificate authority bundle file (PEM/X509).").Required().String()
-	timedReload   = app.Flag("timed-reload", "Reload keystores every N seconds, refresh listener/client on changes.").PlaceHolder("N").Int()
-	graphiteAddr  = app.Flag("graphite", "Collect metrics and report them to the given graphite instance (raw TCP).").PlaceHolder("ADDR").TCP()
-	metricsURL    = app.Flag("metrics-url", "Collect metrics and POST them periodically to the given URL (via HTTP/JSON).").PlaceHolder("URL").String()
-	metricsPrefix = app.Flag("metrics-prefix", fmt.Sprintf("Set prefix string for all reported metrics (default: %s).", defaultMetricsPrefix)).PlaceHolder("PREFIX").Default(defaultMetricsPrefix).String()
-	statusAddr    = app.Flag("status", "Enable serving /_status and /_metrics on given HOST:PORT (shows tunnel/backend health status).").PlaceHolder("ADDR").TCP()
-	enableProf    = app.Flag("enable-pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
-	useSyslog     = app.Flag("syslog", "Send logs to syslog instead of stderr.").Bool()
+	keystorePath    = app.Flag("keystore", "Path to certificate and keystore (PKCS12).").PlaceHolder("PATH").Required().String()
+	keystorePass    = app.Flag("storepass", "Password for certificate and keystore (optional).").PlaceHolder("PASS").String()
+	caBundlePath    = app.Flag("cacert", "Path to certificate authority bundle file (PEM/X509).").Required().String()
+	timedReload     = app.Flag("timed-reload", "Reload keystores every N seconds, refresh listener/client on changes.").PlaceHolder("N").Int()
+	timeoutDuration = app.Flag("timeout", "Timeout for establishing connections, handshakes.").Default("10s").Duration()
+	graphiteAddr    = app.Flag("graphite", "Collect metrics and report them to the given graphite instance (raw TCP).").PlaceHolder("ADDR").TCP()
+	metricsURL      = app.Flag("metrics-url", "Collect metrics and POST them periodically to the given URL (via HTTP/JSON).").PlaceHolder("URL").String()
+	metricsPrefix   = app.Flag("metrics-prefix", fmt.Sprintf("Set prefix string for all reported metrics (default: %s).", defaultMetricsPrefix)).PlaceHolder("PREFIX").Default(defaultMetricsPrefix).String()
+	statusAddr      = app.Flag("status", "Enable serving /_status and /_metrics on given HOST:PORT (shows tunnel/backend health status).").PlaceHolder("ADDR").TCP()
+	enableProf      = app.Flag("enable-pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
+	useSyslog       = app.Flag("syslog", "Send logs to syslog instead of stderr.").Bool()
 )
 
 // Context groups listening context data together
@@ -423,7 +424,7 @@ func serverBackendDialer() (func() (net.Conn, error), error) {
 	}
 
 	return func() (net.Conn, error) {
-		return net.Dial(backendNet, backendAddr)
+		return net.DialTimeout(backendNet, backendAddr, *timeoutDuration)
 	}, nil
 }
 
@@ -476,6 +477,7 @@ func clientBackendDialer(reloadClient chan bool) (func() (net.Conn, error), erro
 	}()
 
 	return func() (net.Conn, error) {
-		return tls.Dial(network, address, getConfig())
+		dialer := &net.Dialer{Timeout: *timeoutDuration}
+		return tls.DialWithDialer(dialer, network, address, getConfig())
 	}, nil
 }

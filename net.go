@@ -23,6 +23,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/rcrowley/go-metrics"
 )
@@ -33,14 +34,13 @@ import (
 // connections and wait for outstanding connections to end.
 func serverAccept(listener net.Listener, wg *sync.WaitGroup, stopper chan bool, leaf *x509.Certificate, dial func() (net.Conn, error)) {
 	defer wg.Done()
-	// TODO: defer listener.Close() is redundant because serverSignalHandler closes
-	// the socket.
 	defer listener.Close()
 
 	openCounter := metrics.GetOrRegisterCounter("conn.open", metrics.DefaultRegistry)
 	totalCounter := metrics.GetOrRegisterCounter("accept.total", metrics.DefaultRegistry)
 	successCounter := metrics.GetOrRegisterCounter("accept.success", metrics.DefaultRegistry)
 	errorCounter := metrics.GetOrRegisterCounter("accept.error", metrics.DefaultRegistry)
+	timeoutCounter := metrics.GetOrRegisterCounter("accept.timeout", metrics.DefaultRegistry)
 	timer := metrics.GetOrRegisterTimer("conn.lifetime", metrics.DefaultRegistry)
 
 	for {
@@ -65,40 +65,47 @@ func serverAccept(listener net.Listener, wg *sync.WaitGroup, stopper chan bool, 
 			continue
 		}
 
-		logger.Printf("incoming connection: %s", conn.RemoteAddr())
-
-		tlsConn, ok := conn.(*tls.Conn)
-		if !ok {
-			panic("got non-TLS socket from a TLS listener")
-		}
-
-		// Force handshake. Handshake usually happens on first read/write, but
-		// we want to authenticate before reading/writing so we need to force
-		// the handshake to get the client cert.
-		err = tlsConn.Handshake()
-		if err != nil {
-			openCounter.Dec(1)
-			errorCounter.Inc(1)
-			logger.Printf("failed TLS handshake on %s: %s", conn.RemoteAddr(), err)
-			conn.Close()
-			continue
-		}
-
-		if !authorized(tlsConn.ConnectionState()) {
-			openCounter.Dec(1)
-			errorCounter.Inc(1)
-			logger.Printf("rejecting connection from %s: bad client certificate", conn.RemoteAddr())
-			conn.Close()
-			continue
-		}
-
-		logger.Printf("successful handshake with %s", conn.RemoteAddr())
-
-		wg.Add(1)
+		// Handle as much work as we can asynchronously so as to
+		// not block the accept loop (e.g. if a handshake hangs).
 		go timer.Time(func() {
-			defer wg.Done()
 			defer conn.Close()
 			defer openCounter.Dec(1)
+
+			logger.Printf("incoming connection: %s", conn.RemoteAddr())
+			tlsConn, ok := conn.(*tls.Conn)
+			if !ok {
+				panic("got non-TLS socket from a TLS listener")
+			}
+
+			// Force handshake. Handshake usually happens on first read/write, but
+			// we want to authenticate before reading/writing so we need to force
+			// the handshake to get the client cert. If handshake blocks for more
+			// than the timeout, we kill the connection.
+			timer := time.AfterFunc(*timeoutDuration, func() {
+				logger.Printf("timed out TLS handshake on %s", conn.RemoteAddr())
+				conn.SetDeadline(time.Now())
+				conn.Close()
+				timeoutCounter.Inc(1)
+			})
+
+			err = tlsConn.Handshake()
+			timer.Stop()
+			if err != nil {
+				logger.Printf("failed TLS handshake on %s: %s", conn.RemoteAddr(), err)
+				errorCounter.Inc(1)
+				return
+			}
+
+			if !authorized(tlsConn.ConnectionState()) {
+				logger.Printf("rejecting connection from %s: bad client certificate", conn.RemoteAddr())
+				errorCounter.Inc(1)
+				return
+			}
+
+			logger.Printf("successful handshake with %s", conn.RemoteAddr())
+
+			wg.Add(1)
+			defer wg.Done()
 			handle(conn, successCounter, errorCounter, dial)
 		})
 	}
@@ -106,8 +113,6 @@ func serverAccept(listener net.Listener, wg *sync.WaitGroup, stopper chan bool, 
 
 // Accept incoming connections in client mode and spawn Go routines to handle them.
 func clientAccept(listener net.Listener, stopper chan bool, dial func() (net.Conn, error)) {
-	// TODO: defer listener.Close() is redundant because serverSignalHandler closes
-	// the socket.
 	defer listener.Close()
 
 	openCounter := metrics.GetOrRegisterCounter("conn.open", metrics.DefaultRegistry)

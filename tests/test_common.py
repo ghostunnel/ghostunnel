@@ -34,6 +34,18 @@ def terminate(ghostunnel):
     print_ok("timeout, killing ghostunnel")
     ghostunnel.kill()
 
+# Attempt to dump goroutines via status port/pprof
+def dump_goroutines():
+  ctx = ssl.create_default_context()
+  ctx.check_hostname = False
+  ctx.verify_mode = ssl.CERT_NONE
+  try:
+    sys.stderr.buffer.write(urllib.request.urlopen(
+        "https://{0}:{1}/debug/pprof/goroutine?debug=1".format(LOCALHOST, STATUS_PORT),
+        context=ctx).read())
+  except Exception as e:
+    print('unable to dump goroutines:', e)
+
 # Helper class to create root + signed certs
 class RootCert:
   def __init__(self, name):
