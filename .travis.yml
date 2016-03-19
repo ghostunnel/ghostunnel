@@ -14,7 +14,7 @@ go:
 
 before_install:
   - go get github.com/Masterminds/glide
-  - go get github.com/axw/gocov/gocov
+  - go get github.com/wadey/gocovmerge
   - go get github.com/mattn/goveralls
   - go get golang.org/x/tools/cmd/cover
 
@@ -30,6 +30,6 @@ script:
   - make test
 
 after_success:
-  - gocov convert *.out */*.out > gocov.json
-  - $HOME/gopath/bin/goveralls -gocovdata gocov.json -service=travis-ci
+  - gocovmerge *.out */*.out > merged.coverprofile
+  - $HOME/gopath/bin/goveralls -coverprofile merged.coverprofile -service=travis-ci
 
