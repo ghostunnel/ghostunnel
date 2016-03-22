@@ -18,7 +18,9 @@ package main
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"log/syslog"
 	"net"
@@ -85,11 +87,11 @@ var exitFunc = os.Exit
 
 // Context groups listening context data together
 type Context struct {
-	watcher   chan bool
-	listeners *sync.WaitGroup
-	status    *statusHandler
-	dial      func() (net.Conn, error)
-	metrics   *sqmetrics.SquareMetrics
+	watcher chan bool
+	status  *statusHandler
+	dial    func() (net.Conn, error)
+	metrics *sqmetrics.SquareMetrics
+	cert    *certificate
 }
 
 // Global logger instance
@@ -164,10 +166,13 @@ func clientValidateFlags() error {
 }
 
 func main() {
-	run(os.Args[1:])
+	err := run(os.Args[1:])
+	if err != nil {
+		os.Exit(1)
+	}
 }
 
-func run(args []string) {
+func run(args []string) error {
 	initLogger()
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
@@ -184,10 +189,6 @@ func run(args []string) {
 		logger.Printf("metrics enabled; reporting metrics via POST to %s", *metricsURL)
 	}
 	metrics := sqmetrics.NewMetrics(*metricsURL, *metricsPrefix, metrics.DefaultRegistry)
-
-	// wg used to gracefully exit on SIGTERM
-	listeners := &sync.WaitGroup{}
-	listeners.Add(1)
 
 	// Set up file watchers (if requested)
 	watcher := make(chan bool, 1)
@@ -219,63 +220,59 @@ func run(args []string) {
 		}
 	}()
 
-	// channel to know if ghostunnel has started
-	started := make(chan bool, 1)
+	cert, err := buildCertificate(*keystorePath, *keystorePass)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: unable to load certificates: %s", err)
+		return err
+	}
 
 	switch command {
 	case serverCommand.FullCommand():
 		if err := serverValidateFlags(); err != nil {
 			fmt.Fprintf(os.Stderr, "error: %s", err)
-			exitFunc(1)
+			return err
 		}
 		logger.Printf("starting ghostunnel in server mode")
 
 		dial, err := serverBackendDialer()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: invalid target address: %s", err)
-			exitFunc(1)
+			return err
 		}
 
 		status := newStatusHandler(dial, child)
-		context := &Context{watcher, listeners, status, dial, metrics}
+		context := &Context{watcher, status, dial, metrics, cert}
 
 		// Start listening
-		go serverListen(started, context)
+		return serverListen(context)
 
 	case clientCommand.FullCommand():
 		if err := clientValidateFlags(); err != nil {
 			fmt.Fprintf(os.Stderr, "error: %s", err)
-			exitFunc(1)
+			return err
 		}
 		logger.Printf("starting ghostunnel in client mode")
 
-		// In client mode, we handle reload using a channel. When the signal handler
-		// writes to this channel, we reload the status endpoint and rebuild the tls
-		// config.
-		// TODO: we should consolidate this with the server mode logic and pull the
-		// whole thing into a re-usable package. Keywhiz-fs has some similar logic.
-		reloadClient := make(chan bool, 1)
-
-		dial, err := clientBackendDialer(reloadClient)
+		network, address, host, err := parseUnixOrTCPAddress(*clientForwardAddress)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: invalid target address: (%s)", err)
-			exitFunc(1)
+			fmt.Fprintf(os.Stderr, "error: invalid target address: %s", err)
+			return err
 		}
+
+		dial, err := clientBackendDialer(cert, network, address, host)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: unable to build dialer: %s", err)
+			return err
+		}
+
 		status := newStatusHandler(dial, child)
-		context := &Context{watcher, listeners, status, dial, metrics}
+		context := &Context{watcher, status, dial, metrics, cert}
 
 		// Start listening
-		go clientListen(started, reloadClient, context)
-	}
-	up := <-started
-	if !up {
-		logger.Print("failed to start initial listener")
-		exitFunc(1)
+		return clientListen(context)
 	}
 
-	logger.Print("initial startup completed, waiting for connections")
-	listeners.Wait()
-	logger.Print("all listeners closed, shutting down")
+	return errors.New("unknown command")
 }
 
 // Open listening socket in server mode. Take note that we create a
@@ -283,124 +280,97 @@ func run(args []string) {
 // allows us to have multiple sockets listening on the same port and accept
 // connections. This is useful for the purpose of replacing certificates
 // in-place without having to take downtime, e.g. if a certificate is expiring.
-func serverListen(started chan bool, context *Context) {
-	defer context.listeners.Done()
-
-	// Open raw listening socket
+func serverListen(context *Context) error {
 	network, address := decodeAddress(*serverListenAddress)
-	rawListener, err := reuseport.NewReusablePortListener(network, address)
+
+	config, err := buildConfig(*caBundlePath)
 	if err != nil {
-		logger.Printf("error opening socket: %s", err)
-		started <- false
-		return
+		return err
 	}
-	defer rawListener.Close()
 
-	// Wrap listening socket with TLS listener.
-	tlsConfigProxy, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath)
+	config.GetCertificate = context.cert.getCertificate
+
+	listener, err := reuseport.NewReusablePortListener(network, address)
 	if err != nil {
-		logger.Printf("error setting up TLS: %s", err)
-		started <- false
-		return
+		return err
 	}
-
-	leaf := tlsConfigProxy.Certificates[0].Leaf
-
-	var statusListener net.Listener
-	if *statusAddr != nil {
-		tlsConfigStatus, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath)
-		if err != nil {
-			logger.Printf("error setting up TLS: %s", err)
-			started <- false
-			return
-		}
-		tlsConfigStatus.ClientAuth = tls.NoClientCert
-
-		statusListener = serveStatus(tlsConfigStatus, context)
-	}
-
-	listener := tls.NewListener(rawListener, tlsConfigProxy)
-	logger.Printf("listening on %s", *serverListenAddress)
-	defer listener.Close()
 
 	handlers := &sync.WaitGroup{}
 	handlers.Add(1)
 
-	// A channel to allow signal handlers to notify our accept loop that it
-	// should shut down.
-	stopper := make(chan bool, 1)
+	proxy := &proxy{
+		quit:      0,
+		listener:  tls.NewListener(listener, config),
+		handlers:  &sync.WaitGroup{},
+		authorize: authorize,
+		dial:      context.dial,
+	}
 
-	go serverAccept(listener, handlers, stopper, leaf, context.dial)
-	go serverSignalHandler(listener, statusListener, stopper, context)
+	closables := []io.Closer{listener}
+	if *statusAddr != nil {
+		status, err := serveStatus(context)
+		if err != nil {
+			return err
+		}
+		closables = append(closables, status)
+	}
 
-	started <- true
+	go proxy.accept()
+
 	context.status.Listening()
+	signalHandler(proxy, closables, context)
 
-	logger.Printf("listening with cert serial no. %d (expiring %s)", leaf.SerialNumber, leaf.NotAfter.String())
-	handlers.Wait()
+	logger.Printf("waiting for connections to terminate")
+	proxy.handlers.Wait()
+
+	return nil
 }
 
 // Open listening socket in client mode.
-func clientListen(started chan bool, reloadClient chan bool, context *Context) {
-	// Serve /_status.
-	// reloadStatus is a channel which causes /_status to reload.
-	var reloadStatus chan bool
-	if *statusAddr != nil {
-		tlsConfigStatus, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath)
-		if err != nil {
-			logger.Printf("failed to load TLS config")
-			started <- false
-			return
-		}
-		tlsConfigStatus.ClientAuth = tls.NoClientCert
-		statusListener := serveStatus(tlsConfigStatus, context)
-
-		reloadStatus = make(chan bool, 1)
-		go func() {
-			for {
-				_ = <-reloadStatus
-				logger.Printf("reloading /_status")
-				oldListener := statusListener
-				tlsConfigStatus, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath)
-				if err != nil {
-					logger.Printf("failed to reload TLS config")
-					continue
-				}
-				tlsConfigStatus.ClientAuth = tls.NoClientCert
-				statusListener = serveStatus(tlsConfigStatus, context)
-				oldListener.Close()
-			}
-		}()
-	}
-
+func clientListen(context *Context) error {
 	// Setup listening socket
 	network, address, _, err := parseUnixOrTCPAddress(*clientListenAddress)
 	if err != nil {
 		logger.Printf("error parsing client listen address: %s", err)
-		started <- false
-		return
+		return err
 	}
+
 	listener, err := net.Listen(network, address)
 	if err != nil {
 		logger.Printf("error opening socket: %s", err)
-		started <- false
-		return
+		return err
 	}
 
+	proxy := &proxy{
+		quit:      0,
+		listener:  listener,
+		handlers:  &sync.WaitGroup{},
+		authorize: func(conn net.Conn) bool { return true },
+		dial:      context.dial,
+	}
+
+	closables := []io.Closer{}
+	if *statusAddr != nil {
+		status, err := serveStatus(context)
+		if err != nil {
+			return err
+		}
+		closables = append(closables, status)
+	}
+
+	go proxy.accept()
+
 	context.status.Listening()
+	signalHandler(proxy, closables, context)
 
-	// A channel to allow signal handlers to notify our accept loop that it
-	// should shut down.
-	stopper := make(chan bool, 1)
+	logger.Printf("waiting for connections to terminate")
+	proxy.handlers.Wait()
 
-	go clientSignalHandler(listener, reloadClient, stopper, reloadStatus, context)
-	started <- true
-	clientAccept(listener, stopper, context.dial)
-	context.listeners.Done()
+	return nil
 }
 
 // Serve /_status (if configured)
-func serveStatus(tlsConfig *tls.Config, context *Context) net.Listener {
+func serveStatus(context *Context) (net.Listener, error) {
 	mux := http.NewServeMux()
 	mux.Handle("/_status", context.status)
 	mux.Handle("/_metrics", context.metrics)
@@ -412,24 +382,29 @@ func serveStatus(tlsConfig *tls.Config, context *Context) net.Listener {
 		mux.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
 	}
 
+	config, err := buildConfig(*caBundlePath)
+	if err != nil {
+		return nil, err
+	}
+	config.ClientAuth = tls.NoClientCert
+	config.GetCertificate = context.cert.getCertificate
+
 	network, address := decodeAddress(*statusAddr)
-	rawListener, err := reuseport.NewReusablePortListener(network, address)
+	listener, err := reuseport.NewReusablePortListener(network, address)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: unable to bind on status port: %s", err)
-		exitFunc(1)
+		return nil, err
 	}
 
-	listener := tls.NewListener(rawListener, tlsConfig)
-	logger.Printf("status port enabled; serving status on https://%s/_status", address)
 	go func() {
 		server := &http.Server{
 			Handler:  mux,
 			ErrorLog: logger,
 		}
-		server.Serve(listener)
+		server.Serve(tls.NewListener(listener, config))
 	}()
 
-	return listener
+	return listener, nil
 }
 
 // Get backend dialer function in server mode (connecting to a unix socket or tcp port)
@@ -445,56 +420,23 @@ func serverBackendDialer() (func() (net.Conn, error), error) {
 }
 
 // Get backend dialer function in client mode (connecting to a TLS port)
-func clientBackendDialer(reloadClient chan bool) (func() (net.Conn, error), error) {
-	initial, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath)
-	if err != nil {
-		return nil, err
-	}
-
-	network, address, host, err := parseUnixOrTCPAddress(*clientForwardAddress)
+func clientBackendDialer(cert *certificate, network, address, host string) (func() (net.Conn, error), error) {
+	config, err := buildConfig(*caBundlePath)
 	if err != nil {
 		return nil, err
 	}
 
 	if *clientServerName == "" {
-		initial.ServerName = host
+		config.ServerName = host
 	} else {
-		initial.ServerName = *clientServerName
+		config.ServerName = *clientServerName
 	}
-
-	// We use a channel to periodically refresh the tlsConfig
-	reqc := make(chan *tls.Config)
-
-	// Getter from channel.
-	getConfig := func() *tls.Config {
-		config := <-reqc
-		return config
-	}
-
-	go func() {
-		current := initial
-		for {
-			select {
-			case _ = <-reloadClient:
-				logger.Print("updating client")
-				if config, err := buildConfig(*keystorePath, *keystorePass, *caBundlePath); err != nil {
-					logger.Printf("error refreshing client: %s", err)
-				} else {
-					if *clientServerName == "" {
-						config.ServerName = host
-					} else {
-						config.ServerName = *clientServerName
-					}
-					current = config
-				}
-			case reqc <- current: // Service request for current config
-			}
-		}
-	}()
 
 	return func() (net.Conn, error) {
-		dialer := &net.Dialer{Timeout: *timeoutDuration}
-		return tls.DialWithDialer(dialer, network, address, getConfig())
+		// Fetch latest cached certificate before initiating new connection
+		crt, _ := cert.getCertificate(nil)
+		config.Certificates = []tls.Certificate{*crt}
+		return tls.DialWithDialer(&net.Dialer{Timeout: *timeoutDuration}, network, address, config)
 	}, nil
 }
 

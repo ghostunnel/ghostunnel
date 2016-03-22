@@ -15,7 +15,8 @@ if __name__ == "__main__":
     # start ghostunnel
     ghostunnel = run_ghostunnel(['client', '--listen={0}:13001'.format(LOCALHOST),
       '--target={0}:13002'.format(LOCALHOST), '--keystore=client.p12',
-      '--cacert=root.crt', '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
+      '--cacert=root.crt', '--shutdown-timeout=1s',
+      '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
 
     # wait for startup
     TlsClient(None, 'root', STATUS_PORT).connect(20, 'client')
@@ -26,10 +27,10 @@ if __name__ == "__main__":
 
     # shut down ghostunnel with connection open, make sure it doesn't hang
     print_ok('attempting to terminate ghostunnel via SIGTERM signals')
+    ghostunnel.terminate()
     for n in range(0, 90):
       try:
         try:
-          ghostunnel.terminate()
           ghostunnel.wait(timeout=1)
         except:
           pass
@@ -42,6 +43,10 @@ if __name__ == "__main__":
 
     if not stopped:
       raise Exception('ghostunnel did not terminate within 90 seconds')
+
+    # We expect retv != 0 because of timeout
+    if ghostunnel.returncode == 0:
+      raise Exception('ghostunnel terminated gracefully instead of timing out?')
 
     print_ok("OK (terminated)")
   finally:

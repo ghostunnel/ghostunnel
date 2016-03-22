@@ -13,23 +13,24 @@ if __name__ == "__main__":
     root.create_signed_cert('client')
 
     # start ghostunnel
-    ghostunnel = run_ghostunnel(['client', '--listen={0}:13001'.format(LOCALHOST),
-      '--target={0}:13002'.format(LOCALHOST), '--keystore=client.p12',
-      '--cacert=root.crt', '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
+    ghostunnel = run_ghostunnel(['server', '--listen={0}:13001'.format(LOCALHOST),
+      '--target={0}:13002'.format(LOCALHOST), '--keystore=server.p12',
+      '--cacert=root.crt', '--allow-ou=client', '--shutdown-timeout=1s',
+      '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
 
     # wait for startup
-    TlsClient(None, 'root', STATUS_PORT).connect(20, 'client')
+    TlsClient(None, 'root', STATUS_PORT).connect(20, 'server')
 
     # create connections with client
-    pair1 = SocketPair(TcpClient(13001), TlsServer('server', 'root', 13002))
+    pair1 = SocketPair(TlsClient('client', 'root', 13001), TcpServer(13002))
     pair1.validate_can_send_from_client("toto", "pair1 works")
 
     # shut down ghostunnel with connection open, make sure it doesn't hang
     print_ok('attempting to terminate ghostunnel via SIGTERM signals')
+    ghostunnel.terminate()
     for n in range(0, 90):
       try:
         try:
-          ghostunnel.terminate()
           ghostunnel.wait(timeout=1)
         except:
           pass
@@ -42,6 +43,10 @@ if __name__ == "__main__":
 
     if not stopped:
       raise Exception('ghostunnel did not terminate within 90 seconds')
+
+    # We expect retv != 0 because of timeout
+    if ghostunnel.returncode == 0:
+      raise Exception('ghostunnel terminated gracefully instead of timing out?')
 
     print_ok("OK (terminated)")
   finally:

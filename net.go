@@ -18,154 +18,103 @@ package main
 
 import (
 	"crypto/tls"
-	"crypto/x509"
 	"io"
 	"net"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/rcrowley/go-metrics"
+)
+
+type proxy struct {
+	quit     int32
+	listener net.Listener
+	handlers *sync.WaitGroup
+
+	authorize func(net.Conn) bool
+	dial      func() (net.Conn, error)
+}
+
+var (
+	openCounter    = metrics.GetOrRegisterCounter("conn.open", metrics.DefaultRegistry)
+	totalCounter   = metrics.GetOrRegisterCounter("accept.total", metrics.DefaultRegistry)
+	successCounter = metrics.GetOrRegisterCounter("accept.success", metrics.DefaultRegistry)
+	errorCounter   = metrics.GetOrRegisterCounter("accept.error", metrics.DefaultRegistry)
+	timeoutCounter = metrics.GetOrRegisterCounter("accept.timeout", metrics.DefaultRegistry)
+	connTimer      = metrics.GetOrRegisterTimer("conn.lifetime", metrics.DefaultRegistry)
 )
 
 // Accept incoming connections in server mode and spawn Go routines to handle them.
 // The signal handler (serverSignalHandle) can close the listener socket and
 // send true to the stopper channel. When that happens, we stop accepting new
 // connections and wait for outstanding connections to end.
-func serverAccept(listener net.Listener, wg *sync.WaitGroup, stopper chan bool, leaf *x509.Certificate, dial func() (net.Conn, error)) {
-	defer wg.Done()
-	defer listener.Close()
-
-	openCounter := metrics.GetOrRegisterCounter("conn.open", metrics.DefaultRegistry)
-	totalCounter := metrics.GetOrRegisterCounter("accept.total", metrics.DefaultRegistry)
-	successCounter := metrics.GetOrRegisterCounter("accept.success", metrics.DefaultRegistry)
-	errorCounter := metrics.GetOrRegisterCounter("accept.error", metrics.DefaultRegistry)
-	timeoutCounter := metrics.GetOrRegisterCounter("accept.timeout", metrics.DefaultRegistry)
-	timer := metrics.GetOrRegisterTimer("conn.lifetime", metrics.DefaultRegistry)
-
+func (p *proxy) accept() {
 	for {
 		// Wait for new connection
-		conn, err := listener.Accept()
-		openCounter.Inc(1)
-		totalCounter.Inc(1)
-
+		conn, err := p.listener.Accept()
 		if err != nil {
-			openCounter.Dec(1)
-			errorCounter.Inc(1)
-
 			// Check if we're supposed to stop
-			select {
-			case _ = <-stopper:
-				logger.Printf("closing socket with cert serial no. %d (expiring %s)", leaf.SerialNumber, leaf.NotAfter.String())
+			if atomic.LoadInt32(&p.quit) == 1 {
 				return
-			default:
 			}
 
-			logger.Printf("error accepting connection: %s", err)
+			errorCounter.Inc(1)
 			continue
 		}
 
-		// Handle as much work as we can asynchronously so as to
-		// not block the accept loop (e.g. if a handshake hangs).
-		go timer.Time(func() {
+		openCounter.Inc(1)
+		totalCounter.Inc(1)
+		logger.Printf("incoming connection from %s", conn.RemoteAddr())
+
+		go connTimer.Time(func() {
 			defer conn.Close()
 			defer openCounter.Dec(1)
 
-			tlsConn := conn.(*tls.Conn)
+			if !p.authorize(conn) {
+				return
+			}
 
-			// Force handshake. Handshake usually happens on first read/write, but
-			// we want to authenticate before reading/writing so we need to force
-			// the handshake to get the client cert. If handshake blocks for more
-			// than the timeout, we kill the connection.
-			timer := time.AfterFunc(*timeoutDuration, func() {
-				logger.Printf("timed out TLS handshake on %s", conn.RemoteAddr())
-				conn.SetDeadline(time.Now())
-				conn.Close()
-				timeoutCounter.Inc(1)
-			})
-
-			err = tlsConn.Handshake()
-			timer.Stop()
+			backend, err := p.dial()
 			if err != nil {
-				logger.Printf("failed TLS handshake on %s: %s", conn.RemoteAddr(), err)
-				errorCounter.Inc(1)
 				return
 			}
 
-			if !authorized(tlsConn.ConnectionState()) {
-				logger.Printf("rejecting connection from %s: bad client certificate", conn.RemoteAddr())
-				errorCounter.Inc(1)
-				return
-			}
-
-			logger.Printf("successful handshake with %s", conn.RemoteAddr())
-
-			wg.Add(1)
-			defer wg.Done()
-			handle(conn, successCounter, errorCounter, dial)
+			successCounter.Inc(1)
+			p.handlers.Add(1)
+			defer p.handlers.Done()
+			fuse(conn, backend)
 		})
 	}
 }
 
-// Accept incoming connections in client mode and spawn Go routines to handle them.
-func clientAccept(listener net.Listener, stopper chan bool, dial func() (net.Conn, error)) {
-	defer listener.Close()
-
-	openCounter := metrics.GetOrRegisterCounter("conn.open", metrics.DefaultRegistry)
-	totalCounter := metrics.GetOrRegisterCounter("accept.total", metrics.DefaultRegistry)
-	successCounter := metrics.GetOrRegisterCounter("accept.success", metrics.DefaultRegistry)
-	errorCounter := metrics.GetOrRegisterCounter("accept.error", metrics.DefaultRegistry)
-	timer := metrics.GetOrRegisterTimer("conn.lifetime", metrics.DefaultRegistry)
-
-	handlers := &sync.WaitGroup{}
-
-	for {
-		// Wait for new connection
-		conn, err := listener.Accept()
-		openCounter.Inc(1)
-		totalCounter.Inc(1)
-
-		if err != nil {
-			openCounter.Dec(1)
-			errorCounter.Inc(1)
-
-			// Check if we're supposed to stop
-			select {
-			case _ = <-stopper:
-				logger.Printf("closing listening socket")
-				// wait for all the connects to end
-				handlers.Wait()
-				return
-			default:
-			}
-
-			logger.Printf("error accepting connection: %s", err)
-			continue
-		}
-
-		handlers.Add(1)
-		go timer.Time(func() {
-			defer handlers.Done()
-			defer conn.Close()
-			defer openCounter.Dec(1)
-			handle(conn, successCounter, errorCounter, dial)
-		})
+func authorize(conn net.Conn) bool {
+	tlsConn, ok := conn.(*tls.Conn)
+	if !ok {
+		return false
 	}
-}
 
-// Handle incoming connection by opening new connection to our backend service
-// and fusing them together.
-func handle(conn net.Conn, successCounter metrics.Counter, errorCounter metrics.Counter, dial func() (net.Conn, error)) {
-	backend, err := dial()
+	// Force handshake. Handshake usually happens on first read/write, but
+	// we want to authenticate before reading/writing so we need to force
+	// the handshake to get the client cert. If handshake blocks for more
+	// than the timeout, we kill the connection.
+	timer := time.AfterFunc(*timeoutDuration, func() {
+		logger.Printf("timed out TLS handshake on %s", conn.RemoteAddr())
+		conn.SetDeadline(time.Now())
+		conn.Close()
+		timeoutCounter.Inc(1)
+	})
 
+	err := tlsConn.Handshake()
+	timer.Stop()
 	if err != nil {
+		logger.Printf("failed TLS handshake on %s: %s", conn.RemoteAddr(), err)
 		errorCounter.Inc(1)
-		logger.Printf("failed to dial backend: %s", err)
-		return
+		return false
 	}
 
-	successCounter.Inc(1)
-	fuse(conn, backend)
+	return authorized(tlsConn.ConnectionState())
 }
 
 // Fuse connections together

@@ -179,30 +179,29 @@ func TestBuildConfig(t *testing.T) {
 	defer os.Remove(tmpCaBundle.Name())
 	defer os.Remove(tmpKeystoreNoPrivKey.Name())
 
-	conf, err := buildConfig(tmpKeystore.Name(), testKeystorePassword, tmpCaBundle.Name())
+	conf, err := buildConfig(tmpCaBundle.Name())
 	assert.Nil(t, err, "should be able to build TLS config")
-	assert.NotNil(t, conf.Certificates, "config must have certs")
 	assert.NotNil(t, conf.RootCAs, "config must have CA certs")
 	assert.NotNil(t, conf.ClientCAs, "config must have CA certs")
 	assert.True(t, conf.MinVersion == tls.VersionTLS12, "must have correct TLS min version")
 
-	conf, err = buildConfig(tmpKeystore.Name(), testKeystorePassword, "does-not-exist")
+	conf, err = buildConfig("does-not-exist")
 	assert.Nil(t, conf, "conf with invalid params should be nil")
 	assert.NotNil(t, err, "should reject invalid CA cert bundle")
 
-	conf, err = buildConfig(tmpKeystore.Name(), "totes invalid", tmpCaBundle.Name())
-	assert.Nil(t, conf, "conf with invalid params should be nil")
-	assert.NotNil(t, err, "should reject invalid CA cert bundle")
+	cert, err := buildCertificate(tmpKeystore.Name(), "totes invalid")
+	assert.Nil(t, cert, "cert with invalid params should be nil")
+	assert.NotNil(t, err, "should reject invalid keystore pass")
 
-	conf, err = buildConfig("does-not-exist", testKeystorePassword, tmpCaBundle.Name())
-	assert.Nil(t, conf, "conf with invalid params should be nil")
+	cert, err = buildCertificate("does-not-exist", testKeystorePassword)
+	assert.Nil(t, cert, "cert with invalid params should be nil")
 	assert.NotNil(t, err, "should reject missing keystore (not found)")
 
-	conf, err = buildConfig(tmpKeystoreNoPrivKey.Name(), "", tmpCaBundle.Name())
-	assert.Nil(t, conf, "conf with invalid params should be nil")
+	cert, err = buildCertificate(tmpKeystoreNoPrivKey.Name(), "")
+	assert.Nil(t, cert, "cert with invalid params should be nil")
 	assert.NotNil(t, err, "should reject invalid keystore (no private key)")
 
-	conf, err = buildConfig("/dev/null", "", tmpCaBundle.Name())
-	assert.Nil(t, conf, "conf with invalid params should be nil")
+	cert, err = buildCertificate("/dev/null", "")
+	assert.Nil(t, cert, "cert with invalid params should be nil")
 	assert.NotNil(t, err, "should reject invalid keystore (empty)")
 }

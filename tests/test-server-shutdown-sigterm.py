@@ -18,6 +18,9 @@ if __name__ == "__main__":
       '--cacert=root.crt', '--allow-ou=client',
       '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
 
+    # wait for startup
+    TlsClient(None, 'root', STATUS_PORT).connect(20, 'server')
+
     # create connections with client
     pair1 = SocketPair(TlsClient('client', 'root', 13001), TcpServer(13002))
     pair1.validate_can_send_from_client("toto", "pair1 works")
