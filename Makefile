@@ -1,5 +1,5 @@
 ### Build
-REVISION := $(shell git describe --always --abbrev=8 HEAD)
+REVISION := $(shell git describe --always --dirty --abbrev=8)
 
 build: depends
 	go build -ldflags "-X main.buildRevision=$(REVISION)"
