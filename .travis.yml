@@ -13,6 +13,7 @@ go:
   - 1.6
 
 before_install:
+  - sudo apt-get install -y netcat
   - go get github.com/Masterminds/glide
   - go get github.com/wadey/gocovmerge
   - go get github.com/mattn/goveralls

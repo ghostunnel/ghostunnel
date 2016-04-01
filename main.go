@@ -25,9 +25,11 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"os"
+	"os/exec"
 	"runtime"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/cyberdelia/go-metrics-graphite"
@@ -55,6 +57,7 @@ var (
 	serverAllowedOUs     = serverCommand.Flag("allow-ou", "Allow clients with given organizational unit name (can be repeated).").PlaceHolder("OU").Strings()
 	serverAllowedDNSs    = serverCommand.Flag("allow-dns-san", "Allow clients with given DNS subject alternative name (can be repeated).").PlaceHolder("SAN").Strings()
 	serverAllowedIPs     = serverCommand.Flag("allow-ip-san", "Allow clients with given IP subject alternative name (can be repeated).").PlaceHolder("SAN").IPList()
+	serverSubCommand     = serverCommand.Arg("sub-command", "Child command to wrap (optional). Spawns as child on startup, terminates if child exists.").Strings()
 
 	clientCommand       = app.Command("client", "Client mode (plain TCP/UNIX listener -> TLS target).")
 	clientListenAddress = clientCommand.Flag("listen", "Address and port to listen on (HOST:PORT, or unix:PATH).").PlaceHolder("ADDR").Required().String()
@@ -62,6 +65,7 @@ var (
 	clientForwardAddress = clientCommand.Flag("target", "Address to forward connections to (HOST:PORT).").PlaceHolder("ADDR").Required().String()
 	clientUnsafeListen   = clientCommand.Flag("unsafe-listen", "If set, does not limit listen to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
 	clientServerName     = clientCommand.Flag("override-server-name", "If set, overrides the server name used for hostname verification.").PlaceHolder("NAME").String()
+	clientSubCommand     = clientCommand.Arg("sub-command", "Child command to wrap (optional). Spawns as child on startup, terminates if child exists.").Strings()
 
 	keystorePath    = app.Flag("keystore", "Path to certificate and keystore (PKCS12).").PlaceHolder("PATH").Required().String()
 	keystorePass    = app.Flag("storepass", "Password for certificate and keystore (optional).").PlaceHolder("PASS").String()
@@ -71,10 +75,12 @@ var (
 	graphiteAddr    = app.Flag("graphite", "Collect metrics and report them to the given graphite instance (raw TCP).").PlaceHolder("ADDR").TCP()
 	metricsURL      = app.Flag("metrics-url", "Collect metrics and POST them periodically to the given URL (via HTTP/JSON).").PlaceHolder("URL").String()
 	metricsPrefix   = app.Flag("metrics-prefix", fmt.Sprintf("Set prefix string for all reported metrics (default: %s).", defaultMetricsPrefix)).PlaceHolder("PREFIX").Default(defaultMetricsPrefix).String()
-	statusAddr      = app.Flag("status", "Enable serving /_status and /_metrics on given HOST:PORT (shows tunnel/backend health status).").PlaceHolder("ADDR").TCP()
+	statusAddr      = app.Flag("status", "Enable serving /_status and /_metrics on given HOST:PORT (shows health status/metrics).").PlaceHolder("ADDR").TCP()
 	enableProf      = app.Flag("enable-pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
 	useSyslog       = app.Flag("syslog", "Send logs to syslog instead of stderr.").Bool()
 )
+
+var exitFunc = os.Exit
 
 // Context groups listening context data together
 type Context struct {
@@ -196,6 +202,22 @@ func run(args []string) {
 		}
 	}
 
+	var subprocessCommand []string
+	if *serverSubCommand != nil {
+		subprocessCommand = *serverSubCommand
+	} else if *clientSubCommand != nil {
+		subprocessCommand = *clientSubCommand
+	}
+
+	child := spawnSubprocess(subprocessCommand)
+	defer func() {
+		if child != nil && child.Process != nil {
+			syscall.Kill(child.Process.Pid, syscall.SIGTERM)
+			time.AfterFunc(1*time.Minute, func() { child.Process.Kill() })
+			child.Wait()
+		}
+	}()
+
 	// channel to know if ghostunnel has started
 	started := make(chan bool, 1)
 
@@ -203,17 +225,17 @@ func run(args []string) {
 	case serverCommand.FullCommand():
 		if err := serverValidateFlags(); err != nil {
 			fmt.Fprintf(os.Stderr, "error: %s", err)
-			os.Exit(1)
+			exitFunc(1)
 		}
 		logger.Printf("starting ghostunnel in server mode")
 
 		dial, err := serverBackendDialer()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: invalid target address: %s", err)
-			os.Exit(1)
+			exitFunc(1)
 		}
 
-		status := newStatusHandler(dial)
+		status := newStatusHandler(dial, child)
 		context := &Context{watcher, listeners, status, dial, metrics}
 
 		// Start listening
@@ -222,7 +244,7 @@ func run(args []string) {
 	case clientCommand.FullCommand():
 		if err := clientValidateFlags(); err != nil {
 			fmt.Fprintf(os.Stderr, "error: %s", err)
-			os.Exit(1)
+			exitFunc(1)
 		}
 		logger.Printf("starting ghostunnel in client mode")
 
@@ -236,9 +258,9 @@ func run(args []string) {
 		dial, err := clientBackendDialer(reloadClient)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: invalid target address: (%s)", err)
-			os.Exit(1)
+			exitFunc(1)
 		}
-		status := newStatusHandler(dial)
+		status := newStatusHandler(dial, child)
 		context := &Context{watcher, listeners, status, dial, metrics}
 
 		// Start listening
@@ -247,7 +269,7 @@ func run(args []string) {
 	up := <-started
 	if !up {
 		logger.Print("failed to start initial listener")
-		os.Exit(1)
+		exitFunc(1)
 	}
 
 	logger.Print("initial startup completed, waiting for connections")
@@ -393,7 +415,7 @@ func serveStatus(tlsConfig *tls.Config, context *Context) net.Listener {
 	rawListener, err := reuseport.NewReusablePortListener(network, address)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: unable to bind on status port: %s", err)
-		os.Exit(1)
+		exitFunc(1)
 	}
 
 	listener := tls.NewListener(rawListener, tlsConfig)
@@ -414,13 +436,6 @@ func serverBackendDialer() (func() (net.Conn, error), error) {
 	backendNet, backendAddr, _, err := parseUnixOrTCPAddress(*serverForwardAddress)
 	if err != nil {
 		return nil, err
-	}
-	if backendNet == "unix" {
-		// ensure file exists
-		_, err = os.Stat(backendAddr)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	return func() (net.Conn, error) {
@@ -480,4 +495,35 @@ func clientBackendDialer(reloadClient chan bool) (func() (net.Conn, error), erro
 		dialer := &net.Dialer{Timeout: *timeoutDuration}
 		return tls.DialWithDialer(dialer, network, address, getConfig())
 	}, nil
+}
+
+// Spawn subprocess as child (if given), terminate if it exits.
+func spawnSubprocess(cmd []string) *exec.Cmd {
+	if cmd == nil {
+		return nil
+	}
+
+	logger.Printf("spawning child: %s", strings.Join(cmd, " "))
+	child := exec.Command(cmd[0], cmd[1:]...)
+	child.Stdout = os.Stdout
+	child.Stderr = os.Stderr
+	child.Start()
+
+	go func() {
+		err := child.Wait()
+		if err != nil {
+			logger.Printf("child error: %s", err)
+		}
+
+		// Shut down ghostunnel: if the child process exited, so do we.
+		logger.Printf("child exited, shutting down ghostunnel")
+
+		if child.ProcessState != nil && child.ProcessState.Success() {
+			exitFunc(0)
+		}
+
+		exitFunc(1)
+	}()
+
+	return child
 }

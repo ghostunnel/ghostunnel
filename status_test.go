@@ -62,7 +62,7 @@ func dummyDialError() (net.Conn, error) {
 }
 
 func TestStatusHandlerNew(t *testing.T) {
-	handler := newStatusHandler(dummyDial)
+	handler := newStatusHandler(dummyDial, nil)
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, nil)
 
@@ -72,7 +72,7 @@ func TestStatusHandlerNew(t *testing.T) {
 }
 
 func TestStatusHandlerListening(t *testing.T) {
-	handler := newStatusHandler(dummyDial)
+	handler := newStatusHandler(dummyDial, nil)
 	response := httptest.NewRecorder()
 	handler.Listening()
 	handler.ServeHTTP(response, nil)
@@ -83,7 +83,7 @@ func TestStatusHandlerListening(t *testing.T) {
 }
 
 func TestStatusHandlerListeningBackendDown(t *testing.T) {
-	handler := newStatusHandler(dummyDialError)
+	handler := newStatusHandler(dummyDialError, nil)
 	response := httptest.NewRecorder()
 	handler.Listening()
 	handler.ServeHTTP(response, nil)
@@ -94,7 +94,7 @@ func TestStatusHandlerListeningBackendDown(t *testing.T) {
 }
 
 func TestStatusHandlerReloading(t *testing.T) {
-	handler := newStatusHandler(dummyDial)
+	handler := newStatusHandler(dummyDial, nil)
 	response := httptest.NewRecorder()
 	handler.Listening()
 	handler.Reloading()

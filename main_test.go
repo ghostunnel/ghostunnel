@@ -21,6 +21,7 @@ import (
 	"errors"
 	"net"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -40,12 +41,35 @@ func TestIntegrationMain(t *testing.T) {
 		}
 	}()
 
-	if isIntegration == "true" {
-		var wrappedArgs []string
-		err := json.Unmarshal([]byte(os.Getenv("GHOSTUNNEL_INTEGRATION_ARGS")), &wrappedArgs)
-		panicOnError(err)
+	if isIntegration != "true" {
+		return
+	}
 
+	finished := make(chan bool, 1)
+	once := &sync.Once{}
+	exitFunc = func(exit int) {
+		once.Do(func() {
+			if exit != 0 {
+				t.Errorf("exit code from chid: %d", exit)
+			}
+		})
+		finished <- true
+	}
+
+	var wrappedArgs []string
+	err := json.Unmarshal([]byte(os.Getenv("GHOSTUNNEL_INTEGRATION_ARGS")), &wrappedArgs)
+	panicOnError(err)
+
+	go func() {
 		run(wrappedArgs)
+		finished <- true
+	}()
+
+	select {
+	case <-finished:
+		return
+	case <-time.Tick(10 * time.Minute):
+		panic("timed out")
 	}
 }
 
@@ -139,10 +163,6 @@ func TestDisallowsFooDotCom(t *testing.T) {
 func TestServerBackendDialerError(t *testing.T) {
 	*serverForwardAddress = "invalid"
 	_, err := serverBackendDialer()
-	assert.NotNil(t, err, "invalid forward address should not have dialer")
-
-	*serverForwardAddress = "unix:does-not-exist"
-	_, err = serverBackendDialer()
 	assert.NotNil(t, err, "invalid forward address should not have dialer")
 }
 
