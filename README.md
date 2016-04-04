@@ -139,7 +139,7 @@ Verify that we can connect to `8080`:
 
     nc -v localhost 8080
 
-Not we have a TLS proxy running for our client. We take the insecure local
+Now we have a TLS proxy running for our client. We take the insecure local
 connection, wrap them in TLS, and forward them to the secure backend.
 
 ### Full tunnel (client plus server)
