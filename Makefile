@@ -19,6 +19,7 @@ pre-integration:
 	go test -c -covermode=count -coverpkg .
 
 integration: pre-integration $(INTEGRATION_TESTS)
+	@echo "PASS"
 
 test-%:
 	@cd tests && ./test_runner.py $@

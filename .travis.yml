@@ -31,5 +31,6 @@ script:
 
 after_success:
   - gocovmerge *.out */*.out > merged.coverprofile
+  - go tool cover -func merged.coverprofile
   - $HOME/gopath/bin/goveralls -coverprofile merged.coverprofile -service=travis-ci
 
