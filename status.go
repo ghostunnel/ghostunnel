@@ -21,6 +21,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"runtime"
 	"sync"
 	"time"
@@ -31,6 +32,8 @@ type statusHandler struct {
 	mu *sync.Mutex
 	// Backend dialer to check if target is up and running
 	dial func() (net.Conn, error)
+	// Child process (if chain-execed, may be nil)
+	child *exec.Cmd
 	// Current status
 	listening bool
 	reloading bool
@@ -42,6 +45,7 @@ type statusResponse struct {
 	BackendOk     bool      `json:"backend_ok"`
 	BackendStatus string    `json:"backend_status"`
 	BackendError  string    `json:"backend_error,omitempty"`
+	ChildPid      *int      `json:"child_pid,omitempty"`
 	Time          time.Time `json:"time"`
 	Hostname      string    `json:"hostname,omitempty"`
 	Message       string    `json:"message"`
@@ -49,8 +53,8 @@ type statusResponse struct {
 	Compiler      string    `json:"compiler"`
 }
 
-func newStatusHandler(dial func() (net.Conn, error)) *statusHandler {
-	status := &statusHandler{&sync.Mutex{}, dial, false, false}
+func newStatusHandler(dial func() (net.Conn, error), child *exec.Cmd) *statusHandler {
+	status := &statusHandler{&sync.Mutex{}, dial, child, false, false}
 	return status
 }
 
@@ -84,6 +88,10 @@ func (s *statusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else {
 		resp.BackendError = err.Error()
 		resp.BackendStatus = "critical"
+	}
+
+	if s.child != nil && s.child.Process != nil {
+		resp.ChildPid = &s.child.Process.Pid
 	}
 
 	s.mu.Lock()

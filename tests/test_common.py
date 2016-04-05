@@ -20,19 +20,22 @@ def run_ghostunnel(args):
 # Gracefully terminate ghostunnel (with timeout)
 def terminate(ghostunnel):
   print_ok("terminating ghostunnel instance")
-  if ghostunnel:
-    ghostunnel.terminate()
-    for i in range(0, 10):
-      try:
-        ghostunnel.wait(timeout=1)
-      except:
-        pass
-      if ghostunnel.returncode != None:
-        print_ok("ghostunnel stopped with exit code {0}".format(ghostunnel.returncode))
-        return
-      time.sleep(1)
-    print_ok("timeout, killing ghostunnel")
-    ghostunnel.kill()
+  try:
+    if ghostunnel:
+      ghostunnel.terminate()
+      for i in range(0, 10):
+        try:
+          ghostunnel.wait(timeout=1)
+        except:
+          pass
+        if ghostunnel.returncode is not None:
+          print_ok("ghostunnel stopped with exit code {0}".format(ghostunnel.returncode))
+          return
+        time.sleep(1)
+      print_ok("timeout, killing ghostunnel")
+      ghostunnel.kill()
+  except:
+    pass
 
 # Attempt to dump goroutines via status port/pprof
 def dump_goroutines():

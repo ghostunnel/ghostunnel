@@ -71,11 +71,7 @@ func serverAccept(listener net.Listener, wg *sync.WaitGroup, stopper chan bool, 
 			defer conn.Close()
 			defer openCounter.Dec(1)
 
-			logger.Printf("incoming connection: %s", conn.RemoteAddr())
-			tlsConn, ok := conn.(*tls.Conn)
-			if !ok {
-				panic("got non-TLS socket from a TLS listener")
-			}
+			tlsConn := conn.(*tls.Conn)
 
 			// Force handshake. Handshake usually happens on first read/write, but
 			// we want to authenticate before reading/writing so we need to force
@@ -146,8 +142,6 @@ func clientAccept(listener net.Listener, stopper chan bool, dial func() (net.Con
 			logger.Printf("error accepting connection: %s", err)
 			continue
 		}
-
-		logger.Printf("incoming connection: %s", conn.RemoteAddr())
 
 		handlers.Add(1)
 		go timer.Time(func() {
