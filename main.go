@@ -71,6 +71,7 @@ var (
 	keystorePass    = app.Flag("storepass", "Password for certificate and keystore (optional).").PlaceHolder("PASS").String()
 	caBundlePath    = app.Flag("cacert", "Path to certificate authority bundle file (PEM/X509).").Required().String()
 	timedReload     = app.Flag("timed-reload", "Reload keystores every N seconds, refresh listener/client on changes.").PlaceHolder("N").Int()
+	shutdownTimeout = app.Flag("shutdown-timeout", "Graceful shutdown timeout. Terminates after timeout even if connections still open.").Default("5m").Duration()
 	timeoutDuration = app.Flag("timeout", "Timeout for establishing connections, handshakes.").Default("10s").Duration()
 	graphiteAddr    = app.Flag("graphite", "Collect metrics and report them to the given graphite instance (raw TCP).").PlaceHolder("ADDR").TCP()
 	metricsURL      = app.Flag("metrics-url", "Collect metrics and POST them periodically to the given URL (via HTTP/JSON).").PlaceHolder("URL").String()

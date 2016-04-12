@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 )
 
 // signalHandler for server mode. Listens for incoming SIGTERM or SIGUSR1
@@ -45,6 +46,10 @@ func serverSignalHandler(listener net.Listener, statusListener net.Listener, sto
 			switch sig {
 			case syscall.SIGTERM:
 				logger.Printf("received SIGTERM, stopping listener")
+				time.AfterFunc(*shutdownTimeout, func() {
+					logger.Printf("graceful shutdown timeout: exiting")
+					exitFunc(1)
+				})
 				return
 
 			case syscall.SIGUSR1:
@@ -90,6 +95,11 @@ func clientSignalHandler(listener net.Listener, reloadClient chan bool, stopper 
 			switch sig {
 			case syscall.SIGTERM:
 				logger.Printf("received SIGTERM, stopping listener")
+				time.AfterFunc(*shutdownTimeout, func() {
+					logger.Printf("graceful shutdown timeout: exiting")
+					exitFunc(1)
+				})
+				signal.Stop(signals)
 				stopper <- true
 				listener.Close()
 				return
