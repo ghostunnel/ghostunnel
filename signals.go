@@ -46,7 +46,7 @@ func serverSignalHandler(listener net.Listener, statusListener net.Listener, sto
 			switch sig {
 			case syscall.SIGTERM:
 				logger.Printf("received SIGTERM, stopping listener")
-				time.AfterFunc(5*time.Minute, func() {
+				time.AfterFunc(*shutdownTimeout, func() {
 					logger.Printf("graceful shutdown timeout: exiting")
 					exitFunc(1)
 				})
@@ -95,7 +95,7 @@ func clientSignalHandler(listener net.Listener, reloadClient chan bool, stopper 
 			switch sig {
 			case syscall.SIGTERM:
 				logger.Printf("received SIGTERM, stopping listener")
-				time.AfterFunc(5*time.Minute, func() {
+				time.AfterFunc(*shutdownTimeout, func() {
 					logger.Printf("graceful shutdown timeout: exiting")
 					exitFunc(1)
 				})
