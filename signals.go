@@ -90,6 +90,7 @@ func clientSignalHandler(listener net.Listener, reloadClient chan bool, stopper 
 			switch sig {
 			case syscall.SIGTERM:
 				logger.Printf("received SIGTERM, stopping listener")
+				signal.Stop(signals)
 				stopper <- true
 				listener.Close()
 				return
