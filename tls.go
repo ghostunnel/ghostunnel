@@ -36,7 +36,6 @@ type certificate struct {
 // Build reloadable certificate
 func buildCertificate(keystorePath, keystorePass string) (*certificate, error) {
 	cert := &certificate{keystorePath, keystorePass, nil}
-	logger.Printf("init")
 	err := cert.reload()
 	if err != nil {
 		return nil, err
@@ -51,7 +50,6 @@ func (c *certificate) getCertificate(clientHello *tls.ClientHelloInfo) (*tls.Cer
 
 // Reload certificate
 func (c *certificate) reload() error {
-	logger.Printf("reloading")
 	keystoreBytes, err := ioutil.ReadFile(c.keystorePath)
 	if err != nil {
 		return err

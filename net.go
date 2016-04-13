@@ -73,11 +73,13 @@ func (p *proxy) accept() {
 			defer openCounter.Dec(1)
 
 			if !p.authorize(conn) {
+				logger.Printf("rejecting unauthorized connection from %s", conn.RemoteAddr())
 				return
 			}
 
 			backend, err := p.dial()
 			if err != nil {
+				logger.Printf("%s", err)
 				return
 			}
 
