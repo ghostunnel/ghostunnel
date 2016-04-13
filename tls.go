@@ -21,28 +21,45 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"io/ioutil"
+	"sync/atomic"
+	"unsafe"
 
 	"golang.org/x/crypto/pkcs12"
 )
 
-// buildConfig reads command-line options and builds a tls.Config
-func buildConfig(keystorePath, keystorePass, caBundlePath string) (*tls.Config, error) {
-	caBundleBytes, err := ioutil.ReadFile(caBundlePath)
+// certificate wraps a TLS certificate in a reloadable way
+type certificate struct {
+	keystorePath, keystorePass string
+	cached                     unsafe.Pointer
+}
+
+// Build reloadable certificate
+func buildCertificate(keystorePath, keystorePass string) (*certificate, error) {
+	cert := &certificate{keystorePath, keystorePass, nil}
+	logger.Printf("init")
+	err := cert.reload()
 	if err != nil {
 		return nil, err
 	}
+	return cert, nil
+}
 
-	caBundle := x509.NewCertPool()
-	caBundle.AppendCertsFromPEM(caBundleBytes)
+// Retrieve actual certificate
+func (c *certificate) getCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+	return (*tls.Certificate)(atomic.LoadPointer(&c.cached)), nil
+}
 
-	keystoreBytes, err := ioutil.ReadFile(keystorePath)
+// Reload certificate
+func (c *certificate) reload() error {
+	logger.Printf("reloading")
+	keystoreBytes, err := ioutil.ReadFile(c.keystorePath)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	pemBlocks, err := pkcs12.ToPEM(keystoreBytes, keystorePass)
+	pemBlocks, err := pkcs12.ToPEM(keystoreBytes, c.keystorePass)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	var pemBytes []byte
@@ -52,19 +69,32 @@ func buildConfig(keystorePath, keystorePass, caBundlePath string) (*tls.Config, 
 
 	certAndKey, err := tls.X509KeyPair(pemBytes, pemBytes)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	certAndKey.Leaf, err = x509.ParseCertificate(certAndKey.Certificate[0])
 	if err != nil {
+		return err
+	}
+
+	atomic.StorePointer(&c.cached, unsafe.Pointer(&certAndKey))
+	return nil
+}
+
+// buildConfig reads command-line options and builds a tls.Config
+func buildConfig(caBundlePath string) (*tls.Config, error) {
+	caBundleBytes, err := ioutil.ReadFile(caBundlePath)
+	if err != nil {
 		return nil, err
 	}
 
+	caBundle := x509.NewCertPool()
+	caBundle.AppendCertsFromPEM(caBundleBytes)
+
 	return &tls.Config{
 		// Certificates
-		Certificates: []tls.Certificate{certAndKey},
-		RootCAs:      caBundle,
-		ClientCAs:    caBundle,
+		RootCAs:   caBundle,
+		ClientCAs: caBundle,
 
 		PreferServerCipherSuites: true,
 

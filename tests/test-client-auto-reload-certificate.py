@@ -22,7 +22,6 @@ if __name__ == "__main__":
 
     root2 = RootCert('new_root')
     root2.create_signed_cert('server2')
-    root2.create_signed_cert('client2')
 
     # start ghostunnel
     ghostunnel = run_ghostunnel(['client', '--listen={0}:13001'.format(LOCALHOST),
@@ -40,6 +39,7 @@ if __name__ == "__main__":
     print_ok("got client1 on /_status")
 
     # replace keystore and check ghostunnel connects with new_client1
+    print_ok("replacing certificates")
     os.rename('new_client1.p12', 'client1.p12')
     # reload should happen automatically
     TlsClient(None, 'root1', STATUS_PORT).connect(20, 'new_client1')
@@ -57,18 +57,6 @@ if __name__ == "__main__":
       raise Exception("pair3 worked")
     except ssl.SSLError as e:
       print_ok("ghostunnel did not connect to incorrect CA")
-
-    # replace root and check ghostunnel connects to server2
-    os.rename('new_root.crt', 'root1.crt')
-    os.rename('client2.p12', 'client1.p12')
-    # reload should happen automatically
-    TlsClient(None, 'root1', STATUS_PORT).connect(20, 'client2')
-    print_ok("reload done")
-
-    pair4 = SocketPair(TcpClient(13001), TlsServer('server2', 'root1', 13002))
-    pair4.validate_can_send_from_client("toto", "pair4 works")
-    pair4.validate_client_cert("client2", "pair2: ou=client2 -> server2")
-    pair4.cleanup()
 
     # ensure that pair1 is still alive
     pair1.validate_can_send_from_client("toto", "pair1 still works")
