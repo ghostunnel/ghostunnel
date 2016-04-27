@@ -66,7 +66,6 @@ func (p *proxy) accept() {
 
 		openCounter.Inc(1)
 		totalCounter.Inc(1)
-		logger.Printf("incoming connection from %s", conn.RemoteAddr())
 
 		go connTimer.Time(func() {
 			defer conn.Close()
