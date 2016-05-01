@@ -30,15 +30,16 @@ import (
 // process. If we get SIGUSR1, reload certificates.
 func signalHandler(proxy *proxy, closeables []io.Closer, context *Context) {
 	signals := make(chan os.Signal)
-	signal.Notify(signals, syscall.SIGUSR1, syscall.SIGTERM)
+	signal.Notify(signals, syscall.SIGUSR1, syscall.SIGTERM, syscall.SIGINT)
 	defer signal.Stop(signals)
+	defer cleanup()
 
 	for {
 		// Wait for a signal
 		select {
 		case sig := <-signals:
 			switch sig {
-			case syscall.SIGTERM:
+			case syscall.SIGINT, syscall.SIGTERM:
 				logger.Printf("received SIGTERM, shutting down")
 				time.AfterFunc(*shutdownTimeout, func() {
 					logger.Printf("graceful shutdown timeout: exiting")
