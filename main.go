@@ -78,7 +78,7 @@ var (
 	graphiteAddr    = app.Flag("graphite", "Collect metrics and report them to the given graphite instance (raw TCP).").PlaceHolder("ADDR").TCP()
 	metricsURL      = app.Flag("metrics-url", "Collect metrics and POST them periodically to the given URL (via HTTP/JSON).").PlaceHolder("URL").String()
 	metricsPrefix   = app.Flag("metrics-prefix", fmt.Sprintf("Set prefix string for all reported metrics (default: %s).", defaultMetricsPrefix)).PlaceHolder("PREFIX").Default(defaultMetricsPrefix).String()
-	statusAddr      = app.Flag("status", "Enable serving /_status and /_metrics on given HOST:PORT (shows health status/metrics).").PlaceHolder("ADDR").TCP()
+	statusAddress   = app.Flag("status", "Enable serving /_status and /_metrics on given HOST:PORT (or unix:SOCKET).").PlaceHolder("ADDR").String()
 	enableProf      = app.Flag("enable-pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
 	useSyslog       = app.Flag("syslog", "Send logs to syslog instead of stderr.").Bool()
 )
@@ -117,7 +117,7 @@ func panicOnError(err error) {
 
 // Validate flags for both, server and client mode
 func validateFlags(app *kingpin.Application) error {
-	if *enableProf && *statusAddr == nil {
+	if *enableProf && *statusAddress == "" {
 		return fmt.Errorf("--enable-pprof requires --status to be set")
 	}
 	if *metricsURL != "" && !strings.HasPrefix(*metricsURL, "http://") && !strings.HasPrefix(*metricsURL, "https://") {
@@ -165,11 +165,22 @@ func clientValidateFlags() error {
 	return nil
 }
 
+func cleanup() {
+	// Clean up UNIX sockets before we exit (if there were any left over)
+	for _, arg := range []string{*clientListenAddress, *serverForwardAddress, *statusAddress} {
+		net, addr, _, err := parseUnixOrTCPAddress(arg)
+		if err == nil && net == "unix" {
+			defer os.Remove(addr)
+		}
+	}
+}
+
 func main() {
 	err := run(os.Args[1:])
 	if err != nil {
-		os.Exit(1)
+		exitFunc(1)
 	}
+	exitFunc(0)
 }
 
 func run(args []string) error {
@@ -194,14 +205,6 @@ func run(args []string) error {
 	watcher := make(chan bool, 1)
 	if *timedReload > 0 {
 		go watchFiles([]string{*keystorePath, *caBundlePath}, time.Duration(*timedReload)*time.Second, watcher)
-	}
-
-	// Clean up UNIX sockets before we exit (if there were any left over)
-	for _, arg := range []string{*clientListenAddress, *serverForwardAddress} {
-		net, addr, _, err := parseUnixOrTCPAddress(arg)
-		if err == nil && net == "unix" {
-			defer os.Remove(addr)
-		}
 	}
 
 	var subprocessCommand []string
@@ -307,7 +310,7 @@ func serverListen(context *Context) error {
 	}
 
 	closables := []io.Closer{listener}
-	if *statusAddr != nil {
+	if *statusAddress != "" {
 		status, err := serveStatus(context)
 		if err != nil {
 			return err
@@ -322,6 +325,7 @@ func serverListen(context *Context) error {
 
 	logger.Printf("waiting for connections to terminate")
 	proxy.handlers.Wait()
+	cleanup()
 
 	return nil
 }
@@ -350,7 +354,7 @@ func clientListen(context *Context) error {
 	}
 
 	closables := []io.Closer{}
-	if *statusAddr != nil {
+	if *statusAddress != "" {
 		status, err := serveStatus(context)
 		if err != nil {
 			return err
@@ -365,6 +369,7 @@ func clientListen(context *Context) error {
 
 	logger.Printf("waiting for connections to terminate")
 	proxy.handlers.Wait()
+	cleanup()
 
 	return nil
 }
@@ -389,11 +394,25 @@ func serveStatus(context *Context) (net.Listener, error) {
 	config.ClientAuth = tls.NoClientCert
 	config.GetCertificate = context.cert.getCertificate
 
-	network, address := decodeAddress(*statusAddr)
-	listener, err := reuseport.NewReusablePortListener(network, address)
+	network, address, _, err := parseUnixOrTCPAddress(*statusAddress)
+	if err != nil {
+		return nil, err
+	}
+
+	var listener net.Listener
+	if network == "unix" {
+		listener, err = net.Listen(network, address)
+	} else {
+		listener, err = reuseport.NewReusablePortListener(network, address)
+	}
+
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: unable to bind on status port: %s", err)
 		return nil, err
+	}
+
+	if network != "unix" {
+		listener = tls.NewListener(listener, config)
 	}
 
 	go func() {
@@ -401,7 +420,7 @@ func serveStatus(context *Context) (net.Listener, error) {
 			Handler:  mux,
 			ErrorLog: logger,
 		}
-		server.Serve(tls.NewListener(listener, config))
+		server.Serve(listener)
 	}()
 
 	return listener, nil
@@ -460,6 +479,7 @@ func spawnSubprocess(cmd []string) *exec.Cmd {
 
 		// Shut down ghostunnel: if the child process exited, so do we.
 		logger.Printf("child exited, shutting down ghostunnel")
+		cleanup()
 
 		if child.ProcessState != nil && child.ProcessState.Success() {
 			exitFunc(0)

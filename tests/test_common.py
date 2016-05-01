@@ -11,6 +11,7 @@ TIMEOUT = 5
 def run_ghostunnel(args):
   os.environ["GHOSTUNNEL_INTEGRATION_TEST"] = "true"
   os.environ["GHOSTUNNEL_INTEGRATION_ARGS"] = json.dumps(args)
+  print_ok("running with args:\n {0}".format(' \ \n '.join(args)))
   test = os.path.basename(sys.argv[0]).replace('.py', '.out')
   return Popen([
       '../ghostunnel.test',
@@ -259,6 +260,7 @@ class UnixClient(MySocket):
     super().cleanup()
     self.socket = None
     os.remove(self.socket_path)
+    os.rmdir(os.path.dirname(self.socket_path))
 
 class UnixServer(MySocket):
   def __init__(self):
