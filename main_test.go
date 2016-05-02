@@ -47,6 +47,9 @@ func TestIntegrationMain(t *testing.T) {
 
 	finished := make(chan bool, 1)
 	once := &sync.Once{}
+
+	// override exit function for test, to make sure calls to exitFunc() don't
+	// actually terminate the process and kill the test w/o capturing results.
 	exitFunc = func(exit int) {
 		once.Do(func() {
 			if exit != 0 {
@@ -54,6 +57,7 @@ func TestIntegrationMain(t *testing.T) {
 			}
 		})
 		finished <- true
+		select {} // block
 	}
 
 	var wrappedArgs []string
@@ -91,7 +95,7 @@ func TestPanicOnError(t *testing.T) {
 
 func TestFlagValidation(t *testing.T) {
 	*enableProf = true
-	*statusAddr = nil
+	*statusAddress = ""
 	err := validateFlags(nil)
 	assert.NotNil(t, err, "--enable-pprof implies --status")
 

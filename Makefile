@@ -21,5 +21,9 @@ pre-integration:
 integration: pre-integration $(INTEGRATION_TESTS)
 	@echo "PASS"
 
+coverage: test
+	gocovmerge *.out */*.out > merged.coverprofile
+	go tool cover -html merged.coverprofile
+
 test-%:
 	@cd tests && ./test_runner.py $@
