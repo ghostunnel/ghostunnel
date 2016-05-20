@@ -72,12 +72,13 @@ var (
 	keystorePath    = app.Flag("keystore", "Path to certificate and keystore (PKCS12).").PlaceHolder("PATH").Required().String()
 	keystorePass    = app.Flag("storepass", "Password for certificate and keystore (optional).").PlaceHolder("PASS").String()
 	caBundlePath    = app.Flag("cacert", "Path to certificate authority bundle file (PEM/X509).").Required().String()
-	timedReload     = app.Flag("timed-reload", "Reload keystores every N seconds, refresh listener/client on changes.").PlaceHolder("N").Int()
+	timedReload     = app.Flag("timed-reload", "Reload keystores every given interval (e.g. 300s), refresh listener/client on changes.").PlaceHolder("DURATION").Duration()
 	shutdownTimeout = app.Flag("shutdown-timeout", "Graceful shutdown timeout. Terminates after timeout even if connections still open.").Default("5m").Duration()
 	timeoutDuration = app.Flag("timeout", "Timeout for establishing connections, handshakes.").Default("10s").Duration()
 	graphiteAddr    = app.Flag("graphite", "Collect metrics and report them to the given graphite instance (raw TCP).").PlaceHolder("ADDR").TCP()
 	metricsURL      = app.Flag("metrics-url", "Collect metrics and POST them periodically to the given URL (via HTTP/JSON).").PlaceHolder("URL").String()
 	metricsPrefix   = app.Flag("metrics-prefix", fmt.Sprintf("Set prefix string for all reported metrics (default: %s).", defaultMetricsPrefix)).PlaceHolder("PREFIX").Default(defaultMetricsPrefix).String()
+	metricsInterval = app.Flag("metrics-interval", "Collect (and post) metrics every specified interval.").Default("30s").Duration()
 	statusAddress   = app.Flag("status", "Enable serving /_status and /_metrics on given HOST:PORT (or unix:SOCKET).").PlaceHolder("ADDR").String()
 	enableProf      = app.Flag("enable-pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
 	useSyslog       = app.Flag("syslog", "Send logs to syslog instead of stderr.").Bool()
@@ -199,12 +200,12 @@ func run(args []string) error {
 	if *metricsURL != "" {
 		logger.Printf("metrics enabled; reporting metrics via POST to %s", *metricsURL)
 	}
-	metrics := sqmetrics.NewMetrics(*metricsURL, *metricsPrefix, metrics.DefaultRegistry)
+	metrics := sqmetrics.NewMetrics(*metricsURL, *metricsPrefix, *metricsInterval, metrics.DefaultRegistry)
 
 	// Set up file watchers (if requested)
 	watcher := make(chan bool, 1)
 	if *timedReload > 0 {
-		go watchFiles([]string{*keystorePath, *caBundlePath}, time.Duration(*timedReload)*time.Second, watcher)
+		go watchFiles([]string{*keystorePath, *caBundlePath}, *timedReload, watcher)
 	}
 
 	var subprocessCommand []string

@@ -30,7 +30,7 @@ if __name__ == "__main__":
     ghostunnel = run_ghostunnel(['server', '--listen={0}:13001'.format(LOCALHOST),
       '--target={0}:13002'.format(LOCALHOST), '--keystore=server.p12',
       '--cacert=root.crt', '--allow-ou=client', '--enable-pprof',
-      '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT),
+      '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT), '--metrics-interval=1s',
       '--metrics-url=http://localhost:13080/post'])
 
     # wait for metrics to post

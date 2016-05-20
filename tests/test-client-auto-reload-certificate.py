@@ -26,7 +26,7 @@ if __name__ == "__main__":
     # start ghostunnel
     ghostunnel = run_ghostunnel(['client', '--listen={0}:13001'.format(LOCALHOST),
       '--target={0}:13002'.format(LOCALHOST), '--keystore=client1.p12',
-      '--timed-reload=1', '--cacert=root1.crt',
+      '--timed-reload=1s', '--cacert=root1.crt',
       '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
 
     # ensure ghostunnel connects with server1

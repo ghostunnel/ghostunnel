@@ -1,5 +1,5 @@
 hash: 4e52ba006f324bae4f861d87f1192052f6f6cf8e89c70ac6458add23c62d9399
-updated: 2016-04-06T21:55:05.701337912-07:00
+updated: 2016-05-19T21:56:06.495706627-07:00
 imports:
 - name: github.com/alecthomas/template
   version: 14fd436dd20c3cc65242a9f396b61bfc8a3926fc
@@ -14,7 +14,7 @@ imports:
 - name: github.com/rcrowley/go-metrics
   version: 51425a2415d21afadfd55cd93432c0bc69e9598d
 - name: github.com/square/go-sq-metrics
-  version: aa0d35a0f853f2366a932149f7ed0930d6cd64e2
+  version: 5c455259c9147abb1d5c51a6ed7fca3226d1eb92
 - name: github.com/stretchr/testify
   version: 9f9027faeb0dad515336ed2f28317f9f8f527ab4
   subpackages:
