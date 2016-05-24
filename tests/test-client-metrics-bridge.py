@@ -29,7 +29,7 @@ if __name__ == "__main__":
     # start ghostunnel
     ghostunnel = run_ghostunnel(['client', '--listen={0}:13001'.format(LOCALHOST),
       '--target={0}:13002'.format(LOCALHOST), '--keystore=client.p12',
-      '--cacert=root.crt',
+      '--cacert=root.crt', '--metrics-interval=1s',
       '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT),
       '--metrics-url=http://localhost:13080/post'])
 
