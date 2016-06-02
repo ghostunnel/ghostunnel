@@ -80,6 +80,10 @@ func (c *certificate) reload() error {
 }
 
 func caBundle(caBundlePath string) (*x509.CertPool, error) {
+	if caBundlePath == "" {
+		return x509.SystemCertPool()
+	}
+
 	caBundleBytes, err := ioutil.ReadFile(caBundlePath)
 	if err != nil {
 		return nil, err
