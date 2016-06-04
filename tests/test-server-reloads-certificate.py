@@ -3,7 +3,7 @@
 # Creates a ghostunnel. Ensures that tunnel sees & reloads a certificate change.
 
 from subprocess import Popen
-from test_common import *
+from common import *
 import socket, ssl, time, os, signal
 
 if __name__ == "__main__":

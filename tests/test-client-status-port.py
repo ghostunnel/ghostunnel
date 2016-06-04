@@ -3,7 +3,7 @@
 # Creates a ghostunnel. Ensures that /_status endpoint works.
 
 from subprocess import Popen
-from test_common import *
+from common import *
 import urllib.request, urllib.error, urllib.parse, socket, ssl, time, os, signal, json, sys
 
 if __name__ == "__main__":

@@ -6,7 +6,6 @@ by forking the repository and sending a pull request.
 When submitting code, please make every effort to follow existing conventions
 and style in order to keep the code as readable as possible. Please also make
 sure all tests pass by running `make test`, and format your code with `go fmt`.
-We also recommend using `golint` and `errcheck`.
 
 Note that ghostunnel relies heavily on integration tests written in Python that
 run checks on a live instance. If you are adding new features or changing 

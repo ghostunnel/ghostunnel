@@ -3,7 +3,7 @@
 # Creates a ghostunnel. Ensures ghostunnel can connect to a unix socket.
 
 from subprocess import Popen
-from test_common import *
+from common import *
 import socket, ssl, tempfile, os
 
 if __name__ == "__main__":

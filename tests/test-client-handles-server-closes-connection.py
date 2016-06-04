@@ -4,7 +4,7 @@
 # connection also disconnects.
 
 from subprocess import Popen
-from test_common import *
+from common import *
 import socket, ssl
 
 if __name__ == "__main__":

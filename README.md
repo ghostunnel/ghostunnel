@@ -65,18 +65,33 @@ a utility such as [daemonize](http://software.clapper.org/daemonize/). For an
 example on how to use ghostunnel in a Docker container, see the `docker`
 subdirectory.
 
-### Build
+### Install
 
-We use [glide](https://github.com/Masterminds/glide) for vendoring.
-Use `go get github.com/Masterminds/glide` or `brew install glide` to install it.
+To install ghostunnel, simply use:
 
-Then, build ghostunnel and run tests:
+    go get github.com/square/ghostunnel
+    
+Note that ghostunnel requires Go 1.6 or later to build.
 
-    make build
+### Develop
+
+Ghostunnel has an extensive suite of integration tests. Our integration test
+suite requires Python 3.5 (or later) and [gocovmerge][1]. We use [glide][2] for
+managing vendored dependencies. 
+
+To run tests:
+
+    # Run unit & integration tests
     make test
 
-Ghostunnel is tested with Go 1.6, and our integration test suite requires
-Python 3.5.
+    # Open coverage information in browser
+    go tool -html coverage-merged.out
+
+For more information on how to contribute, please see the [CONTRIBUTING][3] file.
+
+[1]: https://github.com/wadey/gocovmerge
+[2]: https://glide.sh
+[3]: https://github.com/square/ghostunnel/blob/master/CONTRIBUTING.md
 
 ### Server mode 
 

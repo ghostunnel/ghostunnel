@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from subprocess import Popen
-from test_common import *
+from common import *
 import socket, ssl, time, os, signal
 
 if __name__ == "__main__":

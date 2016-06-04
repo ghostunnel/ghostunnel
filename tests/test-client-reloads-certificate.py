@@ -8,7 +8,7 @@
 # - tunnel picks up client cert change and uses it on the status port.
 
 from subprocess import Popen
-from test_common import *
+from common import *
 import socket, ssl, time, os, signal
 
 if __name__ == "__main__":

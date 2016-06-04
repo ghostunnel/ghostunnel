@@ -76,7 +76,7 @@ func (s *statusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Time: time.Now(),
 	}
 
-	resp.Revision = buildRevision
+	resp.Revision = version
 	resp.Compiler = runtime.Version()
 
 	conn, err := s.dial()

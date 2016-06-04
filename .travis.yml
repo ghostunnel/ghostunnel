@@ -6,32 +6,22 @@ dist: trusty
 services:
   - docker
 
-env:
-  - GO15VENDOREXPERIMENT=1
-
 go:
   - 1.6
 
 before_install:
   - sudo apt-get install -y netcat
-  - go get github.com/Masterminds/glide
   - go get github.com/wadey/gocovmerge
   - go get github.com/mattn/goveralls
   - go get golang.org/x/tools/cmd/cover
 
 install:
-  - make build 
+  - go build .
   - docker build -t square/ghostunnel .
   - docker build -t redis-tls docker/redis-tls
-
-before_script:
-  - go vet .
 
 script:
   - make test
 
 after_success:
-  - gocovmerge *.out */*.out > merged.coverprofile
-  - go tool cover -func merged.coverprofile
-  - $HOME/gopath/bin/goveralls -coverprofile merged.coverprofile -service=travis-ci
-
+  - $HOME/gopath/bin/goveralls -coverprofile coverage-merged.out -service=travis-ci

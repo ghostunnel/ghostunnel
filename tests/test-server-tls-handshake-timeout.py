@@ -3,7 +3,7 @@
 # Simulates a hanging handshake, waits for timeout. 
 
 from subprocess import Popen
-from test_common import *
+from common import *
 import urllib.request, urllib.error, urllib.parse, socket, ssl, time, os, signal, json, sys, errno
 
 if __name__ == "__main__":
