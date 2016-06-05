@@ -4,7 +4,7 @@
 
 from subprocess import Popen
 from multiprocessing import Process
-from test_common import *
+from common import *
 import socket, ssl, time, random
 
 def send_data(i, p):

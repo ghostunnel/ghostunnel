@@ -42,8 +42,7 @@ import (
 )
 
 var (
-	// Initialized via -ldflags
-	buildRevision        = "unknown"
+	version              = "v1.0.3"
 	defaultMetricsPrefix = "ghostunnel"
 )
 
@@ -188,7 +187,7 @@ func run(args []string) error {
 	initLogger()
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	app.Version(fmt.Sprintf("rev %s built with %s", buildRevision, runtime.Version()))
+	app.Version(fmt.Sprintf("rev %s built with %s", version, runtime.Version()))
 	app.Validate(validateFlags)
 	command := kingpin.MustParse(app.Parse(args))
 

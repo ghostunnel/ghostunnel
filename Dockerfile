@@ -12,16 +12,9 @@ FROM golang:alpine
 
 MAINTAINER Cedric Staub "cs@squareup.com"
 
-# Install dependencies
-RUN apk add --update make git && \
-    go get github.com/Masterminds/glide && \
-    rm -rf /var/cache/apk/*
-
 # Copy source
 COPY . /go/src/github.com/square/ghostunnel
 
-# Build source & cleanup
-RUN cd /go/src/github.com/square/ghostunnel && \
-    make build && \
-    cp ghostunnel /usr/bin && \
+# Build & cleanup
+RUN go build -o /usr/bin/ghostunnel github.com/square/ghostunnel && \
     rm -rf /go/src/*

@@ -4,7 +4,7 @@
 # not root2.
 
 from subprocess import Popen
-from test_common import *
+from common import *
 import socket, ssl, time, os, signal
 
 if __name__ == "__main__":

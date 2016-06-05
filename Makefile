@@ -1,29 +1,18 @@
-### Build
-REVISION := $(shell git describe --always --dirty --abbrev=8)
-
-build: depends
-	go build -ldflags "-X main.buildRevision=$(REVISION)"
-
-depends:
-	glide -q install
-
-### Tests
+SOURCE_FILES := $(shell find . \( -name '*.go' -not -path './vendor*' \))
 INTEGRATION_TESTS := $(shell find tests -name 'test-*.py' -exec basename {} .py \;)
 
-test: unit integration
-
-unit:
-	go test -v -covermode=count -coverprofile=coverage.out
-
-pre-integration: 
+# Test binary with coverage instrumentation
+ghostunnel.test: $(SOURCE_FILES)
 	go test -c -covermode=count -coverpkg .
 
-integration: pre-integration $(INTEGRATION_TESTS)
+test: unit $(INTEGRATION_TESTS)
+	gocovmerge *.out */*.out > coverage-merged.out
 	@echo "PASS"
 
-coverage: test
-	gocovmerge *.out */*.out > merged.coverprofile
-	go tool cover -html merged.coverprofile
+unit:
+	go test -v -covermode=count -coverprofile=coverage-unit-test.out
 
-test-%:
-	@cd tests && ./test_runner.py $@
+$(INTEGRATION_TESTS): ghostunnel.test
+	@cd tests && ./runner.py $@
+
+.PHONY: $(INTEGRATION_TESTS) test unit

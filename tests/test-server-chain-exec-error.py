@@ -3,7 +3,7 @@
 # Creates a ghostunnel with a subprocess (netcat), connects, and waits for termination.
 
 from subprocess import Popen
-from test_common import *
+from common import *
 import socket, ssl, time, os, signal
 
 if __name__ == "__main__":

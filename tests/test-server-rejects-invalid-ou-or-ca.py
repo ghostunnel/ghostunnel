@@ -4,7 +4,7 @@
 # ou=client2 or ca=other_root can't connect.
 
 from subprocess import Popen
-from test_common import *
+from common import *
 import socket, ssl
 
 if __name__ == "__main__":
