@@ -73,10 +73,14 @@ To install ghostunnel, simply use:
     
 Note that ghostunnel requires Go 1.6 or later to build.
 
+If you want to pull a specific version, check the [releases][rel] tab in Github.
+
+[rel]: https://github.com/square/ghostunnel/releases
+
 ### Develop
 
 Ghostunnel has an extensive suite of integration tests. Our integration test
-suite requires Python 3.5 (or later) and [gocovmerge][1]. We use [glide][2] for
+suite requires Python 3.5 (or later) and [gocovmerge][gcvm] to run. We use [glide][glide] for
 managing vendored dependencies. 
 
 To run tests:
@@ -87,11 +91,11 @@ To run tests:
     # Open coverage information in browser
     go tool -html coverage-merged.out
 
-For more information on how to contribute, please see the [CONTRIBUTING][3] file.
+For more information on how to contribute, please see the [CONTRIBUTING][contr] file.
 
-[1]: https://github.com/wadey/gocovmerge
-[2]: https://glide.sh
-[3]: https://github.com/square/ghostunnel/blob/master/CONTRIBUTING.md
+[gcvm]: https://github.com/wadey/gocovmerge
+[glide]: https://glide.sh
+[contr]: https://github.com/square/ghostunnel/blob/master/CONTRIBUTING.md
 
 ### Server mode 
 
