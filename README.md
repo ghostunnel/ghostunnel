@@ -69,7 +69,7 @@ subdirectory.
 
 To install ghostunnel, simply use:
 
-    go get github.com/square/ghostunnel
+    go get -u github.com/square/ghostunnel
     
 Note that ghostunnel requires Go 1.6 or later to build.
 
