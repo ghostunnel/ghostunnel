@@ -2,30 +2,6 @@
 	"version": 0,
 	"dependencies": [
 		{
-			"importpath": "github.com/alecthomas/assert",
-			"repository": "https://github.com/alecthomas/assert",
-			"vcs": "git",
-			"revision": "5c23cad1f9b95ff384d7a741c3896a404aec4e7b",
-			"branch": "master",
-			"notests": true
-		},
-		{
-			"importpath": "github.com/alecthomas/colour",
-			"repository": "https://github.com/alecthomas/colour",
-			"vcs": "git",
-			"revision": "60882d9e27213e8552dcff6328914fe4c2b44bc9",
-			"branch": "master",
-			"notests": true
-		},
-		{
-			"importpath": "github.com/alecthomas/repr",
-			"repository": "https://github.com/alecthomas/repr",
-			"vcs": "git",
-			"revision": "f010939cadb8dfd81374f1a42f2f030d82602eb7",
-			"branch": "master",
-			"notests": true
-		},
-		{
 			"importpath": "github.com/alecthomas/template",
 			"repository": "https://github.com/alecthomas/template",
 			"vcs": "git",
@@ -58,28 +34,11 @@
 			"notests": true
 		},
 		{
-			"importpath": "github.com/mattn/go-isatty",
-			"repository": "https://github.com/mattn/go-isatty",
-			"vcs": "git",
-			"revision": "56b76bdf51f7708750eac80fa38b952bb9f32639",
-			"branch": "master",
-			"notests": true
-		},
-		{
 			"importpath": "github.com/rcrowley/go-metrics",
 			"repository": "https://github.com/rcrowley/go-metrics",
 			"vcs": "git",
 			"revision": "cfa5a85e9f0abbdf1701b59082c36fc7bff10759",
 			"branch": "master",
-			"notests": true
-		},
-		{
-			"importpath": "github.com/sergi/go-diff/diffmatchpatch",
-			"repository": "https://github.com/sergi/go-diff",
-			"vcs": "git",
-			"revision": "ec7fdbb58eb3e300c8595ad5ac74a5aa50019cc7",
-			"branch": "master",
-			"path": "/diffmatchpatch",
 			"notests": true
 		},
 		{
@@ -132,15 +91,6 @@
 			"revision": "811831de4c4dd03a0b8737233af3b36852386373",
 			"branch": "master",
 			"path": "/pkcs12",
-			"notests": true
-		},
-		{
-			"importpath": "golang.org/x/sys/unix",
-			"repository": "https://go.googlesource.com/sys",
-			"vcs": "git",
-			"revision": "62bee037599929a6e9146f29d10dd5208c43507d",
-			"branch": "master",
-			"path": "/unix",
 			"notests": true
 		},
 		{
