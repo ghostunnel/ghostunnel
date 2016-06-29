@@ -79,20 +79,28 @@ func (c *certificate) reload() error {
 	return nil
 }
 
-// buildConfig reads command-line options and builds a tls.Config
-func buildConfig(caBundlePath string) (*tls.Config, error) {
+func caBundle(caBundlePath string) (*x509.CertPool, error) {
 	caBundleBytes, err := ioutil.ReadFile(caBundlePath)
 	if err != nil {
 		return nil, err
 	}
 
-	caBundle := x509.NewCertPool()
-	caBundle.AppendCertsFromPEM(caBundleBytes)
+	bundle := x509.NewCertPool()
+	bundle.AppendCertsFromPEM(caBundleBytes)
+	return bundle, nil
+}
+
+// buildConfig reads command-line options and builds a tls.Config
+func buildConfig(caBundlePath string) (*tls.Config, error) {
+	ca, err := caBundle(caBundlePath)
+	if err != nil {
+		return nil, err
+	}
 
 	return &tls.Config{
 		// Certificates
-		RootCAs:   caBundle,
-		ClientCAs: caBundle,
+		RootCAs:   ca,
+		ClientCAs: ca,
 
 		PreferServerCipherSuites: true,
 

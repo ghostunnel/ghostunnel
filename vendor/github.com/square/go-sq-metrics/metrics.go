@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -79,7 +78,7 @@ func (mb *SquareMetrics) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (mb *SquareMetrics) publishMetrics() {
 	for range time.Tick(mb.interval) {
 		err := mb.postMetrics()
-		if err != nil && err != io.EOF {
+		if err != nil {
 			mb.logger.Printf("error reporting metrics: %s", err)
 		}
 	}
