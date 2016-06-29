@@ -80,7 +80,7 @@ If you want to pull a specific version, check the [releases][rel] tab in Github.
 ### Develop
 
 Ghostunnel has an extensive suite of integration tests. Our integration test
-suite requires Python 3.5 (or later) and [gocovmerge][gcvm] to run. We use [glide][glide] for
+suite requires Python 3.5 (or later) and [gocovmerge][gcvm] to run. We use [gvt][gvt] for
 managing vendored dependencies. 
 
 To run tests:
@@ -89,12 +89,12 @@ To run tests:
     make test
 
     # Open coverage information in browser
-    go tool -html coverage-merged.out
+    go tool cover -html coverage-merged.out
 
 For more information on how to contribute, please see the [CONTRIBUTING][contr] file.
 
+[gvt]: https://github.com/FiloSottile/gvt
 [gcvm]: https://github.com/wadey/gocovmerge
-[glide]: https://glide.sh
 [contr]: https://github.com/square/ghostunnel/blob/master/CONTRIBUTING.md
 
 ### Server mode 
