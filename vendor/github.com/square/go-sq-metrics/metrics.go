@@ -20,6 +20,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
 	"os"
 	"runtime"
@@ -35,10 +37,12 @@ type SquareMetrics struct {
 	prefix   string
 	hostname string
 	interval time.Duration
+	logger   *log.Logger
+	client   *http.Client
 }
 
 // NewMetrics is the entry point for this code
-func NewMetrics(metricsURL, metricsPrefix string, interval time.Duration, registry metrics.Registry) *SquareMetrics {
+func NewMetrics(metricsURL, metricsPrefix string, client *http.Client, interval time.Duration, registry metrics.Registry, logger *log.Logger) *SquareMetrics {
 	hostname, err := os.Hostname()
 	if err != nil {
 		panic(err)
@@ -50,6 +54,8 @@ func NewMetrics(metricsURL, metricsPrefix string, interval time.Duration, regist
 		prefix:   metricsPrefix,
 		hostname: hostname,
 		interval: interval,
+		logger:   logger,
+		client:   client,
 	}
 
 	if metricsURL != "" {
@@ -72,7 +78,10 @@ func (mb *SquareMetrics) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // Publish metrics to bridge
 func (mb *SquareMetrics) publishMetrics() {
 	for range time.Tick(mb.interval) {
-		mb.postMetrics()
+		err := mb.postMetrics()
+		if err != nil && err != io.EOF {
+			mb.logger.Printf("error reporting metrics: %s", err)
+		}
 	}
 }
 
@@ -125,16 +134,17 @@ func (mb *SquareMetrics) collectSystemMetrics() {
 	}
 }
 
-func (mb *SquareMetrics) postMetrics() {
+func (mb *SquareMetrics) postMetrics() error {
 	metrics := mb.SerializeMetrics()
 	raw, err := json.Marshal(metrics)
 	if err != nil {
 		panic(err)
 	}
-	resp, err := http.Post(mb.url, "application/json", bytes.NewReader(raw))
-	if err == nil {
-		resp.Body.Close()
+	resp, err := mb.client.Post(mb.url, "application/json", bytes.NewReader(raw))
+	if resp != nil {
+		defer resp.Body.Close()
 	}
+	return err
 }
 
 func (mb *SquareMetrics) serializeMetric(now int64, metric tuple) map[string]interface{} {

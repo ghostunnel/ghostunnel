@@ -199,7 +199,15 @@ func run(args []string) error {
 	if *metricsURL != "" {
 		logger.Printf("metrics enabled; reporting metrics via POST to %s", *metricsURL)
 	}
-	metrics := sqmetrics.NewMetrics(*metricsURL, *metricsPrefix, *metricsInterval, metrics.DefaultRegistry)
+
+	config, err := buildConfig(*caBundlePath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: unable to build TLS config: %s", err)
+		return err
+	}
+
+	client := &http.Client{Transport: &http.Transport{TLSClientConfig: config}}
+	metrics := sqmetrics.NewMetrics(*metricsURL, *metricsPrefix, client, *metricsInterval, metrics.DefaultRegistry, logger)
 
 	// Set up file watchers (if requested)
 	watcher := make(chan bool, 1)
