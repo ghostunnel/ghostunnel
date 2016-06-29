@@ -89,7 +89,7 @@ To run tests:
     make test
 
     # Open coverage information in browser
-    go tool -html coverage-merged.out
+    go tool cover -html coverage-merged.out
 
 For more information on how to contribute, please see the [CONTRIBUTING][contr] file.
 
