@@ -40,9 +40,13 @@ func signalHandler(proxy *proxy, closeables []io.Closer, context *Context) {
 		case sig := <-signals:
 			switch sig {
 			case syscall.SIGINT, syscall.SIGTERM:
-				logger.Printf("received SIGTERM, shutting down")
+				logger.Printf("received %s, shutting down", sig.String())
 				time.AfterFunc(*shutdownTimeout, func() {
-					logger.Printf("graceful shutdown timeout: exiting")
+					// Graceful shutdown timeout reached. If we can't drain connections
+					// to exit gracefully after this timeout, let's just kill our child
+					// process and exit so we don't hang forever.
+					logger.Printf("graceful shutdown timeout: forcing exit")
+					context.terminateChild(5 * time.Second)
 					exitFunc(1)
 				})
 				atomic.StoreInt32(&proxy.quit, 1)
@@ -53,7 +57,7 @@ func signalHandler(proxy *proxy, closeables []io.Closer, context *Context) {
 				return
 
 			case syscall.SIGUSR1:
-				logger.Printf("received SIGUSR1, reloading certificates")
+				logger.Printf("received %s, reloading certificates", sig.String())
 				context.status.Reloading()
 				err := context.cert.reload()
 				if err != nil {

@@ -53,7 +53,7 @@ func TestIntegrationMain(t *testing.T) {
 	exitFunc = func(exit int) {
 		once.Do(func() {
 			if exit != 0 {
-				t.Errorf("exit code from chid: %d", exit)
+				t.Errorf("exit code from ghostunnel: %d", exit)
 			}
 		})
 		finished <- true
@@ -65,7 +65,10 @@ func TestIntegrationMain(t *testing.T) {
 	panicOnError(err)
 
 	go func() {
-		run(wrappedArgs)
+		err := run(wrappedArgs)
+		if err != nil {
+			t.Errorf("got error from run: %s", err)
+		}
 		finished <- true
 	}()
 
