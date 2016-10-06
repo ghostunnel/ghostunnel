@@ -72,7 +72,7 @@ To install ghostunnel, simply use:
 
     go get -u github.com/square/ghostunnel
     
-Note that ghostunnel requires Go 1.6 or later to build.
+Note that ghostunnel requires Go 1.7 or later to build.
 
 If you want to pull a specific version, check the [releases][rel] tab in Github.
 

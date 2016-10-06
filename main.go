@@ -70,7 +70,7 @@ var (
 
 	keystorePath    = app.Flag("keystore", "Path to certificate and keystore (PKCS12).").PlaceHolder("PATH").Required().String()
 	keystorePass    = app.Flag("storepass", "Password for certificate and keystore (optional).").PlaceHolder("PASS").String()
-	caBundlePath    = app.Flag("cacert", "Path to certificate authority bundle file (PEM/X509).").Required().String()
+	caBundlePath    = app.Flag("cacert", "Path to CA bundle file (PEM/X509). Uses system trust store by default.").String()
 	timedReload     = app.Flag("timed-reload", "Reload keystores every given interval (e.g. 300s), refresh listener/client on changes.").PlaceHolder("DURATION").Duration()
 	shutdownTimeout = app.Flag("shutdown-timeout", "Graceful shutdown timeout. Terminates after timeout even if connections still open.").Default("5m").Duration()
 	timeoutDuration = app.Flag("timeout", "Timeout for establishing connections, handshakes.").Default("10s").Duration()
@@ -221,7 +221,7 @@ func run(args []string) error {
 	// Set up file watchers (if requested)
 	watcher := make(chan bool, 1)
 	if *timedReload > 0 {
-		go watchFiles([]string{*keystorePath, *caBundlePath}, *timedReload, watcher)
+		go watchFiles([]string{*keystorePath}, *timedReload, watcher)
 	}
 
 	var subprocessCommand []string

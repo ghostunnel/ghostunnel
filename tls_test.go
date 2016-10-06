@@ -205,3 +205,11 @@ func TestBuildConfig(t *testing.T) {
 	assert.Nil(t, cert, "cert with invalid params should be nil")
 	assert.NotNil(t, err, "should reject invalid keystore (empty)")
 }
+
+func TestBuildConfigSystemRoots(t *testing.T) {
+	conf, err := buildConfig("")
+	assert.Nil(t, err, "should be able to build TLS config")
+	assert.NotNil(t, conf.RootCAs, "config must have CA certs")
+	assert.NotNil(t, conf.ClientCAs, "config must have CA certs")
+	assert.True(t, conf.MinVersion == tls.VersionTLS12, "must have correct TLS min version")
+}
