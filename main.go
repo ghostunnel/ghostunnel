@@ -92,6 +92,7 @@ type Context struct {
 	dial    func() (net.Conn, error)
 	metrics *sqmetrics.SquareMetrics
 	cert    *certificate
+	child   *exec.Cmd
 }
 
 // Global logger instance
@@ -230,15 +231,6 @@ func run(args []string) error {
 		subprocessCommand = *clientSubCommand
 	}
 
-	child := spawnSubprocess(subprocessCommand)
-	defer func() {
-		if child != nil && child.Process != nil {
-			syscall.Kill(child.Process.Pid, syscall.SIGTERM)
-			time.AfterFunc(1*time.Minute, func() { child.Process.Kill() })
-			child.Wait()
-		}
-	}()
-
 	cert, err := buildCertificate(*keystorePath, *keystorePass)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: unable to load certificates: %s", err)
@@ -259,8 +251,10 @@ func run(args []string) error {
 			return err
 		}
 
+		child := spawnSubprocess(subprocessCommand)
 		status := newStatusHandler(dial, child)
-		context := &Context{watcher, status, dial, metrics, cert}
+		context := &Context{watcher, status, dial, metrics, cert, child}
+		defer context.terminateChild(*shutdownTimeout)
 
 		// Start listening
 		return serverListen(context)
@@ -284,8 +278,10 @@ func run(args []string) error {
 			return err
 		}
 
+		child := spawnSubprocess(subprocessCommand)
 		status := newStatusHandler(dial, child)
-		context := &Context{watcher, status, dial, metrics, cert}
+		context := &Context{watcher, status, dial, metrics, cert, child}
+		defer context.terminateChild(*shutdownTimeout)
 
 		// Start listening
 		return clientListen(context)
@@ -490,14 +486,14 @@ func spawnSubprocess(cmd []string) *exec.Cmd {
 	go func() {
 		err := child.Wait()
 		if err != nil {
-			logger.Printf("child error: %s", err)
+			logger.Printf("wait returned error: %s", err)
 		}
 
 		// Shut down ghostunnel: if the child process exited, so do we.
-		logger.Printf("child exited, shutting down ghostunnel")
+		logger.Printf("child exited (state: %s), shutting down", child.ProcessState.String())
 		cleanup()
 
-		if child.ProcessState != nil && child.ProcessState.Success() {
+		if child.ProcessState != nil && child.ProcessState.Exited() && child.ProcessState.Success() {
 			exitFunc(0)
 		}
 
@@ -505,4 +501,32 @@ func spawnSubprocess(cmd []string) *exec.Cmd {
 	}()
 
 	return child
+}
+
+// Terminate child/subprocess (if present/running).
+func (c *Context) terminateChild(timeout time.Duration) {
+	if c.child != nil && c.child.Process != nil && c.child.ProcessState == nil {
+		logger.Printf("sending SIGTERM to child (pid %d)", c.child.Process.Pid)
+		syscall.Kill(c.child.Process.Pid, syscall.SIGTERM)
+
+		finished := make(chan bool, 1)
+		time.AfterFunc(timeout, func() {
+			logger.Printf("sending SIGKILL to child (pid %d)", c.child.Process.Pid)
+			c.child.Process.Kill()
+			finished <- true
+		})
+
+		// We can't call Wait() a second time (it's already called in spawnSubprocess),
+		// but we want to block until child is finished. So we just loop and wait until
+		// ProcessState appears.
+		go func() {
+			for c.child.ProcessState == nil {
+				time.Sleep(1)
+			}
+			finished <- true
+		}()
+
+		<-finished
+		return
+	}
 }
