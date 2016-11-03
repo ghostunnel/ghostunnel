@@ -257,7 +257,11 @@ func run(args []string) error {
 		defer context.terminateChild(*shutdownTimeout)
 
 		// Start listening
-		return serverListen(context)
+		err = serverListen(context)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error from server listen: %s", err)
+		}
+		return err
 
 	case clientCommand.FullCommand():
 		if err := clientValidateFlags(); err != nil {
@@ -284,7 +288,11 @@ func run(args []string) error {
 		defer context.terminateChild(*shutdownTimeout)
 
 		// Start listening
-		return clientListen(context)
+		err = clientListen(context)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error from client listen: %s", err)
+		}
+		return err
 	}
 
 	return errors.New("unknown command")
