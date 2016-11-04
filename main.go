@@ -308,6 +308,7 @@ func serverListen(context *Context) error {
 
 	config, err := buildConfig(*caBundlePath)
 	if err != nil {
+		logger.Printf("error trying to read CA bundle: %s", err)
 		return err
 	}
 
@@ -315,6 +316,7 @@ func serverListen(context *Context) error {
 
 	listener, err := reuseport.NewReusablePortListener(network, address)
 	if err != nil {
+		logger.Printf("error trying to listen: %s", err)
 		return err
 	}
 
@@ -333,6 +335,7 @@ func serverListen(context *Context) error {
 	if *statusAddress != "" {
 		status, err := serveStatus(context)
 		if err != nil {
+			logger.Printf("error serving /_status: %s", err)
 			return err
 		}
 		closables = append(closables, status)
@@ -377,6 +380,7 @@ func clientListen(context *Context) error {
 	if *statusAddress != "" {
 		status, err := serveStatus(context)
 		if err != nil {
+			logger.Printf("error serving /_status: %s", err)
 			return err
 		}
 		closables = append(closables, status)
