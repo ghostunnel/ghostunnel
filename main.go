@@ -168,7 +168,7 @@ func clientValidateFlags() error {
 
 func cleanup() {
 	// Clean up UNIX sockets before we exit (if there were any left over)
-	for _, arg := range []string{*clientListenAddress, *serverForwardAddress, *statusAddress} {
+	for _, arg := range []string{*clientListenAddress, *statusAddress} {
 		net, addr, _, err := parseUnixOrTCPAddress(arg)
 		if err == nil && net == "unix" {
 			defer os.Remove(addr)
