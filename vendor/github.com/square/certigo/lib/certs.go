@@ -196,7 +196,7 @@ func readCertsFromStream(reader io.Reader, filename string, format string, passw
 		}
 		blocks, err := pkcs12.ToPEM(data, password(""))
 		if err != nil || len(blocks) == 0 {
-			fmt.Fprint(os.Stderr, "keystore appears to be empty or password was incorrect\n")
+			return fmt.Errorf("keystore appears to be empty or password was incorrect\n")
 		}
 		for _, block := range blocks {
 			block.Headers = mergeHeaders(block.Headers, headers)

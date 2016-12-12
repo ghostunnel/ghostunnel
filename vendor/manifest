@@ -54,7 +54,7 @@
 			"importpath": "github.com/square/certigo/lib",
 			"repository": "https://github.com/square/certigo",
 			"vcs": "git",
-			"revision": "101ea09bc50b6cc836df92c473201b09e656da44",
+			"revision": "8e02295262bdfc308ec6733878c8a678bbcb1e95",
 			"branch": "master",
 			"path": "/lib",
 			"notests": true
