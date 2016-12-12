@@ -42,6 +42,60 @@
 			"notests": true
 		},
 		{
+			"importpath": "github.com/square/certigo/jceks",
+			"repository": "https://github.com/square/certigo",
+			"vcs": "git",
+			"revision": "101ea09bc50b6cc836df92c473201b09e656da44",
+			"branch": "master",
+			"path": "jceks",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/square/certigo/lib",
+			"repository": "https://github.com/square/certigo",
+			"vcs": "git",
+			"revision": "101ea09bc50b6cc836df92c473201b09e656da44",
+			"branch": "master",
+			"path": "/lib",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/square/certigo/pkcs7",
+			"repository": "https://github.com/square/certigo",
+			"vcs": "git",
+			"revision": "101ea09bc50b6cc836df92c473201b09e656da44",
+			"branch": "master",
+			"path": "pkcs7",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/square/certigo/vendor/github.com/fatih/color",
+			"repository": "https://github.com/square/certigo",
+			"vcs": "git",
+			"revision": "101ea09bc50b6cc836df92c473201b09e656da44",
+			"branch": "master",
+			"path": "vendor/github.com/fatih/color",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/square/certigo/vendor/golang.org/x/crypto/pkcs12",
+			"repository": "https://github.com/square/certigo",
+			"vcs": "git",
+			"revision": "101ea09bc50b6cc836df92c473201b09e656da44",
+			"branch": "master",
+			"path": "vendor/golang.org/x/crypto/pkcs12",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/square/certigo/vendor/golang.org/x/sys/unix",
+			"repository": "https://github.com/square/certigo",
+			"vcs": "git",
+			"revision": "101ea09bc50b6cc836df92c473201b09e656da44",
+			"branch": "master",
+			"path": "vendor/golang.org/x/sys/unix",
+			"notests": true
+		},
+		{
 			"importpath": "github.com/square/go-sq-metrics",
 			"repository": "https://github.com/square/go-sq-metrics",
 			"vcs": "git",

@@ -21,10 +21,11 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"io/ioutil"
+	"os"
 	"sync/atomic"
 	"unsafe"
 
-	"golang.org/x/crypto/pkcs12"
+	certigo "github.com/square/certigo/lib"
 )
 
 // certificate wraps a TLS certificate in a reloadable way
@@ -50,12 +51,21 @@ func (c *certificate) getCertificate(clientHello *tls.ClientHelloInfo) (*tls.Cer
 
 // Reload certificate
 func (c *certificate) reload() error {
-	keystoreBytes, err := ioutil.ReadFile(c.keystorePath)
+	keystore, err := os.Open(c.keystorePath)
 	if err != nil {
 		return err
 	}
 
-	pemBlocks, err := pkcs12.ToPEM(keystoreBytes, c.keystorePass)
+	var pemBlocks []*pem.Block
+	err = certigo.ReadAsPEMFromFiles(
+		[]*os.File{keystore},
+		"",
+		func(prompt string) string {
+			return c.keystorePass
+		},
+		func(block *pem.Block) {
+			pemBlocks = append(pemBlocks, block)
+		})
 	if err != nil {
 		return err
 	}
