@@ -15,9 +15,13 @@ server mode runs in front of a backend server and accepts TLS-secured
 connections, which are then proxied to the (insecure) backend. A backend can be
 a TCP domain/port or a UNIX domain socket. Ghostunnel in client mode accepts
 (insecure) connections through a TCP or UNIX domain socket and proxies them to
-a TLS-secured service.
+a TLS-secured service. In other words, ghostunnel is a replacement for stunnel.
 
-In other words, ghostunnel is a replacement for stunnel.
+**Supported platforms**: Ghostunnel is developed primarily for Linux on x86-64
+platforms, although it should run on any UNIX system that exposes SO_REUSEPORT,
+including Darwin, FreeBSD, OpenBSD and NetBSD. We recommed running on x86-64
+only, as Go (as of Go 1.7) doesn't have constant-time curve implementations for
+any other architectures.
 
 See `ghostunnel --help`, `ghostunnel server --help` and `ghostunnel client --help`.
 
