@@ -126,5 +126,9 @@ func buildConfig(caBundlePath string) (*tls.Config, error) {
 			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
 			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
 		},
+		CurvePreferences: []tls.CurveID{
+			// P-256 has an ASM implementation, others do not (as of 2016-12-19).
+			tls.CurveP256,
+		},
 	}, nil
 }
