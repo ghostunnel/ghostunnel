@@ -18,7 +18,6 @@ package main
 
 import (
 	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -312,13 +311,7 @@ func serverListen(context *Context) error {
 	}
 
 	config.GetCertificate = context.cert.getCertificate
-
-	config.VerifyPeerCertificate = func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
-		if !authorized(verifiedChains) {
-			return errors.New("unauthorized: invalid principal, or principal not allowed")
-		}
-		return nil
-	}
+	config.VerifyPeerCertificate = verifyPeerCertificate
 
 	listener, err := reuseport.NewReusablePortListener("tcp", (*serverListenAddress).String())
 	if err != nil {
