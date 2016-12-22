@@ -25,6 +25,8 @@ import (
 	"sync/atomic"
 	"unsafe"
 
+	"github.com/square/ghostunnel/internal/cipherhw"
+
 	certigo "github.com/square/certigo/lib"
 )
 
@@ -111,6 +113,29 @@ func buildConfig(caBundlePath string) (*tls.Config, error) {
 		return nil, err
 	}
 
+	// List of cipher suite preferences:
+	// * We list ECDSA ahead of RSA to prefer ECDSA for multi-cert setups.
+	// * We list AES-128 ahead of AES-256 for performance reasons.
+	aesSuites := []uint16{
+		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+		tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+	}
+
+	chachaSuites := []uint16{
+		tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+		tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
+	}
+
+	// We prefer AES over ChaCha20 on platforms where Go has AES-NI support.
+	var cipherSuites []uint16
+	if cipherhw.AESGCMSupport() {
+		cipherSuites = append(aesSuites, chachaSuites...)
+	} else {
+		cipherSuites = append(chachaSuites, aesSuites...)
+	}
+
 	return &tls.Config{
 		// Certificates
 		RootCAs:   ca,
@@ -118,16 +143,12 @@ func buildConfig(caBundlePath string) (*tls.Config, error) {
 
 		PreferServerCipherSuites: true,
 
-		ClientAuth: tls.RequireAndVerifyClientCert,
-		MinVersion: tls.VersionTLS12,
-		CipherSuites: []uint16{
-			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-		},
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		MinVersion:   tls.VersionTLS12,
+		CipherSuites: cipherSuites,
 		CurvePreferences: []tls.CurveID{
-			// P-256 has an ASM implementation, others do not (as of 2016-12-19).
+			// P-256/X25519 have an ASM implementation, others do not (at least on x86-64).
+			tls.X25519,
 			tls.CurveP256,
 		},
 	}, nil
