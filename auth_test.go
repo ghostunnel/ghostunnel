@@ -17,7 +17,6 @@
 package main
 
 import (
-	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"net"
@@ -26,17 +25,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var fakeConnectionState = tls.ConnectionState{
-	VerifiedChains: [][]*x509.Certificate{
+var fakeChains = [][]*x509.Certificate{
+	{
 		{
-			{
-				Subject: pkix.Name{
-					CommonName:         "gopher",
-					OrganizationalUnit: []string{"triangle", "circle"},
-				},
-				DNSNames:    []string{"circle"},
-				IPAddresses: []net.IP{net.IPv4(192, 168, 99, 100)},
+			Subject: pkix.Name{
+				CommonName:         "gopher",
+				OrganizationalUnit: []string{"triangle", "circle"},
 			},
+			DNSNames:    []string{"circle"},
+			IPAddresses: []net.IP{net.IPv4(192, 168, 99, 100)},
 		},
 	},
 }
@@ -48,7 +45,7 @@ func TestAuthorizeNotVerified(t *testing.T) {
 	*serverAllowedDNSs = []string{}
 	*serverAllowedIPs = []net.IP{}
 
-	assert.False(t, authorized(tls.ConnectionState{}), "conn w/o cert should be rejected")
+	assert.False(t, authorized(nil), "conn w/o cert should be rejected")
 }
 
 func TestAuthorizeReject(t *testing.T) {
@@ -58,7 +55,7 @@ func TestAuthorizeReject(t *testing.T) {
 	*serverAllowedDNSs = []string{"test"}
 	*serverAllowedIPs = []net.IP{}
 
-	assert.False(t, authorized(fakeConnectionState), "should reject cert w/o matching CN/OU")
+	assert.False(t, authorized(fakeChains), "should reject cert w/o matching CN/OU")
 }
 
 func TestAuthorizeAllowAll(t *testing.T) {
@@ -68,7 +65,7 @@ func TestAuthorizeAllowAll(t *testing.T) {
 	*serverAllowedDNSs = []string{}
 	*serverAllowedIPs = []net.IP{}
 
-	assert.True(t, authorized(fakeConnectionState), "allow-all should always allow authed clients")
+	assert.True(t, authorized(fakeChains), "allow-all should always allow authed clients")
 }
 
 func TestAuthorizeAllowCN(t *testing.T) {
@@ -78,7 +75,7 @@ func TestAuthorizeAllowCN(t *testing.T) {
 	*serverAllowedDNSs = []string{}
 	*serverAllowedIPs = []net.IP{}
 
-	assert.True(t, authorized(fakeConnectionState), "allow-cn should allow clients with matching CN")
+	assert.True(t, authorized(fakeChains), "allow-cn should allow clients with matching CN")
 }
 
 func TestAuthorizeAllowOU(t *testing.T) {
@@ -88,7 +85,7 @@ func TestAuthorizeAllowOU(t *testing.T) {
 	*serverAllowedDNSs = []string{}
 	*serverAllowedIPs = []net.IP{}
 
-	assert.True(t, authorized(fakeConnectionState), "allow-ou should allow clients with matching OU")
+	assert.True(t, authorized(fakeChains), "allow-ou should allow clients with matching OU")
 }
 
 func TestAuthorizeAllowDNS(t *testing.T) {
@@ -98,7 +95,7 @@ func TestAuthorizeAllowDNS(t *testing.T) {
 	*serverAllowedDNSs = []string{"circle"}
 	*serverAllowedIPs = []net.IP{}
 
-	assert.True(t, authorized(fakeConnectionState), "allow-dns-san should allow clients with matching DNS SAN")
+	assert.True(t, authorized(fakeChains), "allow-dns-san should allow clients with matching DNS SAN")
 }
 
 func TestAuthorizeAllowIP(t *testing.T) {
@@ -108,5 +105,5 @@ func TestAuthorizeAllowIP(t *testing.T) {
 	*serverAllowedDNSs = []string{}
 	*serverAllowedIPs = []net.IP{net.IPv4(192, 168, 99, 100)}
 
-	assert.True(t, authorized(fakeConnectionState), "allow-ip-san should allow clients with matching IP SAN")
+	assert.True(t, authorized(fakeChains), "allow-ip-san should allow clients with matching IP SAN")
 }

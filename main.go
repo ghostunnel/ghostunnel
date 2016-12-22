@@ -18,6 +18,7 @@ package main
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -312,6 +313,13 @@ func serverListen(context *Context) error {
 
 	config.GetCertificate = context.cert.getCertificate
 
+	config.VerifyPeerCertificate = func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+		if !authorized(verifiedChains) {
+			return errors.New("unauthorized: invalid principal, or principal not allowed")
+		}
+		return nil
+	}
+
 	listener, err := reuseport.NewReusablePortListener("tcp", (*serverListenAddress).String())
 	if err != nil {
 		logger.Printf("error trying to listen: %s", err)
@@ -322,11 +330,10 @@ func serverListen(context *Context) error {
 	handlers.Add(1)
 
 	proxy := &proxy{
-		quit:      0,
-		listener:  tls.NewListener(listener, config),
-		handlers:  &sync.WaitGroup{},
-		authorize: authorize,
-		dial:      context.dial,
+		quit:     0,
+		listener: tls.NewListener(listener, config),
+		handlers: &sync.WaitGroup{},
+		dial:     context.dial,
 	}
 
 	closables := []io.Closer{listener}
@@ -367,11 +374,10 @@ func clientListen(context *Context) error {
 	}
 
 	proxy := &proxy{
-		quit:      0,
-		listener:  listener,
-		handlers:  &sync.WaitGroup{},
-		authorize: func(conn net.Conn) bool { return true },
-		dial:      context.dial,
+		quit:     0,
+		listener: listener,
+		handlers: &sync.WaitGroup{},
+		dial:     context.dial,
 	}
 
 	closables := []io.Closer{}

@@ -16,14 +16,10 @@
 
 package main
 
-import (
-	"crypto/tls"
-)
+import "crypto/x509"
 
-func authorized(conn tls.ConnectionState) bool {
-	// First up: check if we have a valid client certificate. We always require
-	// a valid, signed client certificate to be present.
-	if len(conn.VerifiedChains) == 0 {
+func authorized(verifiedChains [][]*x509.Certificate) bool {
+	if len(verifiedChains) == 0 {
 		return false
 	}
 
@@ -32,7 +28,7 @@ func authorized(conn tls.ConnectionState) bool {
 		return true
 	}
 
-	cert := conn.VerifiedChains[0][0]
+	cert := verifiedChains[0][0]
 
 	// Check CN against --allow-cn flag(s).
 	for _, expectedCN := range *serverAllowedCNs {

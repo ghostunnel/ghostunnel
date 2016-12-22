@@ -35,9 +35,7 @@ if __name__ == "__main__":
     try:
       pair = SocketPair(TlsClient('client2', 'root', 13001), TcpServer(13002))
       raise Exception('failed to reject client2')
-    except socket.timeout:
-      # TODO: this should be a ssl.SSLError, but ends up being a timeout. Figure
-      # out why.
+    except ssl.SSLError:
       print_ok("client2 correctly rejected")
 
     # connect with other_client1, confirm that the tunnel isn't up
