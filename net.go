@@ -69,7 +69,11 @@ func (p *proxy) accept() {
 			defer conn.Close()
 			defer openCounter.Dec(1)
 
-			forceHandshake(conn)
+			err := forceHandshake(conn)
+			if err != nil {
+				logger.Printf("error on TLS handshake from %s: %s", conn.RemoteAddr(), err)
+				return
+			}
 
 			backend, err := p.dial()
 			if err != nil {
@@ -92,18 +96,17 @@ func (p *proxy) accept() {
 // that clients have a valid client cert and are allowed to talk to us.
 func forceHandshake(conn net.Conn) (err error) {
 	if tlsConn, ok := conn.(*tls.Conn); ok {
-		timer := time.AfterFunc(*timeoutDuration, func() {
-			logger.Printf("timed out TLS handshake on %s", conn.RemoteAddr())
-			conn.SetDeadline(time.Now())
-			conn.Close()
-			timeoutCounter.Inc(1)
-		})
+		// Set deadline to avoid blocking forever
+		tlsConn.SetDeadline(time.Now().Add(*timeoutDuration))
 
 		err = tlsConn.Handshake()
-		timer.Stop()
-
-		if err != nil {
-			logger.Printf("error on TLS handshake from %s: %s", conn.RemoteAddr(), err)
+		if err == nil {
+			// Success: clear deadline
+			tlsConn.SetDeadline(time.Time{})
+		}
+		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+			// If we timed out, increment timeout metric
+			timeoutCounter.Inc(1)
 		}
 	}
 	return
