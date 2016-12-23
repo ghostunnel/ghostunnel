@@ -25,8 +25,6 @@ import (
 	"sync/atomic"
 	"unsafe"
 
-	"github.com/square/ghostunnel/internal/cipherhw"
-
 	certigo "github.com/square/certigo/lib"
 )
 
@@ -128,12 +126,11 @@ func buildConfig(caBundlePath string) (*tls.Config, error) {
 		tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
 	}
 
-	// We prefer AES over ChaCha20 on platforms where Go has AES-NI support.
 	var cipherSuites []uint16
-	if cipherhw.AESGCMSupport() {
-		cipherSuites = append(aesSuites, chachaSuites...)
-	} else {
+	if *preferChaCha {
 		cipherSuites = append(chachaSuites, aesSuites...)
+	} else {
+		cipherSuites = append(aesSuites, chachaSuites...)
 	}
 
 	return &tls.Config{

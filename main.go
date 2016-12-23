@@ -80,6 +80,7 @@ var (
 	metricsInterval = app.Flag("metrics-interval", "Collect (and post) metrics every specified interval.").Default("30s").Duration()
 	statusAddress   = app.Flag("status", "Enable serving /_status and /_metrics on given HOST:PORT (or unix:SOCKET).").PlaceHolder("ADDR").String()
 	enableProf      = app.Flag("enable-pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
+	preferChaCha    = app.Flag("prefer-chacha", "Prefer ChaCha20-Poly1305 cipher suites over AES-GCM.").Bool()
 	useSyslog       = app.Flag("syslog", "Send logs to syslog instead of stderr.").Bool()
 )
 

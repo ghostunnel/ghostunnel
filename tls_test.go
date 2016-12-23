@@ -206,6 +206,17 @@ func TestBuildConfig(t *testing.T) {
 	assert.NotNil(t, err, "should reject invalid keystore (empty)")
 }
 
+func TestCipherSuitePreference(t *testing.T) {
+	*preferChaCha = true
+	conf, err := buildConfig("")
+	assert.Nil(t, err, "should be able to build TLS config")
+	assert.True(t, conf.CipherSuites[0] == tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305, "expecting ChaCha20")
+	*preferChaCha = false
+	conf, err = buildConfig("")
+	assert.Nil(t, err, "should be able to build TLS config")
+	assert.True(t, conf.CipherSuites[0] == tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, "expecting AES")
+}
+
 func TestBuildConfigSystemRoots(t *testing.T) {
 	conf, err := buildConfig("")
 	assert.Nil(t, err, "should be able to build TLS config")
