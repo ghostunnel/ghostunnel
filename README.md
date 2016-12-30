@@ -19,7 +19,7 @@ a TLS-secured service. In other words, ghostunnel is a replacement for stunnel.
 
 **Supported platforms**: Ghostunnel is developed primarily for Linux on x86-64
 platforms, although it should run on any UNIX system that exposes SO_REUSEPORT,
-including Darwin (macOS), FreeBSD, OpenBSD and NetBSD. We recommed running on
+including Darwin (macOS), FreeBSD, OpenBSD and NetBSD. We recommend running on
 x86-64 only, as Go (as of Go 1.7) doesn't have constant-time elliptic curve
 implementations for any other architectures.
 
@@ -28,25 +28,25 @@ See `ghostunnel --help`, `ghostunnel server --help` and `ghostunnel client --hel
 Features
 ========
 
-***Authentication/access control***: Ghostunnel enforces mutual authentication
+**Authentication/access control**: Ghostunnel enforces mutual authentication
 by always requiring a valid client certificate. We also support access control
 via checks on the subject (or subject alternative names) of a client certificate.
 This is useful for restricting access to services that don't have native access
 control.
 
-***Certificate hotswapping***: Ghostunnel can reload certificates at runtime
+**Certificate hotswapping**: Ghostunnel can reload certificates at runtime
 without dropping existing connections. To trigger a reload, simply send
 `SIGUSR1` to the process. This will cause ghostunnel to reload the keystore
 files. Once successful, the reloaded certificate will be used for new
 connections going forward.
 
-***Automatic reloading***: Ghostunnel can be configured to automatically reload
+**Automatic reloading**: Ghostunnel can be configured to automatically reload
 certificates. You can specify an interval with the `--timed-reload` flag. If 
 the timed reload flag is enabled, ghostunnel will reload the files periodically
 and check for changes. If a change is detected, it will attempt to reload the
 listener with the new certificates/private key.
 
-***Emphasis on security***: We have put some thought into making ghostunnel
+**Emphasis on security**: We have put some thought into making ghostunnel
 secure by default. In server mode, the target backend must live on localhost
 or be a UNIX socket (unless `--unsafe-target` is specified). In a similar way,
 in client mode the listening socket must live on localhost or be a UNIX socket
