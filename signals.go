@@ -28,11 +28,11 @@ import (
 // signalHandler. Listens for incoming SIGTERM or SIGUSR1 signals. If we get
 // SIGTERM, stop listening for new connections and gracefully terminate the
 // process. If we get SIGUSR1, reload certificates.
-func signalHandler(proxy *proxy, closeables []io.Closer, context *Context) {
+func (context *Context) signalHandler(proxy *proxy, closeables []io.Closer) {
 	signals := make(chan os.Signal)
 	signal.Notify(signals, syscall.SIGUSR1, syscall.SIGTERM, syscall.SIGINT)
 	defer signal.Stop(signals)
-	defer cleanup()
+	defer cleanupSocketFiles()
 
 	for {
 		// Wait for a signal
@@ -41,18 +41,28 @@ func signalHandler(proxy *proxy, closeables []io.Closer, context *Context) {
 			switch sig {
 			case syscall.SIGINT, syscall.SIGTERM:
 				logger.Printf("received %s, shutting down", sig.String())
+
+				// Best-effort shutdown of status listener
+				if context.statusHTTP != nil {
+					go context.statusHTTP.Shutdown(nil)
+				}
+
+				// Force-exit after timeout (but make sure we terminate child)
 				time.AfterFunc(*shutdownTimeout, func() {
 					// Graceful shutdown timeout reached. If we can't drain connections
 					// to exit gracefully after this timeout, let's just kill our child
 					// process and exit so we don't hang forever.
 					logger.Printf("graceful shutdown timeout: forcing exit")
 					context.terminateChild(5 * time.Second)
+					cleanupSocketFiles()
 					exitFunc(1)
 				})
+
 				atomic.StoreInt32(&proxy.quit, 1)
 				for _, closeable := range closeables {
 					closeable.Close()
 				}
+
 				logger.Printf("done with signal handler")
 				return
 

@@ -88,12 +88,13 @@ var exitFunc = os.Exit
 
 // Context groups listening context data together
 type Context struct {
-	watcher chan bool
-	status  *statusHandler
-	dial    func() (net.Conn, error)
-	metrics *sqmetrics.SquareMetrics
-	cert    *certificate
-	child   *exec.Cmd
+	watcher    chan bool
+	status     *statusHandler
+	statusHTTP *http.Server
+	dial       func() (net.Conn, error)
+	metrics    *sqmetrics.SquareMetrics
+	cert       *certificate
+	child      *exec.Cmd
 }
 
 // Global logger instance
@@ -167,7 +168,7 @@ func clientValidateFlags() error {
 	return nil
 }
 
-func cleanup() {
+func cleanupSocketFiles() {
 	// Clean up UNIX sockets before we exit (if there were any left over)
 	for _, arg := range []string{*clientListenAddress, *statusAddress} {
 		net, addr, _, err := parseUnixOrTCPAddress(arg)
@@ -254,7 +255,7 @@ func run(args []string) error {
 
 		child := spawnSubprocess(subprocessCommand)
 		status := newStatusHandler(dial, child)
-		context := &Context{watcher, status, dial, metrics, cert, child}
+		context := &Context{watcher, status, nil, dial, metrics, cert, child}
 		defer context.terminateChild(*shutdownTimeout)
 
 		// Start listening
@@ -285,7 +286,7 @@ func run(args []string) error {
 
 		child := spawnSubprocess(subprocessCommand)
 		status := newStatusHandler(dial, child)
-		context := &Context{watcher, status, dial, metrics, cert, child}
+		context := &Context{watcher, status, nil, dial, metrics, cert, child}
 		defer context.terminateChild(*shutdownTimeout)
 
 		// Start listening
@@ -330,24 +331,22 @@ func serverListen(context *Context) error {
 		dial:     context.dial,
 	}
 
-	closables := []io.Closer{listener}
 	if *statusAddress != "" {
-		status, err := serveStatus(context)
+		err := context.serveStatus()
 		if err != nil {
 			logger.Printf("error serving /_status: %s", err)
 			return err
 		}
-		closables = append(closables, status)
 	}
 
 	go proxy.accept()
 
 	context.status.Listening()
-	signalHandler(proxy, closables, context)
+	context.signalHandler(proxy, []io.Closer{listener})
 
 	logger.Printf("waiting for connections to terminate")
 	proxy.handlers.Wait()
-	cleanup()
+	cleanupSocketFiles()
 
 	return nil
 }
@@ -374,30 +373,28 @@ func clientListen(context *Context) error {
 		dial:     context.dial,
 	}
 
-	closables := []io.Closer{}
 	if *statusAddress != "" {
-		status, err := serveStatus(context)
+		err := context.serveStatus()
 		if err != nil {
 			logger.Printf("error serving /_status: %s", err)
 			return err
 		}
-		closables = append(closables, status)
 	}
 
 	go proxy.accept()
 
 	context.status.Listening()
-	signalHandler(proxy, closables, context)
+	context.signalHandler(proxy, []io.Closer{listener})
 
 	logger.Printf("waiting for connections to terminate")
 	proxy.handlers.Wait()
-	cleanup()
+	cleanupSocketFiles()
 
 	return nil
 }
 
 // Serve /_status (if configured)
-func serveStatus(context *Context) (net.Listener, error) {
+func (context *Context) serveStatus() error {
 	mux := http.NewServeMux()
 	mux.Handle("/_status", context.status)
 	mux.Handle("/_metrics", context.metrics)
@@ -411,14 +408,14 @@ func serveStatus(context *Context) (net.Listener, error) {
 
 	config, err := buildConfig(*caBundlePath)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	config.ClientAuth = tls.NoClientCert
 	config.GetCertificate = context.cert.getCertificate
 
 	network, address, _, err := parseUnixOrTCPAddress(*statusAddress)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	var listener net.Listener
@@ -430,22 +427,21 @@ func serveStatus(context *Context) (net.Listener, error) {
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: unable to bind on status port: %s", err)
-		return nil, err
+		return err
 	}
 
 	if network != "unix" {
 		listener = tls.NewListener(listener, config)
 	}
 
-	go func() {
-		server := &http.Server{
-			Handler:  mux,
-			ErrorLog: logger,
-		}
-		server.Serve(listener)
-	}()
+	context.statusHTTP = &http.Server{
+		Handler:  mux,
+		ErrorLog: logger,
+	}
 
-	return listener, nil
+	go context.statusHTTP.Serve(listener)
+
+	return nil
 }
 
 // Get backend dialer function in server mode (connecting to a unix socket or tcp port)
@@ -501,7 +497,7 @@ func spawnSubprocess(cmd []string) *exec.Cmd {
 
 		// Shut down ghostunnel: if the child process exited, so do we.
 		logger.Printf("child exited (state: %s), shutting down", child.ProcessState.String())
-		cleanup()
+		cleanupSocketFiles()
 
 		if child.ProcessState != nil && child.ProcessState.Exited() && child.ProcessState.Success() {
 			exitFunc(0)
@@ -514,15 +510,15 @@ func spawnSubprocess(cmd []string) *exec.Cmd {
 }
 
 // Terminate child/subprocess (if present/running).
-func (c *Context) terminateChild(timeout time.Duration) {
-	if c.child != nil && c.child.Process != nil && c.child.ProcessState == nil {
-		logger.Printf("sending SIGTERM to child (pid %d)", c.child.Process.Pid)
-		syscall.Kill(c.child.Process.Pid, syscall.SIGTERM)
+func (context *Context) terminateChild(timeout time.Duration) {
+	if context.child != nil && context.child.Process != nil && context.child.ProcessState == nil {
+		logger.Printf("sending SIGTERM to child (pid %d)", context.child.Process.Pid)
+		syscall.Kill(context.child.Process.Pid, syscall.SIGTERM)
 
 		finished := make(chan bool, 1)
 		time.AfterFunc(timeout, func() {
-			logger.Printf("sending SIGKILL to child (pid %d)", c.child.Process.Pid)
-			c.child.Process.Kill()
+			logger.Printf("sending SIGKILL to child (pid %d)", context.child.Process.Pid)
+			context.child.Process.Kill()
 			finished <- true
 		})
 
@@ -530,7 +526,7 @@ func (c *Context) terminateChild(timeout time.Duration) {
 		// but we want to block until child is finished. So we just loop and wait until
 		// ProcessState appears.
 		go func() {
-			for c.child.ProcessState == nil {
+			for context.child.ProcessState == nil {
 				time.Sleep(1)
 			}
 			finished <- true
