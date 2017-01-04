@@ -21,7 +21,7 @@
 			"importpath": "github.com/cyberdelia/go-metrics-graphite",
 			"repository": "https://github.com/cyberdelia/go-metrics-graphite",
 			"vcs": "git",
-			"revision": "7e54b5c2aa6eaff4286c44129c3def899dff528c",
+			"revision": "39f87cc3b432bbb898d7c643c0e93cac2bc865ad",
 			"branch": "master",
 			"notests": true
 		},
@@ -29,7 +29,7 @@
 			"importpath": "github.com/kavu/go_reuseport",
 			"repository": "https://github.com/kavu/go_reuseport",
 			"vcs": "git",
-			"revision": "8a07ef526c5a2c77553a12b75ea529667012d260",
+			"revision": "549e754a4ef1b9159c000d49db7ca6b898b19577",
 			"branch": "master",
 			"notests": true
 		},
@@ -37,7 +37,7 @@
 			"importpath": "github.com/rcrowley/go-metrics",
 			"repository": "https://github.com/rcrowley/go-metrics",
 			"vcs": "git",
-			"revision": "cfa5a85e9f0abbdf1701b59082c36fc7bff10759",
+			"revision": "1f30fe9094a513ce4c700b9a54458bbb0c96996c",
 			"branch": "master",
 			"notests": true
 		},
@@ -45,7 +45,7 @@
 			"importpath": "github.com/square/certigo/jceks",
 			"repository": "https://github.com/square/certigo",
 			"vcs": "git",
-			"revision": "101ea09bc50b6cc836df92c473201b09e656da44",
+			"revision": "8e02295262bdfc308ec6733878c8a678bbcb1e95",
 			"branch": "master",
 			"path": "jceks",
 			"notests": true
@@ -63,7 +63,7 @@
 			"importpath": "github.com/square/certigo/pkcs7",
 			"repository": "https://github.com/square/certigo",
 			"vcs": "git",
-			"revision": "101ea09bc50b6cc836df92c473201b09e656da44",
+			"revision": "8e02295262bdfc308ec6733878c8a678bbcb1e95",
 			"branch": "master",
 			"path": "pkcs7",
 			"notests": true
@@ -72,7 +72,7 @@
 			"importpath": "github.com/square/certigo/vendor/github.com/fatih/color",
 			"repository": "https://github.com/square/certigo",
 			"vcs": "git",
-			"revision": "101ea09bc50b6cc836df92c473201b09e656da44",
+			"revision": "8e02295262bdfc308ec6733878c8a678bbcb1e95",
 			"branch": "master",
 			"path": "vendor/github.com/fatih/color",
 			"notests": true
@@ -81,7 +81,7 @@
 			"importpath": "github.com/square/certigo/vendor/golang.org/x/crypto/pkcs12",
 			"repository": "https://github.com/square/certigo",
 			"vcs": "git",
-			"revision": "101ea09bc50b6cc836df92c473201b09e656da44",
+			"revision": "8e02295262bdfc308ec6733878c8a678bbcb1e95",
 			"branch": "master",
 			"path": "vendor/golang.org/x/crypto/pkcs12",
 			"notests": true
@@ -90,7 +90,7 @@
 			"importpath": "github.com/square/certigo/vendor/golang.org/x/sys/unix",
 			"repository": "https://github.com/square/certigo",
 			"vcs": "git",
-			"revision": "101ea09bc50b6cc836df92c473201b09e656da44",
+			"revision": "8e02295262bdfc308ec6733878c8a678bbcb1e95",
 			"branch": "master",
 			"path": "vendor/golang.org/x/sys/unix",
 			"notests": true
@@ -99,15 +99,7 @@
 			"importpath": "github.com/square/go-sq-metrics",
 			"repository": "https://github.com/square/go-sq-metrics",
 			"vcs": "git",
-			"revision": "d3f0b9f184952d4c55041cd55f367c9f60f42a30",
-			"branch": "master",
-			"notests": true
-		},
-		{
-			"importpath": "github.com/stathat/go",
-			"repository": "https://github.com/stathat/go",
-			"vcs": "git",
-			"revision": "c828dca0ee6eadc566bfcbcc00e4a992f12821a3",
+			"revision": "348c9e6631e68433058bbb1b4e275985f5e770f6",
 			"branch": "master",
 			"notests": true
 		},
@@ -115,7 +107,7 @@
 			"importpath": "github.com/stretchr/testify/assert",
 			"repository": "https://github.com/stretchr/testify",
 			"vcs": "git",
-			"revision": "d77da356e56a7428ad25149ca77381849a6a5232",
+			"revision": "2402e8e7a02fc811447d11f881aa9746cdc57983",
 			"branch": "master",
 			"path": "/assert",
 			"notests": true
@@ -124,7 +116,7 @@
 			"importpath": "github.com/stretchr/testify/vendor/github.com/davecgh/go-spew/spew",
 			"repository": "https://github.com/stretchr/testify",
 			"vcs": "git",
-			"revision": "d77da356e56a7428ad25149ca77381849a6a5232",
+			"revision": "2402e8e7a02fc811447d11f881aa9746cdc57983",
 			"branch": "master",
 			"path": "vendor/github.com/davecgh/go-spew/spew",
 			"notests": true
@@ -133,7 +125,7 @@
 			"importpath": "github.com/stretchr/testify/vendor/github.com/pmezard/go-difflib/difflib",
 			"repository": "https://github.com/stretchr/testify",
 			"vcs": "git",
-			"revision": "d77da356e56a7428ad25149ca77381849a6a5232",
+			"revision": "2402e8e7a02fc811447d11f881aa9746cdc57983",
 			"branch": "master",
 			"path": "vendor/github.com/pmezard/go-difflib/difflib",
 			"notests": true
@@ -142,7 +134,7 @@
 			"importpath": "golang.org/x/crypto/pkcs12",
 			"repository": "https://go.googlesource.com/crypto",
 			"vcs": "git",
-			"revision": "811831de4c4dd03a0b8737233af3b36852386373",
+			"revision": "f6b343c37ca80bfa8ea539da67a0b621f84fab1d",
 			"branch": "master",
 			"path": "/pkcs12",
 			"notests": true
@@ -151,7 +143,7 @@
 			"importpath": "gopkg.in/alecthomas/kingpin.v2",
 			"repository": "https://gopkg.in/alecthomas/kingpin.v2",
 			"vcs": "git",
-			"revision": "8cccfa8eb2e3183254457fb1749b2667fbc364c7",
+			"revision": "e9044be3ab2a8e11d4e1f418d12f0790d57e8d70",
 			"branch": "master",
 			"notests": true
 		}
