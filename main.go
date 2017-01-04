@@ -304,8 +304,6 @@ func run(args []string) error {
 // connections. This is useful for the purpose of replacing certificates
 // in-place without having to take downtime, e.g. if a certificate is expiring.
 func serverListen(context *Context) error {
-	network, address := decodeAddress(*serverListenAddress)
-
 	config, err := buildConfig(*caBundlePath)
 	if err != nil {
 		logger.Printf("error trying to read CA bundle: %s", err)
@@ -314,7 +312,7 @@ func serverListen(context *Context) error {
 
 	config.GetCertificate = context.cert.getCertificate
 
-	listener, err := reuseport.NewReusablePortListener(network, address)
+	listener, err := reuseport.NewReusablePortListener("tcp", (*serverListenAddress).String())
 	if err != nil {
 		logger.Printf("error trying to listen: %s", err)
 		return err

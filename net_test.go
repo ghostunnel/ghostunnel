@@ -17,29 +17,10 @@
 package main
 
 import (
-	"net"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
-
-func TestDecodeAddress(t *testing.T) {
-	addr4, err := net.ResolveTCPAddr("tcp", "127.0.0.1:8080")
-	assert.Nil(t, err, "must resolve valid address")
-
-	addr6, err := net.ResolveTCPAddr("tcp", "[::1]:8080")
-	assert.Nil(t, err, "must resolve valid address")
-
-	net, _ := decodeAddress(addr4)
-	if net != "tcp4" {
-		t.Errorf("decoding 127.0.0.1 network gave %s, should be tcp4", net)
-	}
-
-	net, _ = decodeAddress(addr6)
-	if net != "tcp6" {
-		t.Errorf("decoding 127.0.0.1 network gave %s, should be tcp6", net)
-	}
-}
 
 func TestParseUnixOrTcpAddress(t *testing.T) {
 	network, address, host, _ := parseUnixOrTCPAddress("unix:/tmp/foo")
@@ -55,7 +36,7 @@ func TestParseUnixOrTcpAddress(t *testing.T) {
 
 	network, address, host, _ = parseUnixOrTCPAddress("localhost:8080")
 	// note: ipv6 test is probably fragile, we don't expand ::1.
-	if network != "tcp4" && network != "tcp6" {
+	if network != "tcp" {
 		t.Errorf("unexpected network: %s", network)
 	}
 	if address != "127.0.0.1:8080" && address != "[::1]:8080" {
