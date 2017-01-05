@@ -71,6 +71,7 @@ func (p *proxy) accept() {
 
 			err := forceHandshake(conn)
 			if err != nil {
+				errorCounter.Inc(1)
 				logger.Printf("error on TLS handshake from %s: %s", conn.RemoteAddr(), err)
 				return
 			}
