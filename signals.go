@@ -32,7 +32,6 @@ func (context *Context) signalHandler(proxy *proxy, closeables []io.Closer) {
 	signals := make(chan os.Signal)
 	signal.Notify(signals, syscall.SIGUSR1, syscall.SIGTERM, syscall.SIGINT)
 	defer signal.Stop(signals)
-	defer cleanupSocketFiles()
 
 	for {
 		// Wait for a signal
@@ -54,7 +53,6 @@ func (context *Context) signalHandler(proxy *proxy, closeables []io.Closer) {
 					// process and exit so we don't hang forever.
 					logger.Printf("graceful shutdown timeout: forcing exit")
 					context.terminateChild(5 * time.Second)
-					cleanupSocketFiles()
 					exitFunc(1)
 				})
 

@@ -168,16 +168,6 @@ func clientValidateFlags() error {
 	return nil
 }
 
-func cleanupSocketFiles() {
-	// Clean up UNIX sockets before we exit (if there were any left over)
-	for _, arg := range []string{*clientListenAddress, *statusAddress} {
-		net, addr, _, err := parseUnixOrTCPAddress(arg)
-		if err == nil && net == "unix" {
-			defer os.Remove(addr)
-		}
-	}
-}
-
 func main() {
 	err := run(os.Args[1:])
 	if err != nil {
@@ -346,7 +336,6 @@ func serverListen(context *Context) error {
 
 	logger.Printf("waiting for connections to terminate")
 	proxy.handlers.Wait()
-	cleanupSocketFiles()
 
 	return nil
 }
@@ -364,6 +353,11 @@ func clientListen(context *Context) error {
 	if err != nil {
 		logger.Printf("error opening socket: %s", err)
 		return err
+	}
+
+	// If this is a UNIX socket, make sure we cleanup files on close.
+	if ul, ok := listener.(*net.UnixListener); ok {
+		ul.SetUnlinkOnClose(true)
 	}
 
 	proxy := &proxy{
@@ -388,7 +382,6 @@ func clientListen(context *Context) error {
 
 	logger.Printf("waiting for connections to terminate")
 	proxy.handlers.Wait()
-	cleanupSocketFiles()
 
 	return nil
 }
@@ -421,6 +414,7 @@ func (context *Context) serveStatus() error {
 	var listener net.Listener
 	if network == "unix" {
 		listener, err = net.Listen(network, address)
+		listener.(*net.UnixListener).SetUnlinkOnClose(true)
 	} else {
 		listener, err = reuseport.NewReusablePortListener(network, address)
 	}
@@ -497,7 +491,6 @@ func spawnSubprocess(cmd []string) *exec.Cmd {
 
 		// Shut down ghostunnel: if the child process exited, so do we.
 		logger.Printf("child exited (state: %s), shutting down", child.ProcessState.String())
-		cleanupSocketFiles()
 
 		if child.ProcessState != nil && child.ProcessState.Exited() && child.ProcessState.Success() {
 			exitFunc(0)
