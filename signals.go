@@ -30,7 +30,7 @@ import (
 // process. If we get SIGUSR1, reload certificates.
 func (context *Context) signalHandler(proxy *proxy, closeables []io.Closer) {
 	signals := make(chan os.Signal)
-	signal.Notify(signals, syscall.SIGUSR1, syscall.SIGTERM, syscall.SIGINT)
+	signal.Notify(signals, syscall.SIGUSR1, syscall.SIGTERM, syscall.SIGINT, syscall.SIGCHLD)
 	defer signal.Stop(signals)
 
 	for {
@@ -38,10 +38,10 @@ func (context *Context) signalHandler(proxy *proxy, closeables []io.Closer) {
 		select {
 		case sig := <-signals:
 			switch sig {
-			case syscall.SIGINT, syscall.SIGTERM:
+			case syscall.SIGINT, syscall.SIGTERM, syscall.SIGCHLD:
 				logger.Printf("received %s, shutting down", sig.String())
 
-				// Best-effort shutdown of status listener
+				// Best-effort graceful shutdown of status listener
 				if context.statusHTTP != nil {
 					go context.statusHTTP.Shutdown(nil)
 				}
@@ -52,7 +52,9 @@ func (context *Context) signalHandler(proxy *proxy, closeables []io.Closer) {
 					// to exit gracefully after this timeout, let's just kill our child
 					// process and exit so we don't hang forever.
 					logger.Printf("graceful shutdown timeout: forcing exit")
-					context.terminateChild(5 * time.Second)
+					if context.child != nil {
+						syscall.Kill(-context.child.Process.Pid, syscall.SIGKILL)
+					}
 					exitFunc(1)
 				})
 
@@ -61,7 +63,7 @@ func (context *Context) signalHandler(proxy *proxy, closeables []io.Closer) {
 					closeable.Close()
 				}
 
-				logger.Printf("done with signal handler")
+				logger.Printf("shutdown proxy, waiting for drain/child exit")
 				return
 
 			case syscall.SIGUSR1:
@@ -83,5 +85,23 @@ func (context *Context) signalHandler(proxy *proxy, closeables []io.Closer) {
 			logger.Printf("reloading complete")
 			context.status.Listening()
 		}
+	}
+}
+
+// childSignalHandler. Listens for incoming SIGINT/SIGTERM and forwards to child process group.
+func (context *Context) childSignalHandler() {
+	if context.child == nil {
+		return
+	}
+
+	signals := make(chan os.Signal)
+	signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT)
+	defer signal.Stop(signals)
+
+	for {
+		// Forward SIGTERM and SIGINT signals to child process group
+		sig := (<-signals).(syscall.Signal)
+		logger.Printf("sending %s to child (pid = %d)", sig.String(), context.child.Process.Pid)
+		syscall.Kill(-context.child.Process.Pid, sig)
 	}
 }

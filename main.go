@@ -31,7 +31,6 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/cyberdelia/go-metrics-graphite"
@@ -253,7 +252,6 @@ func run(args []string) error {
 		child := spawnSubprocess(subprocessCommand)
 		status := newStatusHandler(dial, child)
 		context := &Context{watcher, status, nil, dial, metrics, cert, child}
-		defer context.terminateChild(*shutdownTimeout)
 
 		// Start listening
 		err = serverListen(context)
@@ -284,7 +282,6 @@ func run(args []string) error {
 		child := spawnSubprocess(subprocessCommand)
 		status := newStatusHandler(dial, child)
 		context := &Context{watcher, status, nil, dial, metrics, cert, child}
-		defer context.terminateChild(*shutdownTimeout)
 
 		// Start listening
 		err = clientListen(context)
@@ -337,14 +334,13 @@ func serverListen(context *Context) error {
 	}
 
 	go proxy.accept()
+	go context.childSignalHandler()
 
 	context.status.Listening()
 	context.signalHandler(proxy, []io.Closer{listener})
-
-	logger.Printf("waiting for connections to terminate")
 	proxy.handlers.Wait()
 
-	return nil
+	return context.waitForChild()
 }
 
 // Open listening socket in client mode.
@@ -383,14 +379,13 @@ func clientListen(context *Context) error {
 	}
 
 	go proxy.accept()
+	go context.childSignalHandler()
 
 	context.status.Listening()
 	context.signalHandler(proxy, []io.Closer{listener})
-
-	logger.Printf("waiting for connections to terminate")
 	proxy.handlers.Wait()
 
-	return nil
+	return context.waitForChild()
 }
 
 // Serve /_status (if configured)
@@ -503,53 +498,24 @@ func spawnSubprocess(cmd []string) *exec.Cmd {
 
 	logger.Printf("spawning child: %s", strings.Join(cmd, " "))
 	child := exec.Command(cmd[0], cmd[1:]...)
+	child.SysProcAttr = sysProcAttr()
 	child.Stdout = os.Stdout
 	child.Stderr = os.Stderr
 	child.Start()
 
-	go func() {
-		err := child.Wait()
-		if err != nil {
-			logger.Printf("wait returned error: %s", err)
-		}
-
-		// Shut down ghostunnel: if the child process exited, so do we.
-		logger.Printf("child exited (state: %s), shutting down", child.ProcessState.String())
-
-		if child.ProcessState != nil && child.ProcessState.Exited() && child.ProcessState.Success() {
-			exitFunc(0)
-		}
-
-		exitFunc(1)
-	}()
-
 	return child
 }
 
-// Terminate child/subprocess (if present/running).
-func (context *Context) terminateChild(timeout time.Duration) {
-	if context.child != nil && context.child.Process != nil && context.child.ProcessState == nil {
-		logger.Printf("sending SIGTERM to child (pid %d)", context.child.Process.Pid)
-		syscall.Kill(context.child.Process.Pid, syscall.SIGTERM)
-
-		finished := make(chan bool, 1)
-		time.AfterFunc(timeout, func() {
-			logger.Printf("sending SIGKILL to child (pid %d)", context.child.Process.Pid)
-			context.child.Process.Kill()
-			finished <- true
-		})
-
-		// We can't call Wait() a second time (it's already called in spawnSubprocess),
-		// but we want to block until child is finished. So we just loop and wait until
-		// ProcessState appears.
-		go func() {
-			for context.child.ProcessState == nil {
-				time.Sleep(1)
-			}
-			finished <- true
-		}()
-
-		<-finished
-		return
+func (context *Context) waitForChild() error {
+	if context.child == nil {
+		return nil
 	}
+
+	err := context.child.Wait()
+	if err != nil {
+		logger.Printf("wait on child returned error: %s", err)
+	}
+
+	logger.Printf("child[pid=%d] process has exited", context.child.Process.Pid)
+	return err
 }
