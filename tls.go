@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"sync/atomic"
@@ -27,6 +28,19 @@ import (
 
 	certigo "github.com/square/certigo/lib"
 )
+
+var cipherSuites = map[string][]uint16{
+	"AES": []uint16{
+		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+		tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+	},
+	"CHACHA": []uint16{
+		tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+		tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
+	},
+}
 
 // certificate wraps a TLS certificate in a reloadable way
 type certificate struct {
@@ -114,23 +128,20 @@ func buildConfig(caBundlePath string) (*tls.Config, error) {
 	// List of cipher suite preferences:
 	// * We list ECDSA ahead of RSA to prefer ECDSA for multi-cert setups.
 	// * We list AES-128 ahead of AES-256 for performance reasons.
-	aesSuites := []uint16{
-		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-		tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+
+	suites := []uint16{}
+	for _, suite := range *enabledCipherSuites {
+		ciphers, ok := cipherSuites[suite]
+		if !ok {
+			return nil, fmt.Errorf("invalid cipher suite %s selected", suite)
+		}
+
+		logger.Printf("enabling cipher suites for '%s' (%d cipher suites)", suite, len(ciphers))
+		suites = append(suites, ciphers...)
 	}
 
-	chachaSuites := []uint16{
-		tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
-		tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
-	}
-
-	var cipherSuites []uint16
-	if *preferChaCha {
-		cipherSuites = append(chachaSuites, aesSuites...)
-	} else {
-		cipherSuites = append(aesSuites, chachaSuites...)
+	if len(suites) == 0 {
+		return nil, fmt.Errorf("no cipher suites selected? aborting")
 	}
 
 	return &tls.Config{
@@ -142,7 +153,7 @@ func buildConfig(caBundlePath string) (*tls.Config, error) {
 
 		ClientAuth:   tls.RequireAndVerifyClientCert,
 		MinVersion:   tls.VersionTLS12,
-		CipherSuites: cipherSuites,
+		CipherSuites: suites,
 		CurvePreferences: []tls.CurveID{
 			// P-256/X25519 have an ASM implementation, others do not (at least on x86-64).
 			tls.X25519,
