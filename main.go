@@ -36,6 +36,7 @@ import (
 
 	"github.com/cyberdelia/go-metrics-graphite"
 	"github.com/kavu/go_reuseport"
+	"github.com/mwitkow/go-http-dialer"
 	"github.com/rcrowley/go-metrics"
 	"github.com/square/go-sq-metrics"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -66,6 +67,7 @@ var (
 	clientForwardAddress = clientCommand.Flag("target", "Address to forward connections to (HOST:PORT).").PlaceHolder("ADDR").Required().String()
 	clientUnsafeListen   = clientCommand.Flag("unsafe-listen", "If set, does not limit listen to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
 	clientServerName     = clientCommand.Flag("override-server-name", "If set, overrides the server name used for hostname verification.").PlaceHolder("NAME").String()
+	clientConnectProxy   = clientCommand.Flag("connect-proxy", "If set, connect to target over given HTTP CONNECT proxy. Must be HTTP/HTTPS URL.").PlaceHolder("URL").URL()
 	clientSubCommand     = clientCommand.Arg("sub-command", "Child command to wrap (optional). Spawns as child on startup, terminates if child exists.").Strings()
 
 	keystorePath    = app.Flag("keystore", "Path to certificate and keystore (PEM, PKCS12).").PlaceHolder("PATH").Required().String()
@@ -93,6 +95,11 @@ type Context struct {
 	metrics *sqmetrics.SquareMetrics
 	cert    *certificate
 	child   *exec.Cmd
+}
+
+// Dialer is an interface for dialers (either net.Dialer, or http_dialer.HttpTunnel)
+type Dialer interface {
+	Dial(network, address string) (net.Conn, error)
 }
 
 // Global logger instance
@@ -473,11 +480,28 @@ func clientBackendDialer(cert *certificate, network, address, host string) (func
 		config.ServerName = *clientServerName
 	}
 
+	var dialer Dialer
+	dialer = &net.Dialer{Timeout: *timeoutDuration}
+
+	if *clientConnectProxy != nil {
+		// Use HTTP CONNECT proxy to connect to target.
+		proxyConfig, err := buildConfig(*caBundlePath)
+		if err != nil {
+			return nil, err
+		}
+		config.ClientAuth = tls.NoClientCert
+
+		dialer = http_dialer.New(
+			*clientConnectProxy,
+			http_dialer.WithDialer(dialer.(*net.Dialer)),
+			http_dialer.WithTls(proxyConfig))
+	}
+
 	return func() (net.Conn, error) {
 		// Fetch latest cached certificate before initiating new connection
 		crt, _ := cert.getCertificate(nil)
 		config.Certificates = []tls.Certificate{*crt}
-		return tls.DialWithDialer(&net.Dialer{Timeout: *timeoutDuration}, network, address, config)
+		return dialWithDialer(dialer, *timeoutDuration, network, address, config)
 	}, nil
 }
 
