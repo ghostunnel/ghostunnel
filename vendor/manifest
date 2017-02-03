@@ -34,6 +34,14 @@
 			"notests": true
 		},
 		{
+			"importpath": "github.com/mwitkow/go-http-dialer",
+			"repository": "https://github.com/mwitkow/go-http-dialer",
+			"vcs": "git",
+			"revision": "378f744fb2b81a6b96e3f40cde4f3bcab5a9cff0",
+			"branch": "master",
+			"notests": true
+		},
+		{
 			"importpath": "github.com/rcrowley/go-metrics",
 			"repository": "https://github.com/rcrowley/go-metrics",
 			"vcs": "git",
