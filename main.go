@@ -70,31 +70,33 @@ var (
 	clientConnectProxy   = clientCommand.Flag("connect-proxy", "If set, connect to target over given HTTP CONNECT proxy. Must be HTTP/HTTPS URL.").PlaceHolder("URL").URL()
 	clientSubCommand     = clientCommand.Arg("sub-command", "Child command to wrap (optional). Spawns as child on startup, terminates if child exists.").Strings()
 
-	keystorePath    = app.Flag("keystore", "Path to certificate and keystore (PEM, PKCS12).").PlaceHolder("PATH").Required().String()
-	keystorePass    = app.Flag("storepass", "Password for certificate and keystore (optional).").PlaceHolder("PASS").String()
-	caBundlePath    = app.Flag("cacert", "Path to CA bundle file (PEM/X509). Uses system trust store by default.").String()
-	timedReload     = app.Flag("timed-reload", "Reload keystores every given interval (e.g. 300s), refresh listener/client on changes.").PlaceHolder("DURATION").Duration()
-	shutdownTimeout = app.Flag("shutdown-timeout", "Graceful shutdown timeout. Terminates after timeout even if connections still open.").Default("5m").Duration()
-	timeoutDuration = app.Flag("timeout", "Timeout for establishing connections, handshakes.").Default("10s").Duration()
-	graphiteAddr    = app.Flag("graphite", "Collect metrics and report them to the given graphite instance (raw TCP).").PlaceHolder("ADDR").TCP()
-	metricsURL      = app.Flag("metrics-url", "Collect metrics and POST them periodically to the given URL (via HTTP/JSON).").PlaceHolder("URL").String()
-	metricsPrefix   = app.Flag("metrics-prefix", fmt.Sprintf("Set prefix string for all reported metrics (default: %s).", defaultMetricsPrefix)).PlaceHolder("PREFIX").Default(defaultMetricsPrefix).String()
-	metricsInterval = app.Flag("metrics-interval", "Collect (and post) metrics every specified interval.").Default("30s").Duration()
-	statusAddress   = app.Flag("status", "Enable serving /_status and /_metrics on given HOST:PORT (or unix:SOCKET).").PlaceHolder("ADDR").String()
-	enableProf      = app.Flag("enable-pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
-	useSyslog       = app.Flag("syslog", "Send logs to syslog instead of stderr.").Bool()
+	keystorePath        = app.Flag("keystore", "Path to certificate and keystore (PEM, PKCS12).").PlaceHolder("PATH").Required().String()
+	keystorePass        = app.Flag("storepass", "Password for certificate and keystore (optional).").PlaceHolder("PASS").String()
+	caBundlePath        = app.Flag("cacert", "Path to CA bundle file (PEM/X509). Uses system trust store by default.").String()
+	enabledCipherSuites = app.Flag("cipher-suites", "Set of cipher suites to enable, in order of preference (AES, CHACHA).").Default("AES", "CHACHA").Enums("AES", "CHACHA")
+	timedReload         = app.Flag("timed-reload", "Reload keystores every given interval (e.g. 300s), refresh listener/client on changes.").PlaceHolder("DURATION").Duration()
+	shutdownTimeout     = app.Flag("shutdown-timeout", "Graceful shutdown timeout. Terminates after timeout even if connections still open.").Default("5m").Duration()
+	timeoutDuration     = app.Flag("timeout", "Timeout for establishing connections, handshakes.").Default("10s").Duration()
+	graphiteAddr        = app.Flag("graphite", "Collect metrics and report them to the given graphite instance (raw TCP).").PlaceHolder("ADDR").TCP()
+	metricsURL          = app.Flag("metrics-url", "Collect metrics and POST them periodically to the given URL (via HTTP/JSON).").PlaceHolder("URL").String()
+	metricsPrefix       = app.Flag("metrics-prefix", fmt.Sprintf("Set prefix string for all reported metrics (default: %s).", defaultMetricsPrefix)).PlaceHolder("PREFIX").Default(defaultMetricsPrefix).String()
+	metricsInterval     = app.Flag("metrics-interval", "Collect (and post) metrics every specified interval.").Default("30s").Duration()
+	statusAddress       = app.Flag("status", "Enable serving /_status and /_metrics on given HOST:PORT (or unix:SOCKET).").PlaceHolder("ADDR").String()
+	enableProf          = app.Flag("enable-pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
+	useSyslog           = app.Flag("syslog", "Send logs to syslog instead of stderr.").Bool()
 )
 
 var exitFunc = os.Exit
 
 // Context groups listening context data together
 type Context struct {
-	watcher chan bool
-	status  *statusHandler
-	dial    func() (net.Conn, error)
-	metrics *sqmetrics.SquareMetrics
-	cert    *certificate
-	child   *exec.Cmd
+	watcher    chan bool
+	status     *statusHandler
+	statusHTTP *http.Server
+	dial       func() (net.Conn, error)
+	metrics    *sqmetrics.SquareMetrics
+	cert       *certificate
+	child      *exec.Cmd
 }
 
 // Dialer is an interface for dialers (either net.Dialer, or http_dialer.HttpTunnel)
@@ -171,16 +173,6 @@ func clientValidateFlags() error {
 		return fmt.Errorf("--listen must be unix:PATH, localhost:PORT, 127.0.0.1:PORT or [::1]:PORT (unless --unsafe-listen is set)")
 	}
 	return nil
-}
-
-func cleanup() {
-	// Clean up UNIX sockets before we exit (if there were any left over)
-	for _, arg := range []string{*clientListenAddress, *statusAddress} {
-		net, addr, _, err := parseUnixOrTCPAddress(arg)
-		if err == nil && net == "unix" {
-			defer os.Remove(addr)
-		}
-	}
 }
 
 func main() {
@@ -260,7 +252,7 @@ func run(args []string) error {
 
 		child := spawnSubprocess(subprocessCommand)
 		status := newStatusHandler(dial, child)
-		context := &Context{watcher, status, dial, metrics, cert, child}
+		context := &Context{watcher, status, nil, dial, metrics, cert, child}
 		defer context.terminateChild(*shutdownTimeout)
 
 		// Start listening
@@ -291,7 +283,7 @@ func run(args []string) error {
 
 		child := spawnSubprocess(subprocessCommand)
 		status := newStatusHandler(dial, child)
-		context := &Context{watcher, status, dial, metrics, cert, child}
+		context := &Context{watcher, status, nil, dial, metrics, cert, child}
 		defer context.terminateChild(*shutdownTimeout)
 
 		// Start listening
@@ -318,6 +310,7 @@ func serverListen(context *Context) error {
 	}
 
 	config.GetCertificate = context.cert.getCertificate
+	config.VerifyPeerCertificate = verifyPeerCertificate
 
 	listener, err := reuseport.NewReusablePortListener("tcp", (*serverListenAddress).String())
 	if err != nil {
@@ -329,31 +322,27 @@ func serverListen(context *Context) error {
 	handlers.Add(1)
 
 	proxy := &proxy{
-		quit:      0,
-		listener:  tls.NewListener(listener, config),
-		handlers:  &sync.WaitGroup{},
-		authorize: authorize,
-		dial:      context.dial,
+		quit:     0,
+		listener: tls.NewListener(listener, config),
+		handlers: &sync.WaitGroup{},
+		dial:     context.dial,
 	}
 
-	closables := []io.Closer{listener}
 	if *statusAddress != "" {
-		status, err := serveStatus(context)
+		err := context.serveStatus()
 		if err != nil {
 			logger.Printf("error serving /_status: %s", err)
 			return err
 		}
-		closables = append(closables, status)
 	}
 
 	go proxy.accept()
 
 	context.status.Listening()
-	signalHandler(proxy, closables, context)
+	context.signalHandler(proxy, []io.Closer{listener})
 
 	logger.Printf("waiting for connections to terminate")
 	proxy.handlers.Wait()
-	cleanup()
 
 	return nil
 }
@@ -373,38 +362,39 @@ func clientListen(context *Context) error {
 		return err
 	}
 
-	proxy := &proxy{
-		quit:      0,
-		listener:  listener,
-		handlers:  &sync.WaitGroup{},
-		authorize: func(conn net.Conn) bool { return true },
-		dial:      context.dial,
+	// If this is a UNIX socket, make sure we cleanup files on close.
+	if ul, ok := listener.(*net.UnixListener); ok {
+		ul.SetUnlinkOnClose(true)
 	}
 
-	closables := []io.Closer{}
+	proxy := &proxy{
+		quit:     0,
+		listener: listener,
+		handlers: &sync.WaitGroup{},
+		dial:     context.dial,
+	}
+
 	if *statusAddress != "" {
-		status, err := serveStatus(context)
+		err := context.serveStatus()
 		if err != nil {
 			logger.Printf("error serving /_status: %s", err)
 			return err
 		}
-		closables = append(closables, status)
 	}
 
 	go proxy.accept()
 
 	context.status.Listening()
-	signalHandler(proxy, closables, context)
+	context.signalHandler(proxy, []io.Closer{listener})
 
 	logger.Printf("waiting for connections to terminate")
 	proxy.handlers.Wait()
-	cleanup()
 
 	return nil
 }
 
 // Serve /_status (if configured)
-func serveStatus(context *Context) (net.Listener, error) {
+func (context *Context) serveStatus() error {
 	mux := http.NewServeMux()
 	mux.Handle("/_status", context.status)
 	mux.Handle("/_metrics", context.metrics)
@@ -418,41 +408,41 @@ func serveStatus(context *Context) (net.Listener, error) {
 
 	config, err := buildConfig(*caBundlePath)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	config.ClientAuth = tls.NoClientCert
 	config.GetCertificate = context.cert.getCertificate
 
 	network, address, _, err := parseUnixOrTCPAddress(*statusAddress)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	var listener net.Listener
 	if network == "unix" {
 		listener, err = net.Listen(network, address)
+		listener.(*net.UnixListener).SetUnlinkOnClose(true)
 	} else {
 		listener, err = reuseport.NewReusablePortListener(network, address)
 	}
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: unable to bind on status port: %s", err)
-		return nil, err
+		return err
 	}
 
 	if network != "unix" {
 		listener = tls.NewListener(listener, config)
 	}
 
-	go func() {
-		server := &http.Server{
-			Handler:  mux,
-			ErrorLog: logger,
-		}
-		server.Serve(listener)
-	}()
+	context.statusHTTP = &http.Server{
+		Handler:  mux,
+		ErrorLog: logger,
+	}
 
-	return listener, nil
+	go context.statusHTTP.Serve(listener)
+
+	return nil
 }
 
 // Get backend dialer function in server mode (connecting to a unix socket or tcp port)
@@ -525,7 +515,6 @@ func spawnSubprocess(cmd []string) *exec.Cmd {
 
 		// Shut down ghostunnel: if the child process exited, so do we.
 		logger.Printf("child exited (state: %s), shutting down", child.ProcessState.String())
-		cleanup()
 
 		if child.ProcessState != nil && child.ProcessState.Exited() && child.ProcessState.Success() {
 			exitFunc(0)
@@ -538,15 +527,15 @@ func spawnSubprocess(cmd []string) *exec.Cmd {
 }
 
 // Terminate child/subprocess (if present/running).
-func (c *Context) terminateChild(timeout time.Duration) {
-	if c.child != nil && c.child.Process != nil && c.child.ProcessState == nil {
-		logger.Printf("sending SIGTERM to child (pid %d)", c.child.Process.Pid)
-		syscall.Kill(c.child.Process.Pid, syscall.SIGTERM)
+func (context *Context) terminateChild(timeout time.Duration) {
+	if context.child != nil && context.child.Process != nil && context.child.ProcessState == nil {
+		logger.Printf("sending SIGTERM to child (pid %d)", context.child.Process.Pid)
+		syscall.Kill(context.child.Process.Pid, syscall.SIGTERM)
 
 		finished := make(chan bool, 1)
 		time.AfterFunc(timeout, func() {
-			logger.Printf("sending SIGKILL to child (pid %d)", c.child.Process.Pid)
-			c.child.Process.Kill()
+			logger.Printf("sending SIGKILL to child (pid %d)", context.child.Process.Pid)
+			context.child.Process.Kill()
 			finished <- true
 		})
 
@@ -554,7 +543,7 @@ func (c *Context) terminateChild(timeout time.Duration) {
 		// but we want to block until child is finished. So we just loop and wait until
 		// ProcessState appears.
 		go func() {
-			for c.child.ProcessState == nil {
+			for context.child.ProcessState == nil {
 				time.Sleep(1)
 			}
 			finished <- true

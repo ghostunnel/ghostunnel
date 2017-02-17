@@ -20,7 +20,7 @@ a TLS-secured service. In other words, ghostunnel is a replacement for stunnel.
 **Supported platforms**: Ghostunnel is developed primarily for Linux on x86-64
 platforms, although it should run on any UNIX system that exposes SO_REUSEPORT,
 including Darwin (macOS), FreeBSD, OpenBSD and NetBSD. We recommend running on
-x86-64 only, as Go (as of Go 1.7) doesn't have constant-time elliptic curve
+x86-64 only, as Go (as of Go 1.8) doesn't have constant-time elliptic curve
 implementations for any other architectures.
 
 See `ghostunnel --help`, `ghostunnel server --help` and `ghostunnel client --help`.
@@ -76,7 +76,7 @@ To install ghostunnel, simply use:
 
     go get -u github.com/square/ghostunnel
     
-Note that ghostunnel requires Go 1.7 or later to build.
+Note that ghostunnel requires Go 1.8 or later to build.
 
 If you want to pull a specific version, check the [releases][rel] tab in Github.
 

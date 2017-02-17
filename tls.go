@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"sync/atomic"
@@ -28,6 +29,19 @@ import (
 
 	certigo "github.com/square/certigo/lib"
 )
+
+var cipherSuites = map[string][]uint16{
+	"AES": []uint16{
+		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+		tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+	},
+	"CHACHA": []uint16{
+		tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+		tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
+	},
+}
 
 type timeoutError struct{}
 
@@ -153,6 +167,25 @@ func buildConfig(caBundlePath string) (*tls.Config, error) {
 		return nil, err
 	}
 
+	// List of cipher suite preferences:
+	// * We list ECDSA ahead of RSA to prefer ECDSA for multi-cert setups.
+	// * We list AES-128 ahead of AES-256 for performance reasons.
+
+	suites := []uint16{}
+	for _, suite := range *enabledCipherSuites {
+		ciphers, ok := cipherSuites[suite]
+		if !ok {
+			return nil, fmt.Errorf("invalid cipher suite %s selected", suite)
+		}
+
+		logger.Printf("enabling cipher suites for '%s' (%d cipher suites)", suite, len(ciphers))
+		suites = append(suites, ciphers...)
+	}
+
+	if len(suites) == 0 {
+		return nil, fmt.Errorf("no cipher suites selected? aborting")
+	}
+
 	return &tls.Config{
 		// Certificates
 		RootCAs:   ca,
@@ -160,16 +193,12 @@ func buildConfig(caBundlePath string) (*tls.Config, error) {
 
 		PreferServerCipherSuites: true,
 
-		ClientAuth: tls.RequireAndVerifyClientCert,
-		MinVersion: tls.VersionTLS12,
-		CipherSuites: []uint16{
-			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-		},
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		MinVersion:   tls.VersionTLS12,
+		CipherSuites: suites,
 		CurvePreferences: []tls.CurveID{
-			// P-256 has an ASM implementation, others do not (as of 2016-12-19).
+			// P-256/X25519 have an ASM implementation, others do not (at least on x86-64).
+			tls.X25519,
 			tls.CurveP256,
 		},
 	}, nil

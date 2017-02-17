@@ -179,6 +179,7 @@ func TestBuildConfig(t *testing.T) {
 	defer os.Remove(tmpCaBundle.Name())
 	defer os.Remove(tmpKeystoreNoPrivKey.Name())
 
+	*enabledCipherSuites = []string{"AES", "CHACHA"}
 	conf, err := buildConfig(tmpCaBundle.Name())
 	assert.Nil(t, err, "should be able to build TLS config")
 	assert.NotNil(t, conf.RootCAs, "config must have CA certs")
@@ -204,6 +205,17 @@ func TestBuildConfig(t *testing.T) {
 	cert, err = buildCertificate("/dev/null", "")
 	assert.Nil(t, cert, "cert with invalid params should be nil")
 	assert.NotNil(t, err, "should reject invalid keystore (empty)")
+}
+
+func TestCipherSuitePreference(t *testing.T) {
+	*enabledCipherSuites = []string{"CHACHA", "AES"}
+	conf, err := buildConfig("")
+	assert.Nil(t, err, "should be able to build TLS config")
+	assert.True(t, conf.CipherSuites[0] == tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305, "expecting ChaCha20")
+	*enabledCipherSuites = []string{"AES", "CHACHA"}
+	conf, err = buildConfig("")
+	assert.Nil(t, err, "should be able to build TLS config")
+	assert.True(t, conf.CipherSuites[0] == tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, "expecting AES")
 }
 
 func TestBuildConfigSystemRoots(t *testing.T) {

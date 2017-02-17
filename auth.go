@@ -17,27 +17,26 @@
 package main
 
 import (
-	"crypto/tls"
+	"crypto/x509"
+	"errors"
 )
 
-func authorized(conn tls.ConnectionState) bool {
-	// First up: check if we have a valid client certificate. We always require
-	// a valid, signed client certificate to be present.
-	if len(conn.VerifiedChains) == 0 {
-		return false
+func verifyPeerCertificate(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+	if len(verifiedChains) == 0 {
+		return errors.New("unauthorized: invalid principal, or principal not allowed")
 	}
 
 	// If --allow-all has been set, a valid cert is sufficient to connect.
 	if *serverAllowAll {
-		return true
+		return nil
 	}
 
-	cert := conn.VerifiedChains[0][0]
+	cert := verifiedChains[0][0]
 
 	// Check CN against --allow-cn flag(s).
 	for _, expectedCN := range *serverAllowedCNs {
 		if cert.Subject.CommonName == expectedCN {
-			return true
+			return nil
 		}
 	}
 
@@ -45,7 +44,7 @@ func authorized(conn tls.ConnectionState) bool {
 	for _, expectedOU := range *serverAllowedOUs {
 		for _, clientOU := range cert.Subject.OrganizationalUnit {
 			if clientOU == expectedOU {
-				return true
+				return nil
 			}
 		}
 	}
@@ -53,7 +52,7 @@ func authorized(conn tls.ConnectionState) bool {
 	for _, expectedDNS := range *serverAllowedDNSs {
 		for _, clientDNS := range cert.DNSNames {
 			if clientDNS == expectedDNS {
-				return true
+				return nil
 			}
 		}
 	}
@@ -61,10 +60,10 @@ func authorized(conn tls.ConnectionState) bool {
 	for _, expectedIP := range *serverAllowedIPs {
 		for _, clientIP := range cert.IPAddresses {
 			if expectedIP.Equal(clientIP) {
-				return true
+				return nil
 			}
 		}
 	}
 
-	return false
+	return errors.New("unauthorized: invalid principal, or principal not allowed")
 }

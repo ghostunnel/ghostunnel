@@ -32,9 +32,7 @@ type proxy struct {
 	quit     int32
 	listener net.Listener
 	handlers *sync.WaitGroup
-
-	authorize func(net.Conn) bool
-	dial      func() (net.Conn, error)
+	dial     func() (net.Conn, error)
 }
 
 var (
@@ -71,8 +69,10 @@ func (p *proxy) accept() {
 			defer conn.Close()
 			defer openCounter.Dec(1)
 
-			if !p.authorize(conn) {
-				logger.Printf("rejecting unauthorized connection from %s", conn.RemoteAddr())
+			err := forceHandshake(conn)
+			if err != nil {
+				errorCounter.Inc(1)
+				logger.Printf("error on TLS handshake from %s: %s", conn.RemoteAddr(), err)
 				return
 			}
 
@@ -90,32 +90,27 @@ func (p *proxy) accept() {
 	}
 }
 
-func authorize(conn net.Conn) bool {
-	tlsConn, ok := conn.(*tls.Conn)
-	if !ok {
-		return false
+// Force handshake. Handshake usually happens on first read/write, but we
+// want to force it to make sure we can control the timeout for it.
+// Otherwise, unauthenticated clients would be able to open connections
+// and leave them hanging forever. Going through the handshake verifies
+// that clients have a valid client cert and are allowed to talk to us.
+func forceHandshake(conn net.Conn) (err error) {
+	if tlsConn, ok := conn.(*tls.Conn); ok {
+		// Set deadline to avoid blocking forever
+		tlsConn.SetDeadline(time.Now().Add(*timeoutDuration))
+
+		err = tlsConn.Handshake()
+		if err == nil {
+			// Success: clear deadline
+			tlsConn.SetDeadline(time.Time{})
+		}
+		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+			// If we timed out, increment timeout metric
+			timeoutCounter.Inc(1)
+		}
 	}
-
-	// Force handshake. Handshake usually happens on first read/write, but
-	// we want to authenticate before reading/writing so we need to force
-	// the handshake to get the client cert. If handshake blocks for more
-	// than the timeout, we kill the connection.
-	timer := time.AfterFunc(*timeoutDuration, func() {
-		logger.Printf("timed out TLS handshake on %s", conn.RemoteAddr())
-		conn.SetDeadline(time.Now())
-		conn.Close()
-		timeoutCounter.Inc(1)
-	})
-
-	err := tlsConn.Handshake()
-	timer.Stop()
-	if err != nil {
-		logger.Printf("failed TLS handshake on %s: %s", conn.RemoteAddr(), err)
-		errorCounter.Inc(1)
-		return false
-	}
-
-	return authorized(tlsConn.ConnectionState())
+	return
 }
 
 // Fuse connections together
