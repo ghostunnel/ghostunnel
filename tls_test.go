@@ -208,10 +208,19 @@ func TestBuildConfig(t *testing.T) {
 }
 
 func TestCipherSuitePreference(t *testing.T) {
-	*enabledCipherSuites = []string{"CHACHA", "AES"}
+	*enabledCipherSuites = []string{"XYZ"}
 	conf, err := buildConfig("")
+	assert.NotNil(t, err, "should not be able to build TLS config with invalid cipher suite option")
+
+	*enabledCipherSuites = []string{}
+	conf, err = buildConfig("")
+	assert.NotNil(t, err, "should not be able to build TLS config wihout cipher suite selection")
+
+	*enabledCipherSuites = []string{"CHACHA", "AES"}
+	conf, err = buildConfig("")
 	assert.Nil(t, err, "should be able to build TLS config")
 	assert.True(t, conf.CipherSuites[0] == tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305, "expecting ChaCha20")
+
 	*enabledCipherSuites = []string{"AES", "CHACHA"}
 	conf, err = buildConfig("")
 	assert.Nil(t, err, "should be able to build TLS config")
@@ -224,4 +233,11 @@ func TestBuildConfigSystemRoots(t *testing.T) {
 	assert.NotNil(t, conf.RootCAs, "config must have CA certs")
 	assert.NotNil(t, conf.ClientCAs, "config must have CA certs")
 	assert.True(t, conf.MinVersion == tls.VersionTLS12, "must have correct TLS min version")
+}
+
+func TestTimeoutError(t *testing.T) {
+	err := timeoutError{}
+	assert.False(t, err.Error() == "", "Timeout error should have message")
+	assert.True(t, err.Timeout(), "Timeout error should have Timeout() == true")
+	assert.True(t, err.Temporary(), "Timeout error should have Temporary() == true")
 }

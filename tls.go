@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -121,7 +122,11 @@ func caBundle(caBundlePath string) (*x509.CertPool, error) {
 	}
 
 	bundle := x509.NewCertPool()
-	bundle.AppendCertsFromPEM(caBundleBytes)
+	ok := bundle.AppendCertsFromPEM(caBundleBytes)
+	if !ok {
+		return nil, errors.New("unable to read certificates from CA bundle")
+	}
+
 	return bundle, nil
 }
 

@@ -106,6 +106,7 @@ func TestFlagValidation(t *testing.T) {
 	*metricsURL = "127.0.0.1"
 	err = validateFlags(nil)
 	assert.NotNil(t, err, "invalid --metrics-url should be rejected")
+	*metricsURL = ""
 }
 
 func TestServerFlagValidation(t *testing.T) {
@@ -171,4 +172,15 @@ func TestServerBackendDialerError(t *testing.T) {
 	*serverForwardAddress = "invalid"
 	_, err := serverBackendDialer()
 	assert.NotNil(t, err, "invalid forward address should not have dialer")
+}
+
+func TestInvalidCABundle(t *testing.T) {
+	err := run([]string{
+		"server",
+		"--cacert", "/dev/null",
+		"--target", "localhost:8080",
+		"--keystore", "keystore.p12",
+		"--listen", "localhost:8080",
+	})
+	assert.NotNil(t, err, "invalid CA bundle should exit with error")
 }

@@ -203,7 +203,7 @@ func run(args []string) error {
 	// read CA bundle for passing to metrics library
 	ca, err := caBundle(*caBundlePath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: unable to build TLS config: %s", err)
+		fmt.Fprintf(os.Stderr, "error: unable to build TLS config: %s\n", err)
 		return err
 	}
 
@@ -232,21 +232,21 @@ func run(args []string) error {
 
 	cert, err := buildCertificate(*keystorePath, *keystorePass)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: unable to load certificates: %s", err)
+		fmt.Fprintf(os.Stderr, "error: unable to load certificates: %s\n", err)
 		return err
 	}
 
 	switch command {
 	case serverCommand.FullCommand():
 		if err := serverValidateFlags(); err != nil {
-			fmt.Fprintf(os.Stderr, "error: %s", err)
+			fmt.Fprintf(os.Stderr, "error: %s\n", err)
 			return err
 		}
 		logger.Printf("starting ghostunnel in server mode")
 
 		dial, err := serverBackendDialer()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: invalid target address: %s", err)
+			fmt.Fprintf(os.Stderr, "error: invalid target address: %s\n", err)
 			return err
 		}
 
@@ -258,26 +258,26 @@ func run(args []string) error {
 		// Start listening
 		err = serverListen(context)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error from server listen: %s", err)
+			fmt.Fprintf(os.Stderr, "error from server listen: %s\n", err)
 		}
 		return err
 
 	case clientCommand.FullCommand():
 		if err := clientValidateFlags(); err != nil {
-			fmt.Fprintf(os.Stderr, "error: %s", err)
+			fmt.Fprintf(os.Stderr, "error: %s\n", err)
 			return err
 		}
 		logger.Printf("starting ghostunnel in client mode")
 
 		network, address, host, err := parseUnixOrTCPAddress(*clientForwardAddress)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: invalid target address: %s", err)
+			fmt.Fprintf(os.Stderr, "error: invalid target address: %s\n", err)
 			return err
 		}
 
 		dial, err := clientBackendDialer(cert, network, address, host)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: unable to build dialer: %s", err)
+			fmt.Fprintf(os.Stderr, "error: unable to build dialer: %s\n", err)
 			return err
 		}
 
@@ -289,7 +289,7 @@ func run(args []string) error {
 		// Start listening
 		err = clientListen(context)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error from client listen: %s", err)
+			fmt.Fprintf(os.Stderr, "error from client listen: %s\n", err)
 		}
 		return err
 	}
@@ -427,7 +427,7 @@ func (context *Context) serveStatus() error {
 	}
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: unable to bind on status port: %s", err)
+		fmt.Fprintf(os.Stderr, "error: unable to bind on status port: %s\n", err)
 		return err
 	}
 
