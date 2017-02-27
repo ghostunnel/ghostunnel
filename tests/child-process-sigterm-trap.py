@@ -8,16 +8,16 @@ signal.signal(signal.SIGTERM, signal.SIG_IGN)
 
 # Start a server that listens for incoming connections
 try:
-    print_ok("child starting up on port %s" % sys.argv[1])
-    s = TcpServer(int(sys.argv[1]))
-    s.listen()
-    while True:
-        try:
-            s.socket, _ = s.listener.accept()
-            s.socket.settimeout(TIMEOUT)
-        except:
-            pass
+  print_ok("child starting up on port %s" % sys.argv[1])
+  s = TcpServer(int(sys.argv[1]))
+  s.listen()
+  while True:
+    try:
+      s.socket, _ = s.listener.accept()
+      s.socket.settimeout(TIMEOUT)
+    except:
+      pass
 finally:
-    s.cleanup()
+  s.cleanup()
 
 print_ok("child exiting")
