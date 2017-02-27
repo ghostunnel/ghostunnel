@@ -17,6 +17,7 @@
 package main
 
 import (
+	ctx "context"
 	"io"
 	"os"
 	"os/signal"
@@ -43,7 +44,7 @@ func (context *Context) signalHandler(proxy *proxy, closeables []io.Closer) {
 
 				// Best-effort graceful shutdown of status listener
 				if context.statusHTTP != nil {
-					go context.statusHTTP.Shutdown(nil)
+					go context.statusHTTP.Shutdown(ctx.Background())
 				}
 
 				// Force-exit after timeout (but make sure we terminate child)
