@@ -27,7 +27,6 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"os"
-	"os/exec"
 	"runtime"
 	"strings"
 	"sync"
@@ -58,7 +57,6 @@ var (
 	serverAllowedOUs     = serverCommand.Flag("allow-ou", "Allow clients with given organizational unit name (can be repeated).").PlaceHolder("OU").Strings()
 	serverAllowedDNSs    = serverCommand.Flag("allow-dns-san", "Allow clients with given DNS subject alternative name (can be repeated).").PlaceHolder("SAN").Strings()
 	serverAllowedIPs     = serverCommand.Flag("allow-ip-san", "Allow clients with given IP subject alternative name (can be repeated).").PlaceHolder("SAN").IPList()
-	serverSubCommand     = serverCommand.Arg("sub-command", "Child command to wrap (optional). Spawns as child on startup, terminates if child exists.").Strings()
 
 	clientCommand       = app.Command("client", "Client mode (plain TCP/UNIX listener -> TLS target).")
 	clientListenAddress = clientCommand.Flag("listen", "Address and port to listen on (HOST:PORT, or unix:PATH).").PlaceHolder("ADDR").Required().String()
@@ -67,7 +65,6 @@ var (
 	clientUnsafeListen   = clientCommand.Flag("unsafe-listen", "If set, does not limit listen to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
 	clientServerName     = clientCommand.Flag("override-server-name", "If set, overrides the server name used for hostname verification.").PlaceHolder("NAME").String()
 	clientConnectProxy   = clientCommand.Flag("connect-proxy", "If set, connect to target over given HTTP CONNECT proxy. Must be HTTP/HTTPS URL.").PlaceHolder("URL").URL()
-	clientSubCommand     = clientCommand.Arg("sub-command", "Child command to wrap (optional). Spawns as child on startup, terminates if child exists.").Strings()
 
 	keystorePath        = app.Flag("keystore", "Path to certificate and keystore (PEM, PKCS12).").PlaceHolder("PATH").Required().String()
 	keystorePass        = app.Flag("storepass", "Password for certificate and keystore (optional).").PlaceHolder("PASS").String()
@@ -95,7 +92,6 @@ type Context struct {
 	dial       func() (net.Conn, error)
 	metrics    *sqmetrics.SquareMetrics
 	cert       *certificate
-	child      *exec.Cmd
 }
 
 // Dialer is an interface for dialers (either net.Dialer, or http_dialer.HttpTunnel)
@@ -113,7 +109,7 @@ func initLogger() {
 		panicOnError(err)
 	}
 
-	// Set log prefix to process ID to distinguish parent/child
+	// Set log prefix to PID
 	logger.SetPrefix(fmt.Sprintf("[%5d] ", os.Getpid()))
 }
 
@@ -222,13 +218,6 @@ func run(args []string) error {
 		go watchFiles([]string{*keystorePath}, *timedReload, watcher)
 	}
 
-	var subprocessCommand []string
-	if *serverSubCommand != nil {
-		subprocessCommand = *serverSubCommand
-	} else if *clientSubCommand != nil {
-		subprocessCommand = *clientSubCommand
-	}
-
 	cert, err := buildCertificate(*keystorePath, *keystorePass)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: unable to load certificates: %s\n", err)
@@ -249,9 +238,8 @@ func run(args []string) error {
 			return err
 		}
 
-		child := spawnSubprocess(subprocessCommand)
-		status := newStatusHandler(dial, child)
-		context := &Context{watcher, status, nil, dial, metrics, cert, child}
+		status := newStatusHandler(dial)
+		context := &Context{watcher, status, nil, dial, metrics, cert}
 
 		// Start listening
 		err = serverListen(context)
@@ -279,9 +267,8 @@ func run(args []string) error {
 			return err
 		}
 
-		child := spawnSubprocess(subprocessCommand)
-		status := newStatusHandler(dial, child)
-		context := &Context{watcher, status, nil, dial, metrics, cert, child}
+		status := newStatusHandler(dial)
+		context := &Context{watcher, status, nil, dial, metrics, cert}
 
 		// Start listening
 		err = clientListen(context)
@@ -334,13 +321,12 @@ func serverListen(context *Context) error {
 	}
 
 	go proxy.accept()
-	go context.childSignalHandler()
 
 	context.status.Listening()
 	context.signalHandler(proxy, []io.Closer{listener})
 	proxy.handlers.Wait()
 
-	return context.waitForChild()
+	return nil
 }
 
 // Open listening socket in client mode.
@@ -379,13 +365,12 @@ func clientListen(context *Context) error {
 	}
 
 	go proxy.accept()
-	go context.childSignalHandler()
 
 	context.status.Listening()
 	context.signalHandler(proxy, []io.Closer{listener})
 	proxy.handlers.Wait()
 
-	return context.waitForChild()
+	return nil
 }
 
 // Serve /_status (if configured)
@@ -488,34 +473,4 @@ func clientBackendDialer(cert *certificate, network, address, host string) (func
 		config.Certificates = []tls.Certificate{*crt}
 		return dialWithDialer(dialer, *timeoutDuration, network, address, config)
 	}, nil
-}
-
-// Spawn subprocess as child (if given), terminate if it exits.
-func spawnSubprocess(cmd []string) *exec.Cmd {
-	if cmd == nil {
-		return nil
-	}
-
-	logger.Printf("spawning child: %s", strings.Join(cmd, " "))
-	child := exec.Command(cmd[0], cmd[1:]...)
-	child.SysProcAttr = sysProcAttr()
-	child.Stdout = os.Stdout
-	child.Stderr = os.Stderr
-	child.Start()
-
-	return child
-}
-
-func (context *Context) waitForChild() error {
-	if context.child == nil {
-		return nil
-	}
-
-	err := context.child.Wait()
-	if err != nil {
-		logger.Printf("wait on child returned error: %s", err)
-	}
-
-	logger.Printf("child[pid=%d] process has exited", context.child.Process.Pid)
-	return err
 }
