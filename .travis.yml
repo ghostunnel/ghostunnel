@@ -24,7 +24,6 @@ before_install:
 install:
   - go build .
   - docker build -t square/ghostunnel .
-  - docker build -t redis-tls docker/redis-tls
 
 script:
   - make test

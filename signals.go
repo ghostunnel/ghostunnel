@@ -47,15 +47,11 @@ func (context *Context) signalHandler(proxy *proxy, closeables []io.Closer) {
 					go context.statusHTTP.Shutdown(ctx.Background())
 				}
 
-				// Force-exit after timeout (but make sure we terminate child)
+				// Force-exit after timeout
 				time.AfterFunc(*shutdownTimeout, func() {
 					// Graceful shutdown timeout reached. If we can't drain connections
-					// to exit gracefully after this timeout, let's just kill our child
-					// process and exit so we don't hang forever.
+					// to exit gracefully after this timeout, let's just exit.
 					logger.Printf("graceful shutdown timeout: forcing exit")
-					if context.child != nil {
-						syscall.Kill(-context.child.Process.Pid, syscall.SIGKILL)
-					}
 					exitFunc(1)
 				})
 
@@ -64,7 +60,7 @@ func (context *Context) signalHandler(proxy *proxy, closeables []io.Closer) {
 					closeable.Close()
 				}
 
-				logger.Printf("shutdown proxy, waiting for drain/child exit")
+				logger.Printf("shutdown proxy, waiting for drain")
 				return
 
 			case syscall.SIGUSR1:
@@ -86,23 +82,5 @@ func (context *Context) signalHandler(proxy *proxy, closeables []io.Closer) {
 			logger.Printf("reloading complete")
 			context.status.Listening()
 		}
-	}
-}
-
-// childSignalHandler. Listens for incoming SIGINT/SIGTERM and forwards to child process group.
-func (context *Context) childSignalHandler() {
-	if context.child == nil {
-		return
-	}
-
-	signals := make(chan os.Signal)
-	signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT)
-	defer signal.Stop(signals)
-
-	for {
-		// Forward SIGTERM and SIGINT signals to child process group
-		sig := (<-signals).(syscall.Signal)
-		logger.Printf("sending %s to child (pid = %d)", sig.String(), context.child.Process.Pid)
-		syscall.Kill(-context.child.Process.Pid, sig)
 	}
 }
