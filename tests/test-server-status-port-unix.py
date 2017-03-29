@@ -28,9 +28,11 @@ if __name__ == "__main__":
     tempdir = mkdtemp()
     path = os.path.join(tempdir, 'ghostunnel-status-socket')
 
-    ghostunnel = run_ghostunnel(['server', '--listen={0}:13001'.format(LOCALHOST),
-      '--target=unix:{0}'.format(path), '--keystore=server.p12',
-      '--cacert=root.crt', '--allow-ou=client',
+    ghostunnel = run_ghostunnel(['server',
+      '--proxy={0}:13001:unix:{1}'.format(LOCALHOST, path),
+      '--keystore=server.p12',
+      '--cacert=root.crt',
+      '--allow-ou=client',
       '--status=unix:{0}'.format(path)])
 
     # wait for startup

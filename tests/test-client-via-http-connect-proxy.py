@@ -49,9 +49,12 @@ if __name__ == "__main__":
     server.start()
 
     # start ghostunnel
-    ghostunnel = run_ghostunnel(['client', '--listen={0}:13001'.format(LOCALHOST),
-      '--target=localhost:13002', '--keystore=client.p12', '--cacert=root.crt',
-      '--connect-proxy=http://localhost:13080', '--timeout=30s',
+    ghostunnel = run_ghostunnel(['client',
+      '--proxy={0}:13001:{0}:13002'.format(LOCALHOST),
+      '--keystore=client.p12',
+      '--connect-proxy=http://localhost:13080',
+      '--timeout=30s',
+      '--cacert=root.crt',
       '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
 
     # connect to server, confirm that the tunnel is up

@@ -14,14 +14,16 @@ if __name__ == "__main__":
     root = RootCert('root')
     root.create_signed_cert('server1')
     root.create_signed_cert('client')
-    root.create_signed_cert('server2', san="IP:127.0.0.1,IP:::1,DNS:foobar")
+    root.create_signed_cert('server2', san="DNS:foobar")
 
     other_root = RootCert('other_root')
     other_root.create_signed_cert('other_server')
 
     # start ghostunnel
-    ghostunnel = run_ghostunnel(['client', '--listen={0}:13001'.format(LOCALHOST),
-      '--target=localhost:13002', '--keystore=client.p12', '--cacert=root.crt',
+    ghostunnel = run_ghostunnel(['client',
+      '--proxy={0}:13001:{0}:13002'.format(LOCALHOST),
+      '--keystore=client.p12',
+      '--cacert=root.crt',
       '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
 
     # connect to server1, confirm that the tunnel is up
@@ -40,9 +42,9 @@ if __name__ == "__main__":
     # connect to server2, confirm that the tunnel isn't up
     try:
       pair = SocketPair(TcpClient(13001), TlsServer('server2', 'root', 13002))
-      raise Exception('failed to reject serve2')
+      raise Exception('failed to reject server2')
     except ssl.SSLError:
-      print_ok("other_server correctly rejected")
+      print_ok("server2 correctly rejected")
 
     print_ok("OK")
   finally:

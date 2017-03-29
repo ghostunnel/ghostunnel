@@ -13,9 +13,12 @@ if __name__ == "__main__":
     root.create_signed_cert('client')
 
     # start ghostunnel
-    ghostunnel = run_ghostunnel(['server', '--listen={0}:13001'.format(LOCALHOST),
-      '--target={0}:13002'.format(LOCALHOST), '--keystore=server.p12',
-      '--cacert=root.crt', '--allow-ou=client', '--shutdown-timeout=1s',
+    ghostunnel = run_ghostunnel(['server',
+      '--proxy={0}:13001:{0}:13002'.format(LOCALHOST),
+      '--keystore=server.p12',
+      '--cacert=root.crt',
+      '--allow-ou=client',
+      '--shutdown-timeout=1s',
       '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
 
     # wait for startup

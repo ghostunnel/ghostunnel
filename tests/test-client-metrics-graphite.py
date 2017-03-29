@@ -21,10 +21,13 @@ if __name__ == "__main__":
     m.listen(1)
 
     # start ghostunnel
-    ghostunnel = run_ghostunnel(['client', '--listen={0}:13001'.format(LOCALHOST),
-      '--target={0}:13002'.format(LOCALHOST), '--keystore=client.p12',
-      '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT), '--metrics-interval=1s',
-      '--cacert=root.crt', '--graphite=localhost:13099'])
+    ghostunnel = run_ghostunnel(['client',
+      '--proxy={0}:13001:{0}:13002'.format(LOCALHOST),
+      '--keystore=client.p12',
+      '--cacert=root.crt',
+      '--metrics-interval=1s',
+      '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT),
+      '--graphite=localhost:13099'])
 
     # wait for metrics to be sent
     conn, addr = m.accept()
