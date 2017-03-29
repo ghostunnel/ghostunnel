@@ -49,8 +49,9 @@ var (
 	app = kingpin.New("ghostunnel", "A simple SSL/TLS proxy with mutual authentication for securing non-TLS services.")
 
 	serverCommand        = app.Command("server", "Server mode (TLS listener -> plain TCP/UNIX target).")
-	serverListenAddress  = serverCommand.Flag("listen", "Address and port to listen on (HOST:PORT).").PlaceHolder("ADDR").Required().TCP()
-	serverForwardAddress = serverCommand.Flag("target", "Address to forward connections to (HOST:PORT, or unix:PATH).").PlaceHolder("ADDR").Required().String()
+	serverListenAddress  = serverCommand.Flag("listen", "Address and port to listen on (HOST:PORT).").PlaceHolder("ADDR").String()
+	serverForwardAddress = serverCommand.Flag("target", "Address to forward connections to (HOST:PORT, or unix:PATH).").PlaceHolder("ADDR").String()
+	serverProxyStanza    = serverCommand.Flag("proxy", "Proxy stanza (SOURCE:TARGET, e.g. localhost:443:localhost:80).").PlaceHolder("STANZA").String()
 	serverUnsafeTarget   = serverCommand.Flag("unsafe-target", "If set, does not limit target to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
 	serverAllowAll       = serverCommand.Flag("allow-all", "Allow all clients, do not check client cert subject.").Bool()
 	serverAllowedCNs     = serverCommand.Flag("allow-cn", "Allow clients with given common name (can be repeated).").PlaceHolder("CN").Strings()
@@ -58,10 +59,10 @@ var (
 	serverAllowedDNSs    = serverCommand.Flag("allow-dns-san", "Allow clients with given DNS subject alternative name (can be repeated).").PlaceHolder("SAN").Strings()
 	serverAllowedIPs     = serverCommand.Flag("allow-ip-san", "Allow clients with given IP subject alternative name (can be repeated).").PlaceHolder("SAN").IPList()
 
-	clientCommand       = app.Command("client", "Client mode (plain TCP/UNIX listener -> TLS target).")
-	clientListenAddress = clientCommand.Flag("listen", "Address and port to listen on (HOST:PORT, or unix:PATH).").PlaceHolder("ADDR").Required().String()
-	// Note: can't use .TCP() for clientForwardAddress because we need to set the original string in tls.Config.ServerName.
-	clientForwardAddress = clientCommand.Flag("target", "Address to forward connections to (HOST:PORT).").PlaceHolder("ADDR").Required().String()
+	clientCommand        = app.Command("client", "Client mode (plain TCP/UNIX listener -> TLS target).")
+	clientListenAddress  = clientCommand.Flag("listen", "Address and port to listen on (HOST:PORT, or unix:PATH).").PlaceHolder("ADDR").String()
+	clientForwardAddress = clientCommand.Flag("target", "Address to forward connections to (HOST:PORT).").PlaceHolder("ADDR").String()
+	clientProxyStanza    = clientCommand.Flag("proxy", "Proxy stanza (SOURCE:TARGET, e.g. localhost:443:localhost:80).").PlaceHolder("STANZA").String()
 	clientUnsafeListen   = clientCommand.Flag("unsafe-listen", "If set, does not limit listen to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
 	clientServerName     = clientCommand.Flag("override-server-name", "If set, overrides the server name used for hostname verification.").PlaceHolder("NAME").String()
 	clientConnectProxy   = clientCommand.Flag("connect-proxy", "If set, connect to target over given HTTP CONNECT proxy. Must be HTTP/HTTPS URL.").PlaceHolder("URL").URL()
@@ -132,40 +133,55 @@ func validateFlags(app *kingpin.Application) error {
 }
 
 // Validates that addr is either a unix socket or localhost
-func validateUnixOrLocalhost(addr string) bool {
-	if strings.HasPrefix(addr, "unix:") {
-		return true
-	}
-	if strings.HasPrefix(addr, "127.0.0.1:") {
-		return true
-	}
-	if strings.HasPrefix(addr, "[::1]:") {
-		return true
-	}
-	if strings.HasPrefix(addr, "localhost:") {
-		return true
-	}
-	return false
+func validateUnixOrLocalhost(addr addressData) bool {
+	return addr.network == "unix" || addr.host == "localhost" || strings.HasPrefix(addr.address, "127.0.0.1:") || strings.HasPrefix(addr.address, "[::1]:")
 }
 
 // Validate flags for server mode
 func serverValidateFlags() error {
+	if (*serverListenAddress != "" || *serverForwardAddress != "") && (*serverProxyStanza != "") {
+		return errors.New("--listen/--target and --proxy are mutually exclusive")
+	}
 	if !(*serverAllowAll) && len(*serverAllowedCNs) == 0 && len(*serverAllowedOUs) == 0 && len(*serverAllowedDNSs) == 0 && len(*serverAllowedIPs) == 0 {
-		return fmt.Errorf("at least one of --allow-all, --allow-cn, --allow-ou, --allow-dns-san or --allow-ip-san is required")
+		return errors.New("at least one of --allow-all, --allow-cn, --allow-ou, --allow-dns-san or --allow-ip-san is required")
 	}
 	if *serverAllowAll && (len(*serverAllowedCNs) > 0 || len(*serverAllowedOUs) > 0 || len(*serverAllowedDNSs) > 0 || len(*serverAllowedIPs) > 0) {
-		return fmt.Errorf("--allow-all and other access control flags are mutually exclusive")
+		return errors.New("--allow-all and other access control flags are mutually exclusive")
 	}
-	if !*serverUnsafeTarget && !validateUnixOrLocalhost(*serverForwardAddress) {
-		return fmt.Errorf("--target must be unix:PATH, localhost:PORT, 127.0.0.1:PORT or [::1]:PORT (unless --unsafe-target is set)")
+
+	var err error
+	var target addressData
+	if *serverProxyStanza != "" {
+		_, target, err = parseProxyStanza(*serverProxyStanza)
+	} else {
+		target, err = parseUnixOrTCPAddress(*serverForwardAddress)
+	}
+	if err != nil {
+		return err
+	}
+	if !*serverUnsafeTarget && !validateUnixOrLocalhost(target) {
+		return errors.New("proxy target must be unix:PATH, localhost:PORT, 127.0.0.1:PORT or [::1]:PORT (unless --unsafe-target is set)")
 	}
 	return nil
 }
 
 // Validate flags for client mode
 func clientValidateFlags() error {
-	if !*clientUnsafeListen && !validateUnixOrLocalhost(*clientListenAddress) {
-		return fmt.Errorf("--listen must be unix:PATH, localhost:PORT, 127.0.0.1:PORT or [::1]:PORT (unless --unsafe-listen is set)")
+	if (*clientListenAddress != "" || *clientForwardAddress != "") && (*clientProxyStanza != "") {
+		return errors.New("--listen/--target and --proxy are mutually exclusive")
+	}
+	var err error
+	var source addressData
+	if *clientProxyStanza != "" {
+		source, _, err = parseProxyStanza(*clientProxyStanza)
+	} else {
+		source, err = parseUnixOrTCPAddress(*clientListenAddress)
+	}
+	if err != nil {
+		return err
+	}
+	if !*clientUnsafeListen && !validateUnixOrLocalhost(source) {
+		return errors.New("proxy source must be unix:PATH, localhost:PORT, 127.0.0.1:PORT or [::1]:PORT (unless --unsafe-listen is set)")
 	}
 	return nil
 }
@@ -232,7 +248,29 @@ func run(args []string) error {
 		}
 		logger.Printf("starting ghostunnel in server mode")
 
-		dial, err := serverBackendDialer()
+		var err error
+		var source, target addressData
+		if *serverProxyStanza != "" {
+			source, target, err = parseProxyStanza(*serverProxyStanza)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error: invalid proxy stanza: %s\n", err)
+				return err
+			}
+		} else {
+			source, err = parseUnixOrTCPAddress(*serverListenAddress)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error: invalid listen address: %s\n", err)
+				return err
+			}
+
+			target, err = parseUnixOrTCPAddress(*serverForwardAddress)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error: invalid forward address: %s\n", err)
+				return err
+			}
+		}
+
+		dial, err := serverBackendDialer(target)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: invalid target address: %s\n", err)
 			return err
@@ -242,7 +280,7 @@ func run(args []string) error {
 		context := &Context{watcher, status, nil, dial, metrics, cert}
 
 		// Start listening
-		err = serverListen(context)
+		err = serverListen(context, source)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error from server listen: %s\n", err)
 		}
@@ -255,13 +293,29 @@ func run(args []string) error {
 		}
 		logger.Printf("starting ghostunnel in client mode")
 
-		network, address, host, err := parseUnixOrTCPAddress(*clientForwardAddress)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: invalid target address: %s\n", err)
-			return err
+		var err error
+		var source, target addressData
+		if *clientProxyStanza != "" {
+			source, target, err = parseProxyStanza(*clientProxyStanza)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error: invalid proxy stanza: %s\n", err)
+				return err
+			}
+		} else {
+			source, err = parseUnixOrTCPAddress(*clientListenAddress)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error: invalid listen address: %s\n", err)
+				return err
+			}
+
+			target, err = parseUnixOrTCPAddress(*clientForwardAddress)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error: invalid forward address: %s\n", err)
+				return err
+			}
 		}
 
-		dial, err := clientBackendDialer(cert, network, address, host)
+		dial, err := clientBackendDialer(cert, target)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: unable to build dialer: %s\n", err)
 			return err
@@ -271,7 +325,7 @@ func run(args []string) error {
 		context := &Context{watcher, status, nil, dial, metrics, cert}
 
 		// Start listening
-		err = clientListen(context)
+		err = clientListen(context, source)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error from client listen: %s\n", err)
 		}
@@ -286,17 +340,21 @@ func run(args []string) error {
 // allows us to have multiple sockets listening on the same port and accept
 // connections. This is useful for the purpose of replacing certificates
 // in-place without having to take downtime, e.g. if a certificate is expiring.
-func serverListen(context *Context) error {
+func serverListen(context *Context, addr addressData) error {
 	config, err := buildConfig(*caBundlePath)
 	if err != nil {
 		logger.Printf("error trying to read CA bundle: %s", err)
 		return err
 	}
 
+	if addr.network == "unix" {
+		return fmt.Errorf("address type %s not supported in server listen", addr.network)
+	}
+
 	config.GetCertificate = context.cert.getCertificate
 	config.VerifyPeerCertificate = verifyPeerCertificate
 
-	listener, err := reuseport.NewReusablePortListener("tcp", (*serverListenAddress).String())
+	listener, err := reuseport.NewReusablePortListener(addr.network, addr.address)
 	if err != nil {
 		logger.Printf("error trying to listen: %s", err)
 		return err
@@ -330,15 +388,8 @@ func serverListen(context *Context) error {
 }
 
 // Open listening socket in client mode.
-func clientListen(context *Context) error {
-	// Setup listening socket
-	network, address, _, err := parseUnixOrTCPAddress(*clientListenAddress)
-	if err != nil {
-		logger.Printf("error parsing client listen address: %s", err)
-		return err
-	}
-
-	listener, err := net.Listen(network, address)
+func clientListen(context *Context, addr addressData) error {
+	listener, err := net.Listen(addr.network, addr.address)
 	if err != nil {
 		logger.Printf("error opening socket: %s", err)
 		return err
@@ -393,17 +444,17 @@ func (context *Context) serveStatus() error {
 	config.ClientAuth = tls.NoClientCert
 	config.GetCertificate = context.cert.getCertificate
 
-	network, address, _, err := parseUnixOrTCPAddress(*statusAddress)
+	addr, err := parseUnixOrTCPAddress(*statusAddress)
 	if err != nil {
 		return err
 	}
 
 	var listener net.Listener
-	if network == "unix" {
-		listener, err = net.Listen(network, address)
+	if addr.network == "unix" {
+		listener, err = net.Listen(addr.network, addr.address)
 		listener.(*net.UnixListener).SetUnlinkOnClose(true)
 	} else {
-		listener, err = reuseport.NewReusablePortListener(network, address)
+		listener, err = reuseport.NewReusablePortListener(addr.network, addr.address)
 	}
 
 	if err != nil {
@@ -411,7 +462,7 @@ func (context *Context) serveStatus() error {
 		return err
 	}
 
-	if network != "unix" {
+	if addr.network != "unix" {
 		listener = tls.NewListener(listener, config)
 	}
 
@@ -426,26 +477,21 @@ func (context *Context) serveStatus() error {
 }
 
 // Get backend dialer function in server mode (connecting to a unix socket or tcp port)
-func serverBackendDialer() (func() (net.Conn, error), error) {
-	backendNet, backendAddr, _, err := parseUnixOrTCPAddress(*serverForwardAddress)
-	if err != nil {
-		return nil, err
-	}
-
+func serverBackendDialer(addr addressData) (func() (net.Conn, error), error) {
 	return func() (net.Conn, error) {
-		return net.DialTimeout(backendNet, backendAddr, *timeoutDuration)
+		return net.DialTimeout(addr.network, addr.address, *timeoutDuration)
 	}, nil
 }
 
 // Get backend dialer function in client mode (connecting to a TLS port)
-func clientBackendDialer(cert *certificate, network, address, host string) (func() (net.Conn, error), error) {
+func clientBackendDialer(cert *certificate, addr addressData) (func() (net.Conn, error), error) {
 	config, err := buildConfig(*caBundlePath)
 	if err != nil {
 		return nil, err
 	}
 
 	if *clientServerName == "" {
-		config.ServerName = host
+		config.ServerName = addr.host
 	} else {
 		config.ServerName = *clientServerName
 	}
@@ -471,6 +517,6 @@ func clientBackendDialer(cert *certificate, network, address, host string) (func
 		// Fetch latest cached certificate before initiating new connection
 		crt, _ := cert.getCertificate(nil)
 		config.Certificates = []tls.Certificate{*crt}
-		return dialWithDialer(dialer, *timeoutDuration, network, address, config)
+		return dialWithDialer(dialer, *timeoutDuration, addr.network, addr.address, config)
 	}, nil
 }

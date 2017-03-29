@@ -137,50 +137,36 @@ func TestServerFlagValidation(t *testing.T) {
 	*serverAllowedIPs = []net.IP{net.IPv4(0, 0, 0, 0)}
 	err = serverValidateFlags()
 	assert.NotNil(t, err, "--allow-all and --allow-ip-san are mutually exclusive")
-
-	*serverAllowAll = false
-	*serverUnsafeTarget = false
-	*serverForwardAddress = "foo.com"
-	err = serverValidateFlags()
-	assert.NotNil(t, err, "unsafe target should be rejected")
 }
 
 func TestClientFlagValidation(t *testing.T) {
 	*clientUnsafeListen = false
-	*clientListenAddress = "0.0.0.0:8080"
+	*clientProxyStanza = "0.0.0.0:8080:localhost:8080"
 	err := clientValidateFlags()
 	assert.NotNil(t, err, "unsafe listen should be rejected")
 }
 
 func TestAllowsLocalhost(t *testing.T) {
 	*serverUnsafeTarget = false
-	assert.True(t, validateUnixOrLocalhost("localhost:1234"), "localhost should be allowed")
-	assert.True(t, validateUnixOrLocalhost("127.0.0.1:1234"), "127.0.0.1 should be allowed")
-	assert.True(t, validateUnixOrLocalhost("[::1]:1234"), "[::1] should be allowed")
-	assert.True(t, validateUnixOrLocalhost("unix:/tmp/foo"), "unix:/tmp/foo should be allowed")
+	assert.True(t, validateUnixOrLocalhost(addressData{"tcp", "localhost:80", "localhost"}), "localhost should be allowed")
+	assert.True(t, validateUnixOrLocalhost(addressData{"tcp", "127.0.0.1:80", "127.0.0.1"}), "127.0.0.1 should be allowed")
+	assert.True(t, validateUnixOrLocalhost(addressData{"tcp", "[::1]:80", "[::1]"}), "[::1] should be allowed")
+	assert.True(t, validateUnixOrLocalhost(addressData{"unix", "/tmp/foo", ""}), "unix:/tmp/foo should be allowed")
 }
 
 func TestDisallowsFooDotCom(t *testing.T) {
 	*serverUnsafeTarget = false
-	assert.False(t, validateUnixOrLocalhost("foo.com:1234"), "foo.com should be disallowed")
-	assert.False(t, validateUnixOrLocalhost("alocalhost.com:1234"), "alocalhost.com should be disallowed")
-	assert.False(t, validateUnixOrLocalhost("localhost.com.foo.com:1234"), "localhost.com.foo.com should be disallowed")
-	assert.False(t, validateUnixOrLocalhost("74.122.190.83:1234"), "random ip address should be disallowed")
-}
-
-func TestServerBackendDialerError(t *testing.T) {
-	*serverForwardAddress = "invalid"
-	_, err := serverBackendDialer()
-	assert.NotNil(t, err, "invalid forward address should not have dialer")
+	assert.False(t, validateUnixOrLocalhost(addressData{"tcp", "foo.com:80", "foo.com"}), "foo.com should be disallowed")
+	assert.False(t, validateUnixOrLocalhost(addressData{"tcp", "localhost.com:80", "localhost.com"}), "localhost.com should be disallowed")
+	assert.False(t, validateUnixOrLocalhost(addressData{"tcp", "74.122.190.83:1234", "74.122.190.83"}), "random ip address should be disallowed")
 }
 
 func TestInvalidCABundle(t *testing.T) {
 	err := run([]string{
 		"server",
 		"--cacert", "/dev/null",
-		"--target", "localhost:8080",
 		"--keystore", "keystore.p12",
-		"--listen", "localhost:8080",
+		"--proxy", "localhost:8080:localhost:8080",
 	})
 	assert.NotNil(t, err, "invalid CA bundle should exit with error")
 }

@@ -23,32 +23,32 @@ import (
 )
 
 func TestParseUnixOrTcpAddress(t *testing.T) {
-	network, address, host, _ := parseUnixOrTCPAddress("unix:/tmp/foo")
-	if network != "unix" {
-		t.Errorf("unexpected network: %s", network)
+	addr, _ := parseUnixOrTCPAddress("unix:/tmp/foo")
+	if addr.network != "unix" {
+		t.Errorf("unexpected network: %s", addr.network)
 	}
-	if address != "/tmp/foo" {
-		t.Errorf("unexpected address: %s", address)
+	if addr.address != "/tmp/foo" {
+		t.Errorf("unexpected address: %s", addr.address)
 	}
-	if host != "" {
-		t.Errorf("unexpected host: %s", host)
+	if addr.host != "" {
+		t.Errorf("unexpected host: %s", addr.host)
 	}
 
-	network, address, host, _ = parseUnixOrTCPAddress("localhost:8080")
+	addr, _ = parseUnixOrTCPAddress("localhost:8080")
 	// note: ipv6 test is probably fragile, we don't expand ::1.
-	if network != "tcp" {
-		t.Errorf("unexpected network: %s", network)
+	if addr.network != "tcp" {
+		t.Errorf("unexpected network: %s", addr.network)
 	}
-	if address != "127.0.0.1:8080" && address != "[::1]:8080" {
-		t.Errorf("unexpected address: %s", address)
+	if addr.address != "127.0.0.1:8080" && addr.address != "[::1]:8080" {
+		t.Errorf("unexpected address: %s", addr.address)
 	}
-	if host != "localhost" {
-		t.Errorf("unexpected host: %s", host)
+	if addr.host != "localhost" {
+		t.Errorf("unexpected host: %s", addr.host)
 	}
 
-	_, _, _, err := parseUnixOrTCPAddress("localhost")
+	_, err := parseUnixOrTCPAddress("localhost")
 	assert.NotNil(t, err, "was able to parse invalid host/port")
 
-	_, _, _, err = parseUnixOrTCPAddress("256.256.256.256:99999")
+	_, err = parseUnixOrTCPAddress("256.256.256.256:99999")
 	assert.NotNil(t, err, "was able to parse invalid host/port")
 }

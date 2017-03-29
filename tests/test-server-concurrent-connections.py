@@ -39,8 +39,9 @@ if __name__ == "__main__":
       allow_ou.append("--allow-ou=client{0}".format(i))
 
     # start ghostunnel
-    ghostunnel = run_ghostunnel(['server', '--listen={0}:13001'.format(LOCALHOST),
-      '--target={0}:13002'.format(LOCALHOST), '--keystore=server.p12',
+    ghostunnel = run_ghostunnel(['server',
+      '--proxy={0}:13001:{0}:13002'.format(LOCALHOST),
+      '--keystore=server.p12',
       '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT),
       '--cacert=root.crt'] + allow_ou)
 

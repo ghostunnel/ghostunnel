@@ -18,6 +18,7 @@ package main
 
 import (
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net"
 	"strings"
@@ -33,6 +34,10 @@ type proxy struct {
 	listener net.Listener
 	handlers *sync.WaitGroup
 	dial     func() (net.Conn, error)
+}
+
+type addressData struct {
+	network, address, host string
 }
 
 var (
@@ -134,17 +139,41 @@ func copyData(dst net.Conn, src net.Conn) {
 	}
 }
 
-// Parse a string representing a TCP address or UNIX socket for our backend
-// target. The input can be or the form "HOST:PORT" for TCP or "unix:PATH"
-// for a UNIX socket.
-func parseUnixOrTCPAddress(input string) (network, address, host string, err error) {
-	if strings.HasPrefix(input, "unix:") {
-		network = "unix"
-		address = input[5:]
+// Parse a proxy stanza string of the form SOURCE:TARGET, where both SOURCE and/or
+// target can be HOST:PORT (TCP) or unix:PATH (UNIX domain socket).
+func parseProxyStanza(input string) (source, target addressData, err error) {
+	components := strings.Split(input, ":")
+	if len(components) != 4 {
+		err = fmt.Errorf("invalid proxy stanza: %s", input)
 		return
 	}
 
-	host, _, err = net.SplitHostPort(input)
+	sourceRaw := fmt.Sprintf("%s:%s", components[0], components[1])
+	source, err = parseUnixOrTCPAddress(sourceRaw)
+	if err != nil {
+		return
+	}
+
+	targetRaw := fmt.Sprintf("%s:%s", components[2], components[3])
+	target, err = parseUnixOrTCPAddress(targetRaw)
+	if err != nil {
+		return
+	}
+
+	return
+}
+
+// Parse a string representing a TCP address or UNIX socket for our backend
+// target. The input can be or the form "HOST:PORT" for TCP or "unix:PATH"
+// for a UNIX socket.
+func parseUnixOrTCPAddress(input string) (addr addressData, err error) {
+	if strings.HasPrefix(input, "unix:") {
+		addr.network = "unix"
+		addr.address = input[5:]
+		return
+	}
+
+	addr.host, _, err = net.SplitHostPort(input)
 	if err != nil {
 		return
 	}
@@ -155,6 +184,6 @@ func parseUnixOrTCPAddress(input string) (network, address, host string, err err
 		return
 	}
 
-	network, address = "tcp", tcp.String()
+	addr.network, addr.address = "tcp", tcp.String()
 	return
 }

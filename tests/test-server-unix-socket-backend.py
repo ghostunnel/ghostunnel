@@ -16,9 +16,12 @@ if __name__ == "__main__":
 
     # start ghostunnel
     socket = UnixServer()
-    ghostunnel = run_ghostunnel(['server', '--listen={0}:13001'.format(LOCALHOST),
-      '--target=unix:{0}'.format(socket.get_socket_path()), '--keystore=server.p12',
-      '--cacert=root.crt', '--allow-ou=client', '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
+    ghostunnel = run_ghostunnel(['server',
+      '--proxy={0}:13001:unix:{1}'.format(LOCALHOST, socket.get_socket_path()),
+      '--keystore=server.p12',
+      '--cacert=root.crt',
+      '--allow-ou=client',
+      '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
 
     # connect with client, confirm that the tunnel is up
     pair = SocketPair(TlsClient('client', 'root', 13001), socket)
