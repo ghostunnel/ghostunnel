@@ -16,11 +16,9 @@ if __name__ == "__main__":
     root.create_signed_cert('client')
 
     # start ghostunnel
-    ghostunnel = run_ghostunnel(['client',
-      '--proxy={0}:13001:{0}:13002'.format(LOCALHOST),
-      '--keystore=client.p12',
-      '--cacert=root.crt',
-      '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
+    ghostunnel = run_ghostunnel(['client', '--listen={0}:13001'.format(LOCALHOST),
+      '--target={0}:13002'.format(LOCALHOST), '--keystore=client.p12',
+      '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT), '--cacert=root.crt'])
 
     # connect with client, confirm that the tunnel is up
     pair = SocketPair(TcpClient(13001), TlsServer('server', 'root', 13002))
