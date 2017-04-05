@@ -72,13 +72,11 @@ subdirectory.
 
 ### Install
 
-To install ghostunnel, simply use:
+You can download the ghostunnel source from the [releases][rel] tab in Github.
 
-    go get -u github.com/square/ghostunnel
-    
+Unpack the source inside your `$GOPATH` and use `go build` to build a binary.
+
 Note that ghostunnel requires Go 1.8 or later to build.
-
-If you want to pull a specific version, check the [releases][rel] tab in Github.
 
 [rel]: https://github.com/square/ghostunnel/releases
 
