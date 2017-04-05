@@ -28,7 +28,7 @@ if __name__ == "__main__":
       '--allow-ou=client',
       '--metrics-interval=1s',
       '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT),
-      '--graphite=localhost:13099'])
+      '--metrics-graphite=localhost:13099'])
 
     # wait for metrics to be sent
     conn, addr = m.accept()
