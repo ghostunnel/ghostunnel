@@ -67,7 +67,7 @@ var (
 	keystorePath        = app.Flag("keystore", "Path to certificate and keystore (PEM, PKCS12).").PlaceHolder("PATH").Required().String()
 	keystorePass        = app.Flag("storepass", "Password for certificate and keystore (optional).").PlaceHolder("PASS").String()
 	caBundlePath        = app.Flag("cacert", "Path to CA bundle file (PEM/X509). Uses system trust store by default.").String()
-	enabledCipherSuites = app.Flag("cipher-suites", "Set of cipher suites to enable, in order of preference (AES, CHACHA).").Default("AES", "CHACHA").Enums("AES", "CHACHA")
+	enabledCipherSuites = app.Flag("cipher-suites", "Set of cipher suites to enable, comma-separated, in order of preference (AES, CHACHA).").Default("AES,CHACHA").String()
 
 	// Reloading and timeouts
 	timedReload     = app.Flag("timed-reload", "Reload keystores every given interval (e.g. 300s), refresh listener/client on changes.").PlaceHolder("DURATION").Duration()
@@ -156,6 +156,13 @@ func serverValidateFlags() error {
 	if !*serverUnsafeTarget && !validateUnixOrLocalhost(target) {
 		return fmt.Errorf("proxy target must be unix:PATH, localhost:PORT, 127.0.0.1:PORT or [::1]:PORT (unless --unsafe-target is set)")
 	}
+
+	for _, suite := range strings.Split(*enabledCipherSuites, ",") {
+		_, ok := cipherSuites[strings.TrimSpace(suite)]
+		if !ok {
+			return fmt.Errorf("invalid cipher suite option: %s", suite)
+		}
+	}
 	return nil
 }
 
@@ -167,6 +174,13 @@ func clientValidateFlags() error {
 	}
 	if !*clientUnsafeListen && !validateUnixOrLocalhost(source) {
 		return fmt.Errorf("proxy source must be unix:PATH, localhost:PORT, 127.0.0.1:PORT or [::1]:PORT (unless --unsafe-listen is set)")
+	}
+
+	for _, suite := range strings.Split(*enabledCipherSuites, ",") {
+		_, ok := cipherSuites[strings.TrimSpace(suite)]
+		if !ok {
+			return fmt.Errorf("invalid cipher suite option: %s", suite)
+		}
 	}
 	return nil
 }
@@ -188,9 +202,9 @@ func run(args []string) error {
 	command := kingpin.MustParse(app.Parse(args))
 
 	// metrics
-	if *graphiteAddr != nil {
-		logger.Printf("metrics enabled; reporting metrics via TCP to %s", *graphiteAddr)
-		go graphite.Graphite(metrics.DefaultRegistry, 1*time.Second, *metricsPrefix, *graphiteAddr)
+	if *metricsGraphite != nil {
+		logger.Printf("metrics enabled; reporting metrics via TCP to %s", *metricsGraphite)
+		go graphite.Graphite(metrics.DefaultRegistry, 1*time.Second, *metricsPrefix, *metricsGraphite)
 	}
 	if *metricsURL != "" {
 		logger.Printf("metrics enabled; reporting metrics via POST to %s", *metricsURL)
