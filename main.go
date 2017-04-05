@@ -48,24 +48,20 @@ var (
 var (
 	app = kingpin.New("ghostunnel", "A simple SSL/TLS proxy with mutual authentication for securing non-TLS services.")
 
-	serverCommand        = app.Command("server", "Server mode (TLS listener -> plain TCP/UNIX target).")
-	serverListenAddress  = serverCommand.Flag("listen", "Address and port to listen on (HOST:PORT).").PlaceHolder("ADDR").String()
-	serverForwardAddress = serverCommand.Flag("target", "Address to forward connections to (HOST:PORT, or unix:PATH).").PlaceHolder("ADDR").String()
-	serverProxyStanza    = serverCommand.Flag("proxy", "Proxy stanza (SOURCE:TARGET, e.g. localhost:443:localhost:80).").PlaceHolder("STANZA").String()
-	serverUnsafeTarget   = serverCommand.Flag("unsafe-target", "If set, does not limit target to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
-	serverAllowAll       = serverCommand.Flag("allow-all", "Allow all clients, do not check client cert subject.").Bool()
-	serverAllowedCNs     = serverCommand.Flag("allow-cn", "Allow clients with given common name (can be repeated).").PlaceHolder("CN").Strings()
-	serverAllowedOUs     = serverCommand.Flag("allow-ou", "Allow clients with given organizational unit name (can be repeated).").PlaceHolder("OU").Strings()
-	serverAllowedDNSs    = serverCommand.Flag("allow-dns-san", "Allow clients with given DNS subject alternative name (can be repeated).").PlaceHolder("SAN").Strings()
-	serverAllowedIPs     = serverCommand.Flag("allow-ip-san", "Allow clients with given IP subject alternative name (can be repeated).").PlaceHolder("SAN").IPList()
+	serverCommand      = app.Command("server", "Server mode (TLS listener -> plain TCP/UNIX target).")
+	serverProxyStanza  = serverCommand.Flag("proxy", "Proxy stanza (SOURCE:TARGET, e.g. localhost:443:localhost:80).").PlaceHolder("STANZA").Required().String()
+	serverUnsafeTarget = serverCommand.Flag("unsafe-target", "If set, does not limit target to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
+	serverAllowAll     = serverCommand.Flag("allow-all", "Allow all clients, do not check client cert subject.").Bool()
+	serverAllowedCNs   = serverCommand.Flag("allow-cn", "Allow clients with given common name (can be repeated).").PlaceHolder("CN").Strings()
+	serverAllowedOUs   = serverCommand.Flag("allow-ou", "Allow clients with given organizational unit name (can be repeated).").PlaceHolder("OU").Strings()
+	serverAllowedDNSs  = serverCommand.Flag("allow-dns-san", "Allow clients with given DNS subject alternative name (can be repeated).").PlaceHolder("SAN").Strings()
+	serverAllowedIPs   = serverCommand.Flag("allow-ip-san", "Allow clients with given IP subject alternative name (can be repeated).").PlaceHolder("SAN").IPList()
 
-	clientCommand        = app.Command("client", "Client mode (plain TCP/UNIX listener -> TLS target).")
-	clientListenAddress  = clientCommand.Flag("listen", "Address and port to listen on (HOST:PORT, or unix:PATH).").PlaceHolder("ADDR").String()
-	clientForwardAddress = clientCommand.Flag("target", "Address to forward connections to (HOST:PORT).").PlaceHolder("ADDR").String()
-	clientProxyStanza    = clientCommand.Flag("proxy", "Proxy stanza (SOURCE:TARGET, e.g. localhost:443:localhost:80).").PlaceHolder("STANZA").String()
-	clientUnsafeListen   = clientCommand.Flag("unsafe-listen", "If set, does not limit listen to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
-	clientServerName     = clientCommand.Flag("override-server-name", "If set, overrides the server name used for hostname verification.").PlaceHolder("NAME").String()
-	clientConnectProxy   = clientCommand.Flag("connect-proxy", "If set, connect to target over given HTTP CONNECT proxy. Must be HTTP/HTTPS URL.").PlaceHolder("URL").URL()
+	clientCommand      = app.Command("client", "Client mode (plain TCP/UNIX listener -> TLS target).")
+	clientProxyStanza  = clientCommand.Flag("proxy", "Proxy stanza (SOURCE:TARGET, e.g. localhost:443:localhost:80).").PlaceHolder("STANZA").Required().String()
+	clientUnsafeListen = clientCommand.Flag("unsafe-listen", "If set, does not limit listen to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
+	clientServerName   = clientCommand.Flag("override-server-name", "If set, overrides the server name used for hostname verification.").PlaceHolder("NAME").String()
+	clientConnectProxy = clientCommand.Flag("connect-proxy", "If set, connect to target over given HTTP CONNECT proxy. Must be HTTP/HTTPS URL.").PlaceHolder("URL").URL()
 
 	keystorePath        = app.Flag("keystore", "Path to certificate and keystore (PEM, PKCS12).").PlaceHolder("PATH").Required().String()
 	keystorePass        = app.Flag("storepass", "Password for certificate and keystore (optional).").PlaceHolder("PASS").String()
@@ -139,49 +135,31 @@ func validateUnixOrLocalhost(addr addressData) bool {
 
 // Validate flags for server mode
 func serverValidateFlags() error {
-	if (*serverListenAddress != "" || *serverForwardAddress != "") && (*serverProxyStanza != "") {
-		return errors.New("--listen/--target and --proxy are mutually exclusive")
-	}
 	if !(*serverAllowAll) && len(*serverAllowedCNs) == 0 && len(*serverAllowedOUs) == 0 && len(*serverAllowedDNSs) == 0 && len(*serverAllowedIPs) == 0 {
-		return errors.New("at least one of --allow-all, --allow-cn, --allow-ou, --allow-dns-san or --allow-ip-san is required")
+		return fmt.Errorf("at least one of --allow-all, --allow-cn, --allow-ou, --allow-dns-san or --allow-ip-san is required")
 	}
 	if *serverAllowAll && (len(*serverAllowedCNs) > 0 || len(*serverAllowedOUs) > 0 || len(*serverAllowedDNSs) > 0 || len(*serverAllowedIPs) > 0) {
-		return errors.New("--allow-all and other access control flags are mutually exclusive")
+		return fmt.Errorf("--allow-all and other access control flags are mutually exclusive")
 	}
 
-	var err error
-	var target addressData
-	if *serverProxyStanza != "" {
-		_, target, err = parseProxyStanza(*serverProxyStanza)
-	} else {
-		target, err = parseUnixOrTCPAddress(*serverForwardAddress)
-	}
+	_, target, err := parseProxyStanza(*serverProxyStanza)
 	if err != nil {
 		return err
 	}
 	if !*serverUnsafeTarget && !validateUnixOrLocalhost(target) {
-		return errors.New("proxy target must be unix:PATH, localhost:PORT, 127.0.0.1:PORT or [::1]:PORT (unless --unsafe-target is set)")
+		return fmt.Errorf("proxy target must be unix:PATH, localhost:PORT, 127.0.0.1:PORT or [::1]:PORT (unless --unsafe-target is set)")
 	}
 	return nil
 }
 
 // Validate flags for client mode
 func clientValidateFlags() error {
-	if (*clientListenAddress != "" || *clientForwardAddress != "") && (*clientProxyStanza != "") {
-		return errors.New("--listen/--target and --proxy are mutually exclusive")
-	}
-	var err error
-	var source addressData
-	if *clientProxyStanza != "" {
-		source, _, err = parseProxyStanza(*clientProxyStanza)
-	} else {
-		source, err = parseUnixOrTCPAddress(*clientListenAddress)
-	}
+	source, _, err := parseProxyStanza(*clientProxyStanza)
 	if err != nil {
 		return err
 	}
 	if !*clientUnsafeListen && !validateUnixOrLocalhost(source) {
-		return errors.New("proxy source must be unix:PATH, localhost:PORT, 127.0.0.1:PORT or [::1]:PORT (unless --unsafe-listen is set)")
+		return fmt.Errorf("proxy source must be unix:PATH, localhost:PORT, 127.0.0.1:PORT or [::1]:PORT (unless --unsafe-listen is set)")
 	}
 	return nil
 }
@@ -248,26 +226,10 @@ func run(args []string) error {
 		}
 		logger.Printf("starting ghostunnel in server mode")
 
-		var err error
-		var source, target addressData
-		if *serverProxyStanza != "" {
-			source, target, err = parseProxyStanza(*serverProxyStanza)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "error: invalid proxy stanza: %s\n", err)
-				return err
-			}
-		} else {
-			source, err = parseUnixOrTCPAddress(*serverListenAddress)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "error: invalid listen address: %s\n", err)
-				return err
-			}
-
-			target, err = parseUnixOrTCPAddress(*serverForwardAddress)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "error: invalid forward address: %s\n", err)
-				return err
-			}
+		source, target, err := parseProxyStanza(*serverProxyStanza)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: invalid proxy stanza: %s\n", err)
+			return err
 		}
 
 		dial, err := serverBackendDialer(target)
@@ -293,26 +255,10 @@ func run(args []string) error {
 		}
 		logger.Printf("starting ghostunnel in client mode")
 
-		var err error
-		var source, target addressData
-		if *clientProxyStanza != "" {
-			source, target, err = parseProxyStanza(*clientProxyStanza)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "error: invalid proxy stanza: %s\n", err)
-				return err
-			}
-		} else {
-			source, err = parseUnixOrTCPAddress(*clientListenAddress)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "error: invalid listen address: %s\n", err)
-				return err
-			}
-
-			target, err = parseUnixOrTCPAddress(*clientForwardAddress)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "error: invalid forward address: %s\n", err)
-				return err
-			}
+		source, target, err := parseProxyStanza(*clientProxyStanza)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: invalid proxy stanza: %s\n", err)
+			return err
 		}
 
 		dial, err := clientBackendDialer(cert, target)

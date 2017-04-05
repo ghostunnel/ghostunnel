@@ -119,8 +119,7 @@ Start a backend server:
 Start a ghostunnel in server mode to proxy connections:
 
     ghostunnel server \
-        --listen localhost:8443 \
-        --target localhost:8080 \
+        --proxy localhost:8443:localhost:8080 \
         --keystore test-keys/server.p12 \
         --cacert test-keys/root.crt \
         --allow-cn client
@@ -152,8 +151,7 @@ Start a backend TLS server:
 Start a ghostunnel with a client certificate to forward connections:
 
     ghostunnel client \
-        --listen localhost:8080 \
-        --target localhost:8443 \
+        --proxy localhost:8080:localhost:8443 \
         --keystore test-keys/client.p12 \
         --cacert test-keys/root.crt
 
@@ -176,8 +174,7 @@ Start netcat on port `8001`:
 Start the ghostunnel server:
 
     ghostunnel server \
-        --listen localhost:8002 \
-        --target localhost:8001 \
+        --proxy localhost:8002:localhost:8001 \
         --keystore test-keys/server.p12 \
         --cacert test-keys/root.crt \
         --allow-cn client
@@ -185,8 +182,7 @@ Start the ghostunnel server:
 Start the ghostunnel client:
 
     ghostunnel client \
-        --listen localhost:8003 \
-        --target localhost:8002 \
+        --proxy localhost:8003:localhost:8002 \
         --keystore test-keys/client.p12 \
         --cacert test-keys/root.crt
 
