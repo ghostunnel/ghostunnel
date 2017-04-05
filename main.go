@@ -64,7 +64,6 @@ var (
 	clientForwardAddress = clientCommand.Flag("target", "Address to forward connections to (HOST:PORT).").PlaceHolder("ADDR").String()
 	clientProxyStanza    = clientCommand.Flag("proxy", "Proxy stanza (SOURCE:TARGET, e.g. localhost:443:localhost:80).").PlaceHolder("STANZA").String()
 	clientUnsafeListen   = clientCommand.Flag("unsafe-listen", "If set, does not limit listen to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
-	clientServerName     = clientCommand.Flag("override-server-name", "If set, overrides the server name used for hostname verification.").PlaceHolder("NAME").String()
 	clientConnectProxy   = clientCommand.Flag("connect-proxy", "If set, connect to target over given HTTP CONNECT proxy. Must be HTTP/HTTPS URL.").PlaceHolder("URL").URL()
 
 	keystorePath        = app.Flag("keystore", "Path to certificate and keystore (PEM, PKCS12).").PlaceHolder("PATH").Required().String()
@@ -490,11 +489,7 @@ func clientBackendDialer(cert *certificate, addr addressData) (func() (net.Conn,
 		return nil, err
 	}
 
-	if *clientServerName == "" {
-		config.ServerName = addr.host
-	} else {
-		config.ServerName = *clientServerName
-	}
+	config.ServerName = addr.host
 
 	var dialer Dialer
 	dialer = &net.Dialer{Timeout: *timeoutDuration}
