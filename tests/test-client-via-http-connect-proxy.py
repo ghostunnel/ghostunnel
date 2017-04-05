@@ -53,7 +53,7 @@ if __name__ == "__main__":
       '--proxy={0}:13001:{0}:13002'.format(LOCALHOST),
       '--keystore=client.p12',
       '--connect-proxy=http://localhost:13080',
-      '--timeout=30s',
+      '--connect-timeout=30s',
       '--cacert=root.crt',
       '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
 

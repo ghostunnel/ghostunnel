@@ -21,7 +21,7 @@ if __name__ == "__main__":
       '--keystore=server.p12',
       '--cacert=root.crt',
       '--allow-ou=client',
-      '--timeout=1s',
+      '--connect-timeout=1s',
       '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
 
     # connect but don't perform handshake

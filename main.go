@@ -69,7 +69,7 @@ var (
 	enabledCipherSuites = app.Flag("cipher-suites", "Set of cipher suites to enable, in order of preference (AES, CHACHA).").Default("AES", "CHACHA").Enums("AES", "CHACHA")
 	timedReload         = app.Flag("timed-reload", "Reload keystores every given interval (e.g. 300s), refresh listener/client on changes.").PlaceHolder("DURATION").Duration()
 	shutdownTimeout     = app.Flag("shutdown-timeout", "Graceful shutdown timeout. Terminates after timeout even if connections still open.").Default("5m").Duration()
-	timeoutDuration     = app.Flag("timeout", "Timeout for establishing connections, handshakes.").Default("10s").Duration()
+	timeoutDuration     = app.Flag("connect-timeout", "Timeout for establishing connections, handshakes.").Default("10s").Duration()
 	graphiteAddr        = app.Flag("graphite", "Collect metrics and report them to the given graphite instance (raw TCP).").PlaceHolder("ADDR").TCP()
 	metricsURL          = app.Flag("metrics-url", "Collect metrics and POST them periodically to the given URL (via HTTP/JSON).").PlaceHolder("URL").String()
 	metricsPrefix       = app.Flag("metrics-prefix", fmt.Sprintf("Set prefix string for all reported metrics (default: %s).", defaultMetricsPrefix)).PlaceHolder("PREFIX").Default(defaultMetricsPrefix).String()
