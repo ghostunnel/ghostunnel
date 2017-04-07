@@ -149,12 +149,12 @@ func parseUnixOrTCPAddress(input string) (network, address, host string, err err
 		return
 	}
 
-	var tcp *net.TCPAddr
-	tcp, err = net.ResolveTCPAddr("tcp", input)
+	// Make sure target address resolves
+	_, err = net.ResolveTCPAddr("tcp", input)
 	if err != nil {
 		return
 	}
 
-	network, address = "tcp", tcp.String()
+	network, address = "tcp", input
 	return
 }
