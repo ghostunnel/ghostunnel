@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 	"sync/atomic"
 	"time"
 	"unsafe"
@@ -177,8 +178,8 @@ func buildConfig(caBundlePath string) (*tls.Config, error) {
 	// * We list AES-128 ahead of AES-256 for performance reasons.
 
 	suites := []uint16{}
-	for _, suite := range *enabledCipherSuites {
-		ciphers, ok := cipherSuites[suite]
+	for _, suite := range strings.Split(*enabledCipherSuites, ",") {
+		ciphers, ok := cipherSuites[strings.TrimSpace(suite)]
 		if !ok {
 			return nil, fmt.Errorf("invalid cipher suite %s selected", suite)
 		}

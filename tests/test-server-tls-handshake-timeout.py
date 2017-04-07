@@ -16,12 +16,9 @@ if __name__ == "__main__":
     root.create_signed_cert('client')
 
     # start ghostunnel
-    ghostunnel = run_ghostunnel(['server',
-      '--proxy={0}:13000:{0}:13001'.format(LOCALHOST),
-      '--keystore=server.p12',
-      '--cacert=root.crt',
-      '--allow-ou=client',
-      '--timeout=1s',
+    ghostunnel = run_ghostunnel(['server', '--listen={0}:13000'.format(LOCALHOST),
+      '--target={0}:13001'.format(LOCALHOST), '--keystore=server.p12',
+      '--cacert=root.crt', '--allow-ou=client', '--connect-timeout=1s',
       '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
 
     # connect but don't perform handshake

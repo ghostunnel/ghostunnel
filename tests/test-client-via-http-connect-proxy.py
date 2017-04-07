@@ -44,17 +44,14 @@ if __name__ == "__main__":
     root.create_signed_cert('server')
     root.create_signed_cert('client')
 
-    httpd = http.server.HTTPServer(('localhost',13080), FakeConnectProxyHandler)
+    httpd = http.server.HTTPServer((LOCALHOST,13080), FakeConnectProxyHandler)
     server = threading.Thread(target=httpd.handle_request)
     server.start()
 
     # start ghostunnel
-    ghostunnel = run_ghostunnel(['client',
-      '--proxy={0}:13001:{0}:13002'.format(LOCALHOST),
-      '--keystore=client.p12',
-      '--connect-proxy=http://localhost:13080',
-      '--timeout=30s',
-      '--cacert=root.crt',
+    ghostunnel = run_ghostunnel(['client', '--listen={0}:13001'.format(LOCALHOST),
+      '--target={0}:13002'.format(LOCALHOST), '--keystore=client.p12', '--cacert=root.crt',
+      '--connect-proxy=http://{0}:13080'.format(LOCALHOST), '--connect-timeout=30s',
       '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
 
     # connect to server, confirm that the tunnel is up
