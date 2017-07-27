@@ -19,6 +19,8 @@ package main
 import (
 	"crypto/x509"
 	"errors"
+	"github.com/spiffe/go-spiffe"
+	"encoding/pem"
 )
 
 func verifyPeerCertificate(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
@@ -65,5 +67,26 @@ func verifyPeerCertificate(rawCerts [][]byte, verifiedChains [][]*x509.Certifica
 		}
 	}
 
+	// Encode the certificate as PEM
+	pemdata := pem.EncodeToMemory(
+		&pem.Block{
+			Type: "CERTIFICATE",
+			Bytes: cert.Raw,
+		},
+	)
+
+	// Get URIs from the SAN in the certificate
+	uris, err := spiffe.GetUrisInSubjectAltName(string(pemdata));
+	if err == nil {
+		for _, expectedURI := range *serverAllowedURIs {
+			for _, clientURI := range uris {
+				if clientURI == expectedURI {
+					return nil
+				}
+			}
+		}
+	} else {
+		logger.Printf("error getting URIs froom SAN: %s", err)
+	}
 	return errors.New("unauthorized: invalid principal, or principal not allowed")
 }
