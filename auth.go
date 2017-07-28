@@ -76,17 +76,19 @@ func verifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*x509.Cer
 	)
 
 	// Get URIs from the SAN in the certificate
-	uris, err := spiffe.GetUrisInSubjectAltName(string(pemdata));
-	if err == nil {
-		for _, expectedURI := range *serverAllowedURIs {
-			for _, clientURI := range uris {
-				if clientURI == expectedURI {
-					return nil
+	if len(*serverAllowedURIs) > 0 {
+		uris, err := spiffe.GetUrisInSubjectAltName(string(pemdata));
+		if err == nil {
+			for _, expectedURI := range *serverAllowedURIs {
+				for _, clientURI := range uris {
+					if clientURI == expectedURI {
+						return nil
+					}
 				}
 			}
+		} else {
+			logger.Printf("error getting URIs from SAN: %s", err)
 		}
-	} else {
-		logger.Printf("error getting URIs froom SAN: %s", err)
 	}
 	return errors.New("unauthorized: invalid principal, or principal not allowed")
 }

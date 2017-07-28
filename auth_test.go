@@ -23,6 +23,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"io/ioutil"
+	"encoding/pem"
 )
 
 var fakeChains = [][]*x509.Certificate{
@@ -38,12 +40,32 @@ var fakeChains = [][]*x509.Certificate{
 	},
 }
 
+func getCertificateFromPEMFile(t *testing.T, certFilePath string) *x509.Certificate {
+	certPEM, err := ioutil.ReadFile(certFilePath)
+	if !assert.NoError(t, err, "error reading file") {
+		t.FailNow()
+	}
+
+	block, _ := pem.Decode([]byte(certPEM))
+	if !assert.NotNil(t, block, "block should not be nil") {
+		t.FailNow()
+	}
+
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if !assert.NoError(t, err, "error parsing certificate") {
+		t.FailNow()
+	}
+
+	return cert
+}
+
 func TestAuthorizeNotVerified(t *testing.T) {
 	*serverAllowAll = true
 	*serverAllowedCNs = []string{}
 	*serverAllowedOUs = []string{}
 	*serverAllowedDNSs = []string{}
 	*serverAllowedIPs = []net.IP{}
+	*serverAllowedURIs = []string{}
 
 	assert.NotNil(t, verifyPeerCertificateServer(nil, nil), "conn w/o cert should be rejected")
 }
@@ -54,6 +76,7 @@ func TestAuthorizeReject(t *testing.T) {
 	*serverAllowedOUs = []string{"test"}
 	*serverAllowedDNSs = []string{"test"}
 	*serverAllowedIPs = []net.IP{}
+	*serverAllowedURIs = []string{"test"}
 
 	assert.NotNil(t, verifyPeerCertificateServer(nil, fakeChains), "should reject cert w/o matching CN/OU")
 }
@@ -74,6 +97,7 @@ func TestAuthorizeAllowCN(t *testing.T) {
 	*serverAllowedOUs = []string{}
 	*serverAllowedDNSs = []string{}
 	*serverAllowedIPs = []net.IP{}
+	*serverAllowedURIs = []string{}
 
 	assert.Nil(t, verifyPeerCertificateServer(nil, fakeChains), "allow-cn should allow clients with matching CN")
 }
@@ -84,6 +108,7 @@ func TestAuthorizeAllowOU(t *testing.T) {
 	*serverAllowedOUs = []string{"circle"}
 	*serverAllowedDNSs = []string{}
 	*serverAllowedIPs = []net.IP{}
+	*serverAllowedURIs = []string{}
 
 	assert.Nil(t, verifyPeerCertificateServer(nil, fakeChains), "allow-ou should allow clients with matching OU")
 }
@@ -94,6 +119,7 @@ func TestAuthorizeAllowDNS(t *testing.T) {
 	*serverAllowedOUs = []string{}
 	*serverAllowedDNSs = []string{"circle"}
 	*serverAllowedIPs = []net.IP{}
+	*serverAllowedURIs = []string{}
 
 	assert.Nil(t, verifyPeerCertificateServer(nil, fakeChains), "allow-dns-san should allow clients with matching DNS SAN")
 }
@@ -104,6 +130,7 @@ func TestAuthorizeAllowIP(t *testing.T) {
 	*serverAllowedOUs = []string{}
 	*serverAllowedDNSs = []string{}
 	*serverAllowedIPs = []net.IP{net.IPv4(192, 168, 99, 100)}
+	*serverAllowedURIs = []string{}
 
 	assert.Nil(t, verifyPeerCertificateServer(nil, fakeChains), "allow-ip-san should allow clients with matching IP SAN")
 }
@@ -178,4 +205,30 @@ func TestVerifyRejectIP(t *testing.T) {
 	*clientAllowedIPs = []net.IP{net.IPv4(1, 1, 1, 1)}
 
 	assert.NotNil(t, verifyPeerCertificateClient(nil, fakeChains), "should reject cert w/o matching IP SAN")
+}
+
+func TestAuthorizeAllowURI(t *testing.T) {
+	var chainsWithURI = [][]*x509.Certificate{{getCertificateFromPEMFile(t, "test-keys/leaf.cert.pem")}}
+
+	*serverAllowAll = false
+	*serverAllowedCNs = []string{}
+	*serverAllowedOUs = []string{}
+	*serverAllowedDNSs = []string{}
+	*serverAllowedIPs = []net.IP{}
+	*serverAllowedURIs = []string{"spiffe://dev.acme.com/path/service"}
+
+	assert.Nil(t, verifyPeerCertificate(nil, chainsWithURI), "allow-uri-san should allow clients with matching URI SAN")
+}
+
+func TestAuthorizeRejectURI(t *testing.T) {
+	var chainsWithURI = [][]*x509.Certificate{{getCertificateFromPEMFile(t, "test-keys/leaf.cert.pem")}}
+
+	*serverAllowAll = false
+	*serverAllowedCNs = []string{}
+	*serverAllowedOUs = []string{}
+	*serverAllowedDNSs = []string{}
+	*serverAllowedIPs = []net.IP{}
+	*serverAllowedURIs = []string{"spiffe://invalid"}
+
+	assert.NotNil(t, verifyPeerCertificate(nil, chainsWithURI), "should reject cert w/o matching URI")
 }
