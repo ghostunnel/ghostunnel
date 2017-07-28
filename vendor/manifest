@@ -251,6 +251,14 @@
 			"revision": "1087e65c9441605df944fb12c33f0fe7072d18ca",
 			"branch": "master",
 			"notests": true
-		}
+		},
+        {
+            "importpath": "github.com/spiffe/go-spiffe",
+            "repository": "https://github.com/spiffe/go-spiffe",
+            "vcs": "git",
+            "revision": "a87173a5a7a6c04c03a2a93637f36a4bba8f82b8",
+            "branch": "master",
+            "notests": true
+        }
 	]
 }
