@@ -57,6 +57,7 @@ var (
 	serverAllowedOUs     = serverCommand.Flag("allow-ou", "Allow clients with given organizational unit name (can be repeated).").PlaceHolder("OU").Strings()
 	serverAllowedDNSs    = serverCommand.Flag("allow-dns-san", "Allow clients with given DNS subject alternative name (can be repeated).").PlaceHolder("SAN").Strings()
 	serverAllowedIPs     = serverCommand.Flag("allow-ip-san", "Allow clients with given IP subject alternative name (can be repeated).").PlaceHolder("SAN").IPList()
+	serverAllowedURIs    = serverCommand.Flag("allow-uri-san", "Allow clients with given URI subject alternative name (can be repeated).").PlaceHolder("SAN").Strings()
 
 	clientCommand       = app.Command("client", "Client mode (plain TCP/UNIX listener -> TLS target).")
 	clientListenAddress = clientCommand.Flag("listen", "Address and port to listen on (HOST:PORT, or unix:PATH).").PlaceHolder("ADDR").Required().String()
@@ -157,10 +158,10 @@ func validateUnixOrLocalhost(addr string) bool {
 
 // Validate flags for server mode
 func serverValidateFlags() error {
-	if !(*serverAllowAll) && len(*serverAllowedCNs) == 0 && len(*serverAllowedOUs) == 0 && len(*serverAllowedDNSs) == 0 && len(*serverAllowedIPs) == 0 {
-		return fmt.Errorf("at least one of --allow-all, --allow-cn, --allow-ou, --allow-dns-san or --allow-ip-san is required")
+	if !(*serverAllowAll) && len(*serverAllowedCNs) == 0 && len(*serverAllowedOUs) == 0 && len(*serverAllowedDNSs) == 0 && len(*serverAllowedIPs) == 0 && len(*serverAllowedURIs) == 0 {
+		return fmt.Errorf("at least one of --allow-all, --allow-cn, --allow-ou, --allow-dns-san, --allow-uri-san or --allow-ip-san is required")
 	}
-	if *serverAllowAll && (len(*serverAllowedCNs) > 0 || len(*serverAllowedOUs) > 0 || len(*serverAllowedDNSs) > 0 || len(*serverAllowedIPs) > 0) {
+	if *serverAllowAll && (len(*serverAllowedCNs) > 0 || len(*serverAllowedOUs) > 0 || len(*serverAllowedDNSs) > 0 || len(*serverAllowedIPs) > 0 || len(*serverAllowedURIs) > 0) {
 		return fmt.Errorf("--allow-all and other access control flags are mutually exclusive")
 	}
 	if !*serverUnsafeTarget && !validateUnixOrLocalhost(*serverForwardAddress) {
