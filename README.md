@@ -53,7 +53,7 @@ in client mode the listening socket must live on localhost or be a UNIX socket
 (unless `--unsafe-listen` is specified). Ghostunnel negotiates TLSv1.2
 and uses safe ciphers.
 
-Getting started
+Getting Started
 ===============
 
 To get started and play around with the implementation, you will need to
@@ -99,6 +99,9 @@ For more information on how to contribute, please see the [CONTRIBUTING][contr] 
 [gvt]: https://github.com/FiloSottile/gvt
 [gcvm]: https://github.com/wadey/gocovmerge
 [contr]: https://github.com/square/ghostunnel/blob/master/CONTRIBUTING.md
+
+Usage Examples
+==============
 
 ### Server mode 
 
@@ -197,3 +200,42 @@ Verify that we can connect to `8003`:
 Now we have a full tunnel running. We take insecure client connections, 
 forward them to the server side of the tunnel via TLS, and finally terminate
 and proxy the connection to the insecure backend.
+
+Advanced Features
+=================
+
+### Metrics & profiling
+
+Ghostunnel has a notion of "status port", a TCP port (or UNIX socket) that can
+be used to expose status and metrics information over HTTPS. The status port
+feature can be controlled via the `--status` flag. Profiling endopints on the
+status port can be enabled with `--enable-pprof`.
+
+The X.509 certificate on the status port will be the same as the certificate
+used for proxying (either the client or server certificate). This means you can
+use the status port to inspect/verify the certificate that is being used, which
+can be useful for orchestration systems.
+
+Example invocation with status port enabled:
+
+    ghostunnel client \
+        --listen localhost:8080 \
+        --target localhost:8443 \
+        --keystore test-keys/client.p12 \
+        --cacert test-keys/root.crt \
+        --status localhost:6060
+
+Note that we set the status port to "localhost:6060". Ghostunnel will start an
+internal HTTPS server and listen for connections on the given host/port. You
+can also specify a UNIX socket instead of a TCP port.
+
+How to check status and read connection metrics:
+
+    # Status information (JSON)
+    curl --cacert test-keys/root.crt https://localhost:6060/_status
+
+    # Metrics information (JSON)
+    curl --cacert test-keys/root.crt https://localhost:6060/_metrics
+
+For information on profiling via pprof, see the
+[`net/http/pprof`](https://golang.org/pkg/net/http/pprof/) documentation.
