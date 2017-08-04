@@ -14,5 +14,5 @@ server:
 client:
 	openssl genrsa -out client.key 2048
 	openssl req -new -key client.key -out client.csr -subj /C=US/ST=CA/O=ghostunnel/OU=client/CN=client
-	openssl x509 -req -sha256 -in client.csr -CA root.crt -CAkey root.key -CAcreateserial -out client.crt -days 1000 -extfile openssl.ext
+	openssl x509 -req -sha256 -in client.csr -CA root.crt -CAkey root.key -CAcreateserial -out client.crt -days 1000 -extfile openssl.ext -extensions leaf
 	openssl pkcs12 -export -out client.p12 -in client.crt -inkey client.key -password pass:
