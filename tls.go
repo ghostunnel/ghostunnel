@@ -29,7 +29,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/letsencrypt/pkcs11key"
 	certigo "github.com/square/certigo/lib"
 )
 
@@ -149,7 +148,7 @@ func (c *certificate) reloadFromPKCS11() error {
 		old, _ := c.getCertificate(nil)
 		certAndKey.PrivateKey = old.PrivateKey
 	} else {
-		privateKey, err := pkcs11key.New(c.pkcs11Module, c.pkcs11TokenLabel, c.pkcs11PIN, certAndKey.Leaf.PublicKey)
+		privateKey, err := newpkcs11(c.pkcs11Module, c.pkcs11TokenLabel, c.pkcs11PIN, certAndKey.Leaf.PublicKey)
 		if err != nil {
 			return err
 		}
