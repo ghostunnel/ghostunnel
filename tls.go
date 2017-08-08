@@ -29,6 +29,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/letsencrypt/pkcs11key"
 	certigo "github.com/square/certigo/lib"
 )
 
@@ -53,13 +54,14 @@ func (timeoutError) Temporary() bool { return true }
 
 // certificate wraps a TLS certificate in a reloadable way
 type certificate struct {
-	keystorePath, keystorePass string
-	cached                     unsafe.Pointer
+	keystorePath, keystorePass                string
+	pkcs11Module, pkcs11TokenLabel, pkcs11PIN string
+	cached                                    unsafe.Pointer
 }
 
 // Build reloadable certificate
-func buildCertificate(keystorePath, keystorePass string) (*certificate, error) {
-	cert := &certificate{keystorePath, keystorePass, nil}
+func buildCertificate(keystorePath, keystorePass, pkcs11Module, pkcs11TokenLabel, pkcs11PIN string) (*certificate, error) {
+	cert := &certificate{keystorePath, keystorePass, pkcs11Module, pkcs11TokenLabel, pkcs11PIN, nil}
 	err := cert.reload()
 	if err != nil {
 		return nil, err
@@ -74,6 +76,13 @@ func (c *certificate) getCertificate(clientHello *tls.ClientHelloInfo) (*tls.Cer
 
 // Reload certificate
 func (c *certificate) reload() error {
+	if c.pkcs11Module != "" {
+		return c.reloadFromPKCS11()
+	}
+	return c.reloadFromPEM()
+}
+
+func (c *certificate) reloadFromPEM() error {
 	keystore, err := os.Open(c.keystorePath)
 	if err != nil {
 		return err
@@ -106,6 +115,45 @@ func (c *certificate) reload() error {
 	certAndKey.Leaf, err = x509.ParseCertificate(certAndKey.Certificate[0])
 	if err != nil {
 		return err
+	}
+
+	atomic.StorePointer(&c.cached, unsafe.Pointer(&certAndKey))
+	return nil
+}
+
+func (c *certificate) reloadFromPKCS11() error {
+	// Expecting keystore file to only have certificate,
+	// with the private key being in an HSM/PKCS11 module.
+	keystore, err := os.Open(c.keystorePath)
+	if err != nil {
+		return err
+	}
+
+	certAndKey := tls.Certificate{}
+	err = certigo.ReadAsX509FromFiles(
+		[]*os.File{keystore}, "", nil,
+		func(cert *x509.Certificate) {
+			if certAndKey.Leaf == nil {
+				certAndKey.Leaf = cert
+			}
+			certAndKey.Certificate = append(certAndKey.Certificate, cert.Raw)
+		})
+	if err != nil {
+		return err
+	}
+
+	// Reuse previously loaded PKCS11 private key if we already have it. We want to
+	// avoid reloading the key every time the cert reloads, as it's a potentially
+	// expensive operation that calls out into a shared library.
+	if c.cached != nil {
+		old, _ := c.getCertificate(nil)
+		certAndKey.PrivateKey = old.PrivateKey
+	} else {
+		privateKey, err := pkcs11key.New(c.pkcs11Module, c.pkcs11TokenLabel, c.pkcs11PIN, certAndKey.Leaf.PublicKey)
+		if err != nil {
+			return err
+		}
+		certAndKey.PrivateKey = privateKey
 	}
 
 	atomic.StorePointer(&c.cached, unsafe.Pointer(&certAndKey))
