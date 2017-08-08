@@ -143,6 +143,11 @@ func TestServerFlagValidation(t *testing.T) {
 	*serverForwardAddress = "foo.com"
 	err = serverValidateFlags()
 	assert.NotNil(t, err, "unsafe target should be rejected")
+
+	*enabledCipherSuites = "ABC"
+	*serverForwardAddress = "127.0.0.1:8080"
+	err = serverValidateFlags()
+	assert.NotNil(t, err, "invalid cipher suite option should be rejected")
 }
 
 func TestClientFlagValidation(t *testing.T) {
@@ -150,6 +155,11 @@ func TestClientFlagValidation(t *testing.T) {
 	*clientListenAddress = "0.0.0.0:8080"
 	err := clientValidateFlags()
 	assert.NotNil(t, err, "unsafe listen should be rejected")
+
+	*enabledCipherSuites = "ABC"
+	*clientListenAddress = "127.0.0.1:8080"
+	err = clientValidateFlags()
+	assert.NotNil(t, err, "invalid cipher suite option should be rejected")
 }
 
 func TestAllowsLocalhost(t *testing.T) {

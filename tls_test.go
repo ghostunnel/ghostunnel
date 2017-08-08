@@ -179,8 +179,12 @@ func TestBuildConfig(t *testing.T) {
 	defer os.Remove(tmpCaBundle.Name())
 	defer os.Remove(tmpKeystoreNoPrivKey.Name())
 
-	*enabledCipherSuites = "AES,CHACHA"
+	*enabledCipherSuites = ""
 	conf, err := buildConfig(tmpCaBundle.Name())
+	assert.NotNil(t, err, "should fail to build config with no cipher suites")
+
+	*enabledCipherSuites = "AES,CHACHA"
+	conf, err = buildConfig(tmpCaBundle.Name())
 	assert.Nil(t, err, "should be able to build TLS config")
 	assert.NotNil(t, conf.RootCAs, "config must have CA certs")
 	assert.NotNil(t, conf.ClientCAs, "config must have CA certs")
@@ -225,6 +229,21 @@ func TestCipherSuitePreference(t *testing.T) {
 	conf, err = buildConfig("")
 	assert.Nil(t, err, "should be able to build TLS config")
 	assert.True(t, conf.CipherSuites[0] == tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, "expecting AES")
+}
+
+func TestReload(t *testing.T) {
+	tmpKeystore, err := ioutil.TempFile("", "ghostunnel-test")
+	panicOnError(err)
+
+	tmpKeystore.Write(testKeystore)
+	tmpKeystore.Sync()
+
+	defer os.Remove(tmpKeystore.Name())
+
+	c, err := buildCertificate(tmpKeystore.Name(), testKeystorePassword, "", "", "")
+	assert.Nil(t, err, "should be able to build certificate")
+
+	c.reload()
 }
 
 func TestBuildConfigSystemRoots(t *testing.T) {
