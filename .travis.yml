@@ -16,17 +16,22 @@ go:
   - master
 
 before_install:
-  - sudo apt-get install -y netcat
+  - sudo apt-get install -y netcat softhsm
   - go get github.com/wadey/gocovmerge
   - go get github.com/mattn/goveralls
   - go get golang.org/x/tools/cmd/cover
+  - sudo mkdir -p /var/lib/lib/softhsm
+  - sudo chown -R $USER:$USER /etc/softhsm
+  - sudo chown -R $USER:$USER /var/lib/lib/softhsm
+  - sudo softhsm --init-token --slot 0 --label ghostunnel-pkcs11-test --so-pin 1234 --pin 1234
+  - sudo softhsm --id 01 --slot 0 --label ghostunnel-pkcs11-test --import test-keys/server.pkcs8.key --pin 1234
 
 install:
-  - go build .
+  - CGO_ENABLED=1 go build .
   - docker build -t square/ghostunnel .
 
 script:
-  - make test
+  - GHOSTUNNEL_TEST_PKCS11=true PKCS11_MODULE=/usr/lib/softhsm/libsofthsm.so PKCS11_LABEL=ghostunnel-pkcs11-test PKCS11_PIN=1234 make test
 
 after_success:
   - $HOME/gopath/bin/goveralls -coverprofile coverage-merged.out -service=travis-ci
