@@ -231,6 +231,21 @@ func TestCipherSuitePreference(t *testing.T) {
 	assert.True(t, conf.CipherSuites[0] == tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, "expecting AES")
 }
 
+func TestReload(t *testing.T) {
+	tmpKeystore, err := ioutil.TempFile("", "ghostunnel-test")
+	panicOnError(err)
+
+	tmpKeystore.Write(testKeystore)
+	tmpKeystore.Sync()
+
+	defer os.Remove(tmpKeystore.Name())
+
+	c, err := buildCertificate(tmpKeystore.Name(), testKeystorePassword, "", "", "")
+	assert.Nil(t, err, "should be able to build certificate")
+
+	c.reload()
+}
+
 func TestBuildConfigSystemRoots(t *testing.T) {
 	conf, err := buildConfig("")
 	assert.Nil(t, err, "should be able to build TLS config")
