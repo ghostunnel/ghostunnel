@@ -155,6 +155,11 @@ func TestClientFlagValidation(t *testing.T) {
 	*clientListenAddress = "0.0.0.0:8080"
 	err := clientValidateFlags()
 	assert.NotNil(t, err, "unsafe listen should be rejected")
+
+	*enabledCipherSuites = "ABC"
+	*clientListenAddress = "127.0.0.1:8080"
+	err = clientValidateFlags()
+	assert.NotNil(t, err, "invalid cipher suite option should be rejected")
 }
 
 func TestAllowsLocalhost(t *testing.T) {
