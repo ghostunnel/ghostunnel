@@ -34,6 +34,22 @@
 			"notests": true
 		},
 		{
+			"importpath": "github.com/letsencrypt/pkcs11key",
+			"repository": "https://github.com/letsencrypt/pkcs11key",
+			"vcs": "git",
+			"revision": "396559074696a4891c7c38de2856bb3f38f78b6a",
+			"branch": "master",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/miekg/pkcs11",
+			"repository": "https://github.com/miekg/pkcs11",
+			"vcs": "git",
+			"revision": "7283ca79f35edb89bc1b4ecae7f86a3680ce737f",
+			"branch": "master",
+			"notests": true
+		},
+		{
 			"importpath": "github.com/mwitkow/go-http-dialer",
 			"repository": "https://github.com/mwitkow/go-http-dialer",
 			"vcs": "git",
