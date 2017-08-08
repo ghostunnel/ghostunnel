@@ -179,8 +179,12 @@ func TestBuildConfig(t *testing.T) {
 	defer os.Remove(tmpCaBundle.Name())
 	defer os.Remove(tmpKeystoreNoPrivKey.Name())
 
-	*enabledCipherSuites = "AES,CHACHA"
+	*enabledCipherSuites = ""
 	conf, err := buildConfig(tmpCaBundle.Name())
+	assert.NotNil(t, err, "should fail to build config with no cipher suites")
+
+	*enabledCipherSuites = "AES,CHACHA"
+	conf, err = buildConfig(tmpCaBundle.Name())
 	assert.Nil(t, err, "should be able to build TLS config")
 	assert.NotNil(t, conf.RootCAs, "config must have CA certs")
 	assert.NotNil(t, conf.ClientCAs, "config must have CA certs")

@@ -229,15 +229,11 @@ func buildConfig(caBundlePath string) (*tls.Config, error) {
 	for _, suite := range strings.Split(*enabledCipherSuites, ",") {
 		ciphers, ok := cipherSuites[strings.TrimSpace(suite)]
 		if !ok {
-			return nil, fmt.Errorf("invalid cipher suite %s selected", suite)
+			return nil, fmt.Errorf("invalid cipher suite '%s' selected", suite)
 		}
 
 		logger.Printf("enabling cipher suites for '%s' (%d cipher suites)", suite, len(ciphers))
 		suites = append(suites, ciphers...)
-	}
-
-	if len(suites) == 0 {
-		return nil, fmt.Errorf("no cipher suites selected? aborting")
 	}
 
 	return &tls.Config{
