@@ -71,6 +71,9 @@ var (
 	keystorePass        = app.Flag("storepass", "Password for certificate and keystore (optional).").PlaceHolder("PASS").String()
 	caBundlePath        = app.Flag("cacert", "Path to CA bundle file (PEM/X509). Uses system trust store by default.").String()
 	enabledCipherSuites = app.Flag("cipher-suites", "Set of cipher suites to enable, comma-separated, in order of preference (AES, CHACHA).").Default("AES,CHACHA").String()
+	pkcs11Module        = app.Flag("pkcs11-module", "Path to PKCS11 module (SO) file (optional)").PlaceHolder("PATH").ExistingFile()
+	pkcs11TokenLabel    = app.Flag("pkcs11-token-label", "Token label for slot/key in PKCS11 module (optional)").PlaceHolder("LABEL").String()
+	pkcs11PIN           = app.Flag("pkcs11-pin", "PIN code for slot/key in PKCS11 module (optional)").PlaceHolder("PIN").String()
 
 	// Reloading and timeouts
 	timedReload     = app.Flag("timed-reload", "Reload keystores every given interval (e.g. 300s), refresh listener/client on changes.").PlaceHolder("DURATION").Duration()
@@ -239,7 +242,7 @@ func run(args []string) error {
 		go watchFiles([]string{*keystorePath}, *timedReload, watcher)
 	}
 
-	cert, err := buildCertificate(*keystorePath, *keystorePass)
+	cert, err := buildCertificate(*keystorePath, *keystorePass, *pkcs11Module, *pkcs11TokenLabel, *pkcs11PIN)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: unable to load certificates: %s\n", err)
 		return err

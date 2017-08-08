@@ -12,6 +12,8 @@ FROM golang:alpine
 
 MAINTAINER Cedric Staub "cs@squareup.com"
 
+RUN apk add --update gcc musl-dev libtool
+
 # Copy source
 COPY . /go/src/github.com/square/ghostunnel
 

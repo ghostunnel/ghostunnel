@@ -7,7 +7,7 @@ Ghostunnel
 
 👻
 
-Ghostunnel is a simple SSL/TLS proxy with mutual authentication support for
+Ghostunnel is a simple TLS proxy with mutual authentication support for
 securing non-TLS backend applications.
 
 Ghostunnel supports two modes, client mode and server mode. Ghostunnel in
@@ -238,4 +238,47 @@ How to check status and read connection metrics:
     curl --cacert test-keys/root.crt https://localhost:6060/_metrics
 
 For information on profiling via pprof, see the
-[`net/http/pprof`](https://golang.org/pkg/net/http/pprof/) documentation.
+[`net/http/pprof`][pprof] documentation.
+
+[pprof]: https://golang.org/pkg/net/http/pprof
+
+### HSM/PKCS11 support
+
+Ghostunnel has experimental support for loading private keys from PKCS11
+modules, which should work with any hardware security module that exposes a
+PKCS11 interface. An easy way to test the PKCS11 interface for development
+purposes is with [SoftHSM][softhsm].
+
+[softhsm]: https://github.com/opendnssec/SoftHSMv2
+
+To import the server test key into SoftHSM, for example:
+
+    softhsm2-util --init-token \
+      --slot 0 \
+      --label ghostunnel-server \
+      --so-pin 1234 \
+      --pin 1234
+
+    softhsm2-util --id 01 \
+      --token ghostunnel-server \
+      --label ghostunnel-server \
+      --import test-keys/server.pkcs8.key \
+      --so-pin 1234 \
+      --pin 1234
+
+To launch ghostunnel with the SoftHSM-backed PKCS11 key (on macOS):
+
+    ghostunnel server \
+      --keystore test-keys/server.crt \
+      --pkcs11-module /usr/local/Cellar/softhsm/2.3.0/lib/softhsm/libsofthsm2.so \
+      --pkcs11-token-label ghostunnel-server \
+      --pkcs11-pin 1234 \
+      --listen localhost:8443 \
+      --target localhost:8080 \
+      --allow-cn client
+
+Note that `--keystore` needs to point to the certificate chain that corresponds
+to the private key in the PKCS11 module, with the leaf certificate being the
+first certificate in the chain. The `--pkcs11-module`, `--pkcs11-token-label`
+and `--pkcs11-pin` flags can be used to configure how to load the key from the
+PKCS11 module you are using. 
