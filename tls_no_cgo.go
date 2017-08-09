@@ -2,8 +2,15 @@
 
 package main
 
-import "fmt"
+import (
+	"crypto"
+	"fmt"
+)
 
-func newpkcs11(module, tokenlabel, pin, pubkey interface{}) (interface{}, error) {
+func newPKCS11(pubkey crypto.PublicKey) (crypto.PrivateKey, error) {
 	return nil, fmt.Errorf("PKCS11 unavailable when compiled without CGO")
+}
+
+func hasPKCS11() bool {
+	return false
 }

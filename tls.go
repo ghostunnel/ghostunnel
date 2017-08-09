@@ -53,14 +53,13 @@ func (timeoutError) Temporary() bool { return true }
 
 // certificate wraps a TLS certificate in a reloadable way
 type certificate struct {
-	keystorePath, keystorePass                string
-	pkcs11Module, pkcs11TokenLabel, pkcs11PIN string
-	cached                                    unsafe.Pointer
+	keystorePath, keystorePass string
+	cached                     unsafe.Pointer
 }
 
 // Build reloadable certificate
-func buildCertificate(keystorePath, keystorePass, pkcs11Module, pkcs11TokenLabel, pkcs11PIN string) (*certificate, error) {
-	cert := &certificate{keystorePath, keystorePass, pkcs11Module, pkcs11TokenLabel, pkcs11PIN, nil}
+func buildCertificate(keystorePath, keystorePass string) (*certificate, error) {
+	cert := &certificate{keystorePath, keystorePass, nil}
 	err := cert.reload()
 	if err != nil {
 		return nil, err
@@ -75,7 +74,7 @@ func (c *certificate) getCertificate(clientHello *tls.ClientHelloInfo) (*tls.Cer
 
 // Reload certificate
 func (c *certificate) reload() error {
-	if c.pkcs11Module != "" {
+	if hasPKCS11() {
 		return c.reloadFromPKCS11()
 	}
 	return c.reloadFromPEM()
@@ -148,7 +147,7 @@ func (c *certificate) reloadFromPKCS11() error {
 		old, _ := c.getCertificate(nil)
 		certAndKey.PrivateKey = old.PrivateKey
 	} else {
-		privateKey, err := newpkcs11(c.pkcs11Module, c.pkcs11TokenLabel, c.pkcs11PIN, certAndKey.Leaf.PublicKey)
+		privateKey, err := newPKCS11(certAndKey.Leaf.PublicKey)
 		if err != nil {
 			return err
 		}
