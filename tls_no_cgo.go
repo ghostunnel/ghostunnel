@@ -4,11 +4,11 @@ package main
 
 import (
 	"crypto"
-	"fmt"
+	"errors"
 )
 
 func newPKCS11(pubkey crypto.PublicKey) (crypto.PrivateKey, error) {
-	return nil, fmt.Errorf("PKCS11 unavailable when compiled without CGO")
+	panic(errors.New("PKCS11 unavailable when compiled without CGO support"))
 }
 
 func hasPKCS11() bool {
