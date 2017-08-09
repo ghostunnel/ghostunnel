@@ -247,7 +247,8 @@ For information on profiling via pprof, see the
 Ghostunnel has experimental support for loading private keys from PKCS11
 modules, which should work with any hardware security module that exposes a
 PKCS11 interface. An easy way to test the PKCS11 interface for development
-purposes is with [SoftHSM][softhsm].
+purposes is with [SoftHSM][softhsm]. Note that for PKCS11 support to work,
+you must compile with `CGO_ENABLED=1`.
 
 [softhsm]: https://github.com/opendnssec/SoftHSMv2
 

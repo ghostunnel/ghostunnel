@@ -27,6 +27,7 @@ before_install:
   - sudo softhsm --id 01 --slot 0 --label ghostunnel-pkcs11-test --import test-keys/server.pkcs8.key --pin 1234
 
 install:
+  - CGO_ENABLED=0 go build .
   - CGO_ENABLED=1 go build .
   - docker build -t square/ghostunnel .
 
