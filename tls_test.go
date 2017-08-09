@@ -240,7 +240,7 @@ func TestReload(t *testing.T) {
 
 	defer os.Remove(tmpKeystore.Name())
 
-	c, err := buildCertificate(tmpKeystore.Name(), testKeystorePassword, "", "", "")
+	c, err := buildCertificate(tmpKeystore.Name(), testKeystorePassword)
 	assert.Nil(t, err, "should be able to build certificate")
 
 	c.reload()
