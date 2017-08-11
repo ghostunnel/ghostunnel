@@ -66,9 +66,7 @@ on how to generate new ones with OpenSSL).
 
 Note that by default ghostunnel logs to stderr and runs in the foreground. You
 can set `--syslog` to log to syslog. For daemonization, we recommend using
-a utility such as [daemonize](http://software.clapper.org/daemonize/). For an
-example on how to use ghostunnel in a Docker container, see the `docker`
-subdirectory.
+a utility such as [daemonize](http://software.clapper.org/daemonize/).
 
 ### Install
 
