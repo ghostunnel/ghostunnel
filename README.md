@@ -206,7 +206,7 @@ Advanced Features
 
 Ghostunnel has a notion of "status port", a TCP port (or UNIX socket) that can
 be used to expose status and metrics information over HTTPS. The status port
-feature can be controlled via the `--status` flag. Profiling endopints on the
+feature can be controlled via the `--status` flag. Profiling endpoints on the
 status port can be enabled with `--enable-pprof`.
 
 The X.509 certificate on the status port will be the same as the certificate
@@ -245,8 +245,8 @@ For information on profiling via pprof, see the
 Ghostunnel has experimental support for loading private keys from PKCS11
 modules, which should work with any hardware security module that exposes a
 PKCS11 interface. An easy way to test the PKCS11 interface for development
-purposes is with [SoftHSM][softhsm]. Note that for PKCS11 support to work,
-you must compile with `CGO_ENABLED=1`.
+purposes is with [SoftHSM][softhsm]. Note that CGO is required in order for
+PKCS11 support to work.
 
 [softhsm]: https://github.com/opendnssec/SoftHSMv2
 
