@@ -65,6 +65,10 @@ var (
 	clientUnsafeListen   = clientCommand.Flag("unsafe-listen", "If set, does not limit listen to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
 	clientServerName     = clientCommand.Flag("override-server-name", "If set, overrides the server name used for hostname verification.").PlaceHolder("NAME").String()
 	clientConnectProxy   = clientCommand.Flag("connect-proxy", "If set, connect to target over given HTTP CONNECT proxy. Must be HTTP/HTTPS URL.").PlaceHolder("URL").URL()
+	clientAllowedCNs     = clientCommand.Flag("verify-cn", "Allow servers with given common name (can be repeated).").PlaceHolder("CN").Strings()
+	clientAllowedOUs     = clientCommand.Flag("verify-ou", "Allow servers with given organizational unit name (can be repeated).").PlaceHolder("OU").Strings()
+	clientAllowedDNSs    = clientCommand.Flag("verify-dns-san", "Allow servers with given DNS subject alternative name (can be repeated).").PlaceHolder("SAN").Strings()
+	clientAllowedIPs     = clientCommand.Flag("verify-ip-san", "Allow servers with given IP subject alternative name (can be repeated).").PlaceHolder("SAN").IPList()
 
 	// TLS options
 	keystorePath        = app.Flag("keystore", "Path to certificate and keystore (PEM with certificate/key, or PKCS12).").PlaceHolder("PATH").Required().String()
@@ -315,7 +319,7 @@ func serverListen(context *Context) error {
 	}
 
 	config.GetCertificate = context.cert.getCertificate
-	config.VerifyPeerCertificate = verifyPeerCertificate
+	config.VerifyPeerCertificate = verifyPeerCertificateServer
 
 	listener, err := reuseport.NewReusablePortListener("tcp", (*serverListenAddress).String())
 	if err != nil {
@@ -470,6 +474,8 @@ func clientBackendDialer(cert *certificate, network, address, host string) (func
 	} else {
 		config.ServerName = *clientServerName
 	}
+
+	config.VerifyPeerCertificate = verifyPeerCertificateClient
 
 	var dialer Dialer
 	dialer = &net.Dialer{Timeout: *timeoutDuration}

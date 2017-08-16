@@ -21,7 +21,7 @@ import (
 	"errors"
 )
 
-func verifyPeerCertificate(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+func verifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
 	if len(verifiedChains) == 0 {
 		return errors.New("unauthorized: invalid principal, or principal not allowed")
 	}
@@ -65,5 +65,53 @@ func verifyPeerCertificate(rawCerts [][]byte, verifiedChains [][]*x509.Certifica
 		}
 	}
 
+	return errors.New("unauthorized: invalid principal, or principal not allowed")
+}
+
+func verifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+	if len(verifiedChains) == 0 {
+		return errors.New("unauthorized: invalid principal, or principal not allowed")
+	}
+
+	// If none of --verify-cn, --verify-ou, verify-dns-san or verify-ip-san is specified, only hostname verification is performed
+	if len(*clientAllowedCNs) == 0 && len(*clientAllowedOUs) == 0 && len(*clientAllowedDNSs) == 0 && len(*clientAllowedIPs) == 0 {
+		return nil
+	}
+
+	cert := verifiedChains[0][0]
+
+	// Check CNs against --verify-cn flag(s).
+	for _, expectedCN := range *clientAllowedCNs {
+		if cert.Subject.CommonName == expectedCN {
+			return nil
+		}
+	}
+
+	// Check OUs against --verify-ou flag(s).
+	for _, expectedOU := range *clientAllowedOUs {
+		for _, serverOU := range cert.Subject.OrganizationalUnit {
+			if serverOU == expectedOU {
+				return nil
+			}
+		}
+	}
+
+	// Check DNSs against --verify-dns-san flag(s).
+	for _, expectedDNS := range *clientAllowedDNSs {
+		for _, serverDNS := range cert.DNSNames {
+			if serverDNS == expectedDNS {
+				return nil
+			}
+		}
+	}
+
+	// Check IPs against --verify-ip-san flag(s).
+	for _, expectedIP := range *clientAllowedIPs {
+		for _, serverIP := range cert.IPAddresses {
+			if expectedIP.Equal(serverIP) {
+				return nil
+			}
+		}
+	}
 	return errors.New("unauthorized: invalid principal, or principal not allowed")
 }
