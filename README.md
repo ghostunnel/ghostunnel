@@ -65,8 +65,11 @@ some pre-generated ones in the `test-keys` directory (alongside instructions
 on how to generate new ones with OpenSSL).
 
 Note that by default ghostunnel logs to stderr and runs in the foreground. You
-can set `--syslog` to log to syslog. For daemonization, we recommend using
-a utility such as [daemonize](http://software.clapper.org/daemonize/).
+can set `--syslog` to log to syslog. For daemonizing or running ghostunnel
+inside a container, we recommend [daemonize][daemonize] or [dumb-init][dumb-init].
+
+[daemonize]: http://software.clapper.org/daemonize/
+[dumb-init]: https://github.com/Yelp/dumb-init
 
 ### Install
 
