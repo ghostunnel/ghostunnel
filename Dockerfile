@@ -12,11 +12,13 @@ FROM golang:alpine
 
 MAINTAINER Cedric Staub "cs@squareup.com"
 
-RUN apk add --update gcc musl-dev libtool
-
 # Copy source
 COPY . /go/src/github.com/square/ghostunnel
 
 # Build & cleanup
-RUN go build -o /usr/bin/ghostunnel github.com/square/ghostunnel && \
-    rm -rf /go/src/*
+RUN apk add --no-cache --update gcc musl-dev libtool && \
+    go build -o /usr/bin/ghostunnel github.com/square/ghostunnel && \
+    apk del gcc musl-dev && \
+    rm -rf /go/src/* /go/pkg/* /var/cache/apk/*
+
+ENTRYPOINT ["/usr/bin/ghostunnel"]
