@@ -97,11 +97,6 @@ For more information on how to contribute, please see the [CONTRIBUTING][contr] 
 Usage Examples
 ==============
 
-Ghostunnel has two modes, a client mode and a server mode. In client mode, ghostunnel
-accepts raw (insecure) TCP connections and forwards them over TLS to a secure backend.
-In server mode, ghostunnel accepts secure TLS connections and forwards them over 
-raw TCP to an insecure backend. See examples for each mode below.
-
 Ghostunnel accepts certificates in two formats, a single PEM file containing
 both the certificate chain and private key or a PKCS#12 keystore. If Ghostunnel
 is used with a PKCS#11 hardware module, the PEM certificate file can omit the
