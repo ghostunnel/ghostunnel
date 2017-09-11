@@ -13,9 +13,13 @@ matrix:
 
 go:
   - 1.8
+  - 1.9
   - master
 
 before_install:
+  - pyenv versions
+  - pyenv global 3.5
+  - /usr/bin/env python3 --version
   - sudo apt-get install -y netcat softhsm
   - go get github.com/wadey/gocovmerge
   - go get github.com/mattn/goveralls
