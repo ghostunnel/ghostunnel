@@ -83,8 +83,11 @@ managing vendored dependencies.
 
 To run tests:
 
-    # Run unit & integration tests
+    # Option 1: run unit & integration tests locally
     make test
+
+    # Option 2: run unit & integration tests in a Docker container
+    GO_VERSION=1.9 make docker-test
 
     # Open coverage information in browser
     go tool cover -html coverage-merged.out
