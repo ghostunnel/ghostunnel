@@ -1,3 +1,5 @@
+---
+
 language: go
 
 sudo: required
@@ -6,37 +8,25 @@ dist: trusty
 services:
   - docker
 
-matrix:
-  fast_finish: true
-  allow_failures:
-    - go: master
-
 go:
   - 1.8
   - 1.9
-  - master
 
 before_install:
-  - pyenv versions
-  - pyenv global 3.5
-  - /usr/bin/env python3 --version
-  - sudo apt-get install -y netcat softhsm
-  - go get github.com/wadey/gocovmerge
+  - sudo apt-get update
+  - sudo apt-get -y -o Dpkg::Options::="--force-confnew" install docker-ce
   - go get github.com/mattn/goveralls
-  - go get golang.org/x/tools/cmd/cover
-  - sudo mkdir -p /var/lib/lib/softhsm
-  - sudo chown -R $USER:$USER /etc/softhsm
-  - sudo chown -R $USER:$USER /var/lib/lib/softhsm
-  - sudo softhsm --init-token --slot 0 --label ghostunnel-pkcs11-test --so-pin 1234 --pin 1234
-  - sudo softhsm --id 01 --slot 0 --label ghostunnel-pkcs11-test --import test-keys/server.pkcs8.key --pin 1234
 
 install:
+  # Ensure we can build with/without CGO
   - CGO_ENABLED=0 go build .
   - CGO_ENABLED=1 go build .
-  - docker build -t square/ghostunnel .
+  # Build docker images
+  - make docker-build
+  - GO_VERSION=${TRAVIS_GO_VERSION}-stretch make docker-test-build
 
 script:
-  - GHOSTUNNEL_TEST_PKCS11=true PKCS11_MODULE=/usr/lib/softhsm/libsofthsm.so PKCS11_LABEL=ghostunnel-pkcs11-test PKCS11_PIN=1234 make test
+  - make docker-test-run
 
 after_success:
   - $HOME/gopath/bin/goveralls -coverprofile coverage-merged.out -service=travis-ci
