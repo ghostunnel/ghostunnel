@@ -5,6 +5,9 @@ INTEGRATION_TESTS := $(shell find tests -name 'test-*.py' -exec basename {} .py 
 ghostunnel.test: $(SOURCE_FILES)
 	go test -c -covermode=count -coverpkg .
 
+clean:
+	rm -rf *.out */*.out ghostunnel.test tests/__pycache__
+
 test: unit $(INTEGRATION_TESTS)
 	gocovmerge *.out */*.out > coverage-merged.out
 	@echo "PASS"
@@ -30,4 +33,4 @@ docker-test-run:
 
 docker-test: docker-test-build docker-test-run
 
-.PHONY: $(INTEGRATION_TESTS) test unit softhsm-import docker-build docker-test-build docker-test-run docker-test
+.PHONY: $(INTEGRATION_TESTS) test unit softhsm-import docker-build docker-test-build docker-test-run docker-test clean
