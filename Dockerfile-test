@@ -35,4 +35,4 @@ ENV PKCS11_PIN=1234
 ENV SOFTHSM2_CONF=/etc/softhsm/softhsm2.conf
 
 ENTRYPOINT ["/usr/bin/make"]
-CMD ["softhsm-import", "test"]
+CMD ["clean", "softhsm-import", "test"]
