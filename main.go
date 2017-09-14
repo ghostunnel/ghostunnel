@@ -214,6 +214,8 @@ func run(args []string) error {
 	app.Validate(validateFlags)
 	command := kingpin.MustParse(app.Parse(args))
 
+	logger.Printf("starting ghostunnel in %s mode", command)
+
 	// metrics
 	if *metricsGraphite != nil {
 		logger.Printf("metrics enabled; reporting metrics via TCP to %s", *metricsGraphite)
@@ -258,13 +260,13 @@ func run(args []string) error {
 			fmt.Fprintf(os.Stderr, "error: %s\n", err)
 			return err
 		}
-		logger.Printf("starting ghostunnel in server mode")
 
 		dial, err := serverBackendDialer()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: invalid target address: %s\n", err)
 			return err
 		}
+		logger.Printf("using target address %s", *serverForwardAddress)
 
 		status := newStatusHandler(dial)
 		context := &Context{watcher, status, nil, dial, metrics, cert}
@@ -281,13 +283,13 @@ func run(args []string) error {
 			fmt.Fprintf(os.Stderr, "error: %s\n", err)
 			return err
 		}
-		logger.Printf("starting ghostunnel in client mode")
 
 		network, address, host, err := parseUnixOrTCPAddress(*clientForwardAddress)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: invalid target address: %s\n", err)
 			return err
 		}
+		logger.Printf("using target address %s", *clientForwardAddress)
 
 		dial, err := clientBackendDialer(cert, network, address, host)
 		if err != nil {
@@ -348,6 +350,8 @@ func serverListen(context *Context) error {
 		}
 	}
 
+	logger.Printf("listening for connections on %s", (*serverListenAddress).String())
+
 	go proxy.accept()
 
 	context.status.Listening()
@@ -391,6 +395,8 @@ func clientListen(context *Context) error {
 			return err
 		}
 	}
+
+	logger.Printf("listening for connections on %s", *clientListenAddress)
 
 	go proxy.accept()
 

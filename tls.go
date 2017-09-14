@@ -74,10 +74,18 @@ func (c *certificate) getCertificate(clientHello *tls.ClientHelloInfo) (*tls.Cer
 
 // Reload certificate
 func (c *certificate) reload() error {
+	var err error
 	if hasPKCS11() {
-		return c.reloadFromPKCS11()
+		err = c.reloadFromPKCS11()
+	} else {
+		err = c.reloadFromPEM()
 	}
-	return c.reloadFromPEM()
+
+	if err == nil {
+		cert, _ := c.getCertificate(nil)
+		logger.Printf("loaded certificate with common name '%s'", cert.Leaf.Subject.CommonName)
+	}
+	return err
 }
 
 func (c *certificate) reloadFromPEM() error {
@@ -230,7 +238,6 @@ func buildConfig(caBundlePath string) (*tls.Config, error) {
 			return nil, fmt.Errorf("invalid cipher suite '%s' selected", suite)
 		}
 
-		logger.Printf("enabling cipher suites for '%s' (%d cipher suites)", suite, len(ciphers))
 		suites = append(suites, ciphers...)
 	}
 
