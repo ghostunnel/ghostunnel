@@ -185,6 +185,9 @@ func clientValidateFlags() error {
 	if !*clientUnsafeListen && !validateUnixOrLocalhost(*clientListenAddress) {
 		return fmt.Errorf("--listen must be unix:PATH, localhost:PORT, 127.0.0.1:PORT or [::1]:PORT (unless --unsafe-listen is set)")
 	}
+	if *clientConnectProxy != nil && (*clientConnectProxy).Scheme != "http" && (*clientConnectProxy).Scheme != "https" {
+		return fmt.Errorf("invalid CONNECT proxy %s, must have HTTP or HTTPS connection scheme", (*clientConnectProxy).String())
+	}
 
 	for _, suite := range strings.Split(*enabledCipherSuites, ",") {
 		_, ok := cipherSuites[strings.TrimSpace(suite)]
@@ -481,6 +484,8 @@ func clientBackendDialer(cert *certificate, network, address, host string) (func
 	dialer = &net.Dialer{Timeout: *timeoutDuration}
 
 	if *clientConnectProxy != nil {
+		logger.Printf("using HTTP(S) CONNECT proxy %s", (*clientConnectProxy).String())
+
 		// Use HTTP CONNECT proxy to connect to target.
 		proxyConfig, err := buildConfig(*caBundlePath)
 		if err != nil {
