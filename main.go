@@ -185,6 +185,9 @@ func clientValidateFlags() error {
 	if !*clientUnsafeListen && !validateUnixOrLocalhost(*clientListenAddress) {
 		return fmt.Errorf("--listen must be unix:PATH, localhost:PORT, 127.0.0.1:PORT or [::1]:PORT (unless --unsafe-listen is set)")
 	}
+	if *clientConnectProxy != nil && (*clientConnectProxy).Scheme != "http" && (*clientConnectProxy).Scheme != "https" {
+		return fmt.Errorf("invalid CONNECT proxy %s, must have HTTP or HTTPS connection scheme", (*clientConnectProxy).String())
+	}
 
 	for _, suite := range strings.Split(*enabledCipherSuites, ",") {
 		_, ok := cipherSuites[strings.TrimSpace(suite)]
@@ -210,6 +213,8 @@ func run(args []string) error {
 	app.Version(fmt.Sprintf("rev %s built with %s", version, runtime.Version()))
 	app.Validate(validateFlags)
 	command := kingpin.MustParse(app.Parse(args))
+
+	logger.Printf("starting ghostunnel in %s mode", command)
 
 	// metrics
 	if *metricsGraphite != nil {
@@ -255,13 +260,13 @@ func run(args []string) error {
 			fmt.Fprintf(os.Stderr, "error: %s\n", err)
 			return err
 		}
-		logger.Printf("starting ghostunnel in server mode")
 
 		dial, err := serverBackendDialer()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: invalid target address: %s\n", err)
 			return err
 		}
+		logger.Printf("using target address %s", *serverForwardAddress)
 
 		status := newStatusHandler(dial)
 		context := &Context{watcher, status, nil, dial, metrics, cert}
@@ -278,13 +283,13 @@ func run(args []string) error {
 			fmt.Fprintf(os.Stderr, "error: %s\n", err)
 			return err
 		}
-		logger.Printf("starting ghostunnel in client mode")
 
 		network, address, host, err := parseUnixOrTCPAddress(*clientForwardAddress)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: invalid target address: %s\n", err)
 			return err
 		}
+		logger.Printf("using target address %s", *clientForwardAddress)
 
 		dial, err := clientBackendDialer(cert, network, address, host)
 		if err != nil {
@@ -345,6 +350,8 @@ func serverListen(context *Context) error {
 		}
 	}
 
+	logger.Printf("listening for connections on %s", (*serverListenAddress).String())
+
 	go proxy.accept()
 
 	context.status.Listening()
@@ -388,6 +395,8 @@ func clientListen(context *Context) error {
 			return err
 		}
 	}
+
+	logger.Printf("listening for connections on %s", *clientListenAddress)
 
 	go proxy.accept()
 
@@ -481,6 +490,8 @@ func clientBackendDialer(cert *certificate, network, address, host string) (func
 	dialer = &net.Dialer{Timeout: *timeoutDuration}
 
 	if *clientConnectProxy != nil {
+		logger.Printf("using HTTP(S) CONNECT proxy %s", (*clientConnectProxy).String())
+
 		// Use HTTP CONNECT proxy to connect to target.
 		proxyConfig, err := buildConfig(*caBundlePath)
 		if err != nil {

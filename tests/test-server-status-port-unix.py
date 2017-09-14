@@ -5,6 +5,7 @@
 from subprocess import Popen
 from common import *
 from tempfile import mkdtemp
+from shutil import rmtree
 import urllib.request, urllib.error, urllib.parse, socket, ssl, time, os, signal, json, sys, http.client
 
 class UnixHTTPConnection(http.client.HTTPConnection):
@@ -52,5 +53,5 @@ if __name__ == "__main__":
     print_ok("OK")
   finally:
     terminate(ghostunnel)
-    os.rmdir(tempdir)
+    rmtree(tempdir)
       
