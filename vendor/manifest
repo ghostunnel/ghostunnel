@@ -42,14 +42,6 @@
 			"notests": true
 		},
 		{
-			"importpath": "github.com/lib/pq",
-			"repository": "https://github.com/lib/pq",
-			"vcs": "git",
-			"revision": "b77235e3890a962fe8a6f8c4c7198679ca7814e7",
-			"branch": "master",
-			"notests": true
-		},
-		{
 			"importpath": "github.com/miekg/pkcs11",
 			"repository": "https://github.com/miekg/pkcs11",
 			"vcs": "git",
@@ -218,15 +210,6 @@
 			"notests": true
 		},
 		{
-			"importpath": "github.com/square/certigo/vendor/golang.org/x/sys/unix",
-			"repository": "https://github.com/square/certigo",
-			"vcs": "git",
-			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
-			"branch": "master",
-			"path": "vendor/golang.org/x/sys/unix",
-			"notests": true
-		},
-		{
 			"importpath": "github.com/square/go-sq-metrics",
 			"repository": "https://github.com/square/go-sq-metrics",
 			"vcs": "git",
@@ -259,24 +242,6 @@
 			"revision": "890a5c3458b43e6104ff5da8dfa139d013d77544",
 			"branch": "master",
 			"path": "vendor/github.com/pmezard/go-difflib/difflib",
-			"notests": true
-		},
-		{
-			"importpath": "golang.org/x/crypto/pkcs12",
-			"repository": "https://go.googlesource.com/crypto",
-			"vcs": "git",
-			"revision": "7d9177d70076375b9a59c8fde23d52d9c4a7ecd5",
-			"branch": "master",
-			"path": "/pkcs12",
-			"notests": true
-		},
-		{
-			"importpath": "golang.org/x/net/context",
-			"repository": "https://go.googlesource.com/net",
-			"vcs": "git",
-			"revision": "0744d001aa8470aaa53df28d32e5ceeb8af9bd70",
-			"branch": "master",
-			"path": "/context",
 			"notests": true
 		},
 		{
