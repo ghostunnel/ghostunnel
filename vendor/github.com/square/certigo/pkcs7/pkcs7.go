@@ -36,7 +36,7 @@ type SignedDataEnvelope struct {
 // Refer to RFC 2315, Section 9.1 for definition of this type.
 type SignedData struct {
 	Version          int
-	DigestAlgorithms []asn1.ObjectIdentifier `asn1:"set"`
+	DigestAlgorithms []asn1.RawValue `asn1:"set"`
 	ContentInfo      asn1.RawValue
 	Certificates     []asn1.RawValue `asn1:"tag:0,optional,set"`
 	RevocationLists  []asn1.RawValue `asn1:"tag:1,optional,set"`
