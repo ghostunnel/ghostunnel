@@ -256,7 +256,7 @@
             "importpath": "github.com/spiffe/go-spiffe",
             "repository": "https://github.com/spiffe/go-spiffe",
             "vcs": "git",
-            "revision": "a87173a5a7a6c04c03a2a93637f36a4bba8f82b8",
+            "revision": "2bb3101d62b4bea6371d792e818360e3f056867b",
             "branch": "master",
             "notests": true
         }

@@ -217,7 +217,7 @@ func TestAuthorizeAllowURI(t *testing.T) {
 	*serverAllowedIPs = []net.IP{}
 	*serverAllowedURIs = []string{"spiffe://dev.acme.com/path/service"}
 
-	assert.Nil(t, verifyPeerCertificate(nil, chainsWithURI), "allow-uri-san should allow clients with matching URI SAN")
+	assert.Nil(t, verifyPeerCertificateServer(nil, chainsWithURI), "allow-uri-san should allow clients with matching URI SAN")
 }
 
 func TestAuthorizeRejectURI(t *testing.T) {
@@ -230,5 +230,5 @@ func TestAuthorizeRejectURI(t *testing.T) {
 	*serverAllowedIPs = []net.IP{}
 	*serverAllowedURIs = []string{"spiffe://invalid"}
 
-	assert.NotNil(t, verifyPeerCertificate(nil, chainsWithURI), "should reject cert w/o matching URI")
+	assert.NotNil(t, verifyPeerCertificateServer(nil, chainsWithURI), "should reject cert w/o matching URI")
 }

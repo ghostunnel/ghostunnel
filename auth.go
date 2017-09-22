@@ -19,8 +19,7 @@ package main
 import (
 	"crypto/x509"
 	"errors"
-	"github.com/spiffe/go-spiffe"
-	"encoding/pem"
+	"github.com/spiffe/go-spiffe/uri"
 )
 
 func verifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
@@ -67,17 +66,9 @@ func verifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*x509.Cer
 		}
 	}
 
-	// Encode the certificate as PEM
-	pemdata := pem.EncodeToMemory(
-		&pem.Block{
-			Type: "CERTIFICATE",
-			Bytes: cert.Raw,
-		},
-	)
-
 	// Get URIs from the SAN in the certificate
 	if len(*serverAllowedURIs) > 0 {
-		uris, err := spiffe.GetUrisInSubjectAltName(string(pemdata));
+		uris, err := uri.GetURINamesFromCertificate(cert);
 		if err == nil {
 			for _, expectedURI := range *serverAllowedURIs {
 				for _, clientURI := range uris {
