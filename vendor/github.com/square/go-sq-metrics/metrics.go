@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/rcrowley/go-metrics"
@@ -39,6 +40,13 @@ type SquareMetrics struct {
 	interval time.Duration
 	logger   *log.Logger
 	client   *http.Client
+	mutex    *sync.Mutex
+	gauges   []gaugeWithCallback
+}
+
+type gaugeWithCallback struct {
+	gauge    metrics.Gauge
+	callback func() int64
 }
 
 // NewMetrics is the entry point for this code
@@ -56,14 +64,25 @@ func NewMetrics(metricsURL, metricsPrefix string, client *http.Client, interval 
 		interval: interval,
 		logger:   logger,
 		client:   client,
+		mutex:    &sync.Mutex{},
+		gauges:   []gaugeWithCallback{},
 	}
 
 	if metricsURL != "" {
 		go metrics.publishMetrics()
 	}
 
-	go metrics.collectSystemMetrics()
+	go metrics.collectMetrics()
 	return metrics
+}
+
+// AddGauge installs a callback for a gauge with the given name. The callback
+// will be called every metrics collection interval, and should provide an
+// updated value for the gauge.
+func (mb *SquareMetrics) AddGauge(name string, callback func() int64) {
+	mb.mutex.Lock()
+	defer mb.mutex.Unlock()
+	mb.gauges = append(mb.gauges, gaugeWithCallback{metrics.GetOrRegisterGauge(name, mb.Registry), callback})
 }
 
 func (mb *SquareMetrics) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -86,7 +105,7 @@ func (mb *SquareMetrics) publishMetrics() {
 }
 
 // Collect memory usage metrics
-func (mb *SquareMetrics) collectSystemMetrics() {
+func (mb *SquareMetrics) collectMetrics() {
 	var mem runtime.MemStats
 
 	update := func(name string, value uint64) {
@@ -131,6 +150,13 @@ func (mb *SquareMetrics) collectSystemMetrics() {
 		for ; observedPauses < mem.NumGC; observedPauses++ {
 			gcHistogram.Update(int64(mem.PauseNs[(observedPauses+1)%256]))
 		}
+
+		// Update gauges
+		mb.mutex.Lock()
+		for _, gauge := range mb.gauges {
+			gauge.gauge.Update(gauge.callback())
+		}
+		mb.mutex.Unlock()
 	}
 }
 
