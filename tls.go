@@ -138,7 +138,11 @@ func (c *certificate) reloadFromPKCS11() error {
 	certAndKey := tls.Certificate{}
 	err = certigo.ReadAsX509FromFiles(
 		[]*os.File{keystore}, "", nil,
-		func(cert *x509.Certificate) {
+		func(cert *x509.Certificate, err error) {
+			if err != nil {
+				logger.Printf("error during keystore read: %s", err)
+				return
+			}
 			if certAndKey.Leaf == nil {
 				certAndKey.Leaf = cert
 			}

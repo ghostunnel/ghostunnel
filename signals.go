@@ -68,7 +68,7 @@ func (context *Context) signalHandler(proxy *proxy, closeables []io.Closer) {
 				context.status.Reloading()
 				err := context.cert.reload()
 				if err != nil {
-					logger.Printf("error reloading: %s", err)
+					logger.Printf("error reloading certificates: %s", err)
 				}
 				logger.Printf("reloading complete")
 				context.status.Listening()
@@ -77,7 +77,7 @@ func (context *Context) signalHandler(proxy *proxy, closeables []io.Closer) {
 			context.status.Reloading()
 			err := context.cert.reload()
 			if err != nil {
-				logger.Printf("error reloading: %s", err)
+				logger.Printf("error reloading certificates: %s", err)
 			}
 			logger.Printf("reloading complete")
 			context.status.Listening()
