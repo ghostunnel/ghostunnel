@@ -18,6 +18,7 @@ deploy:
     file:
       - bin/ghostunnel-${TRAVIS_TAG}-linux-amd64-with-pkcs11
       - bin/ghostunnel-${TRAVIS_TAG}-darwin-amd64-without-pkcs11
+    draft: true
     skip_cleanup: true
     on:
       tags: true
