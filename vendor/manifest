@@ -29,7 +29,7 @@
 			"importpath": "github.com/kavu/go_reuseport",
 			"repository": "https://github.com/kavu/go_reuseport",
 			"vcs": "git",
-			"revision": "549e754a4ef1b9159c000d49db7ca6b898b19577",
+			"revision": "4ae41366110ad2460b03ac4562ca105e96479d2e",
 			"branch": "master",
 			"notests": true
 		},
@@ -45,7 +45,7 @@
 			"importpath": "github.com/miekg/pkcs11",
 			"repository": "https://github.com/miekg/pkcs11",
 			"vcs": "git",
-			"revision": "7283ca79f35edb89bc1b4ecae7f86a3680ce737f",
+			"revision": "eda1d775a087f2a96fec7c7876ea94dea43e6027",
 			"branch": "master",
 			"notests": true
 		},
@@ -69,7 +69,7 @@
 			"importpath": "github.com/square/certigo/jceks",
 			"repository": "https://github.com/square/certigo",
 			"vcs": "git",
-			"revision": "8e02295262bdfc308ec6733878c8a678bbcb1e95",
+			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
 			"branch": "master",
 			"path": "jceks",
 			"notests": true
@@ -78,7 +78,7 @@
 			"importpath": "github.com/square/certigo/lib",
 			"repository": "https://github.com/square/certigo",
 			"vcs": "git",
-			"revision": "8e02295262bdfc308ec6733878c8a678bbcb1e95",
+			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
 			"branch": "master",
 			"path": "/lib",
 			"notests": true
@@ -87,43 +87,133 @@
 			"importpath": "github.com/square/certigo/pkcs7",
 			"repository": "https://github.com/square/certigo",
 			"vcs": "git",
-			"revision": "8e02295262bdfc308ec6733878c8a678bbcb1e95",
+			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
 			"branch": "master",
 			"path": "pkcs7",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/square/certigo/vendor/github.com/Masterminds/semver",
+			"repository": "https://github.com/square/certigo",
+			"vcs": "git",
+			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
+			"branch": "master",
+			"path": "vendor/github.com/Masterminds/semver",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/square/certigo/vendor/github.com/Masterminds/sprig",
+			"repository": "https://github.com/square/certigo",
+			"vcs": "git",
+			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
+			"branch": "master",
+			"path": "vendor/github.com/Masterminds/sprig",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/square/certigo/vendor/github.com/aokoli/goutils",
+			"repository": "https://github.com/square/certigo",
+			"vcs": "git",
+			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
+			"branch": "master",
+			"path": "vendor/github.com/aokoli/goutils",
 			"notests": true
 		},
 		{
 			"importpath": "github.com/square/certigo/vendor/github.com/fatih/color",
 			"repository": "https://github.com/square/certigo",
 			"vcs": "git",
-			"revision": "8e02295262bdfc308ec6733878c8a678bbcb1e95",
+			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
 			"branch": "master",
 			"path": "vendor/github.com/fatih/color",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/square/certigo/vendor/github.com/huandu/xstrings",
+			"repository": "https://github.com/square/certigo",
+			"vcs": "git",
+			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
+			"branch": "master",
+			"path": "vendor/github.com/huandu/xstrings",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/square/certigo/vendor/github.com/imdario/mergo",
+			"repository": "https://github.com/square/certigo",
+			"vcs": "git",
+			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
+			"branch": "master",
+			"path": "vendor/github.com/imdario/mergo",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/square/certigo/vendor/github.com/mattn/go-colorable",
+			"repository": "https://github.com/square/certigo",
+			"vcs": "git",
+			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
+			"branch": "master",
+			"path": "vendor/github.com/mattn/go-colorable",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/square/certigo/vendor/github.com/mattn/go-isatty",
+			"repository": "https://github.com/square/certigo",
+			"vcs": "git",
+			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
+			"branch": "master",
+			"path": "vendor/github.com/mattn/go-isatty",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/square/certigo/vendor/github.com/satori/go.uuid",
+			"repository": "https://github.com/square/certigo",
+			"vcs": "git",
+			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
+			"branch": "master",
+			"path": "vendor/github.com/satori/go.uuid",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/square/certigo/vendor/github.com/spiffe/go-spiffe",
+			"repository": "https://github.com/square/certigo",
+			"vcs": "git",
+			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
+			"branch": "master",
+			"path": "vendor/github.com/spiffe/go-spiffe",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/square/certigo/vendor/golang.org/x/crypto/pbkdf2",
+			"repository": "https://github.com/square/certigo",
+			"vcs": "git",
+			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
+			"branch": "master",
+			"path": "vendor/golang.org/x/crypto/pbkdf2",
 			"notests": true
 		},
 		{
 			"importpath": "github.com/square/certigo/vendor/golang.org/x/crypto/pkcs12",
 			"repository": "https://github.com/square/certigo",
 			"vcs": "git",
-			"revision": "8e02295262bdfc308ec6733878c8a678bbcb1e95",
+			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
 			"branch": "master",
 			"path": "vendor/golang.org/x/crypto/pkcs12",
 			"notests": true
 		},
 		{
-			"importpath": "github.com/square/certigo/vendor/golang.org/x/sys/unix",
+			"importpath": "github.com/square/certigo/vendor/golang.org/x/crypto/scrypt",
 			"repository": "https://github.com/square/certigo",
 			"vcs": "git",
-			"revision": "8e02295262bdfc308ec6733878c8a678bbcb1e95",
+			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
 			"branch": "master",
-			"path": "vendor/golang.org/x/sys/unix",
+			"path": "vendor/golang.org/x/crypto/scrypt",
 			"notests": true
 		},
 		{
 			"importpath": "github.com/square/go-sq-metrics",
 			"repository": "https://github.com/square/go-sq-metrics",
 			"vcs": "git",
-			"revision": "348c9e6631e68433058bbb1b4e275985f5e770f6",
+			"revision": "ae72f332d0d940cfe1d965eb65d1df79e755b2e4",
 			"branch": "master",
 			"notests": true
 		},
@@ -131,7 +221,7 @@
 			"importpath": "github.com/stretchr/testify/assert",
 			"repository": "https://github.com/stretchr/testify",
 			"vcs": "git",
-			"revision": "2402e8e7a02fc811447d11f881aa9746cdc57983",
+			"revision": "890a5c3458b43e6104ff5da8dfa139d013d77544",
 			"branch": "master",
 			"path": "/assert",
 			"notests": true
@@ -140,7 +230,7 @@
 			"importpath": "github.com/stretchr/testify/vendor/github.com/davecgh/go-spew/spew",
 			"repository": "https://github.com/stretchr/testify",
 			"vcs": "git",
-			"revision": "2402e8e7a02fc811447d11f881aa9746cdc57983",
+			"revision": "890a5c3458b43e6104ff5da8dfa139d013d77544",
 			"branch": "master",
 			"path": "vendor/github.com/davecgh/go-spew/spew",
 			"notests": true
@@ -149,25 +239,16 @@
 			"importpath": "github.com/stretchr/testify/vendor/github.com/pmezard/go-difflib/difflib",
 			"repository": "https://github.com/stretchr/testify",
 			"vcs": "git",
-			"revision": "2402e8e7a02fc811447d11f881aa9746cdc57983",
+			"revision": "890a5c3458b43e6104ff5da8dfa139d013d77544",
 			"branch": "master",
 			"path": "vendor/github.com/pmezard/go-difflib/difflib",
-			"notests": true
-		},
-		{
-			"importpath": "golang.org/x/crypto/pkcs12",
-			"repository": "https://go.googlesource.com/crypto",
-			"vcs": "git",
-			"revision": "f6b343c37ca80bfa8ea539da67a0b621f84fab1d",
-			"branch": "master",
-			"path": "/pkcs12",
 			"notests": true
 		},
 		{
 			"importpath": "gopkg.in/alecthomas/kingpin.v2",
 			"repository": "https://gopkg.in/alecthomas/kingpin.v2",
 			"vcs": "git",
-			"revision": "e9044be3ab2a8e11d4e1f418d12f0790d57e8d70",
+			"revision": "1087e65c9441605df944fb12c33f0fe7072d18ca",
 			"branch": "master",
 			"notests": true
 		}

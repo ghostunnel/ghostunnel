@@ -21,6 +21,7 @@ import (
 	"crypto/dsa"
 	"crypto/ecdsa"
 	"crypto/rsa"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/hex"
@@ -31,6 +32,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/spiffe/go-spiffe"
 )
 
 var keyUsages = []x509.KeyUsage{
@@ -43,6 +46,81 @@ var keyUsages = []x509.KeyUsage{
 	x509.KeyUsageCRLSign,
 	x509.KeyUsageEncipherOnly,
 	x509.KeyUsageDecipherOnly,
+}
+
+var signatureSchemeStrings = map[tls.SignatureScheme]string{
+	// As per RFC 5246 (TLS v1.2), the handshake contains a set of
+	// SignatureAndHashAlgorithm values which is a tuple of a hash
+	// and a signature algorithm each. Go takes these values and
+	// maps them into a tls.SignatureScheme value, where the upper
+	// 8 bits are hash and lower 8 bits are the signature.
+	//
+	// TLS v1.3 changes this to use the signature_algorithms extension,
+	// see draft-ietf-tls-tls13-18 section 4.2.3. These are 16-bit
+	// values that explicitly specify a signature algorithm.
+	//
+	// cf. RFC 5246, Section A.4.1
+	// cf. draft-ietf-tls-tls13-18, Section 4.2.3
+	// cf. RFC 5758, Section 2
+	//
+	// See also ssl/ssl_locl.h in OpenSSL (grep for TLSEXT_SIGALG).
+	//
+	// Common values:
+	// --
+	// Signatures:
+	// 0x0 anonymous
+	// 0x1 RSA
+	// 0x2 DSA
+	// 0x3 ECDSA
+	// --
+	// Hashes:
+	// 0x0 none
+	// 0x1 MD-5
+	// 0x2 SHA-1
+	// 0x3 SHA-224
+	// 0x4 SHA-256
+	// 0x5 SHA-384
+	// 0x6 SHA-512
+	// --
+	// TLS v1.3:
+	// 0x0807 ED25519
+	// 0x0808 ED448
+	// 0xFE00-0xFFFF Private use
+	// --
+	tls.PKCS1WithSHA1:          "RSA-PKCS1 with SHA1",
+	tls.PKCS1WithSHA256:        "RSA-PKCS1 with SHA256",
+	tls.PKCS1WithSHA384:        "RSA-PKCS1 with SHA384",
+	tls.PKCS1WithSHA512:        "RSA-PKCS1 with SHA512",
+	tls.PSSWithSHA256:          "RSA-PSS with SHA256",
+	tls.PSSWithSHA384:          "RSA-PSS with SHA384",
+	tls.PSSWithSHA512:          "RSA-PSS with SHA512",
+	tls.ECDSAWithP256AndSHA256: "ECDSA with P256 and SHA256",
+	tls.ECDSAWithP384AndSHA384: "ECDSA with P384 and SHA384",
+	tls.ECDSAWithP521AndSHA512: "ECDSA with P521 and SHA512",
+
+	// Not from stdlib
+	// Defined in TLS 1.3 draft
+	0x807: "ED25519",
+	0x808: "ED448",
+
+	// Not in stdlib: server sent {sha1,ecdsa} or {sha224,ecdsa}.
+	0x203: "ECDSA with SHA1",
+	0x303: "ECDSA with SHA224",
+
+	// Unused (?) but theorically possible combos (per RFC 5246)
+	0x101: "RSA-PKCS1 with MD5",
+	0x301: "RSA-PKCS1 with SHA224",
+	0x102: "DSA with MD5",
+	0x202: "DSA with SHA1",
+	0x302: "DSA with SHA224",
+	0x402: "DSA with SHA256",
+	0x502: "DSA with SHA384",
+	0x602: "DSA with SHA512",
+
+	// Funky stuff supported by OpenSSL
+	0xeeee: "GOST 34.10-2012 (256)",
+	0xefef: "GOST 34.10-2012 (512)",
+	0xeded: "GOST 34.10-2001",
 }
 
 var keyUsageStrings = map[x509.KeyUsage]string{
@@ -95,27 +173,34 @@ type basicConstraints struct {
 type nameConstraints struct {
 	Critical            bool     `json:"critical,omitempty"`
 	PermittedDNSDomains []string `json:"permitted_dns_domains,omitempty"`
+	ExcludedDNSDomains  []string `json:"excluded_dns_domains,omitempty"`
 }
 
 // simpleCertificate is a JSON-representable certificate metadata holder.
 type simpleCertificate struct {
-	Alias              string              `json:"alias,omitempty"`
-	SerialNumber       string              `json:"serial"`
-	NotBefore          time.Time           `json:"not_before"`
-	NotAfter           time.Time           `json:"not_after"`
-	SignatureAlgorithm simpleSigAlg        `json:"signature_algorithm"`
-	IsSelfSigned       bool                `json:"is_self_signed"`
-	Subject            simplePKIXName      `json:"subject"`
-	Issuer             simplePKIXName      `json:"issuer"`
-	BasicConstraints   *basicConstraints   `json:"basic_constraints,omitempty"`
-	NameConstraints    *nameConstraints    `json:"name_constraints,omitempty"`
-	KeyUsage           simpleKeyUsage      `json:"key_usage,omitempty"`
-	ExtKeyUsage        []simpleExtKeyUsage `json:"extended_key_usage,omitempty"`
-	AltDNSNames        []string            `json:"dns_names,omitempty"`
-	AltIPAddresses     []net.IP            `json:"ip_addresses,omitempty"`
-	EmailAddresses     []string            `json:"email_addresses,omitempty"`
-	Warnings           []string            `json:"warnings,omitempty"`
-	PEM                string              `json:"pem,omitempty"`
+	Alias                 string              `json:"alias,omitempty"`
+	SerialNumber          string              `json:"serial"`
+	NotBefore             time.Time           `json:"not_before"`
+	NotAfter              time.Time           `json:"not_after"`
+	SignatureAlgorithm    simpleSigAlg        `json:"signature_algorithm"`
+	IsSelfSigned          bool                `json:"is_self_signed"`
+	Subject               simplePKIXName      `json:"subject"`
+	Issuer                simplePKIXName      `json:"issuer"`
+	BasicConstraints      *basicConstraints   `json:"basic_constraints,omitempty"`
+	NameConstraints       *nameConstraints    `json:"name_constraints,omitempty"`
+	OCSPServer            []string            `json:"ocsp_server,omitempty"`
+	IssuingCertificateURL []string            `json:"issuing_certificate,omitempty"`
+	KeyUsage              simpleKeyUsage      `json:"key_usage,omitempty"`
+	ExtKeyUsage           []simpleExtKeyUsage `json:"extended_key_usage,omitempty"`
+	AltDNSNames           []string            `json:"dns_names,omitempty"`
+	AltIPAddresses        []net.IP            `json:"ip_addresses,omitempty"`
+	URINames              []string            `json:"uri_names,omitempty"`
+	EmailAddresses        []string            `json:"email_addresses,omitempty"`
+	Warnings              []string            `json:"warnings,omitempty"`
+	PEM                   string              `json:"pem,omitempty"`
+
+	// Internal fields for text display. Set - to skip serialize.
+	Width int `json:"-"`
 }
 
 type simplePKIXName struct {
@@ -144,13 +229,21 @@ func createSimpleCertificate(name string, cert *x509.Certificate) simpleCertific
 			Name:  cert.Issuer,
 			KeyID: cert.AuthorityKeyId,
 		},
-		KeyUsage:       simpleKeyUsage(cert.KeyUsage),
-		AltDNSNames:    cert.DNSNames,
-		AltIPAddresses: cert.IPAddresses,
-		EmailAddresses: cert.EmailAddresses,
-		Warnings:       certWarnings(cert),
-		PEM:            string(pem.EncodeToMemory(EncodeX509ToPEM(cert, nil))),
+		KeyUsage:              simpleKeyUsage(cert.KeyUsage),
+		OCSPServer:            cert.OCSPServer,
+		IssuingCertificateURL: cert.IssuingCertificateURL,
+		AltDNSNames:           cert.DNSNames,
+		AltIPAddresses:        cert.IPAddresses,
+		EmailAddresses:        cert.EmailAddresses,
+		PEM:                   string(pem.EncodeToMemory(EncodeX509ToPEM(cert, nil))),
 	}
+
+	uriNames, err := spiffe.GetURINamesFromCertificate(cert)
+	if err == nil {
+		out.URINames = uriNames
+	}
+
+	out.Warnings = certWarnings(cert, uriNames)
 
 	if cert.BasicConstraintsValid {
 		out.BasicConstraints = &basicConstraints{
@@ -161,10 +254,11 @@ func createSimpleCertificate(name string, cert *x509.Certificate) simpleCertific
 		}
 	}
 
-	if len(cert.PermittedDNSDomains) > 0 {
+	if len(cert.PermittedDNSDomains) > 0 || len(cert.ExcludedDNSDomains) > 0 {
 		out.NameConstraints = &nameConstraints{
 			Critical:            cert.PermittedDNSDomainsCritical,
 			PermittedDNSDomains: cert.PermittedDNSDomains,
+			ExcludedDNSDomains:  cert.ExcludedDNSDomains,
 		}
 	}
 
@@ -180,21 +274,18 @@ func createSimpleCertificate(name string, cert *x509.Certificate) simpleCertific
 func (p simplePKIXName) MarshalJSON() ([]byte, error) {
 	out := map[string]interface{}{}
 
-	if p.Name.CommonName != "" {
-		out["common_name"] = p.Name.CommonName
+	for _, rdn := range p.Name.Names {
+		oid := describeOid(rdn.Type)
+		if prev, ok := out[oid.Slug]; oid.Multiple && ok {
+			l := prev.([]interface{})
+			out[oid.Slug] = append(l, rdn.Value)
+		} else if oid.Multiple {
+			out[oid.Slug] = []interface{}{rdn.Value}
+		} else {
+			out[oid.Slug] = rdn.Value
+		}
 	}
-	if len(p.Name.Organization) > 0 {
-		out["organization"] = p.Name.Organization
-	}
-	if len(p.Name.OrganizationalUnit) > 0 {
-		out["organizational_unit"] = p.Name.OrganizationalUnit
-	}
-	if len(p.Name.Country) > 0 {
-		out["country"] = p.Name.Country
-	}
-	if len(p.Name.Locality) > 0 {
-		out["locality"] = p.Name.Locality
-	}
+
 	if len(p.KeyID) > 0 {
 		out["key_id"] = hexify(p.KeyID)
 	}
@@ -271,7 +362,7 @@ func decodeKey(publicKey interface{}) (string, int) {
 }
 
 // certWarnings prints a list of warnings to show common mistakes in certs.
-func certWarnings(cert *x509.Certificate) (warnings []string) {
+func certWarnings(cert *x509.Certificate, uriNames []string) (warnings []string) {
 	if cert.SerialNumber.Sign() != 1 {
 		warnings = append(warnings, "Serial number in cert appears to be zero/negative")
 	}
@@ -280,16 +371,20 @@ func certWarnings(cert *x509.Certificate) (warnings []string) {
 		warnings = append(warnings, "Serial number too long; should be 20 bytes or less")
 	}
 
-	if (cert.KeyUsage&x509.KeyUsageCertSign != 0) && !cert.IsCA {
+	if cert.KeyUsage&x509.KeyUsageCertSign != 0 && !cert.IsCA {
 		warnings = append(warnings, "Key usage 'cert sign' is set, but is not a CA cert")
 	}
 
-	if (cert.KeyUsage&x509.KeyUsageCertSign == 0) && cert.IsCA {
+	if cert.KeyUsage&x509.KeyUsageCertSign == 0 && cert.IsCA {
 		warnings = append(warnings, "Certificate is a CA cert, but key usage 'cert sign' missing")
 	}
 
 	if cert.Version < 2 {
 		warnings = append(warnings, fmt.Sprintf("Certificate is not in X509v3 format (version is %d)", cert.Version+1))
+	}
+
+	if len(cert.DNSNames) == 0 && len(cert.IPAddresses) == 0 && len(uriNames) == 0 && !cert.IsCA {
+		warnings = append(warnings, fmt.Sprintf("Certificate doesn't have any valid DNS/URI names or IP addresses set"))
 	}
 
 	if len(cert.UnhandledCriticalExtensions) > 0 {

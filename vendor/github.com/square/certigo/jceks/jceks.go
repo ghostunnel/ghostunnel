@@ -344,9 +344,9 @@ func (ks *KeyStore) Parse(r io.Reader, password []byte) error {
 			}
 		case 3:
 			// Secret-key entry
-			fallthrough
+			return fmt.Errorf("unimplemented: Secret-key")
 		default:
-			panic(fmt.Errorf("unimplemented tag: %d", tag))
+			return fmt.Errorf("unimplemented tag: %d", tag)
 		}
 	}
 
