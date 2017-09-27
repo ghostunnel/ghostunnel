@@ -41,6 +41,7 @@ var (
 	successCounter = metrics.GetOrRegisterCounter("accept.success", metrics.DefaultRegistry)
 	errorCounter   = metrics.GetOrRegisterCounter("accept.error", metrics.DefaultRegistry)
 	timeoutCounter = metrics.GetOrRegisterCounter("accept.timeout", metrics.DefaultRegistry)
+	handshakeTimer = metrics.GetOrRegisterTimer("conn.handshake", metrics.DefaultRegistry)
 	connTimer      = metrics.GetOrRegisterTimer("conn.lifetime", metrics.DefaultRegistry)
 )
 
@@ -97,18 +98,20 @@ func (p *proxy) accept() {
 // that clients have a valid client cert and are allowed to talk to us.
 func forceHandshake(conn net.Conn) (err error) {
 	if tlsConn, ok := conn.(*tls.Conn); ok {
-		// Set deadline to avoid blocking forever
-		tlsConn.SetDeadline(time.Now().Add(*timeoutDuration))
+		handshakeTimer.Time(func() {
+			// Set deadline to avoid blocking forever
+			tlsConn.SetDeadline(time.Now().Add(*timeoutDuration))
 
-		err = tlsConn.Handshake()
-		if err == nil {
-			// Success: clear deadline
-			tlsConn.SetDeadline(time.Time{})
-		}
-		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-			// If we timed out, increment timeout metric
-			timeoutCounter.Inc(1)
-		}
+			err = tlsConn.Handshake()
+			if err == nil {
+				// Success: clear deadline
+				tlsConn.SetDeadline(time.Time{})
+			}
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				// If we timed out, increment timeout metric
+				timeoutCounter.Inc(1)
+			}
+		})
 	}
 	return
 }
