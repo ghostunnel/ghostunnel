@@ -113,15 +113,18 @@ type Dialer interface {
 // Global logger instance
 var logger = log.New(os.Stderr, "", log.LstdFlags|log.Lmicroseconds)
 
-func initLogger() {
+func initLogger() (err error) {
+	// If user has indicated request for syslog, override default stderr
+	// logger with a syslog one instead. This can fail, e.g. in containers
+	// that don't have syslog available.
 	if *useSyslog {
-		var err error
-		logger, err = syslog.NewLogger(syslog.LOG_NOTICE|syslog.LOG_DAEMON, log.LstdFlags|log.Lmicroseconds)
-		panicOnError(err)
+		var syslogLogger *log.Logger
+		syslogLogger, err = syslog.NewLogger(syslog.LOG_NOTICE|syslog.LOG_DAEMON, log.LstdFlags|log.Lmicroseconds)
+		if err == nil {
+			logger = syslogLogger
+		}
 	}
-
-	// Set log prefix to PID
-	logger.SetPrefix(fmt.Sprintf("[%5d] ", os.Getpid()))
+	return
 }
 
 // panicOnError panics if err is not nil
@@ -207,16 +210,23 @@ func main() {
 }
 
 func run(args []string) error {
-	initLogger()
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	app.Version(fmt.Sprintf("rev %s built with %s", version, runtime.Version()))
 	app.Validate(validateFlags)
 	command := kingpin.MustParse(app.Parse(args))
 
+	// Logger
+	err := initLogger()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error initializing logger: %s\n", err)
+		os.Exit(1)
+	}
+
+	logger.SetPrefix(fmt.Sprintf("[%d] ", os.Getpid()))
 	logger.Printf("starting ghostunnel in %s mode", command)
 
-	// metrics
+	// Metrics
 	if *metricsGraphite != nil {
 		logger.Printf("metrics enabled; reporting metrics via TCP to %s", *metricsGraphite)
 		go graphite.Graphite(metrics.DefaultRegistry, 1*time.Second, *metricsPrefix, *metricsGraphite)
@@ -225,7 +235,7 @@ func run(args []string) error {
 		logger.Printf("metrics enabled; reporting metrics via POST to %s", *metricsURL)
 	}
 
-	// read CA bundle for passing to metrics library
+	// Read CA bundle for passing to metrics library
 	ca, err := caBundle(*caBundlePath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: unable to build TLS config: %s\n", err)

@@ -83,6 +83,7 @@ func TestIntegrationMain(t *testing.T) {
 func TestInitLoggerSyslog(t *testing.T) {
 	*useSyslog = true
 	initLogger()
+	*useSyslog = false
 	assert.NotNil(t, logger, "logger should never be nil after init")
 }
 
