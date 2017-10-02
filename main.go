@@ -36,7 +36,6 @@ import (
 	"github.com/kavu/go_reuseport"
 	"github.com/mwitkow/go-http-dialer"
 	"github.com/rcrowley/go-metrics"
-	spiffe_tls "github.com/spiffe/go-spiffe/tls"
 	"github.com/square/go-sq-metrics"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
@@ -65,12 +64,13 @@ var (
 	// Note: can't use .TCP() for clientForwardAddress because we need to set the original string in tls.Config.ServerName.
 	clientForwardAddress = clientCommand.Flag("target", "Address to forward connections to (HOST:PORT).").PlaceHolder("ADDR").Required().String()
 	clientUnsafeListen   = clientCommand.Flag("unsafe-listen", "If set, does not limit listen to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
-	clientAllowedURIs     = clientCommand.Flag("verify-uri-san", "Allow servers with given URI subject alternative name (can be repeated).").PlaceHolder("SAN").Strings()
+	clientServerName     = clientCommand.Flag("override-server-name", "If set, overrides the server name used for hostname verification.").PlaceHolder("NAME").String()
 	clientConnectProxy   = clientCommand.Flag("connect-proxy", "If set, connect to target over given HTTP CONNECT proxy. Must be HTTP/HTTPS URL.").PlaceHolder("URL").URL()
 	clientAllowedCNs     = clientCommand.Flag("verify-cn", "Allow servers with given common name (can be repeated).").PlaceHolder("CN").Strings()
 	clientAllowedOUs     = clientCommand.Flag("verify-ou", "Allow servers with given organizational unit name (can be repeated).").PlaceHolder("OU").Strings()
 	clientAllowedDNSs    = clientCommand.Flag("verify-dns-san", "Allow servers with given DNS subject alternative name (can be repeated).").PlaceHolder("SAN").Strings()
 	clientAllowedIPs     = clientCommand.Flag("verify-ip-san", "Allow servers with given IP subject alternative name (can be repeated).").PlaceHolder("SAN").IPList()
+	clientAllowedURIs    = clientCommand.Flag("verify-uri-san", "Allow servers with given URI subject alternative name (can be repeated).").PlaceHolder("SAN").Strings()
 
 	// TLS options
 	keystorePath        = app.Flag("keystore", "Path to certificate and keystore (PEM with certificate/key, or PKCS12).").PlaceHolder("PATH").Required().String()
@@ -475,18 +475,19 @@ func serverBackendDialer() (func() (net.Conn, error), error) {
 
 // Get backend dialer function in client mode (connecting to a TLS port)
 func clientBackendDialer(cert *certificate, network, address, host string) (func() (net.Conn, error), error) {
-	certPool, err := caBundle(*caBundlePath)
+	config, err := buildConfig(*caBundlePath)
 	if err != nil {
 		return nil, err
 	}
 
-	spiffePeer := &spiffe_tls.TLSPeer{
-		SpiffeIDs:  *clientAllowedURIs,
-		TrustRoots: certPool,
+	if *clientServerName == "" {
+		config.ServerName = host
+	} else {
+		config.ServerName = *clientServerName
 	}
-	// Fetch latest cached certificate before initiating new connection
-	crt, _ := cert.getCertificate(nil)
-	config := spiffePeer.NewTLSConfig([]tls.Certificate{*crt})
+
+	config.VerifyPeerCertificate = verifyPeerCertificateClient
+
 	var dialer Dialer
 	dialer = &net.Dialer{Timeout: *timeoutDuration}
 
@@ -507,6 +508,9 @@ func clientBackendDialer(cert *certificate, network, address, host string) (func
 	}
 
 	return func() (net.Conn, error) {
+		// Fetch latest cached certificate before initiating new connection
+		crt, _ := cert.getCertificate(nil)
+		config.Certificates = []tls.Certificate{*crt}
 		return dialWithDialer(dialer, *timeoutDuration, network, address, config)
 	}, nil
 }
