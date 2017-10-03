@@ -26,8 +26,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var uriSans, err = uri.MarshalUriSANs([]string{"spiffe://example.org/path/service"})
-
 var fakeChains = [][]*x509.Certificate{
 	{
 		{
@@ -40,11 +38,18 @@ var fakeChains = [][]*x509.Certificate{
 			Extensions: []pkix.Extension{
 				{
 					Id:       uri.OidExtensionSubjectAltName,
-					Value:    uriSans,
+					Value:    getURISANFromString("spiffe://example.org/path/service"),
 					Critical: false,
 				}},
 		},
 	},
+}
+
+func getURISANFromString(s string) (uriSAN []byte) {
+	uriSAN, err := uri.MarshalUriSANs([]string{s})
+	panicOnError(err)
+
+	return uriSAN
 }
 
 func TestAuthorizeNotVerified(t *testing.T) {
