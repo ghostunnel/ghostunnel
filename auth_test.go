@@ -38,7 +38,7 @@ var fakeChains = [][]*x509.Certificate{
 			Extensions: []pkix.Extension{
 				{
 					Id:       uri.OidExtensionSubjectAltName,
-					Value:    getURISANFromString("spiffe://example.org/path/service"),
+					Value:    getURISANFromString("scheme://valid/path"),
 					Critical: false,
 				}},
 		},
@@ -128,6 +128,28 @@ func TestAuthorizeAllowIP(t *testing.T) {
 	assert.Nil(t, verifyPeerCertificateServer(nil, fakeChains), "allow-ip-san should allow clients with matching IP SAN")
 }
 
+func TestAuthorizeAllowURI(t *testing.T) {
+	*serverAllowAll = false
+	*serverAllowedCNs = []string{}
+	*serverAllowedOUs = []string{}
+	*serverAllowedDNSs = []string{}
+	*serverAllowedIPs = []net.IP{}
+	*serverAllowedURIs = []string{"scheme://valid/path"}
+
+	assert.Nil(t, verifyPeerCertificateServer(nil, fakeChains), "allow-uri-san should allow clients with matching URI SAN")
+}
+
+func TestAuthorizeRejectURI(t *testing.T) {
+	*serverAllowAll = false
+	*serverAllowedCNs = []string{}
+	*serverAllowedOUs = []string{}
+	*serverAllowedDNSs = []string{}
+	*serverAllowedIPs = []net.IP{}
+	*serverAllowedURIs = []string{"schema://invalid/path"}
+
+	assert.NotNil(t, verifyPeerCertificateServer(nil, fakeChains), "should reject cert w/o matching URI")
+}
+
 func TestVerifyAllowCN(t *testing.T) {
 	*clientAllowedCNs = []string{"gopher"}
 	*clientAllowedOUs = []string{}
@@ -200,34 +222,12 @@ func TestVerifyRejectIP(t *testing.T) {
 	assert.NotNil(t, verifyPeerCertificateClient(nil, fakeChains), "should reject cert w/o matching IP SAN")
 }
 
-func TestAuthorizeAllowURI(t *testing.T) {
-	*serverAllowAll = false
-	*serverAllowedCNs = []string{}
-	*serverAllowedOUs = []string{}
-	*serverAllowedDNSs = []string{}
-	*serverAllowedIPs = []net.IP{}
-	*serverAllowedURIs = []string{"spiffe://example.org/path/service"}
-
-	assert.Nil(t, verifyPeerCertificateServer(nil, fakeChains), "allow-uri-san should allow clients with matching URI SAN")
-}
-
-func TestAuthorizeRejectURI(t *testing.T) {
-	*serverAllowAll = false
-	*serverAllowedCNs = []string{}
-	*serverAllowedOUs = []string{}
-	*serverAllowedDNSs = []string{}
-	*serverAllowedIPs = []net.IP{}
-	*serverAllowedURIs = []string{"spiffe://invalid"}
-
-	assert.NotNil(t, verifyPeerCertificateServer(nil, fakeChains), "should reject cert w/o matching URI")
-}
-
 func TestVerifyAllowURI(t *testing.T) {
 	*clientAllowedCNs = []string{}
 	*clientAllowedOUs = []string{}
 	*clientAllowedDNSs = []string{}
 	*clientAllowedIPs = []net.IP{}
-	*clientAllowedURIs = []string{"spiffe://example.org/path/service"}
+	*clientAllowedURIs = []string{"scheme://valid/path"}
 
 	assert.Nil(t, verifyPeerCertificateClient(nil, fakeChains), "verify-uri-san should allow clients with matching URI SAN")
 }
@@ -237,7 +237,7 @@ func TestVerifyRejectURI(t *testing.T) {
 	*clientAllowedOUs = []string{}
 	*clientAllowedDNSs = []string{}
 	*clientAllowedIPs = []net.IP{}
-	*clientAllowedURIs = []string{"spiffe://invalid"}
+	*clientAllowedURIs = []string{"scheme://invalid/path"}
 
 	assert.NotNil(t, verifyPeerCertificateClient(nil, fakeChains), "should reject cert w/o matching URI")
 }
