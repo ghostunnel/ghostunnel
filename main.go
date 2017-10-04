@@ -466,7 +466,12 @@ func (context *Context) serveStatus() error {
 		ErrorLog: logger,
 	}
 
-	go context.statusHTTP.Serve(listener)
+	go func() {
+		err := context.statusHTTP.Serve(listener)
+		if err != nil {
+			logger.Printf("error serving status port: %s", err)
+		}
+	}()
 
 	return nil
 }
