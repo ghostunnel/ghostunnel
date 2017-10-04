@@ -29,6 +29,8 @@ func TestWatchers(t *testing.T) {
 	panicOnError(err)
 
 	tmpFile, err := ioutil.TempFile(tmpDir, "")
+	panicOnError(err)
+
 	tmpFile.WriteString("test")
 	tmpFile.Sync()
 	defer os.Remove(tmpFile.Name())
