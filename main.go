@@ -498,8 +498,7 @@ func clientBackendDialer(cert *certificate, network, address, host string) (func
 
 	config.VerifyPeerCertificate = verifyPeerCertificateClient
 
-	var dialer Dialer
-	dialer = &net.Dialer{Timeout: *timeoutDuration}
+	var dialer Dialer = &net.Dialer{Timeout: *timeoutDuration}
 
 	if *clientConnectProxy != nil {
 		logger.Printf("using HTTP(S) CONNECT proxy %s", (*clientConnectProxy).String())
