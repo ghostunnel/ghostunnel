@@ -30,8 +30,8 @@ import (
 // SIGTERM, stop listening for new connections and gracefully terminate the
 // process. If we get SIGUSR1, reload certificates.
 func (context *Context) signalHandler(proxy *proxy, closeables []io.Closer) {
-	signals := make(chan os.Signal)
-	signal.Notify(signals, syscall.SIGUSR1, syscall.SIGTERM, syscall.SIGINT, syscall.SIGCHLD)
+	signals := make(chan os.Signal, 3)
+	signal.Notify(signals, syscall.SIGUSR1, syscall.SIGTERM, syscall.SIGINT)
 	defer signal.Stop(signals)
 
 	for {
@@ -73,7 +73,7 @@ func (context *Context) signalHandler(proxy *proxy, closeables []io.Closer) {
 				logger.Printf("reloading complete")
 				context.status.Listening()
 			}
-		case _ = <-context.watcher:
+		case <-context.watcher:
 			context.status.Reloading()
 			err := context.cert.reload()
 			if err != nil {
