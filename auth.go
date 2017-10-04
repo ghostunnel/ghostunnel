@@ -19,6 +19,8 @@ package main
 import (
 	"crypto/x509"
 	"errors"
+
+	"github.com/spiffe/go-spiffe/uri"
 )
 
 func verifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
@@ -65,6 +67,21 @@ func verifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*x509.Cer
 		}
 	}
 
+	// Get URIs from the SAN in the certificate
+	if len(*serverAllowedURIs) > 0 {
+		uris, err := uri.GetURINamesFromCertificate(cert)
+		if err == nil {
+			for _, expectedURI := range *serverAllowedURIs {
+				for _, clientURI := range uris {
+					if clientURI == expectedURI {
+						return nil
+					}
+				}
+			}
+		} else {
+			logger.Printf("error getting URIs from SAN: %s", err)
+		}
+	}
 	return errors.New("unauthorized: invalid principal, or principal not allowed")
 }
 
@@ -73,8 +90,8 @@ func verifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*x509.Cer
 		return errors.New("unauthorized: invalid principal, or principal not allowed")
 	}
 
-	// If none of --verify-cn, --verify-ou, verify-dns-san or verify-ip-san is specified, only hostname verification is performed
-	if len(*clientAllowedCNs) == 0 && len(*clientAllowedOUs) == 0 && len(*clientAllowedDNSs) == 0 && len(*clientAllowedIPs) == 0 {
+	// If none of --verify-cn, --verify-ou, verify-dns-san, verify-uri-san or verify-ip-san is specified, only hostname verification is performed
+	if len(*clientAllowedCNs) == 0 && len(*clientAllowedOUs) == 0 && len(*clientAllowedDNSs) == 0 && len(*clientAllowedURIs) == 0 && len(*clientAllowedIPs) == 0 {
 		return nil
 	}
 
@@ -111,6 +128,22 @@ func verifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*x509.Cer
 			if expectedIP.Equal(serverIP) {
 				return nil
 			}
+		}
+	}
+
+	// Get URIs from the SAN in the certificate
+	if len(*clientAllowedURIs) > 0 {
+		uris, err := uri.GetURINamesFromCertificate(cert)
+		if err == nil {
+			for _, expectedURI := range *clientAllowedURIs {
+				for _, serverURI := range uris {
+					if serverURI == expectedURI {
+						return nil
+					}
+				}
+			}
+		} else {
+			logger.Printf("error getting URIs from SAN: %s", err)
 		}
 	}
 	return errors.New("unauthorized: invalid principal, or principal not allowed")
