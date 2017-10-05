@@ -18,6 +18,10 @@ deploy:
     file:
       - ghostunnel-${TRAVIS_TAG}-linux-amd64-with-pkcs11
       - ghostunnel-${TRAVIS_TAG}-darwin-amd64-without-pkcs11
+      - ghostunnel-${TRAVIS_TAG}-freebsd-amd64-without-pkcs11
+      - ghostunnel-${TRAVIS_TAG}-linux-amd64-with-pkcs11.sha256sum
+      - ghostunnel-${TRAVIS_TAG}-darwin-amd64-without-pkcs11.sha256sum
+      - ghostunnel-${TRAVIS_TAG}-freebsd-amd64-without-pkcs11.sha256sum
     draft: true
     skip_cleanup: true
     on:
@@ -33,6 +37,8 @@ install:
   - CGO_ENABLED=0 go build -o ghostunnel-${TRAVIS_TAG}-linux-amd64-without-pkcs11 .
   - CGO_ENABLED=1 go build -o ghostunnel-${TRAVIS_TAG}-linux-amd64-with-pkcs11 .
   - GOOS=darwin CGO_ENABLED=0 go build -o ghostunnel-${TRAVIS_TAG}-darwin-amd64-without-pkcs11 .
+  - GOOS=freebsd CGO_ENABLED=0 go build -o ghostunnel-${TRAVIS_TAG}-freebsd-amd64-without-pkcs11 .
+  - 'for file in ghostunnel-${TRAVIS_TAG}-*; do sha256sum ${file} > ${file}.sha256sum; done'
   - make docker-build
 
 script:
