@@ -67,13 +67,12 @@ on how to generate new ones with OpenSSL).
 
 ### Install
 
-You can download the ghostunnel source from the [releases][rel] tab in Github.
+Ghostunnel is available through [GitHub releases][rel] and through [Docker Hub][hub].
 
-Unpack the source inside your `$GOPATH` and use `go build` to build a binary.
-
-Note that ghostunnel requires Go 1.9 or later to build.
+Note that ghostunnel requires Go 1.9 or later to build, and CGO is required for PKCS#11 support.
 
 [rel]: https://github.com/square/ghostunnel/releases
+[hub]: https://hub.docker.com/r/squareup/ghostunnel
 
 ### Develop
 
