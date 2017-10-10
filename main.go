@@ -466,7 +466,12 @@ func (context *Context) serveStatus() error {
 		ErrorLog: logger,
 	}
 
-	go context.statusHTTP.Serve(listener)
+	go func() {
+		err := context.statusHTTP.Serve(listener)
+		if err != nil {
+			logger.Printf("error serving status port: %s", err)
+		}
+	}()
 
 	return nil
 }
@@ -498,8 +503,7 @@ func clientBackendDialer(cert *certificate, network, address, host string) (func
 
 	config.VerifyPeerCertificate = verifyPeerCertificateClient
 
-	var dialer Dialer
-	dialer = &net.Dialer{Timeout: *timeoutDuration}
+	var dialer Dialer = &net.Dialer{Timeout: *timeoutDuration}
 
 	if *clientConnectProxy != nil {
 		logger.Printf("using HTTP(S) CONNECT proxy %s", (*clientConnectProxy).String())

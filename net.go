@@ -96,24 +96,35 @@ func (p *proxy) accept() {
 // Otherwise, unauthenticated clients would be able to open connections
 // and leave them hanging forever. Going through the handshake verifies
 // that clients have a valid client cert and are allowed to talk to us.
-func forceHandshake(conn net.Conn) (err error) {
+func forceHandshake(conn net.Conn) error {
 	if tlsConn, ok := conn.(*tls.Conn); ok {
-		handshakeTimer.Time(func() {
-			// Set deadline to avoid blocking forever
-			tlsConn.SetDeadline(time.Now().Add(*timeoutDuration))
+		startTime := time.Now()
+		defer handshakeTimer.UpdateSince(startTime)
 
-			err = tlsConn.Handshake()
-			if err == nil {
-				// Success: clear deadline
-				tlsConn.SetDeadline(time.Time{})
-			}
-			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-				// If we timed out, increment timeout metric
-				timeoutCounter.Inc(1)
-			}
-		})
+		// Set deadline to avoid blocking forever
+		err := tlsConn.SetDeadline(time.Now().Add(*timeoutDuration))
+		if err != nil {
+			return err
+		}
+
+		err = tlsConn.Handshake()
+		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+			// If we timed out, increment timeout metric
+			timeoutCounter.Inc(1)
+		}
+
+		if err != nil {
+			return err
+		}
+
+		// Success: clear deadline
+		err = tlsConn.SetDeadline(time.Time{})
+		if err != nil {
+			return err
+		}
 	}
-	return
+
+	return nil
 }
 
 // Fuse connections together

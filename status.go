@@ -115,5 +115,8 @@ func (s *statusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}
 
-	w.Write(out)
+	_, err = w.Write(out)
+	if err != nil {
+		logger.Printf("error writing status response: %s", err)
+	}
 }

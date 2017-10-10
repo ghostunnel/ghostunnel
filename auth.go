@@ -82,6 +82,7 @@ func verifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*x509.Cer
 			logger.Printf("error getting URIs from SAN: %s", err)
 		}
 	}
+
 	return errors.New("unauthorized: invalid principal, or principal not allowed")
 }
 
@@ -146,5 +147,6 @@ func verifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*x509.Cer
 			logger.Printf("error getting URIs from SAN: %s", err)
 		}
 	}
+
 	return errors.New("unauthorized: invalid principal, or principal not allowed")
 }

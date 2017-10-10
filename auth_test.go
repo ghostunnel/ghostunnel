@@ -40,7 +40,8 @@ var fakeChains = [][]*x509.Certificate{
 					Id:       uri.OidExtensionSubjectAltName,
 					Value:    getURISANFromString("scheme://valid/path"),
 					Critical: false,
-				}},
+				},
+			},
 		},
 	},
 }
