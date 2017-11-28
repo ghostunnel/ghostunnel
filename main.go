@@ -344,9 +344,6 @@ func serverListen(context *Context) error {
 		return err
 	}
 
-	handlers := &sync.WaitGroup{}
-	handlers.Add(1)
-
 	proxy := &proxy{
 		quit:     0,
 		listener: tls.NewListener(listener, config),
