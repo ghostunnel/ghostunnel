@@ -252,7 +252,13 @@ func buildConfig(caBundlePath string) (*tls.Config, error) {
 
 		PreferServerCipherSuites: true,
 
-		ClientAuth:   tls.RequireAndVerifyClientCert,
+		ClientAuth: func() tls.ClientAuthType {
+			if *serverAllowAll {
+				return tls.NoClientCert
+			} else {
+				return tls.RequireAndVerifyClientCert
+			}
+		}(),
 		MinVersion:   tls.VersionTLS12,
 		CipherSuites: suites,
 		CurvePreferences: []tls.CurveID{
