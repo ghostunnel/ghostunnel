@@ -82,9 +82,19 @@ func TestIntegrationMain(t *testing.T) {
 
 func TestInitLoggerSyslog(t *testing.T) {
 	*useSyslog = true
-	initLogger()
-	*useSyslog = false
+	originalLogger := logger
+	err := initLogger()
+	updatedLogger := logger
+	if err != nil {
+		// Tests running in containers often don't have access to syslog,
+		// so we can't depend on syslog being available for testing. If we
+		// get an error from the syslog setup we just warn and skip test.
+		t.Logf("Error setting up syslog for test, skipping: %s", err)
+		t.SkipNow()
+	}
+	assert.NotEqual(t, originalLogger, updatedLogger, "should have updated logger object")
 	assert.NotNil(t, logger, "logger should never be nil after init")
+	*useSyslog = false
 }
 
 func TestPanicOnError(t *testing.T) {
