@@ -9,5 +9,6 @@
 *.crt
 *.out
 ghostunnel
+ghostunnel.exe
 ghostunnel.test
 __pycache__
