@@ -26,6 +26,14 @@
 			"notests": true
 		},
 		{
+			"importpath": "github.com/hashicorp/go-syslog",
+			"repository": "https://github.com/hashicorp/go-syslog",
+			"vcs": "git",
+			"revision": "326bf4a7f709d263f964a6a96558676b103f3534",
+			"branch": "master",
+			"notests": true
+		},
+		{
 			"importpath": "github.com/kavu/go_reuseport",
 			"repository": "https://github.com/kavu/go_reuseport",
 			"vcs": "git",
@@ -62,6 +70,14 @@
 			"repository": "https://github.com/rcrowley/go-metrics",
 			"vcs": "git",
 			"revision": "1f30fe9094a513ce4c700b9a54458bbb0c96996c",
+			"branch": "master",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/spiffe/go-spiffe",
+			"repository": "https://github.com/spiffe/go-spiffe",
+			"vcs": "git",
+			"revision": "2bb3101d62b4bea6371d792e818360e3f056867b",
 			"branch": "master",
 			"notests": true
 		},
@@ -251,14 +267,6 @@
 			"revision": "1087e65c9441605df944fb12c33f0fe7072d18ca",
 			"branch": "master",
 			"notests": true
-		},
-        {
-            "importpath": "github.com/spiffe/go-spiffe",
-            "repository": "https://github.com/spiffe/go-spiffe",
-            "vcs": "git",
-            "revision": "2bb3101d62b4bea6371d792e818360e3f056867b",
-            "branch": "master",
-            "notests": true
-        }
+		}
 	]
 }
