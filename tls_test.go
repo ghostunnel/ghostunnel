@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"io/ioutil"
 	"os"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -212,21 +213,30 @@ func TestBuildConfig(t *testing.T) {
 }
 
 func TestCipherSuitePreference(t *testing.T) {
+	tmpCaBundle, err := ioutil.TempFile("", "ghostunnel-test")
+	panicOnError(err)
+
+	tmpCaBundle.WriteString(testCertificate)
+	tmpCaBundle.WriteString("\n")
+
+	tmpCaBundle.Sync()
+	defer os.Remove(tmpCaBundle.Name())
+
 	*enabledCipherSuites = "XYZ"
-	conf, err := buildConfig("")
+	conf, err := buildConfig(tmpCaBundle.Name())
 	assert.NotNil(t, err, "should not be able to build TLS config with invalid cipher suite option")
 
 	*enabledCipherSuites = ""
-	conf, err = buildConfig("")
+	conf, err = buildConfig(tmpCaBundle.Name())
 	assert.NotNil(t, err, "should not be able to build TLS config wihout cipher suite selection")
 
 	*enabledCipherSuites = "CHACHA,AES"
-	conf, err = buildConfig("")
+	conf, err = buildConfig(tmpCaBundle.Name())
 	assert.Nil(t, err, "should be able to build TLS config")
 	assert.True(t, conf.CipherSuites[0] == tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305, "expecting ChaCha20")
 
 	*enabledCipherSuites = "AES,CHACHA"
-	conf, err = buildConfig("")
+	conf, err = buildConfig(tmpCaBundle.Name())
 	assert.Nil(t, err, "should be able to build TLS config")
 	assert.True(t, conf.CipherSuites[0] == tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, "expecting AES")
 }
@@ -247,6 +257,11 @@ func TestReload(t *testing.T) {
 }
 
 func TestBuildConfigSystemRoots(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// System roots are not supported on Windows
+		t.SkipNow()
+		return
+	}
 	conf, err := buildConfig("")
 	assert.Nil(t, err, "should be able to build TLS config")
 	assert.NotNil(t, conf.RootCAs, "config must have CA certs")

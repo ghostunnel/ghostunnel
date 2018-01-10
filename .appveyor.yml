@@ -36,3 +36,4 @@ before_build:
 
 build_script:
   - go build -o ghostunnel.exe -i .
+  - go test -v .
