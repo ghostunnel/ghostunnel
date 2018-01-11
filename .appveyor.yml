@@ -20,12 +20,12 @@ environment:
       CGO_ENABLED: 1
 
 deploy:
-  release: windows-v$(appveyor_build_version)
-  description: 'Dummy release for Windows Binary Builds (AppVeyor). Do not publish this release.'
+  release: 'Windows Binaries'
+  description: 'Dummy release for latest Windows Binary Builds (AppVeyor). Do not publish this release.'
   provider: GitHub
   auth_token:
     secure: SZ8sNIW4v/SmMNFdSVfsgRkZQYDqAc5oETCyfLghksY6RC5SGeSnlemE6FQjXVa+
-  artifact: /ghostunnel.*\.exe/
+  artifact: '*.exe'
   draft: true
   prerelease: true
   force_update: true
@@ -49,5 +49,8 @@ before_build:
   - bash -lc "for n in `seq 1 3`; do pacman --noconfirm -S mingw-w64-%MSYS2_ARCH%-libtool && break || sleep 15; done"
 
 build_script:
-  - go build -o ghostunnel.exe -i .
+  - git describe > version
+  - set /p GIT_VERSION= < version
+  - go build -o ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe -i .
+  - dir
   - go test -v .
