@@ -19,6 +19,20 @@ environment:
       GOARCH: 386
       CGO_ENABLED: 1
 
+deploy:
+  release: windows-v$(appveyor_build_version)
+  description: 'Dummy release for Windows Binary Builds (AppVeyor). Do not publish this release.'
+  provider: GitHub
+  auth_token:
+    secure: SZ8sNIW4v/SmMNFdSVfsgRkZQYDqAc5oETCyfLghksY6RC5SGeSnlemE6FQjXVa+
+  artifact: /ghostunnel.*\.exe/
+  draft: true
+  prerelease: true
+  force_update: true
+  on:
+    branch: master
+    appveyor_repo_tag: false
+
 branches:
   only:
     - master
