@@ -34,14 +34,20 @@ before_install:
   - go get github.com/mattn/goveralls
 
 install:
+  # Compile with CGO on/off for Linux
   - CGO_ENABLED=0 go build -o ghostunnel-${TRAVIS_TAG}-linux-amd64-without-pkcs11 .
   - CGO_ENABLED=1 go build -o ghostunnel-${TRAVIS_TAG}-linux-amd64-with-pkcs11 .
+  # Cross-compile for various platforms (can't do PKCS11 here, CGO cross-compile is tricky)
   - GOOS=darwin CGO_ENABLED=0 go build -o ghostunnel-${TRAVIS_TAG}-darwin-amd64-without-pkcs11 .
   - GOOS=freebsd CGO_ENABLED=0 go build -o ghostunnel-${TRAVIS_TAG}-freebsd-amd64-without-pkcs11 .
+  - GOOS=windows CGO_ENABLED=0 go build -o ghostunnel-${TRAVIS_TAG}-windows-amd64-without-pkcs11.exe .
+  # Generate checksums for GitHub release binaries
   - 'for file in ghostunnel-${TRAVIS_TAG}-*; do sha256sum ${file} > ${file}.sha256sum; done'
+  # Build Docker container
   - make docker-build
 
 script:
+  # Run tests inside Docker, guarantees that we have proper PKCS11 test setup
   - GO_VERSION=${TRAVIS_GO_VERSION} make docker-test
 
 after_success:

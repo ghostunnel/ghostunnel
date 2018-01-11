@@ -1,7 +1,7 @@
-// +build !cgo
+// +build !windows
 
 /*-
- * Copyright 2018 Square Inc.
+ * Copyright 2015 Square Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,14 +19,11 @@
 package main
 
 import (
-	"crypto"
-	"errors"
+	"os"
+	"syscall"
 )
 
-func newPKCS11(pubkey crypto.PublicKey) (crypto.PrivateKey, error) {
-	panic(errors.New("PKCS11 unavailable when compiled without CGO support"))
-}
-
-func hasPKCS11() bool {
-	return false
-}
+var (
+	shutdownSignals = []os.Signal{syscall.SIGINT, syscall.SIGTERM}
+	refreshSignals  = []os.Signal{syscall.SIGUSR1}
+)

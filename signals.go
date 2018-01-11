@@ -22,24 +22,34 @@ import (
 	"os"
 	"os/signal"
 	"sync/atomic"
-	"syscall"
 	"time"
 )
 
-// signalHandler. Listens for incoming SIGTERM or SIGUSR1 signals. If we get
-// SIGTERM, stop listening for new connections and gracefully terminate the
-// process. If we get SIGUSR1, reload certificates.
+// isShutdownSignal checks if the received signal is a shutdown signal
+// and returns true if that's the case. Returns false if the signal is
+// a refresh signal.
+func isShutdownSignal(sig os.Signal) bool {
+	for _, shutdownSignal := range shutdownSignals {
+		if sig == shutdownSignal {
+			return true
+		}
+	}
+	return false
+}
+
+// signalHandler listens for incoming shutdown or refresh signals. If we get
+// a shutdown signal, we stop listening for new connections and gracefully
+// terminate the process. If we get a refresh signal, reload certificates.
 func (context *Context) signalHandler(proxy *proxy, closeables []io.Closer) {
 	signals := make(chan os.Signal, 3)
-	signal.Notify(signals, syscall.SIGUSR1, syscall.SIGTERM, syscall.SIGINT)
+	signal.Notify(signals, append(shutdownSignals, refreshSignals...)...)
 	defer signal.Stop(signals)
 
 	for {
 		// Wait for a signal
 		select {
 		case sig := <-signals:
-			switch sig {
-			case syscall.SIGINT, syscall.SIGTERM, syscall.SIGCHLD:
+			if isShutdownSignal(sig) {
 				logger.Printf("received %s, shutting down", sig.String())
 
 				// Best-effort graceful shutdown of status listener
@@ -62,8 +72,7 @@ func (context *Context) signalHandler(proxy *proxy, closeables []io.Closer) {
 
 				logger.Printf("shutdown proxy, waiting for drain")
 				return
-
-			case syscall.SIGUSR1:
+			} else {
 				logger.Printf("received %s, reloading certificates", sig.String())
 				context.status.Reloading()
 				err := context.cert.reload()

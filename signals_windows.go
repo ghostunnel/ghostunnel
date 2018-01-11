@@ -1,4 +1,4 @@
-// +build !cgo
+// +build windows
 
 /*-
  * Copyright 2018 Square Inc.
@@ -19,14 +19,10 @@
 package main
 
 import (
-	"crypto"
-	"errors"
+	"os"
 )
 
-func newPKCS11(pubkey crypto.PublicKey) (crypto.PrivateKey, error) {
-	panic(errors.New("PKCS11 unavailable when compiled without CGO support"))
-}
-
-func hasPKCS11() bool {
-	return false
-}
+var (
+	shutdownSignals = []os.Signal{os.Interrupt}
+	refreshSignals  = []os.Signal{ /* Not supported on Windows */ }
+)

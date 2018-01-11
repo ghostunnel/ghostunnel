@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"log/syslog"
 	"net"
 	"net/http"
 	"net/http/pprof"
@@ -33,6 +32,7 @@ import (
 	"time"
 
 	"github.com/cyberdelia/go-metrics-graphite"
+	"github.com/hashicorp/go-syslog"
 	"github.com/kavu/go_reuseport"
 	"github.com/mwitkow/go-http-dialer"
 	"github.com/rcrowley/go-metrics"
@@ -92,7 +92,7 @@ var (
 	// Status & logging
 	statusAddress = app.Flag("status", "Enable serving /_status and /_metrics on given HOST:PORT (or unix:SOCKET).").PlaceHolder("ADDR").String()
 	enableProf    = app.Flag("enable-pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
-	useSyslog     = app.Flag("syslog", "Send logs to syslog instead of stderr.").Bool()
+	useSyslog     = app.Flag("syslog", "Send logs to syslog instead of stderr (not supported on Windows).").Bool()
 )
 
 var exitFunc = os.Exit
@@ -120,10 +120,10 @@ func initLogger() (err error) {
 	// logger with a syslog one instead. This can fail, e.g. in containers
 	// that don't have syslog available.
 	if *useSyslog {
-		var syslogLogger *log.Logger
-		syslogLogger, err = syslog.NewLogger(syslog.LOG_NOTICE|syslog.LOG_DAEMON, log.LstdFlags|log.Lmicroseconds)
+		var syslogWriter gsyslog.Syslogger
+		syslogWriter, err = gsyslog.NewLogger(gsyslog.LOG_INFO, "DAEMON", "")
 		if err == nil {
-			logger = syslogLogger
+			logger = log.New(syslogWriter, "", log.LstdFlags|log.Lmicroseconds)
 		}
 	}
 	return
