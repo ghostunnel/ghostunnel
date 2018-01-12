@@ -25,7 +25,7 @@ deploy:
   provider: GitHub
   auth_token:
     secure: SZ8sNIW4v/SmMNFdSVfsgRkZQYDqAc5oETCyfLghksY6RC5SGeSnlemE6FQjXVa+
-  artifact: '*.exe'
+  artifact: /.*\.exe/
   draft: true
   prerelease: true
   force_update: true
@@ -52,5 +52,5 @@ build_script:
   - git describe > version
   - set /p GIT_VERSION= < version
   - go build -o ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe -i .
-  - dir
+  - appveyor PushArtifact ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe
   - go test -v .
