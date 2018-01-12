@@ -10,14 +10,14 @@ environment:
       MSYSTEM: MINGW64
       GOPATH: c:\gopath
       GOARCH: amd64
-      CGO_ENABLED: 1
+      EXTLD: x86_64-w64-mingw32-gcc
     - ARCH: x86
       MSYS2_ARCH: i686
       MSYS2_DIR: msys64
       MSYSTEM: MINGW32
       GOPATH: c:\gopath
       GOARCH: 386
-      CGO_ENABLED: 1
+      EXTLD: i686-w64-mingw32-gcc
 
 deploy:
   release: 'Windows Binaries'
@@ -46,11 +46,15 @@ before_build:
   - set PATH=C:\%MSYS2_DIR%\%MSYSTEM%\bin;C:\%MSYS2_DIR%\usr\bin;%PATH%
   # Install build deps
   - bash -lc "for n in `seq 1 3`; do pacman --noconfirm -Syyuu && break || sleep 15; done"
-  - bash -lc "for n in `seq 1 3`; do pacman --noconfirm -S mingw-w64-%MSYS2_ARCH%-libtool && break || sleep 15; done"
+  - bash -lc "for n in `seq 1 3`; do pacman --noconfirm -S mingw-w64-%MSYS2_ARCH%-libtool libltdl && break || sleep 15; done"
 
 build_script:
   - git describe > version
   - set /p GIT_VERSION= < version
-  - go build -o ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe -i .
+  - set CGO_ENABLED=0
+  - go build -o ghostunnel-%GIT_VERSION%-windows-%GOARCH%-without-pkcs11.exe -ldflags "-w -extldflags \"-static\" -extld=%EXTLD%" -i .
+  - appveyor PushArtifact ghostunnel-%GIT_VERSION%-windows-%GOARCH%-without-pkcs11.exe
+  - set CGO_ENABLED=1
+  - go build -o ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe -ldflags "-w -extldflags \"-static\" -extld=%EXTLD%" -i .
   - appveyor PushArtifact ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe
   - go test -v .
