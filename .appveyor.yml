@@ -24,7 +24,7 @@ deploy:
   provider: GitHub
   auth_token:
     secure: SZ8sNIW4v/SmMNFdSVfsgRkZQYDqAc5oETCyfLghksY6RC5SGeSnlemE6FQjXVa+
-  artifact: /.*\.exe/
+  artifact: /.*\.(exe|sha256sum)/
   draft: true
   prerelease: true
   force_update: true
@@ -52,8 +52,12 @@ build_script:
   - set /p GIT_VERSION= < version
   - set CGO_ENABLED=0
   - go build -o ghostunnel-%GIT_VERSION%-windows-%GOARCH%-without-pkcs11.exe -ldflags "-w -extldflags \"-static\" -extld=%EXTLD%" -i .
+  - sha256sum ghostunnel-%GIT_VERSION%-windows-%GOARCH%-without-pkcs11.exe > ghostunnel-%GIT_VERSION%-windows-%GOARCH%-without-pkcs11.exe.sha256sum
   - appveyor PushArtifact ghostunnel-%GIT_VERSION%-windows-%GOARCH%-without-pkcs11.exe
+  - appveyor PushArtifact ghostunnel-%GIT_VERSION%-windows-%GOARCH%-without-pkcs11.exe.sha256sum
   - set CGO_ENABLED=1
   - go build -o ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe -ldflags "-w -extldflags \"-static\" -extld=%EXTLD%" -i .
+  - sha256sum ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe > ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe.sha256sum
   - appveyor PushArtifact ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe
+  - appveyor PushArtifact ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe.sha256sum
   - go test -v .
