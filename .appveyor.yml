@@ -20,8 +20,7 @@ environment:
       EXTLD: i686-w64-mingw32-gcc
 
 deploy:
-  release: 'Windows Binaries'
-  description: 'Dummy release for latest Windows Binary Builds (AppVeyor). Do not publish this release.'
+  description: ''
   provider: GitHub
   auth_token:
     secure: SZ8sNIW4v/SmMNFdSVfsgRkZQYDqAc5oETCyfLghksY6RC5SGeSnlemE6FQjXVa+
@@ -31,7 +30,7 @@ deploy:
   force_update: true
   on:
     branch: master
-    appveyor_repo_tag: false
+    appveyor_repo_tag: true
 
 branches:
   only:
