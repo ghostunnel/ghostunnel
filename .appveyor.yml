@@ -32,10 +32,6 @@ deploy:
     branch: master
     appveyor_repo_tag: true
 
-branches:
-  only:
-    - master
-
 clone_folder: C:\gopath\src\github.com\square\ghostunnel
 
 before_build:
