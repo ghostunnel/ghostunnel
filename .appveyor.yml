@@ -29,7 +29,6 @@ deploy:
   prerelease: true
   force_update: true
   on:
-    branch: master
     appveyor_repo_tag: true
 
 clone_folder: C:\gopath\src\github.com\square\ghostunnel
