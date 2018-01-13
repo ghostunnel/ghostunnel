@@ -41,7 +41,7 @@ import (
 )
 
 var (
-	version              = "v1.1.2"
+	version              = "v1.2.0-alpha.0"
 	defaultMetricsPrefix = "ghostunnel"
 )
 
