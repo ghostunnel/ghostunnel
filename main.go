@@ -92,7 +92,6 @@ var (
 	// Status & logging
 	statusAddress = app.Flag("status", "Enable serving /_status and /_metrics on given HOST:PORT (or unix:SOCKET).").PlaceHolder("ADDR").String()
 	enableProf    = app.Flag("enable-pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
-	useSyslog     = app.Flag("syslog", "Send logs to syslog instead of stderr (not supported on Windows).").Bool()
 )
 
 var exitFunc = os.Exit
@@ -115,11 +114,11 @@ type Dialer interface {
 // Global logger instance
 var logger = log.New(os.Stderr, "", log.LstdFlags|log.Lmicroseconds)
 
-func initLogger() (err error) {
+func initLogger(syslog bool) (err error) {
 	// If user has indicated request for syslog, override default stderr
 	// logger with a syslog one instead. This can fail, e.g. in containers
 	// that don't have syslog available.
-	if *useSyslog {
+	if syslog {
 		var syslogWriter gsyslog.Syslogger
 		syslogWriter, err = gsyslog.NewLogger(gsyslog.LOG_INFO, "DAEMON", "")
 		if err == nil {
@@ -219,7 +218,7 @@ func run(args []string) error {
 	command := kingpin.MustParse(app.Parse(args))
 
 	// Logger
-	err := initLogger()
+	err := initLogger(useSyslog())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error initializing logger: %s\n", err)
 		os.Exit(1)

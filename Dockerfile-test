@@ -27,9 +27,9 @@ WORKDIR /go/src/github.com/square/ghostunnel
 ENV GHOSTUNNEL_TEST_PKCS11=true
 
 # Set params for PKCS11 module
-ENV PKCS11_MODULE=/usr/lib/softhsm/libsofthsm2.so
-ENV PKCS11_LABEL=ghostunnel-pkcs11-test
-ENV PKCS11_PIN=1234
+ENV GHOSTUNNEL_TEST_PKCS11_MODULE=/usr/lib/softhsm/libsofthsm2.so
+ENV GHOSTUNNEL_TEST_PKCS11_LABEL=ghostunnel-pkcs11-test
+ENV GHOSTUNNEL_TEST_PKCS11_PIN=1234
 
 # Set SoftHSM config file
 ENV SOFTHSM2_CONF=/etc/softhsm/softhsm2.conf

@@ -1,7 +1,7 @@
-// +build windows
+// +build !windows
 
 /*-
- * Copyright 2018 Square Inc.
+ * Copyright 2015 Square Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,9 +20,15 @@ package main
 
 import (
 	"os"
+	"syscall"
 )
 
 var (
-	shutdownSignals = []os.Signal{os.Interrupt}
-	refreshSignals  = []os.Signal{ /* Not supported on Windows */ }
+	shutdownSignals = []os.Signal{syscall.SIGINT, syscall.SIGTERM}
+	refreshSignals  = []os.Signal{syscall.SIGUSR1}
+	syslogFlag      = app.Flag("syslog", "Send logs to syslog instead of stderr.").Bool()
 )
+
+func useSyslog() bool {
+	return *syslogFlag
+}

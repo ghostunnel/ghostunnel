@@ -81,10 +81,8 @@ func TestIntegrationMain(t *testing.T) {
 }
 
 func TestInitLoggerSyslog(t *testing.T) {
-	*useSyslog = true
-	defer func() { *useSyslog = false }()
 	originalLogger := logger
-	err := initLogger()
+	err := initLogger(true)
 	updatedLogger := logger
 	if err != nil {
 		// Tests running in containers often don't have access to syslog,
