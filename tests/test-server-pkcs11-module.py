@@ -17,9 +17,9 @@ if __name__ == "__main__":
     # hack: point target to STATUS_PORT so that /_status doesn't 503.
     ghostunnel = run_ghostunnel(['server', '--listen={0}:13001'.format(LOCALHOST),
       '--target={0}:{1}'.format(LOCALHOST, STATUS_PORT), '--keystore=../test-keys/server.crt',
-      '--pkcs11-module={0}'.format(os.environ['PKCS11_MODULE']),
-      '--pkcs11-token-label={0}'.format(os.environ['PKCS11_LABEL']),
-      '--pkcs11-pin={0}'.format(os.environ['PKCS11_PIN']),
+      '--pkcs11-module={0}'.format(os.environ['GHOSTUNNEL_TEST_PKCS11_MODULE']),
+      '--pkcs11-token-label={0}'.format(os.environ['GHOSTUNNEL_TEST_PKCS11_LABEL']),
+      '--pkcs11-pin={0}'.format(os.environ['GHOSTUNNEL_TEST_PKCS11_PIN']),
       '--cacert=../test-keys/root.crt', '--allow-ou=client',
       '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
 

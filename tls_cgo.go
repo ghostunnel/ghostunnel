@@ -25,9 +25,9 @@ import (
 )
 
 var (
-	pkcs11Module     = app.Flag("pkcs11-module", "Path to PKCS11 module (SO) file (optional)").PlaceHolder("PATH").ExistingFile()
-	pkcs11TokenLabel = app.Flag("pkcs11-token-label", "Token label for slot/key in PKCS11 module (optional)").PlaceHolder("LABEL").String()
-	pkcs11PIN        = app.Flag("pkcs11-pin", "PIN code for slot/key in PKCS11 module (optional)").PlaceHolder("PIN").String()
+	pkcs11Module     = app.Flag("pkcs11-module", "Path to PKCS11 module (SO) file (optional).").Envar("PKCS11_MODULE").PlaceHolder("PATH").ExistingFile()
+	pkcs11TokenLabel = app.Flag("pkcs11-token-label", "Token label for slot/key in PKCS11 module (optional).").Envar("PKCS11_TOKEN_LABEL").PlaceHolder("LABEL").String()
+	pkcs11PIN        = app.Flag("pkcs11-pin", "PIN code for slot/key in PKCS11 module (optional).").Envar("PKCS11_PIN").PlaceHolder("PIN").String()
 )
 
 func newPKCS11(pubkey crypto.PublicKey) (crypto.PrivateKey, error) {
