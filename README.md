@@ -26,30 +26,28 @@ See `ghostunnel --help`, `ghostunnel server --help` and `ghostunnel client --hel
 Features
 ========
 
-**Authentication/access control**: Ghostunnel enforces mutual authentication
-by always requiring a valid client certificate. We also support access control
+**Access control**: Ghostunnel enforces mutual authentication by requiring
+a valid client certificate for all connections. We also support access control
 via checks on the subject (or subject alternative names) of a client certificate.
 This is useful for restricting access to services that don't have native access
 control.
 
 **Certificate hotswapping**: Ghostunnel can reload certificates at runtime
 without dropping existing connections. To trigger a reload, simply send
-`SIGUSR1` to the process. This will cause ghostunnel to reload the keystore
-files. Once successful, the reloaded certificate will be used for new
-connections going forward.
+`SIGUSR1` to the process (or set a time-based reloading interval). This will
+cause ghostunnel to reload the keystore files. Once successful, the reloaded
+certificate will be used for new connections going forward.
 
-**Automatic reloading**: Ghostunnel can be configured to automatically reload
-certificates. You can specify an interval with the `--timed-reload` flag. If 
-the timed reload flag is enabled, ghostunnel will reload the files periodically
-and check for changes. If a change is detected, it will attempt to reload the
-listener with the new certificates/private key.
+**Monitoring and metrics**: Ghostunnel has a built-in status feature that
+can be used to collect metrics and monitor a running instance. Metrics can
+be fed into Graphite (or other systems) to see number of open connections,
+rate of new connections, connection lifetimes, timeouts, and other info.
 
-**Emphasis on security**: We have put some thought into making ghostunnel
-secure by default. In server mode, the target backend must live on localhost
-or be a UNIX socket (unless `--unsafe-target` is specified). In a similar way,
-in client mode the listening socket must live on localhost or be a UNIX socket
-(unless `--unsafe-listen` is specified). Ghostunnel negotiates TLSv1.2
-and uses safe ciphers.
+**Emphasis on security**: We have put some thought into making ghostunnel secure
+by default and prevent accidental misconfiguration. For example,  we always
+negotiate TLS v1.2 and only use safe cipher suites. Ghostunnel also supports
+PKCS#11 which makes it possible to use Hardware Security Modules (HSMs) to protect
+private keys. 
 
 Getting Started
 ===============
@@ -248,13 +246,13 @@ For information on profiling via pprof, see the
 
 [pprof]: https://golang.org/pkg/net/http/pprof
 
-### HSM/PKCS11 support
+### HSM/PKCS#11 support
 
-Ghostunnel has experimental support for loading private keys from PKCS11
+Ghostunnel has experimental support for loading private keys from PKCS#11
 modules, which should work with any hardware security module that exposes a
-PKCS11 interface. An easy way to test the PKCS11 interface for development
+PKCS#11 interface. An easy way to test the PKCS#11 interface for development
 purposes is with [SoftHSM][softhsm]. Note that CGO is required in order for
-PKCS11 support to work.
+PKCS#11 support to work.
 
 [softhsm]: https://github.com/opendnssec/SoftHSMv2
 
@@ -285,7 +283,7 @@ To launch ghostunnel with the SoftHSM-backed PKCS11 key (on macOS):
       --allow-cn client
 
 Note that `--keystore` needs to point to the certificate chain that corresponds
-to the private key in the PKCS11 module, with the leaf certificate being the
+to the private key in the PKCS#11 module, with the leaf certificate being the
 first certificate in the chain. The `--pkcs11-module`, `--pkcs11-token-label`
 and `--pkcs11-pin` flags can be used to configure how to load the key from the
 PKCS11 module you are using. 
