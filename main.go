@@ -334,8 +334,17 @@ func serverListen(context *Context) error {
 		return err
 	}
 
+	serverACL := acl{
+		allowAll:    *serverAllowAll,
+		allowedCNs:  *serverAllowedCNs,
+		allowedOUs:  *serverAllowedOUs,
+		allowedDNSs: *serverAllowedDNSs,
+		allowedIPs:  *serverAllowedIPs,
+		allowedURIs: *serverAllowedURIs,
+	}
+
 	config.GetCertificate = context.cert.getCertificate
-	config.VerifyPeerCertificate = verifyPeerCertificateServer
+	config.VerifyPeerCertificate = serverACL.verifyPeerCertificateServer
 
 	listener, err := reuseport.NewReusablePortListener("tcp", (*serverListenAddress).String())
 	if err != nil {
@@ -497,7 +506,15 @@ func clientBackendDialer(cert *certificate, network, address, host string) (func
 		config.ServerName = *clientServerName
 	}
 
-	config.VerifyPeerCertificate = verifyPeerCertificateClient
+	clientACL := acl{
+		allowedCNs:  *clientAllowedCNs,
+		allowedOUs:  *clientAllowedOUs,
+		allowedDNSs: *clientAllowedDNSs,
+		allowedIPs:  *clientAllowedIPs,
+		allowedURIs: *clientAllowedURIs,
+	}
+
+	config.VerifyPeerCertificate = clientACL.verifyPeerCertificateClient
 
 	var dialer Dialer = &net.Dialer{Timeout: *timeoutDuration}
 
