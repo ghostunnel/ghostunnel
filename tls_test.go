@@ -180,18 +180,16 @@ func TestBuildConfig(t *testing.T) {
 	defer os.Remove(tmpCaBundle.Name())
 	defer os.Remove(tmpKeystoreNoPrivKey.Name())
 
-	*enabledCipherSuites = ""
-	conf, err := buildConfig(tmpCaBundle.Name())
+	conf, err := buildConfig("", tmpCaBundle.Name())
 	assert.NotNil(t, err, "should fail to build config with no cipher suites")
 
-	*enabledCipherSuites = "AES,CHACHA"
-	conf, err = buildConfig(tmpCaBundle.Name())
+	conf, err = buildConfig("AES,CHACHA", tmpCaBundle.Name())
 	assert.Nil(t, err, "should be able to build TLS config")
 	assert.NotNil(t, conf.RootCAs, "config must have CA certs")
 	assert.NotNil(t, conf.ClientCAs, "config must have CA certs")
 	assert.True(t, conf.MinVersion == tls.VersionTLS12, "must have correct TLS min version")
 
-	conf, err = buildConfig("does-not-exist")
+	conf, err = buildConfig("AES", "does-not-exist")
 	assert.Nil(t, conf, "conf with invalid params should be nil")
 	assert.NotNil(t, err, "should reject invalid CA cert bundle")
 
@@ -222,21 +220,17 @@ func TestCipherSuitePreference(t *testing.T) {
 	tmpCaBundle.Sync()
 	defer os.Remove(tmpCaBundle.Name())
 
-	*enabledCipherSuites = "XYZ"
-	conf, err := buildConfig(tmpCaBundle.Name())
+	conf, err := buildConfig("XYZ", tmpCaBundle.Name())
 	assert.NotNil(t, err, "should not be able to build TLS config with invalid cipher suite option")
 
-	*enabledCipherSuites = ""
-	conf, err = buildConfig(tmpCaBundle.Name())
+	conf, err = buildConfig("", tmpCaBundle.Name())
 	assert.NotNil(t, err, "should not be able to build TLS config wihout cipher suite selection")
 
-	*enabledCipherSuites = "CHACHA,AES"
-	conf, err = buildConfig(tmpCaBundle.Name())
+	conf, err = buildConfig("CHACHA,AES", tmpCaBundle.Name())
 	assert.Nil(t, err, "should be able to build TLS config")
 	assert.True(t, conf.CipherSuites[0] == tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305, "expecting ChaCha20")
 
-	*enabledCipherSuites = "AES,CHACHA"
-	conf, err = buildConfig(tmpCaBundle.Name())
+	conf, err = buildConfig("AES,CHACHA", tmpCaBundle.Name())
 	assert.Nil(t, err, "should be able to build TLS config")
 	assert.True(t, conf.CipherSuites[0] == tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, "expecting AES")
 }
@@ -262,7 +256,7 @@ func TestBuildConfigSystemRoots(t *testing.T) {
 		t.SkipNow()
 		return
 	}
-	conf, err := buildConfig("")
+	conf, err := buildConfig("AES", "")
 	assert.Nil(t, err, "should be able to build TLS config")
 	assert.NotNil(t, conf.RootCAs, "config must have CA certs")
 	assert.NotNil(t, conf.ClientCAs, "config must have CA certs")

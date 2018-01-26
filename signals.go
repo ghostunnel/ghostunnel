@@ -58,7 +58,7 @@ func (context *Context) signalHandler(proxy *proxy, closeables []io.Closer) {
 				}
 
 				// Force-exit after timeout
-				time.AfterFunc(*shutdownTimeout, func() {
+				time.AfterFunc(context.shutdownTimeout, func() {
 					// Graceful shutdown timeout reached. If we can't drain connections
 					// to exit gracefully after this timeout, let's just exit.
 					logger.Printf("graceful shutdown timeout: forcing exit")

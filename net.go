@@ -29,10 +29,11 @@ import (
 )
 
 type proxy struct {
-	quit     int32
-	listener net.Listener
-	handlers *sync.WaitGroup
-	dial     func() (net.Conn, error)
+	quit           int32
+	listener       net.Listener
+	handlers       *sync.WaitGroup
+	connectTimeout time.Duration
+	dial           func() (net.Conn, error)
 }
 
 var (
@@ -70,7 +71,7 @@ func (p *proxy) accept() {
 			defer conn.Close()
 			defer openCounter.Dec(1)
 
-			err := forceHandshake(conn)
+			err := forceHandshake(p.connectTimeout, conn)
 			if err != nil {
 				errorCounter.Inc(1)
 				logger.Printf("error on TLS handshake from %s: %s", conn.RemoteAddr(), err)
@@ -96,13 +97,13 @@ func (p *proxy) accept() {
 // Otherwise, unauthenticated clients would be able to open connections
 // and leave them hanging forever. Going through the handshake verifies
 // that clients have a valid client cert and are allowed to talk to us.
-func forceHandshake(conn net.Conn) error {
+func forceHandshake(timeout time.Duration, conn net.Conn) error {
 	if tlsConn, ok := conn.(*tls.Conn); ok {
 		startTime := time.Now()
 		defer handshakeTimer.UpdateSince(startTime)
 
 		// Set deadline to avoid blocking forever
-		err := tlsConn.SetDeadline(time.Now().Add(*timeoutDuration))
+		err := tlsConn.SetDeadline(time.Now().Add(timeout))
 		if err != nil {
 			return err
 		}
