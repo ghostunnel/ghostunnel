@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
+	"net/url"
 	"os"
 	"sync"
 	"testing"
@@ -125,6 +126,7 @@ func TestServerFlagValidation(t *testing.T) {
 	*serverAllowedOUs = nil
 	*serverAllowedDNSs = nil
 	*serverAllowedIPs = nil
+	*serverAllowedURIs = nil
 	err := serverValidateFlags()
 	assert.NotNil(t, err, "invalid access control flags accepted")
 
@@ -170,6 +172,12 @@ func TestClientFlagValidation(t *testing.T) {
 	*clientListenAddress = "127.0.0.1:8080"
 	err = clientValidateFlags()
 	assert.NotNil(t, err, "invalid cipher suite option should be rejected")
+
+	invalidURL, _ := url.Parse("ftp://invalid")
+	*enabledCipherSuites = "AES"
+	*clientConnectProxy = invalidURL
+	err = clientValidateFlags()
+	assert.NotNil(t, err, "invalid connect proxy option should be rejected")
 }
 
 func TestAllowsLocalhost(t *testing.T) {
