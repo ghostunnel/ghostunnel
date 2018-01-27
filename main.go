@@ -98,12 +98,13 @@ var exitFunc = os.Exit
 
 // Context groups listening context data together
 type Context struct {
-	watcher    chan bool
-	status     *statusHandler
-	statusHTTP *http.Server
-	dial       func() (net.Conn, error)
-	metrics    *sqmetrics.SquareMetrics
-	cert       *certificate
+	watcher         chan bool
+	status          *statusHandler
+	statusHTTP      *http.Server
+	shutdownTimeout time.Duration
+	dial            func() (net.Conn, error)
+	metrics         *sqmetrics.SquareMetrics
+	cert            *certificate
 }
 
 // Dialer is an interface for dialers (either net.Dialer, or http_dialer.HttpTunnel)
@@ -280,7 +281,7 @@ func run(args []string) error {
 		logger.Printf("using target address %s", *serverForwardAddress)
 
 		status := newStatusHandler(dial)
-		context := &Context{watcher, status, nil, dial, metrics, cert}
+		context := &Context{watcher, status, nil, *shutdownTimeout, dial, metrics, cert}
 
 		// Start listening
 		err = serverListen(context)
@@ -309,7 +310,7 @@ func run(args []string) error {
 		}
 
 		status := newStatusHandler(dial)
-		context := &Context{watcher, status, nil, dial, metrics, cert}
+		context := &Context{watcher, status, nil, *shutdownTimeout, dial, metrics, cert}
 
 		// Start listening
 		err = clientListen(context)
@@ -328,14 +329,23 @@ func run(args []string) error {
 // connections. This is useful for the purpose of replacing certificates
 // in-place without having to take downtime, e.g. if a certificate is expiring.
 func serverListen(context *Context) error {
-	config, err := buildConfig(*caBundlePath)
+	config, err := buildConfig(*enabledCipherSuites, *caBundlePath)
 	if err != nil {
 		logger.Printf("error trying to read CA bundle: %s", err)
 		return err
 	}
 
+	serverACL := acl{
+		allowAll:    *serverAllowAll,
+		allowedCNs:  *serverAllowedCNs,
+		allowedOUs:  *serverAllowedOUs,
+		allowedDNSs: *serverAllowedDNSs,
+		allowedIPs:  *serverAllowedIPs,
+		allowedURIs: *serverAllowedURIs,
+	}
+
 	config.GetCertificate = context.cert.getCertificate
-	config.VerifyPeerCertificate = verifyPeerCertificateServer
+	config.VerifyPeerCertificate = serverACL.verifyPeerCertificateServer
 
 	listener, err := reuseport.NewReusablePortListener("tcp", (*serverListenAddress).String())
 	if err != nil {
@@ -344,10 +354,11 @@ func serverListen(context *Context) error {
 	}
 
 	proxy := &proxy{
-		quit:     0,
-		listener: tls.NewListener(listener, config),
-		handlers: &sync.WaitGroup{},
-		dial:     context.dial,
+		quit:           0,
+		listener:       tls.NewListener(listener, config),
+		handlers:       &sync.WaitGroup{},
+		connectTimeout: *timeoutDuration,
+		dial:           context.dial,
 	}
 
 	if *statusAddress != "" {
@@ -390,10 +401,11 @@ func clientListen(context *Context) error {
 	}
 
 	proxy := &proxy{
-		quit:     0,
-		listener: listener,
-		handlers: &sync.WaitGroup{},
-		dial:     context.dial,
+		quit:           0,
+		listener:       listener,
+		handlers:       &sync.WaitGroup{},
+		connectTimeout: *timeoutDuration,
+		dial:           context.dial,
 	}
 
 	if *statusAddress != "" {
@@ -428,7 +440,7 @@ func (context *Context) serveStatus() error {
 		mux.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
 	}
 
-	config, err := buildConfig(*caBundlePath)
+	config, err := buildConfig(*enabledCipherSuites, *caBundlePath)
 	if err != nil {
 		return err
 	}
@@ -486,7 +498,7 @@ func serverBackendDialer() (func() (net.Conn, error), error) {
 
 // Get backend dialer function in client mode (connecting to a TLS port)
 func clientBackendDialer(cert *certificate, network, address, host string) (func() (net.Conn, error), error) {
-	config, err := buildConfig(*caBundlePath)
+	config, err := buildConfig(*enabledCipherSuites, *caBundlePath)
 	if err != nil {
 		return nil, err
 	}
@@ -497,7 +509,15 @@ func clientBackendDialer(cert *certificate, network, address, host string) (func
 		config.ServerName = *clientServerName
 	}
 
-	config.VerifyPeerCertificate = verifyPeerCertificateClient
+	clientACL := acl{
+		allowedCNs:  *clientAllowedCNs,
+		allowedOUs:  *clientAllowedOUs,
+		allowedDNSs: *clientAllowedDNSs,
+		allowedIPs:  *clientAllowedIPs,
+		allowedURIs: *clientAllowedURIs,
+	}
+
+	config.VerifyPeerCertificate = clientACL.verifyPeerCertificateClient
 
 	var dialer Dialer = &net.Dialer{Timeout: *timeoutDuration}
 
@@ -505,7 +525,7 @@ func clientBackendDialer(cert *certificate, network, address, host string) (func
 		logger.Printf("using HTTP(S) CONNECT proxy %s", (*clientConnectProxy).String())
 
 		// Use HTTP CONNECT proxy to connect to target.
-		proxyConfig, err := buildConfig(*caBundlePath)
+		proxyConfig, err := buildConfig(*enabledCipherSuites, *caBundlePath)
 		if err != nil {
 			return nil, err
 		}

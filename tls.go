@@ -225,7 +225,7 @@ func dialWithDialer(dialer Dialer, timeout time.Duration, network, addr string, 
 }
 
 // buildConfig reads command-line options and builds a tls.Config
-func buildConfig(caBundlePath string) (*tls.Config, error) {
+func buildConfig(enabledCipherSuites string, caBundlePath string) (*tls.Config, error) {
 	ca, err := caBundle(caBundlePath)
 	if err != nil {
 		return nil, err
@@ -236,7 +236,7 @@ func buildConfig(caBundlePath string) (*tls.Config, error) {
 	// * We list AES-128 ahead of AES-256 for performance reasons.
 
 	suites := []uint16{}
-	for _, suite := range strings.Split(*enabledCipherSuites, ",") {
+	for _, suite := range strings.Split(enabledCipherSuites, ",") {
 		ciphers, ok := cipherSuites[strings.TrimSpace(suite)]
 		if !ok {
 			return nil, fmt.Errorf("invalid cipher suite '%s' selected", suite)
