@@ -37,7 +37,7 @@
 			"importpath": "github.com/kavu/go_reuseport",
 			"repository": "https://github.com/kavu/go_reuseport",
 			"vcs": "git",
-			"revision": "4ae41366110ad2460b03ac4562ca105e96479d2e",
+			"revision": "89a3f805b4eeb77770c2b299c06dc209137361fd",
 			"branch": "master",
 			"notests": true
 		},
@@ -53,7 +53,7 @@
 			"importpath": "github.com/miekg/pkcs11",
 			"repository": "https://github.com/miekg/pkcs11",
 			"vcs": "git",
-			"revision": "eda1d775a087f2a96fec7c7876ea94dea43e6027",
+			"revision": "88ac7c418f89b164432a00c46ec7b7612d686b57",
 			"branch": "master",
 			"notests": true
 		},
@@ -69,7 +69,7 @@
 			"importpath": "github.com/rcrowley/go-metrics",
 			"repository": "https://github.com/rcrowley/go-metrics",
 			"vcs": "git",
-			"revision": "1f30fe9094a513ce4c700b9a54458bbb0c96996c",
+			"revision": "8732c616f52954686704c8645fe1a9d59e9df7c1",
 			"branch": "master",
 			"notests": true
 		},
@@ -85,7 +85,7 @@
 			"importpath": "github.com/square/certigo/jceks",
 			"repository": "https://github.com/square/certigo",
 			"vcs": "git",
-			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
+			"revision": "ba63b127cd80e1665742391ef38cfdda415376cd",
 			"branch": "master",
 			"path": "jceks",
 			"notests": true
@@ -94,7 +94,7 @@
 			"importpath": "github.com/square/certigo/lib",
 			"repository": "https://github.com/square/certigo",
 			"vcs": "git",
-			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
+			"revision": "ba63b127cd80e1665742391ef38cfdda415376cd",
 			"branch": "master",
 			"path": "/lib",
 			"notests": true
@@ -103,7 +103,7 @@
 			"importpath": "github.com/square/certigo/pkcs7",
 			"repository": "https://github.com/square/certigo",
 			"vcs": "git",
-			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
+			"revision": "ba63b127cd80e1665742391ef38cfdda415376cd",
 			"branch": "master",
 			"path": "pkcs7",
 			"notests": true
@@ -112,7 +112,7 @@
 			"importpath": "github.com/square/certigo/vendor/github.com/Masterminds/semver",
 			"repository": "https://github.com/square/certigo",
 			"vcs": "git",
-			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
+			"revision": "ba63b127cd80e1665742391ef38cfdda415376cd",
 			"branch": "master",
 			"path": "vendor/github.com/Masterminds/semver",
 			"notests": true
@@ -121,7 +121,7 @@
 			"importpath": "github.com/square/certigo/vendor/github.com/Masterminds/sprig",
 			"repository": "https://github.com/square/certigo",
 			"vcs": "git",
-			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
+			"revision": "ba63b127cd80e1665742391ef38cfdda415376cd",
 			"branch": "master",
 			"path": "vendor/github.com/Masterminds/sprig",
 			"notests": true
@@ -130,7 +130,7 @@
 			"importpath": "github.com/square/certigo/vendor/github.com/aokoli/goutils",
 			"repository": "https://github.com/square/certigo",
 			"vcs": "git",
-			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
+			"revision": "ba63b127cd80e1665742391ef38cfdda415376cd",
 			"branch": "master",
 			"path": "vendor/github.com/aokoli/goutils",
 			"notests": true
@@ -139,7 +139,7 @@
 			"importpath": "github.com/square/certigo/vendor/github.com/fatih/color",
 			"repository": "https://github.com/square/certigo",
 			"vcs": "git",
-			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
+			"revision": "ba63b127cd80e1665742391ef38cfdda415376cd",
 			"branch": "master",
 			"path": "vendor/github.com/fatih/color",
 			"notests": true
@@ -148,7 +148,7 @@
 			"importpath": "github.com/square/certigo/vendor/github.com/huandu/xstrings",
 			"repository": "https://github.com/square/certigo",
 			"vcs": "git",
-			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
+			"revision": "ba63b127cd80e1665742391ef38cfdda415376cd",
 			"branch": "master",
 			"path": "vendor/github.com/huandu/xstrings",
 			"notests": true
@@ -157,7 +157,7 @@
 			"importpath": "github.com/square/certigo/vendor/github.com/imdario/mergo",
 			"repository": "https://github.com/square/certigo",
 			"vcs": "git",
-			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
+			"revision": "ba63b127cd80e1665742391ef38cfdda415376cd",
 			"branch": "master",
 			"path": "vendor/github.com/imdario/mergo",
 			"notests": true
@@ -166,7 +166,7 @@
 			"importpath": "github.com/square/certigo/vendor/github.com/mattn/go-colorable",
 			"repository": "https://github.com/square/certigo",
 			"vcs": "git",
-			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
+			"revision": "ba63b127cd80e1665742391ef38cfdda415376cd",
 			"branch": "master",
 			"path": "vendor/github.com/mattn/go-colorable",
 			"notests": true
@@ -175,7 +175,7 @@
 			"importpath": "github.com/square/certigo/vendor/github.com/mattn/go-isatty",
 			"repository": "https://github.com/square/certigo",
 			"vcs": "git",
-			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
+			"revision": "ba63b127cd80e1665742391ef38cfdda415376cd",
 			"branch": "master",
 			"path": "vendor/github.com/mattn/go-isatty",
 			"notests": true
@@ -184,7 +184,7 @@
 			"importpath": "github.com/square/certigo/vendor/github.com/satori/go.uuid",
 			"repository": "https://github.com/square/certigo",
 			"vcs": "git",
-			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
+			"revision": "ba63b127cd80e1665742391ef38cfdda415376cd",
 			"branch": "master",
 			"path": "vendor/github.com/satori/go.uuid",
 			"notests": true
@@ -193,7 +193,7 @@
 			"importpath": "github.com/square/certigo/vendor/github.com/spiffe/go-spiffe",
 			"repository": "https://github.com/square/certigo",
 			"vcs": "git",
-			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
+			"revision": "ba63b127cd80e1665742391ef38cfdda415376cd",
 			"branch": "master",
 			"path": "vendor/github.com/spiffe/go-spiffe",
 			"notests": true
@@ -202,7 +202,7 @@
 			"importpath": "github.com/square/certigo/vendor/golang.org/x/crypto/pbkdf2",
 			"repository": "https://github.com/square/certigo",
 			"vcs": "git",
-			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
+			"revision": "ba63b127cd80e1665742391ef38cfdda415376cd",
 			"branch": "master",
 			"path": "vendor/golang.org/x/crypto/pbkdf2",
 			"notests": true
@@ -211,7 +211,7 @@
 			"importpath": "github.com/square/certigo/vendor/golang.org/x/crypto/pkcs12",
 			"repository": "https://github.com/square/certigo",
 			"vcs": "git",
-			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
+			"revision": "ba63b127cd80e1665742391ef38cfdda415376cd",
 			"branch": "master",
 			"path": "vendor/golang.org/x/crypto/pkcs12",
 			"notests": true
@@ -220,7 +220,7 @@
 			"importpath": "github.com/square/certigo/vendor/golang.org/x/crypto/scrypt",
 			"repository": "https://github.com/square/certigo",
 			"vcs": "git",
-			"revision": "67b2d2616730d209f115bec565bc518a6d28824a",
+			"revision": "ba63b127cd80e1665742391ef38cfdda415376cd",
 			"branch": "master",
 			"path": "vendor/golang.org/x/crypto/scrypt",
 			"notests": true
@@ -237,7 +237,7 @@
 			"importpath": "github.com/stretchr/testify/assert",
 			"repository": "https://github.com/stretchr/testify",
 			"vcs": "git",
-			"revision": "890a5c3458b43e6104ff5da8dfa139d013d77544",
+			"revision": "be8372ae8ec5c6daaed3cc28ebf73c54b737c240",
 			"branch": "master",
 			"path": "/assert",
 			"notests": true
@@ -246,7 +246,7 @@
 			"importpath": "github.com/stretchr/testify/vendor/github.com/davecgh/go-spew/spew",
 			"repository": "https://github.com/stretchr/testify",
 			"vcs": "git",
-			"revision": "890a5c3458b43e6104ff5da8dfa139d013d77544",
+			"revision": "be8372ae8ec5c6daaed3cc28ebf73c54b737c240",
 			"branch": "master",
 			"path": "vendor/github.com/davecgh/go-spew/spew",
 			"notests": true
@@ -255,7 +255,7 @@
 			"importpath": "github.com/stretchr/testify/vendor/github.com/pmezard/go-difflib/difflib",
 			"repository": "https://github.com/stretchr/testify",
 			"vcs": "git",
-			"revision": "890a5c3458b43e6104ff5da8dfa139d013d77544",
+			"revision": "be8372ae8ec5c6daaed3cc28ebf73c54b737c240",
 			"branch": "master",
 			"path": "vendor/github.com/pmezard/go-difflib/difflib",
 			"notests": true
@@ -264,7 +264,7 @@
 			"importpath": "gopkg.in/alecthomas/kingpin.v2",
 			"repository": "https://gopkg.in/alecthomas/kingpin.v2",
 			"vcs": "git",
-			"revision": "1087e65c9441605df944fb12c33f0fe7072d18ca",
+			"revision": "947dcec5ba9c011838740e680966fd7087a71d0d",
 			"branch": "master",
 			"notests": true
 		}

@@ -115,7 +115,7 @@ Valid: {{.NotBefore | certStart}} to {{.NotAfter | certEnd}}
 Subject: {{.Subject.Name | printShortName }}
 Issuer: {{.Issuer.Name | printShortName }}
 {{- if .NameConstraints}}
-Name Constraints{{if .PermittedDNSDomains.Critical}} (critical){{end}}: {{range .NameConstraints.PermittedDNSDomains}}
+Name Constraints{{if .NameConstraints.Critical}} (critical){{end}}: {{range .NameConstraints.PermittedDNSDomains}}
 	{{.}}{{end}}{{end}}
 {{- if .AltDNSNames}}
 DNS Names:
