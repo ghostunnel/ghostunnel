@@ -408,7 +408,7 @@ func algWarnings(cert *x509.Certificate) (warnings []string) {
 
 	for _, alg := range badSignatureAlgorithms {
 		if cert.SignatureAlgorithm == alg {
-			warnings = append(warnings, fmt.Sprintf("Using %s, which is an outdated signature algorithm", algString(alg)))
+			warnings = append(warnings, fmt.Sprintf("Signed with %s, which is an outdated signature algorithm", algString(alg)))
 		}
 	}
 

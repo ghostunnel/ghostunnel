@@ -484,6 +484,10 @@ const (
 	CKM_EC_KEY_PAIR_GEN                  = 0x00001040
 	CKM_ECDSA                            = 0x00001041
 	CKM_ECDSA_SHA1                       = 0x00001042
+	CKM_ECDSA_SHA224                     = 0x00001043
+	CKM_ECDSA_SHA256                     = 0x00001044
+	CKM_ECDSA_SHA384                     = 0x00001045
+	CKM_ECDSA_SHA512                     = 0x00001046
 	CKM_ECDH1_DERIVE                     = 0x00001050
 	CKM_ECDH1_COFACTOR_DERIVE            = 0x00001051
 	CKM_ECMQV_DERIVE                     = 0x00001052
