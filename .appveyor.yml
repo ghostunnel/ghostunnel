@@ -55,7 +55,5 @@ build_script:
   # Execute tests
   - go test -v .
   # Push artifacts
-  - appveyor PushArtifact ghostunnel-%GIT_VERSION%-windows-%GOARCH%-without-pkcs11.exe
-  - appveyor PushArtifact ghostunnel-%GIT_VERSION%-windows-%GOARCH%-without-pkcs11.exe.sha256sum
-  - appveyor PushArtifact ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe
-  - appveyor PushArtifact ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe.sha256sum
+  - appveyor PushArtifact ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe || (exit 0)
+  - appveyor PushArtifact ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe.sha256sum || (exit 0)
