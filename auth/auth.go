@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package main
+package auth
 
 import (
 	"crypto/x509"
@@ -24,36 +24,42 @@ import (
 	"github.com/spiffe/go-spiffe/uri"
 )
 
-type acl struct {
-	allowAll    bool
-	allowedCNs  []string
-	allowedOUs  []string
-	allowedDNSs []string
-	allowedIPs  []net.IP
-	allowedURIs []string
+// Logger is used by this package to log messages
+type Logger interface {
+	Printf(format string, v ...interface{})
 }
 
-func (a acl) verifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+type Acl struct {
+	AllowAll    bool
+	AllowedCNs  []string
+	AllowedOUs  []string
+	AllowedDNSs []string
+	AllowedIPs  []net.IP
+	AllowedURIs []string
+	Logger Logger
+}
+
+func (a Acl) VerifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
 	if len(verifiedChains) == 0 {
 		return errors.New("unauthorized: invalid principal, or principal not allowed")
 	}
 
 	// If --allow-all has been set, a valid cert is sufficient to connect.
-	if a.allowAll {
+	if a.AllowAll {
 		return nil
 	}
 
 	cert := verifiedChains[0][0]
 
 	// Check CN against --allow-cn flag(s).
-	for _, expectedCN := range a.allowedCNs {
+	for _, expectedCN := range a.AllowedCNs {
 		if cert.Subject.CommonName == expectedCN {
 			return nil
 		}
 	}
 
 	// Check OUs against --allow-ou flag(s).
-	for _, expectedOU := range a.allowedOUs {
+	for _, expectedOU := range a.AllowedOUs {
 		for _, clientOU := range cert.Subject.OrganizationalUnit {
 			if clientOU == expectedOU {
 				return nil
@@ -61,7 +67,7 @@ func (a acl) verifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*
 		}
 	}
 
-	for _, expectedDNS := range a.allowedDNSs {
+	for _, expectedDNS := range a.AllowedDNSs {
 		for _, clientDNS := range cert.DNSNames {
 			if clientDNS == expectedDNS {
 				return nil
@@ -69,7 +75,7 @@ func (a acl) verifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*
 		}
 	}
 
-	for _, expectedIP := range a.allowedIPs {
+	for _, expectedIP := range a.AllowedIPs {
 		for _, clientIP := range cert.IPAddresses {
 			if expectedIP.Equal(clientIP) {
 				return nil
@@ -78,10 +84,10 @@ func (a acl) verifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*
 	}
 
 	// Get URIs from the SAN in the certificate
-	if len(a.allowedURIs) > 0 {
+	if len(a.AllowedURIs) > 0 {
 		uris, err := uri.GetURINamesFromCertificate(cert)
 		if err == nil {
-			for _, expectedURI := range a.allowedURIs {
+			for _, expectedURI := range a.AllowedURIs {
 				for _, clientURI := range uris {
 					if clientURI == expectedURI {
 						return nil
@@ -89,34 +95,34 @@ func (a acl) verifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*
 				}
 			}
 		} else {
-			logger.Printf("error getting URIs from SAN: %s", err)
+			a.Logger.Printf("error getting URIs from SAN: %s", err)
 		}
 	}
 
 	return errors.New("unauthorized: invalid principal, or principal not allowed")
 }
 
-func (a acl) verifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+func (a Acl) VerifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
 	if len(verifiedChains) == 0 {
 		return errors.New("unauthorized: invalid principal, or principal not allowed")
 	}
 
 	// If none of --verify-cn, --verify-ou, verify-dns-san, verify-uri-san or verify-ip-san is specified, only hostname verification is performed
-	if len(a.allowedCNs) == 0 && len(a.allowedOUs) == 0 && len(a.allowedDNSs) == 0 && len(a.allowedURIs) == 0 && len(a.allowedIPs) == 0 {
+	if len(a.AllowedCNs) == 0 && len(a.AllowedOUs) == 0 && len(a.AllowedDNSs) == 0 && len(a.AllowedURIs) == 0 && len(a.AllowedIPs) == 0 {
 		return nil
 	}
 
 	cert := verifiedChains[0][0]
 
 	// Check CNs against --verify-cn flag(s).
-	for _, expectedCN := range a.allowedCNs {
+	for _, expectedCN := range a.AllowedCNs {
 		if cert.Subject.CommonName == expectedCN {
 			return nil
 		}
 	}
 
 	// Check OUs against --verify-ou flag(s).
-	for _, expectedOU := range a.allowedOUs {
+	for _, expectedOU := range a.AllowedOUs {
 		for _, serverOU := range cert.Subject.OrganizationalUnit {
 			if serverOU == expectedOU {
 				return nil
@@ -125,7 +131,7 @@ func (a acl) verifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*
 	}
 
 	// Check DNSs against --verify-dns-san flag(s).
-	for _, expectedDNS := range a.allowedDNSs {
+	for _, expectedDNS := range a.AllowedDNSs {
 		for _, serverDNS := range cert.DNSNames {
 			if serverDNS == expectedDNS {
 				return nil
@@ -134,7 +140,7 @@ func (a acl) verifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*
 	}
 
 	// Check IPs against --verify-ip-san flag(s).
-	for _, expectedIP := range a.allowedIPs {
+	for _, expectedIP := range a.AllowedIPs {
 		for _, serverIP := range cert.IPAddresses {
 			if expectedIP.Equal(serverIP) {
 				return nil
@@ -143,10 +149,10 @@ func (a acl) verifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*
 	}
 
 	// Get URIs from the SAN in the certificate
-	if len(a.allowedURIs) > 0 {
+	if len(a.AllowedURIs) > 0 {
 		uris, err := uri.GetURINamesFromCertificate(cert)
 		if err == nil {
-			for _, expectedURI := range a.allowedURIs {
+			for _, expectedURI := range a.AllowedURIs {
 				for _, serverURI := range uris {
 					if serverURI == expectedURI {
 						return nil
@@ -154,7 +160,7 @@ func (a acl) verifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*
 				}
 			}
 		} else {
-			logger.Printf("error getting URIs from SAN: %s", err)
+			a.Logger.Printf("error getting URIs from SAN: %s", err)
 		}
 	}
 
