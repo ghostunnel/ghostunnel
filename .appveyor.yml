@@ -53,7 +53,7 @@ build_script:
   - go build -o ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe -ldflags "-w -extldflags \"-static\" -extld=%EXTLD%" -i .
   - sha256sum ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe > ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe.sha256sum
   # Execute tests
-  - go test -v .
+  - go test -v . ./auth
   # Push artifacts
   - appveyor PushArtifact ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe || (exit 0)
   - appveyor PushArtifact ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe.sha256sum || (exit 0)
