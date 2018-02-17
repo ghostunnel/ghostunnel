@@ -86,11 +86,10 @@ To run tests:
     # Open coverage information in browser
     go tool cover -html coverage-merged.out
 
-For more information on how to contribute, please see the [CONTRIBUTING][contr] file.
+For more information on how to contribute, please see the [CONTRIBUTING](CONTRIBUTING.md) file.
 
 [gvt]: https://github.com/FiloSottile/gvt
 [gcvm]: https://github.com/wadey/gocovmerge
-[contr]: https://github.com/square/ghostunnel/blob/master/CONTRIBUTING.md
 
 Usage Examples
 ==============
@@ -248,11 +247,12 @@ For information on profiling via pprof, see the
 
 ### HSM/PKCS#11 support
 
-Ghostunnel has experimental support for loading private keys from PKCS#11
-modules, which should work with any hardware security module that exposes a
-PKCS#11 interface. An easy way to test the PKCS#11 interface for development
-purposes is with [SoftHSM][softhsm]. Note that CGO is required in order for
-PKCS#11 support to work.
+Ghostunnel has support for loading private keys from PKCS#11 modules, which
+should work with any hardware security module that exposes a PKCS#11 interface.
+An easy way to test the PKCS#11 interface for development purposes is with
+[SoftHSM][softhsm]. Note that CGO is required in order for PKCS#11 support to
+work (see [CROSS-COMPILE.md](CROSS-COMPILE.md) for instructions to
+cross-compile with CGO enabled).
 
 [softhsm]: https://github.com/opendnssec/SoftHSMv2
 
