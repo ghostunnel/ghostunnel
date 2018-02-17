@@ -36,6 +36,7 @@ import (
 	"github.com/kavu/go_reuseport"
 	"github.com/mwitkow/go-http-dialer"
 	"github.com/rcrowley/go-metrics"
+	"github.com/square/ghostunnel/auth"
 	"github.com/square/go-sq-metrics"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
@@ -335,17 +336,18 @@ func serverListen(context *Context) error {
 		return err
 	}
 
-	serverACL := acl{
-		allowAll:    *serverAllowAll,
-		allowedCNs:  *serverAllowedCNs,
-		allowedOUs:  *serverAllowedOUs,
-		allowedDNSs: *serverAllowedDNSs,
-		allowedIPs:  *serverAllowedIPs,
-		allowedURIs: *serverAllowedURIs,
+	serverACL := auth.Acl{
+		AllowAll:    *serverAllowAll,
+		AllowedCNs:  *serverAllowedCNs,
+		AllowedOUs:  *serverAllowedOUs,
+		AllowedDNSs: *serverAllowedDNSs,
+		AllowedIPs:  *serverAllowedIPs,
+		AllowedURIs: *serverAllowedURIs,
+		Logger:      logger,
 	}
 
 	config.GetCertificate = context.cert.getCertificate
-	config.VerifyPeerCertificate = serverACL.verifyPeerCertificateServer
+	config.VerifyPeerCertificate = serverACL.VerifyPeerCertificateServer
 
 	listener, err := reuseport.NewReusablePortListener("tcp", (*serverListenAddress).String())
 	if err != nil {
@@ -509,15 +511,16 @@ func clientBackendDialer(cert *certificate, network, address, host string) (func
 		config.ServerName = *clientServerName
 	}
 
-	clientACL := acl{
-		allowedCNs:  *clientAllowedCNs,
-		allowedOUs:  *clientAllowedOUs,
-		allowedDNSs: *clientAllowedDNSs,
-		allowedIPs:  *clientAllowedIPs,
-		allowedURIs: *clientAllowedURIs,
+	clientACL := auth.Acl{
+		AllowedCNs:  *clientAllowedCNs,
+		AllowedOUs:  *clientAllowedOUs,
+		AllowedDNSs: *clientAllowedDNSs,
+		AllowedIPs:  *clientAllowedIPs,
+		AllowedURIs: *clientAllowedURIs,
+		Logger:      logger,
 	}
 
-	config.VerifyPeerCertificate = clientACL.verifyPeerCertificateClient
+	config.VerifyPeerCertificate = clientACL.VerifyPeerCertificateClient
 
 	var dialer Dialer = &net.Dialer{Timeout: *timeoutDuration}
 
