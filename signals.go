@@ -74,22 +74,20 @@ func (context *Context) signalHandler(proxy *proxy, closeables []io.Closer) {
 				return
 			} else {
 				logger.Printf("received %s, reloading certificates", sig.String())
-				context.status.Reloading()
-				err := context.cert.reload()
-				if err != nil {
-					logger.Printf("error reloading certificates: %s", err)
-				}
-				logger.Printf("reloading complete")
-				context.status.Listening()
+				context.reload()
 			}
 		case <-context.watcher:
-			context.status.Reloading()
-			err := context.cert.reload()
-			if err != nil {
-				logger.Printf("error reloading certificates: %s", err)
-			}
-			logger.Printf("reloading complete")
-			context.status.Listening()
+			context.reload()
 		}
 	}
+}
+
+func (context *Context) reload() {
+	context.status.Reloading()
+	err := context.cert.reload()
+	if err != nil {
+		logger.Printf("error reloading certificates: %s", err)
+	}
+	logger.Printf("reloading complete")
+	context.status.Listening()
 }

@@ -13,7 +13,8 @@ test: unit $(INTEGRATION_TESTS)
 	@echo "PASS"
 
 unit:
-	go test -v -covermode=count -coverprofile=coverage-unit-test.out
+	go test -v -covermode=count -coverprofile=coverage-unit-test-base.out .
+	go test -v -covermode=count -coverprofile=coverage-unit-test-auth.out ./auth
 
 $(INTEGRATION_TESTS): ghostunnel.test
 	@cd tests && ./runner.py $@
