@@ -39,20 +39,21 @@ before_build:
   # MSYS paths
   - set PATH=C:\%MSYS2_DIR%\%MSYSTEM%\bin;C:\%MSYS2_DIR%\usr\bin;%PATH%
   # Install build deps
-  - bash -lc "for n in `seq 1 3`; do pacman --noconfirm -Syyuu && break || sleep 15; done"
-  - bash -lc "for n in `seq 1 3`; do pacman --noconfirm -S mingw-w64-%MSYS2_ARCH%-libtool libltdl && break || sleep 15; done"
+  - bash -lc "for n in `seq 1 3`; do pacman --noconfirm -S mingw-w64-%MSYS2_ARCH%-libtool && break || sleep 15; done"
 
 build_script:
   - git describe > version
   - set /p GIT_VERSION= < version
+  # Build without PKCS11 enabled
   - set CGO_ENABLED=0
-  - go build -o ghostunnel-%GIT_VERSION%-windows-%GOARCH%-without-pkcs11.exe -ldflags "-w -extldflags \"-static\" -extld=%EXTLD%" -i .
+  - go build -o ghostunnel-%GIT_VERSION%-windows-%GOARCH%-without-pkcs11.exe -i .
   - sha256sum ghostunnel-%GIT_VERSION%-windows-%GOARCH%-without-pkcs11.exe > ghostunnel-%GIT_VERSION%-windows-%GOARCH%-without-pkcs11.exe.sha256sum
-  - appveyor PushArtifact ghostunnel-%GIT_VERSION%-windows-%GOARCH%-without-pkcs11.exe
-  - appveyor PushArtifact ghostunnel-%GIT_VERSION%-windows-%GOARCH%-without-pkcs11.exe.sha256sum
+  # Build with PKCS11 enabled
   - set CGO_ENABLED=1
   - go build -o ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe -ldflags "-w -extldflags \"-static\" -extld=%EXTLD%" -i .
   - sha256sum ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe > ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe.sha256sum
-  - appveyor PushArtifact ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe
-  - appveyor PushArtifact ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe.sha256sum
+  # Execute tests
   - go test -v .
+  # Push artifacts
+  - appveyor PushArtifact ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe || (exit 0)
+  - appveyor PushArtifact ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe.sha256sum || (exit 0)
