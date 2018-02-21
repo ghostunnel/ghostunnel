@@ -19,18 +19,6 @@ environment:
       GOARCH: 386
       EXTLD: i686-w64-mingw32-gcc
 
-deploy:
-  description: ''
-  provider: GitHub
-  auth_token:
-    secure: SZ8sNIW4v/SmMNFdSVfsgRkZQYDqAc5oETCyfLghksY6RC5SGeSnlemE6FQjXVa+
-  artifact: /.*\.(exe|sha256sum)/
-  draft: true
-  prerelease: true
-  force_update: true
-  on:
-    appveyor_repo_tag: true
-
 clone_folder: C:\gopath\src\github.com\square\ghostunnel
 
 before_build:
@@ -51,9 +39,5 @@ build_script:
   # Build with PKCS11 enabled
   - set CGO_ENABLED=1
   - go build -o ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe -ldflags "-w -extldflags \"-static\" -extld=%EXTLD%" -i .
-  - sha256sum ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe > ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe.sha256sum
   # Execute tests
   - go test -v . ./auth
-  # Push artifacts
-  - appveyor PushArtifact ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe || (exit 0)
-  - appveyor PushArtifact ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe.sha256sum || (exit 0)

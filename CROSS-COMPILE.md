@@ -16,7 +16,7 @@ For example, to build a static 64-bit Windows binary:
       -deps https://ftp.gnu.org/pub/gnu/libtool/libtool-2.4.6.tar.gz \
       -branch master \
       -targets 'windows/amd64' \
-      -ldflags "-w -extldflags \"-static\" -extld x86_64-w64-mingw32-gcc" \
+      -ldflags '-w -extldflags "-static" -extld x86_64-w64-mingw32-gcc' \
       github.com/square/ghostunnel
 
 For more info, see [xgo][xgo]'s README on GitHub.
