@@ -33,7 +33,6 @@ deploy:
     skip_cleanup: true
     on:
       tags: true
-      go: 1.9
 
 before_install:
   - sudo apt-get update
