@@ -59,6 +59,9 @@ type certificate struct {
 
 // Build reloadable certificate
 func buildCertificate(keystorePath, keystorePass string) (*certificate, error) {
+	if keystorePath == "" {
+		return &certificate{}, nil
+	}
 	cert := &certificate{keystorePath, keystorePass, nil}
 	err := cert.reload()
 	if err != nil {
