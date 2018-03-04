@@ -12,7 +12,7 @@ env:
   - LIBTOOL_PATH=https://ftp.gnu.org/pub/gnu/libtool/libtool-2.4.6.tar.gz
 
 go:
-  - 1.9.x
+  - '1.10.x'
 
 deploy:
   - provider: releases
@@ -47,11 +47,11 @@ install:
   # Cross-compile with CGO disabled
   - CGO_ENABLED=0 GOOS=freebsd GOARCH=amd64 go build -o ghostunnel-${TRAVIS_TAG}-freebsd-amd64-without-pkcs11 .
   # Cross-compile with CGO enabled
-  - xgo -deps ${LIBTOOL_PATH} -targets 'windows-5.1/amd64' -ldflags '-w -extldflags "-static" -extld x86_64-w64-mingw32-gcc' .
+  - xgo -go ${TRAVIS_GO_VERSION} -deps ${LIBTOOL_PATH} -targets 'windows-5.1/amd64' -ldflags '-w -extldflags "-static" -extld x86_64-w64-mingw32-gcc' .
   - mv ghostunnel-windows-*-amd64.exe ghostunnel-${TRAVIS_TAG}-windows-amd64-with-pkcs11.exe
-  - xgo -deps ${LIBTOOL_PATH} -targets 'windows-5.1/386' -ldflags '-w -extldflags "-static" -extld i686-w64-mingw32-gcc' .
+  - xgo -go ${TRAVIS_GO_VERSION} -deps ${LIBTOOL_PATH} -targets 'windows-5.1/386' -ldflags '-w -extldflags "-static" -extld i686-w64-mingw32-gcc' .
   - mv ghostunnel-windows-*-386.exe ghostunnel-${TRAVIS_TAG}-windows-386-with-pkcs11.exe
-  - xgo -deps ${LIBTOOL_PATH} -targets 'darwin/amd64' .
+  - xgo -go ${TRAVIS_GO_VERSION} -deps ${LIBTOOL_PATH} -targets 'darwin/amd64' .
   - mv ghostunnel-darwin-*-amd64 ghostunnel-${TRAVIS_TAG}-darwin-amd64-with-pkcs11
   # Generate checksums for GitHub release binaries
   - 'for file in ghostunnel-${TRAVIS_TAG}-*; do sha256sum ${file} > ${file}.sha256sum; done'
