@@ -193,7 +193,11 @@ func TestBuildConfig(t *testing.T) {
 	assert.Nil(t, conf, "conf with invalid params should be nil")
 	assert.NotNil(t, err, "should reject invalid CA cert bundle")
 
-	cert, err := buildCertificate(tmpKeystore.Name(), "totes invalid")
+	cert, err := buildCertificate("", "")
+	assert.NotNil(t, cert, "empty keystorePath should lead to empty certificate")
+	assert.Nil(t, err, "empty keystorePath should not raise an error")
+
+	cert, err = buildCertificate(tmpKeystore.Name(), "totes invalid")
 	assert.Nil(t, cert, "cert with invalid params should be nil")
 	assert.NotNil(t, err, "should reject invalid keystore pass")
 
