@@ -59,7 +59,7 @@ var (
 	serverAllowedDNSs    = serverCommand.Flag("allow-dns-san", "Allow clients with given DNS subject alternative name (can be repeated).").PlaceHolder("SAN").Strings()
 	serverAllowedIPs     = serverCommand.Flag("allow-ip-san", "Allow clients with given IP subject alternative name (can be repeated).").PlaceHolder("SAN").IPList()
 	serverAllowedURIs    = serverCommand.Flag("allow-uri-san", "Allow clients with given URI subject alternative name (can be repeated).").PlaceHolder("SAN").Strings()
-	serverTerminateOnly  = serverCommand.Flag("terminate-only", "Do not require any client certificate").Default("false").Bool()
+	serverDisableAuth    = serverCommand.Flag("disable-authentication", "Disable client authentication, no client certificate will be required.").Default("false").Bool()
 
 	clientCommand       = app.Command("client", "Client mode (plain TCP/UNIX listener -> TLS target).")
 	clientListenAddress = clientCommand.Flag("listen", "Address and port to listen on (HOST:PORT, or unix:PATH).").PlaceHolder("ADDR").Required().String()
@@ -73,7 +73,7 @@ var (
 	clientAllowedDNSs    = clientCommand.Flag("verify-dns-san", "Allow servers with given DNS subject alternative name (can be repeated).").PlaceHolder("SAN").Strings()
 	clientAllowedIPs     = clientCommand.Flag("verify-ip-san", "Allow servers with given IP subject alternative name (can be repeated).").PlaceHolder("SAN").IPList()
 	clientAllowedURIs    = clientCommand.Flag("verify-uri-san", "Allow servers with given URI subject alternative name (can be repeated).").PlaceHolder("SAN").Strings()
-	clientNoAuth         = clientCommand.Flag("no-auth", "Do not supply any client certificate").Default("false").Bool()
+	clientDisableAuth    = clientCommand.Flag("disable-authentication", "Disable client authentication, no certificate will be provided to the server.").Default("false").Bool()
 
 	// TLS options
 	keystorePath        = app.Flag("keystore", "Path to certificate and keystore (PEM with certificate/key, or PKCS12).").PlaceHolder("PATH").String()
@@ -169,7 +169,7 @@ func validateUnixOrLocalhost(addr string) bool {
 
 // Validate flags for server mode
 func serverValidateFlags() error {
-	if !(*serverTerminateOnly) {
+	if !(*serverDisableAuth) {
 		if !(*serverAllowAll) && len(*serverAllowedCNs) == 0 && len(*serverAllowedOUs) == 0 && len(*serverAllowedDNSs) == 0 && len(*serverAllowedIPs) == 0 && len(*serverAllowedURIs) == 0 {
 			return fmt.Errorf("at least one of --allow-all, --allow-cn, --allow-ou, --allow-dns-san, --allow-uri-san or --allow-ip-san is required")
 		}
@@ -177,8 +177,8 @@ func serverValidateFlags() error {
 			return fmt.Errorf("--allow-all and other access control flags are mutually exclusive")
 		}
 	}
-	if *serverTerminateOnly && (*serverAllowAll || (len(*serverAllowedCNs) > 0 || len(*serverAllowedOUs) > 0 || len(*serverAllowedDNSs) > 0 || len(*serverAllowedIPs) > 0 || len(*serverAllowedURIs) > 0)) {
-		return fmt.Errorf("--terminate-only mutually exclusvie with --allow-all and other server access control flags")
+	if *serverDisableAuth && (*serverAllowAll || (len(*serverAllowedCNs) > 0 || len(*serverAllowedOUs) > 0 || len(*serverAllowedDNSs) > 0 || len(*serverAllowedIPs) > 0 || len(*serverAllowedURIs) > 0)) {
+		return fmt.Errorf("--disable-authentication mutually exclusive with --allow-all and other server access control flags")
 	}
 	if !*serverUnsafeTarget && !validateUnixOrLocalhost(*serverForwardAddress) {
 		return fmt.Errorf("--target must be unix:PATH, localhost:PORT, 127.0.0.1:PORT or [::1]:PORT (unless --unsafe-target is set)")
@@ -195,8 +195,8 @@ func serverValidateFlags() error {
 
 // Validate flags for client mode
 func clientValidateFlags() error {
-	if *clientNoAuth && (len(*clientAllowedCNs) > 0 || len(*clientAllowedOUs) > 0 || len(*clientAllowedDNSs) > 0 || len(*clientAllowedIPs) > 0 || len(*clientAllowedURIs) > 0) {
-		return fmt.Errorf("--no-auth mutually exclusive with all client access control flags")
+	if *clientDisableAuth && (len(*clientAllowedCNs) > 0 || len(*clientAllowedOUs) > 0 || len(*clientAllowedDNSs) > 0 || len(*clientAllowedIPs) > 0 || len(*clientAllowedURIs) > 0) {
+		return fmt.Errorf("--disable-authentication mutually exclusive with all client access control flags")
 	}
 	if !*clientUnsafeListen && !validateUnixOrLocalhost(*clientListenAddress) {
 		return fmt.Errorf("--listen must be unix:PATH, localhost:PORT, 127.0.0.1:PORT or [::1]:PORT (unless --unsafe-listen is set)")
@@ -271,9 +271,9 @@ func run(args []string) error {
 		go watchFiles([]string{*keystorePath}, *timedReload, watcher)
 	}
 
-	if (*keystorePath == "") && !(*clientNoAuth) {
-		fmt.Printf("required flag --keystore not provided, try --help\n")
-		os.Exit(1)
+	if (*keystorePath == "") && !(*clientDisableAuth) {
+		fmt.Printf("one of --keystore or --disable-authentication is required, try --help\n")
+		return fmt.Errorf("one of --keystore or --disable-authentication is required, try --help")
 	}
 
 	cert, err := buildCertificate(*keystorePath, *keystorePass)
@@ -363,7 +363,7 @@ func serverListen(context *Context) error {
 
 	config.GetCertificate = context.cert.getCertificate
 	config.VerifyPeerCertificate = serverACL.VerifyPeerCertificateServer
-	if *serverTerminateOnly {
+	if *serverDisableAuth {
 		config.ClientAuth = tls.NoClientCert
 	}
 
@@ -559,7 +559,7 @@ func clientBackendDialer(cert *certificate, network, address, host string) (func
 	}
 
 	return func() (net.Conn, error) {
-		if !(*clientNoAuth) {
+		if !(*clientDisableAuth) {
 			// Fetch latest cached certificate before initiating new connection
 			crt, _ := cert.getCertificate(nil)
 			config.Certificates = []tls.Certificate{*crt}
