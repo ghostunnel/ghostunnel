@@ -195,9 +195,6 @@ func serverValidateFlags() error {
 
 // Validate flags for client mode
 func clientValidateFlags() error {
-	if *clientDisableAuth && (len(*clientAllowedCNs) > 0 || len(*clientAllowedOUs) > 0 || len(*clientAllowedDNSs) > 0 || len(*clientAllowedIPs) > 0 || len(*clientAllowedURIs) > 0) {
-		return fmt.Errorf("--disable-authentication mutually exclusive with all client access control flags")
-	}
 	if !*clientUnsafeListen && !validateUnixOrLocalhost(*clientListenAddress) {
 		return fmt.Errorf("--listen must be unix:PATH, localhost:PORT, 127.0.0.1:PORT or [::1]:PORT (unless --unsafe-listen is set)")
 	}
