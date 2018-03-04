@@ -12,3 +12,4 @@ ghostunnel
 ghostunnel.exe
 ghostunnel.test
 __pycache__
+/pkg
