@@ -17,7 +17,8 @@ a TLS-secured service. In other words, ghostunnel is a replacement for stunnel.
 
 **Supported platforms**: Ghostunnel is developed primarily for Linux on x86-64
 platforms, although it should run on any UNIX system that exposes SO_REUSEPORT,
-including Darwin (macOS), FreeBSD, OpenBSD and NetBSD. We recommend running on
+including Darwin (macOS), FreeBSD, OpenBSD and NetBSD. Ghostunnel also supports
+running on Windows, through with a reduced feature set. We recommend running on
 x86-64 only, to benefit from constant-time implementations of cryptographic
 algorithms that are not available on other platforms.
 
