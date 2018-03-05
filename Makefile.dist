@@ -35,11 +35,11 @@ define make-xc-target
 		@printf "%s%20s %s\n" "-->" "${1}/${2}:" "${PROJECT} (-w -extldflags "-static" -extld ${WINDOWS_EXTLD_${2}})"
 		@xgo -go ${GOVERSION} -deps ${LIBTOOL_PATH} -targets '${1}-${WINDOWS_API_LEVEL}/${2}' \
 			-ldflags '-w -extldflags "-static" -extld ${WINDOWS_EXTLD_${2}}' .
-		@mkdir -p dist && mv ghostunnel-${1}-${WINDOWS_API_LEVEL}-${2}.exe dist/ghostunnel-${VERSION}-${1}-${2}-with-pkcs11.exe
+		@mv ghostunnel-${1}-${WINDOWS_API_LEVEL}-${2}.exe dist/ghostunnel-${VERSION}-${1}-${2}-with-pkcs11.exe
   else
 		@printf "%s%20s %s\n" "-->" "${1}/${2}:" "${PROJECT}"
 		@xgo -go ${GOVERSION} -deps ${LIBTOOL_PATH} -targets '${1}/${2}' .
-		@mkdir -p dist && mv ghostunnel-${1}*-${2} dist/ghostunnel-${VERSION}-${1}-${2}-with-pkcs11
+		@mv ghostunnel-${1}*-${2} dist/ghostunnel-${VERSION}-${1}-${2}-with-pkcs11
   endif
   .PHONY: $1/$2
 
@@ -53,19 +53,7 @@ $(foreach goarch,$(XC_ARCH),$(foreach goos,$(XC_OS),$(eval $(call make-xc-target
 
 # dist builds the binaries for distribution
 dist:
-	@$(MAKE) -f "${MKFILE_PATH}" _cleanup
-	@$(MAKE) -f "${MKFILE_PATH}" -j1 build
-	@$(MAKE) -f "${MKFILE_PATH}" _checksum
-.PHONY: dist
-
-# _checksum produces the checksums for the binaries in dist
-_checksum:
-	@cd "${CURRENT_DIR}/dist" && \
-		shasum --algorithm 256 * > ${CURRENT_DIR}/dist/${NAME}-${VERSION}-sha256sums.txt && \
-		cd - &>/dev/null
-.PHONY: _checksum
-
-# _cleanup removes any previous binaries
-_cleanup:
 	@rm -rf "${CURRENT_DIR}/dist/"
-.PHONY: _cleanup
+	@mkdir -p "${CURRENT_DIR}/dist/"
+	@$(MAKE) -f "${MKFILE_PATH}" -j1 build
+.PHONY: dist
