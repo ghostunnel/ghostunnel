@@ -19,7 +19,7 @@ WINDOWS_EXTLD_386 = i686-w64-mingw-gcc
 PROJECT := $(CURRENT_DIR:$(GOPATH)/src/%=%)
 NAME := $(notdir $(PROJECT))
 GIT_COMMIT ?= $(shell git rev-parse --short HEAD)
-VERSION := $(shell awk -F\" '/version/ { print $$2; exit }' "${CURRENT_DIR}/main.go")
+VERSION ?= $(shell awk -F\" '/version/ { print $$2; exit }' "${CURRENT_DIR}/main.go")
 
 LD_FLAGS ?= \
 	-s \
@@ -80,7 +80,7 @@ $(foreach goarch,$(XC_ARCH),$(foreach goos,$(XC_OS),$(eval $(call make-xc-target
 dist:
 	@mkdir -p ${CURRENT_DIR}/dist
 	@$(MAKE) -f "${MKFILE_PATH}" _cleanup
-	@$(MAKE) -f "${MKFILE_PATH}" -j4 build
+	@$(MAKE) -f "${MKFILE_PATH}" -j1 build
 	@$(MAKE) -f "${MKFILE_PATH}" _checksum
 .PHONY: dist
 

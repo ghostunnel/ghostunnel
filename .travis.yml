@@ -8,9 +8,6 @@ dist: trusty
 services:
   - docker
 
-env:
-  - LIBTOOL_PATH=https://ftp.gnu.org/pub/gnu/libtool/libtool-2.4.6.tar.gz
-
 go:
   - '1.10.x'
 
@@ -19,16 +16,18 @@ deploy:
     api_key:
       secure: 'rxcM8Ttmo0zTd2i+NBgG6YIDwtRwNCL28vPvAQ4GZ/SS7+8/fZn1RF8ZI2wWbZB2SqQveAiPmO66ZPXcGDsf/ynOHVvppn7IwJRSJoh2Z+QNu5i97JqQEtcM3DY5DZKO+scYqeCvINmLXmwSLHYDij/Nnu0hBXeobPizBDhqnN7AD0FZq2zbbCxZFPrAwUsB1G6wZTKWRFl4lX7baKDqyICc6OgGzb3m127SgrseW2zR6vBfHbc3Ep1hoIqjTf0vVXyDhCpDaIXAkZP43Jp1FxBwryrhEtPzx/46KWvPJLRwZc5gnRRrXX0HqrhlD577OxE/8VnjI+32mRTTNjSD8aOBraZ1Q71U5uLXLMoL1LD3qAfYv5sJaUKdbGtDkfGGwQ4X70A97gqmQI5gpYWU1LUksHwVJMwUqO2cPWciQikOTXQrDUT3qnuauZ432IP7izNhYmFWYwOEoQOzUA8pF1dl2jvUURY9dgQ2AHcJfCYV9C5TnBQ/2nO4Xbc96eo/Ky5OIX+lsfHx4bJmqvT6N+o/b9TJQYg3o4t0rqGB95Zt8/SbapvKlIU5I8SKGyuEpnKN4yUGAQRg8heuAPJ8mz3bmGriT9oC3q577vAqaCm2JcmvHCVx9OME0B04vLzxjYJXPHAi9CRmhUOZ8haHby3BkI3KYjnAaasUBot7oPI='
     file:
-      - ghostunnel-${TRAVIS_TAG}-linux-amd64-with-pkcs11
-      - ghostunnel-${TRAVIS_TAG}-darwin-amd64-with-pkcs11
-      - ghostunnel-${TRAVIS_TAG}-windows-amd64-with-pkcs11.exe
-      - ghostunnel-${TRAVIS_TAG}-windows-386-with-pkcs11.exe
-      - ghostunnel-${TRAVIS_TAG}-freebsd-amd64-without-pkcs11
-      - ghostunnel-${TRAVIS_TAG}-linux-amd64-with-pkcs11.sha256sum
-      - ghostunnel-${TRAVIS_TAG}-darwin-amd64-with-pkcs11.sha256sum
-      - ghostunnel-${TRAVIS_TAG}-windows-amd64-with-pkcs11.exe.sha256sum
-      - ghostunnel-${TRAVIS_TAG}-windows-386-with-pkcs11.exe.sha256sum
-      - ghostunnel-${TRAVIS_TAG}-freebsd-amd64-without-pkcs11.sha256sum
+      - dist/ghostunnel-${TRAVIS_TAG}-linux-386
+      - dist/ghostunnel-${TRAVIS_TAG}-linux-amd64
+      - dist/ghostunnel-${TRAVIS_TAG}-darwin-386
+      - dist/ghostunnel-${TRAVIS_TAG}-darwin-amd64
+      - dist/ghostunnel-${TRAVIS_TAG}-freebsd-386
+      - dist/ghostunnel-${TRAVIS_TAG}-freebsd-amd64
+      - dist/ghostunnel-${TRAVIS_TAG}-netbsd-386
+      - dist/ghostunnel-${TRAVIS_TAG}-netbsd-amd64
+      - dist/ghostunnel-${TRAVIS_TAG}-openbsd-386
+      - dist/ghostunnel-${TRAVIS_TAG}-openbsd-amd64
+      - dist/ghostunnel-${TRAVIS_TAG}-windows-386.exe
+      - dist/ghostunnel-${TRAVIS_TAG}-windows-amd64.exe
     draft: true
     skip_cleanup: true
     on:
@@ -38,28 +37,18 @@ before_install:
   - sudo apt-get update
   - sudo apt-get -y -o Dpkg::Options::="--force-confnew" install docker-ce
   - go get github.com/mattn/goveralls
-  - go get github.com/karalabe/xgo
 
 install:
-  # Compile with CGO on/off for Linux
+  # Compile with CGO on/off for testing
   - CGO_ENABLED=0 go build -o ghostunnel-${TRAVIS_TAG}-linux-amd64-without-pkcs11 .
   - CGO_ENABLED=1 go build -o ghostunnel-${TRAVIS_TAG}-linux-amd64-with-pkcs11 .
-  # Cross-compile with CGO disabled
-  - CGO_ENABLED=0 GOOS=freebsd GOARCH=amd64 go build -o ghostunnel-${TRAVIS_TAG}-freebsd-amd64-without-pkcs11 .
-  # Cross-compile with CGO enabled
-  - xgo -go ${TRAVIS_GO_VERSION} -deps ${LIBTOOL_PATH} -targets 'windows-5.1/amd64' -ldflags '-w -extldflags "-static" -extld x86_64-w64-mingw32-gcc' .
-  - mv ghostunnel-windows-*-amd64.exe ghostunnel-${TRAVIS_TAG}-windows-amd64-with-pkcs11.exe
-  - xgo -go ${TRAVIS_GO_VERSION} -deps ${LIBTOOL_PATH} -targets 'windows-5.1/386' -ldflags '-w -extldflags "-static" -extld i686-w64-mingw32-gcc' .
-  - mv ghostunnel-windows-*-386.exe ghostunnel-${TRAVIS_TAG}-windows-386-with-pkcs11.exe
-  - xgo -go ${TRAVIS_GO_VERSION} -deps ${LIBTOOL_PATH} -targets 'darwin/amd64' .
-  - mv ghostunnel-darwin-*-amd64 ghostunnel-${TRAVIS_TAG}-darwin-amd64-with-pkcs11
-  # Generate checksums for GitHub release binaries
-  - 'for file in ghostunnel-${TRAVIS_TAG}-*; do sha256sum ${file} > ${file}.sha256sum; done'
   # Build Docker container
   - make docker-build
+  # Cross-compile dist binaries
+  - GO_VERSION=${TRAVIS_GO_VERSION} VERSION=${TRAVIS_TAG} make -f Makefile.dist dist
 
 script:
-  # Run tests inside Docker, guarantees that we have proper PKCS11 test setup
+  # Run tests inside Docker (guarantees that we have proper PKCS11 test setup)
   - GO_VERSION=${TRAVIS_GO_VERSION} make docker-test
 
 after_success:
