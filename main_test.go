@@ -150,6 +150,24 @@ func TestServerFlagValidation(t *testing.T) {
 	err = serverValidateFlags()
 	assert.NotNil(t, err, "--allow-all and --allow-ip-san are mutually exclusive")
 
+	*serverAllowedIPs = nil
+	*serverAllowAll = true
+	*serverDisableAuth = true
+	err = serverValidateFlags()
+	assert.NotNil(t, err, "--disable-authentication mutually exclusive with --allow-all and other server access control flags")
+
+	*serverAllowAll = false
+	*serverAllowedCNs = []string{"test"}
+	*serverDisableAuth = true
+	err = serverValidateFlags()
+	assert.NotNil(t, err, "--disable-authentication mutually exclusive with --allow-all and other server access control flags")
+
+	*serverAllowedCNs = nil
+	*serverAllowAll = true
+	*serverDisableAuth = true
+	err = serverValidateFlags()
+	assert.NotNil(t, err, "--disable-authentication mutually exclusive with --allow-all and other server access control flags")
+
 	*serverAllowAll = false
 	*serverUnsafeTarget = false
 	*serverForwardAddress = "foo.com"
@@ -178,6 +196,11 @@ func TestClientFlagValidation(t *testing.T) {
 	*clientConnectProxy = invalidURL
 	err = clientValidateFlags()
 	assert.NotNil(t, err, "invalid connect proxy option should be rejected")
+
+	*clientDisableAuth = false
+	*keystorePath = ""
+	err = clientValidateFlags()
+	assert.NotNil(t, err, "one of --keystore or --disable-authentication is required")
 }
 
 func TestAllowsLocalhost(t *testing.T) {
