@@ -2,69 +2,44 @@
 MKFILE_PATH := $(lastword $(MAKEFILE_LIST))
 CURRENT_DIR := $(patsubst %/,%,$(dir $(realpath $(MKFILE_PATH))))
 
-GOVERSION ?= 1.10.0
+GOVERSION ?= 1.10
 
 # Current system information
 GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
 
 # Default os-arch combination to build
-XC_OS ?= darwin freebsd linux netbsd openbsd windows
+XC_OS ?= darwin linux windows
 XC_ARCH ?= 386 amd64
+XC_EXCLUDE ?= darwin/386 linux/386
 
 # External linkers for Windows (to get a static exe with libltdl included)
-WINDOWS_EXTLD_amd64 = x86_64-w64-mingw-gcc
-WINDOWS_EXTLD_386 = i686-w64-mingw-gcc
+WINDOWS_EXTLD_amd64 = x86_64-w64-mingw32-gcc
+WINDOWS_EXTLD_386 = i686-w64-mingw32-gcc
+WINDOWS_API_LEVEL = 5.1
+LIBTOOL_PATH = https://ftp.gnu.org/pub/gnu/libtool/libtool-2.4.6.tar.gz
 
 PROJECT := $(CURRENT_DIR:$(GOPATH)/src/%=%)
 NAME := $(notdir $(PROJECT))
 GIT_COMMIT ?= $(shell git rev-parse --short HEAD)
-VERSION ?= $(shell awk -F\" '/version/ { print $$2; exit }' "${CURRENT_DIR}/main.go")
-
-LD_FLAGS ?= \
-	-s \
-	-X ${PROJECT}/version.Name=${NAME} \
-	-X ${PROJECT}/version.GitCommit=${GIT_COMMIT}
+VERSION ?= $(shell git describe --always)
 
 # Create a cross-compile target for every os-arch pairing. This will generate
 # a make target for each os/arch like "make linux/amd64" as well as generate a
 # meta target (build) for compiling everything.
 define make-xc-target
   $1/$2:
-  ifeq (${1},windows)
-	@printf "%s%20s %s\n" "-->" "${1}/${2}:" "${PROJECT} (-w -extldflags "-static" -extld ${WINDOWS_EXTLD_${2}})"
-	@docker run \
-		--interactive \
-		--rm \
-		--volume="${CURRENT_DIR}:/go/src/${PROJECT}" \
-		--workdir="/go/src/${PROJECT}" \
-		"golang:${GOVERSION}" \
-		env \
-			CGO_ENABLED="0" \
-			GOOS="${1}" \
-			GOARCH="${2}" \
-			go build \
-			  -a \
-				-o="dist/${NAME}-${VERSION}-${1}-${2}.exe" \
-				-ldflags "${LD_FLAGS} -w -extldflags "-static" -extld ${WINDOWS_EXTLD_${2}}" \
-				-tags "${GOTAGS}"
+  ifneq (,$(findstring ${1}/${2},$(XC_EXCLUDE)))
+		@printf "%s%20s %s\n" "-->" "${1}/${2}:" "${PROJECT} (excluded)"
+  else ifeq (${1},windows)
+		@printf "%s%20s %s\n" "-->" "${1}/${2}:" "${PROJECT} (-w -extldflags "-static" -extld ${WINDOWS_EXTLD_${2}})"
+		@xgo -go ${GOVERSION} -deps ${LIBTOOL_PATH} -targets '${1}-${WINDOWS_API_LEVEL}/${2}' \
+			-ldflags '-w -extldflags "-static" -extld ${WINDOWS_EXTLD_${2}}' .
+		@mkdir -p dist && mv ghostunnel-${1}-${WINDOWS_API_LEVEL}-${2}.exe dist/ghostunnel-${VERSION}-${1}-${2}.exe
   else
-	@printf "%s%20s %s\n" "-->" "${1}/${2}:" "${PROJECT}"
-	@docker run \
-		--interactive \
-		--rm \
-		--volume="${CURRENT_DIR}:/go/src/${PROJECT}" \
-		--workdir="/go/src/${PROJECT}" \
-		"golang:${GOVERSION}" \
-		env \
-			CGO_ENABLED="0" \
-			GOOS="${1}" \
-			GOARCH="${2}" \
-			go build \
-			  -a \
-				-o="dist/${NAME}-${VERSION}-${1}-${2}" \
-				-ldflags "${LD_FLAGS}" \
-				-tags "${GOTAGS}"
+		@printf "%s%20s %s\n" "-->" "${1}/${2}:" "${PROJECT}"
+		@xgo -go ${GOVERSION} -deps ${LIBTOOL_PATH} -targets '${1}/${2}' .
+		@mkdir -p dist && mv ghostunnel-${1}*-${2} dist/ghostunnel-${VERSION}-${1}-${2}
   endif
   .PHONY: $1/$2
 
@@ -78,7 +53,6 @@ $(foreach goarch,$(XC_ARCH),$(foreach goos,$(XC_OS),$(eval $(call make-xc-target
 
 # dist builds the binaries for distribution
 dist:
-	@mkdir -p ${CURRENT_DIR}/dist
 	@$(MAKE) -f "${MKFILE_PATH}" _cleanup
 	@$(MAKE) -f "${MKFILE_PATH}" -j1 build
 	@$(MAKE) -f "${MKFILE_PATH}" _checksum
