@@ -35,11 +35,11 @@ define make-xc-target
 		@printf "%s%20s %s\n" "-->" "${1}/${2}:" "${PROJECT} (-w -extldflags "-static" -extld ${WINDOWS_EXTLD_${2}})"
 		@xgo -go ${GOVERSION} -deps ${LIBTOOL_PATH} -targets '${1}-${WINDOWS_API_LEVEL}/${2}' \
 			-ldflags '-w -extldflags "-static" -extld ${WINDOWS_EXTLD_${2}}' .
-		@mkdir -p dist && mv ghostunnel-${1}-${WINDOWS_API_LEVEL}-${2}.exe dist/ghostunnel-${VERSION}-${1}-${2}.exe
+		@mkdir -p dist && mv ghostunnel-${1}-${WINDOWS_API_LEVEL}-${2}.exe dist/ghostunnel-${VERSION}-${1}-${2}-with-pkcs11.exe
   else
 		@printf "%s%20s %s\n" "-->" "${1}/${2}:" "${PROJECT}"
 		@xgo -go ${GOVERSION} -deps ${LIBTOOL_PATH} -targets '${1}/${2}' .
-		@mkdir -p dist && mv ghostunnel-${1}*-${2} dist/ghostunnel-${VERSION}-${1}-${2}
+		@mkdir -p dist && mv ghostunnel-${1}*-${2} dist/ghostunnel-${VERSION}-${1}-${2}-with-pkcs11
   endif
   .PHONY: $1/$2
 
