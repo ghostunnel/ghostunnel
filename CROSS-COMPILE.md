@@ -19,6 +19,9 @@ For example, to build a static 64-bit Windows binary:
       -ldflags '-w -extldflags "-static" -extld x86_64-w64-mingw32-gcc' \
       github.com/square/ghostunnel
 
-For more info, see [xgo][xgo]'s README on GitHub.
+Ghostunnel ships with a `Makefile.dist` that will cross-compile for
+darwin/amd64, linux/amd64, windows/386 and windows/amd64 when asked to build
+the `dist` target. Note that [xgo][xgo] (and Docker) must already be installed
+to run this. For more info, see also [xgo][xgo]'s README on GitHub.
 
 [xgo]: https://github.com/karalabe/xgo
