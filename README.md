@@ -65,10 +65,21 @@ on how to generate new ones with OpenSSL).
 
 Ghostunnel is available through [GitHub releases][rel] and through [Docker Hub][hub].
 
-Note that ghostunnel requires Go 1.9 or later to build, and CGO is required for PKCS#11 support.
+Binaries can be built from source as follows (cross-compile requires Docker and [xgo][xgo]):
+
+    # Compile for local architecture
+    make ghostunnel
+
+    # Cross-compile release binaries
+    make -f Makefile.dist dist
+
+Note that ghostunnel requires Go 1.9 or later to build, and CGO is required for
+PKCS#11 support.  See also [CROSS-COMPILE.md](CROSS-COMPILE.md) for
+instructions on how to cross-compile a custom build with CGO enabled.
 
 [rel]: https://github.com/square/ghostunnel/releases
 [hub]: https://hub.docker.com/r/squareup/ghostunnel
+[xgo]: https://github.com/karalabe/xgo
 
 ### Develop
 

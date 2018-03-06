@@ -1,5 +1,10 @@
 SOURCE_FILES := $(shell find . \( -name '*.go' -not -path './vendor*' \))
 INTEGRATION_TESTS := $(shell find tests -name 'test-*.py' -exec basename {} .py \;)
+VERSION := $(shell git describe --always --dirty)
+
+# Ghostunnel binary
+ghostunnel: $(SOURCE_FILES)
+	go build -ldflags '-X main.version=${VERSION}' -o ghostunnel .
 
 # Test binary with coverage instrumentation
 ghostunnel.test: $(SOURCE_FILES)
