@@ -255,8 +255,15 @@ How to check status and read connection metrics:
     # Profiling example: goroutine dump (must set --enable-pprof)
     curl --cacert test-keys/root.crt 'https://localhost:6060/debug/pprof/goroutine?debug=1'
 
-For information on profiling via pprof, see the
-[`net/http/pprof`][pprof] documentation.
+    # Profiling example: trace using pprof tool (must set --enable-pprof)
+    go tool pprof -seconds 5 https+insecure://localhost:6060/debug/pprof/profile
+
+Note that `go tool pprof` does not support setting CA certificates at the
+moment, hence the use of the `https+insecure` scheme in the last example. You
+can use the standard `https` scheme if your ghostunnel is using a certificate
+trusted by your system (c.f.
+[golang/go#20939](https://github.com/golang/go/issues/20939)). For information
+on profiling via pprof, see the [`net/http/pprof`][pprof] documentation.
 
 [pprof]: https://golang.org/pkg/net/http/pprof
 
