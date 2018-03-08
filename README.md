@@ -93,7 +93,7 @@ To run tests:
     make test
 
     # Option 2: run unit & integration tests in a Docker container
-    GO_VERSION=1.9 make docker-test
+    GO_VERSION=1.10 make docker-test
 
     # Open coverage information in browser
     go tool cover -html coverage-merged.out
@@ -252,7 +252,7 @@ How to check status and read connection metrics:
     # Metrics information (JSON)
     curl --cacert test-keys/root.crt https://localhost:6060/_metrics
 
-    # Goroutine dump (if --enable-pprof is set)
+    # Profiling example: goroutine dump (must set --enable-pprof)
     curl --cacert test-keys/root.crt 'https://localhost:6060/debug/pprof/goroutine?debug=1'
 
 For information on profiling via pprof, see the
@@ -301,4 +301,6 @@ Note that `--keystore` needs to point to the certificate chain that corresponds
 to the private key in the PKCS#11 module, with the leaf certificate being the
 first certificate in the chain. The `--pkcs11-module`, `--pkcs11-token-label`
 and `--pkcs11-pin` flags can be used to configure how to load the key from the
-PKCS11 module you are using. 
+PKCS11 module you are using. Alternatively, it's also possible to use
+environment variables to set the appropriate PKCS#11 options instead
+(`PKCS11_MODULE`, `PKCS11_TOKEN_LABEL` and `PKCS11_PIN`).
