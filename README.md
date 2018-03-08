@@ -252,6 +252,9 @@ How to check status and read connection metrics:
     # Metrics information (JSON)
     curl --cacert test-keys/root.crt https://localhost:6060/_metrics
 
+    # Goroutine dump (if --enable-pprof is set)
+    curl --cacert test-keys/root.crt 'https://localhost:6060/debug/pprof/goroutine?debug=1'
+
 For information on profiling via pprof, see the
 [`net/http/pprof`][pprof] documentation.
 
