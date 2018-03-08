@@ -246,26 +246,30 @@ can also specify a UNIX socket instead of a TCP port.
 
 How to check status and read connection metrics:
 
-    # Status information (JSON)
+    # Status information (produces JSON output)
     curl --cacert test-keys/root.crt https://localhost:6060/_status
 
-    # Metrics information (JSON)
+    # Metrics information (produces JSON output)
     curl --cacert test-keys/root.crt https://localhost:6060/_metrics
 
-    # Profiling example: goroutine dump (must set --enable-pprof)
+How to use profiling endpoints, if `--enable-pprof` is set:
+
+    # Human-readable goroutine dump
     curl --cacert test-keys/root.crt 'https://localhost:6060/debug/pprof/goroutine?debug=1'
 
-    # Profiling example: trace using pprof tool (must set --enable-pprof)
+    # Analyze execution trace using pprof tool
     go tool pprof -seconds 5 https+insecure://localhost:6060/debug/pprof/profile
 
 Note that `go tool pprof` does not support setting CA certificates at the
 moment, hence the use of the `https+insecure` scheme in the last example. You
 can use the standard `https` scheme if your ghostunnel is using a certificate
-trusted by your system (c.f.
-[golang/go#20939](https://github.com/golang/go/issues/20939)). For information
-on profiling via pprof, see the [`net/http/pprof`][pprof] documentation.
+trusted by your system (c.f. [golang/go#20939](pprof-bug)). For more
+information on profiling via pprof, see the [`runtime/pprof`][pprof] and
+[`net/http/pprof`][http-pprof] docs.
 
-[pprof]: https://golang.org/pkg/net/http/pprof
+[pprof]: https://golang.org/pkg/runtime/pprof
+[http-pprof]: https://golang.org/pkg/net/http/pprof
+[pprof-bug]: https://github.com/golang/go/issues/20939
 
 ### HSM/PKCS#11 support
 
