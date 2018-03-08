@@ -263,7 +263,7 @@ How to use profiling endpoints, if `--enable-pprof` is set:
 Note that `go tool pprof` does not support setting CA certificates at the
 moment, hence the use of the `https+insecure` scheme in the last example. You
 can use the standard `https` scheme if your ghostunnel is using a certificate
-trusted by your system (c.f. [golang/go#20939](pprof-bug)). For more
+trusted by your system (c.f. [golang/go#20939][pprof-bug]). For more
 information on profiling via pprof, see the [`runtime/pprof`][pprof] and
 [`net/http/pprof`][http-pprof] docs.
 
