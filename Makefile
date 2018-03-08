@@ -12,7 +12,7 @@ ghostunnel.test: $(SOURCE_FILES)
 
 # Clean build output
 clean:
-	rm -rf *.out */*.out ghostunnel.test tests/__pycache__
+	rm -rf ghostunnel *.out */*.out ghostunnel.test tests/__pycache__
 
 # Run all tests (unit + integration tests)
 test: unit $(INTEGRATION_TESTS)
