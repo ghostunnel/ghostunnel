@@ -180,7 +180,7 @@ func serverValidateFlags() error {
 		len(*serverAllowedURIs) > 0
 
 	if !(*serverDisableAuth) && !(*serverAllowAll) && !hasAccessFlags {
-		return fmt.Errorf("at least one of one access control flag (or --disable-authentication) is required")
+		return fmt.Errorf("at least one access control flag (--allow-{all,cn,ou,dns-san,ip-san,uri-san} or --disable-authentication) is required")
 	}
 	if !(*serverDisableAuth) && *serverAllowAll && hasAccessFlags {
 		return fmt.Errorf("--allow-all is mutually exclusive with other access control flags")
