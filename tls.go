@@ -195,13 +195,10 @@ func caBundle(caBundlePath string) (*x509.CertPool, error) {
 // Internal copy of tls.DialWithDialer, adapter so it can work with HTTP CONNECT dialers.
 // See: https://golang.org/pkg/crypto/tls/#DialWithDialer
 func dialWithDialer(dialer Dialer, timeout time.Duration, network, addr string, config *tls.Config) (*tls.Conn, error) {
-	var errChannel chan error
-	if timeout != 0 {
-		errChannel = make(chan error, 2)
-		time.AfterFunc(timeout, func() {
-			errChannel <- timeoutError{}
-		})
-	}
+	errChannel := make(chan error, 2)
+	time.AfterFunc(timeout, func() {
+		errChannel <- timeoutError{}
+	})
 
 	rawConn, err := dialer.Dial(network, addr)
 	if err != nil {
@@ -209,15 +206,11 @@ func dialWithDialer(dialer Dialer, timeout time.Duration, network, addr string, 
 	}
 
 	conn := tls.Client(rawConn, config)
-	if timeout == 0 {
-		err = conn.Handshake()
-	} else {
-		go func() {
-			errChannel <- conn.Handshake()
-		}()
+	go func() {
+		errChannel <- conn.Handshake()
+	}()
 
-		err = <-errChannel
-	}
+	err = <-errChannel
 
 	if err != nil {
 		rawConn.Close()
