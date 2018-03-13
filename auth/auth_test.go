@@ -130,6 +130,15 @@ func TestAuthorizeRejectURI(t *testing.T) {
 	assert.NotNil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "should reject cert w/o matching URI")
 }
 
+func TestVerifyAllowEmpty(t *testing.T) {
+	testACL := Acl{}
+
+	// For VerifyPeerCertificateClient, we perform hostname verification
+	// and skip ACLs if the ACL is empty (i.e. no flag has been set to verify
+	// any attributes of the server peer certificate).
+	assert.Nil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "empty client ACL skips extra checks")
+}
+
 func TestVerifyAllowCN(t *testing.T) {
 	testACL := Acl{
 		AllowedCNs: []string{"gopher"},

@@ -147,6 +147,9 @@ func validateFlags(app *kingpin.Application) error {
 	if *metricsURL != "" && !strings.HasPrefix(*metricsURL, "http://") && !strings.HasPrefix(*metricsURL, "https://") {
 		return fmt.Errorf("--metrics-url should start with http:// or https://")
 	}
+	if *timeoutDuration == 0 {
+		return fmt.Errorf("--connect-timeout duration must not be zero")
+	}
 	return nil
 }
 
@@ -169,16 +172,21 @@ func validateUnixOrLocalhost(addr string) bool {
 
 // Validate flags for server mode
 func serverValidateFlags() error {
-	if !(*serverDisableAuth) {
-		if !(*serverAllowAll) && len(*serverAllowedCNs) == 0 && len(*serverAllowedOUs) == 0 && len(*serverAllowedDNSs) == 0 && len(*serverAllowedIPs) == 0 && len(*serverAllowedURIs) == 0 {
-			return fmt.Errorf("at least one of --allow-all, --allow-cn, --allow-ou, --allow-dns-san, --allow-uri-san or --allow-ip-san is required")
-		}
-		if *serverAllowAll && (len(*serverAllowedCNs) > 0 || len(*serverAllowedOUs) > 0 || len(*serverAllowedDNSs) > 0 || len(*serverAllowedIPs) > 0 || len(*serverAllowedURIs) > 0) {
-			return fmt.Errorf("--allow-all and other access control flags are mutually exclusive")
-		}
+	// hasAccessFlags is true if access control flags (besides allow-all) were specified
+	hasAccessFlags := len(*serverAllowedCNs) > 0 ||
+		len(*serverAllowedOUs) > 0 ||
+		len(*serverAllowedDNSs) > 0 ||
+		len(*serverAllowedIPs) > 0 ||
+		len(*serverAllowedURIs) > 0
+
+	if !(*serverDisableAuth) && !(*serverAllowAll) && !hasAccessFlags {
+		return fmt.Errorf("at least one access control flag (--allow-{all,cn,ou,dns-san,ip-san,uri-san} or --disable-authentication) is required")
 	}
-	if *serverDisableAuth && (*serverAllowAll || (len(*serverAllowedCNs) > 0 || len(*serverAllowedOUs) > 0 || len(*serverAllowedDNSs) > 0 || len(*serverAllowedIPs) > 0 || len(*serverAllowedURIs) > 0)) {
-		return fmt.Errorf("--disable-authentication mutually exclusive with --allow-all and other server access control flags")
+	if !(*serverDisableAuth) && *serverAllowAll && hasAccessFlags {
+		return fmt.Errorf("--allow-all is mutually exclusive with other access control flags")
+	}
+	if *serverDisableAuth && (*serverAllowAll || hasAccessFlags) {
+		return fmt.Errorf("--disable-authentication is mutually exclusive with other access control flags")
 	}
 	if !*serverUnsafeTarget && !validateUnixOrLocalhost(*serverForwardAddress) {
 		return fmt.Errorf("--target must be unix:PATH, localhost:PORT, 127.0.0.1:PORT or [::1]:PORT (unless --unsafe-target is set)")
