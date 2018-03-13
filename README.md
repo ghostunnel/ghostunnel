@@ -18,9 +18,9 @@ a TLS-secured service. In other words, ghostunnel is a replacement for stunnel.
 **Supported platforms**: Ghostunnel is developed primarily for Linux on x86-64
 platforms, although it should run on any UNIX system that exposes SO_REUSEPORT,
 including Darwin (macOS), FreeBSD, OpenBSD and NetBSD. Ghostunnel also supports
-running on Windows, through with a reduced feature set. We recommend running on
-x86-64 only, to benefit from constant-time implementations of cryptographic
-algorithms that are not available on other platforms.
+running on Windows, though with a reduced feature set. We recommend running on
+x86-64 to benefit from constant-time implementations of cryptographic algorithms
+that are not available on other platforms.
 
 See `ghostunnel --help`, `ghostunnel server --help` and `ghostunnel client --help`.
 
@@ -312,6 +312,6 @@ Note that `--keystore` needs to point to the certificate chain that corresponds
 to the private key in the PKCS#11 module, with the leaf certificate being the
 first certificate in the chain. The `--pkcs11-module`, `--pkcs11-token-label`
 and `--pkcs11-pin` flags can be used to configure how to load the key from the
-PKCS11 module you are using. Alternatively, it's also possible to use
-environment variables to set the appropriate PKCS#11 options instead
-(`PKCS11_MODULE`, `PKCS11_TOKEN_LABEL` and `PKCS11_PIN`).
+PKCS11 module you are using. It's also possible to use environment variables to
+set PKCS11 options instead of flags (via `PKCS11_MODULE`, `PKCS11_TOKEN_LABEL`
+and `PKCS11_PIN`).
