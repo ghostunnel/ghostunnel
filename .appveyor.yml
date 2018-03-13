@@ -9,6 +9,7 @@ environment:
       MSYS2_DIR: msys64
       MSYSTEM: MINGW64
       GOPATH: c:\gopath
+      GOROOT: c:\go19
       GOARCH: amd64
       EXTLD: x86_64-w64-mingw32-gcc
     - ARCH: x86
@@ -16,6 +17,7 @@ environment:
       MSYS2_DIR: msys64
       MSYSTEM: MINGW32
       GOPATH: c:\gopath
+      GOROOT: c:\go19
       GOARCH: 386
       EXTLD: i686-w64-mingw32-gcc
 
@@ -23,7 +25,7 @@ clone_folder: C:\gopath\src\github.com\square\ghostunnel
 
 before_build:
   # Go paths
-  - set PATH=C:\go19\bin;C:\%GOPATH%\bin;%PATH%
+  - set PATH=%GOROOT%\bin;C:\%GOPATH%\bin;%PATH%
   # MSYS paths
   - set PATH=C:\%MSYS2_DIR%\%MSYSTEM%\bin;C:\%MSYS2_DIR%\usr\bin;%PATH%
   # Install build deps
