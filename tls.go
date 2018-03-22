@@ -107,8 +107,8 @@ func (c *certificate) reloadFromPEM() error {
 		func(block *pem.Block) {
 			pemBlocks = append(pemBlocks, block)
 		})
-	if err != nil {
-		return err
+	if err != nil || len(pemBlocks) == 0 {
+		return fmt.Errorf("error during keystore read (%s)", err)
 	}
 
 	var pemBytes []byte
@@ -151,8 +151,8 @@ func (c *certificate) reloadFromPKCS11() error {
 			}
 			certAndKey.Certificate = append(certAndKey.Certificate, cert.Raw)
 		})
-	if err != nil {
-		return err
+	if err != nil || certAndKey.Leaf == nil {
+		return fmt.Errorf("error during keystore read (%s)", err)
 	}
 
 	// Reuse previously loaded PKCS11 private key if we already have it. We want to
