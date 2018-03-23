@@ -232,6 +232,7 @@ func run(args []string) error {
 
 	app.Version(fmt.Sprintf("rev %s built with %s", version, runtime.Version()))
 	app.Validate(validateFlags)
+	app.UsageTemplate(kingpin.LongHelpTemplate)
 	command := kingpin.MustParse(app.Parse(args))
 
 	// Logger
