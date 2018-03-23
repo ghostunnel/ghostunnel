@@ -171,9 +171,15 @@ type basicConstraints struct {
 }
 
 type nameConstraints struct {
-	Critical            bool     `json:"critical,omitempty"`
-	PermittedDNSDomains []string `json:"permitted_dns_domains,omitempty"`
-	ExcludedDNSDomains  []string `json:"excluded_dns_domains,omitempty"`
+	Critical                bool         `json:"critical,omitempty"`
+	PermittedDNSDomains     []string     `json:"permitted_dns_domains,omitempty"`
+	ExcludedDNSDomains      []string     `json:"excluded_dns_domains,omitempty"`
+	PermittedIPRanges       []*net.IPNet `json:"permitted_ip_ranges,omitempty"`
+	ExcludedIPRanges        []*net.IPNet `json:"excluded_ip_ranges,omitempty"`
+	PermittedEmailAddresses []string     `json:"permitted_email_addresses,omitempty"`
+	ExcludedEmailAddresses  []string     `json:"excluded_email_addresses,omitempty"`
+	PermittedURIDomains     []string     `json:"permitted_uri_domains,omitempty"`
+	ExcludedURIDomains      []string     `json:"excluded_uri_domains,omitempty"`
 }
 
 // simpleCertificate is a JSON-representable certificate metadata holder.
@@ -254,11 +260,21 @@ func createSimpleCertificate(name string, cert *x509.Certificate) simpleCertific
 		}
 	}
 
-	if len(cert.PermittedDNSDomains) > 0 || len(cert.ExcludedDNSDomains) > 0 {
+	if len(cert.PermittedDNSDomains) > 0 || len(cert.ExcludedDNSDomains) > 0 ||
+		len(cert.PermittedIPRanges) > 0 || len(cert.ExcludedIPRanges) > 0 ||
+		len(cert.PermittedEmailAddresses) > 0 || len(cert.ExcludedEmailAddresses) > 0 ||
+		len(cert.PermittedURIDomains) > 0 || len(cert.ExcludedURIDomains) > 0 {
+
 		out.NameConstraints = &nameConstraints{
-			Critical:            cert.PermittedDNSDomainsCritical,
-			PermittedDNSDomains: cert.PermittedDNSDomains,
-			ExcludedDNSDomains:  cert.ExcludedDNSDomains,
+			Critical:                cert.PermittedDNSDomainsCritical,
+			PermittedDNSDomains:     cert.PermittedDNSDomains,
+			ExcludedDNSDomains:      cert.ExcludedDNSDomains,
+			PermittedIPRanges:       cert.PermittedIPRanges,
+			ExcludedIPRanges:        cert.ExcludedIPRanges,
+			PermittedEmailAddresses: cert.PermittedEmailAddresses,
+			ExcludedEmailAddresses:  cert.ExcludedEmailAddresses,
+			PermittedURIDomains:     cert.PermittedURIDomains,
+			ExcludedURIDomains:      cert.ExcludedURIDomains,
 		}
 	}
 

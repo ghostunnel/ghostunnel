@@ -94,7 +94,7 @@ func ReadAsPEMFromFiles(files []*os.File, format string, password func(string) s
 		reader := bufio.NewReaderSize(file, 4)
 		format, err := formatForFile(reader, file.Name(), format)
 		if err != nil {
-			return fmt.Errorf("unable to guess file type for file %s, try adding --format flag", file.Name())
+			return fmt.Errorf("unable to guess file type for file %s", file.Name())
 		}
 
 		err = readCertsFromStream(reader, file.Name(), format, password, callback)

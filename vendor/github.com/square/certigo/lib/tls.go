@@ -73,8 +73,9 @@ func EncodeTLSInfoToText(tcs *tls.ConnectionState, cri *tls.CertificateRequestIn
 
 	funcMap := sprig.TxtFuncMap()
 	extras := template.FuncMap{
-		"printShortName": PrintShortName,
-		"greenify":       greenify,
+		"printCommonName": PrintCommonName,
+		"printShortName":  PrintShortName,
+		"greenify":        greenify,
 	}
 	for k, v := range extras {
 		funcMap[k] = v
