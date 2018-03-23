@@ -111,7 +111,7 @@ func (c *certificate) reloadFromPEM() error {
 		return fmt.Errorf("error during keystore read (%s)", err)
 	}
 	if len(pemBlocks) == 0 {
-		return fmt.Error("no certificates or private key found in keystore")
+		return errors.New("no certificates or private key found in keystore")
 	}
 
 	var pemBytes []byte
@@ -158,7 +158,7 @@ func (c *certificate) reloadFromPKCS11() error {
 		return fmt.Errorf("error during keystore read (%s)", err)
 	}
 	if certAndKey.Leaf == nil {
-		return fmt.Error("no certificates found in keystore")
+		return errors.New("no certificates found in keystore")
 	}
 
 	// Reuse previously loaded PKCS11 private key if we already have it. We want to
