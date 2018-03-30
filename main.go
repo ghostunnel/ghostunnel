@@ -277,7 +277,7 @@ func run(args []string) error {
 		go watchFiles([]string{*keystorePath}, *timedReload, watcher)
 	}
 
-	if (*keystorePath == "") && !(*clientDisableAuth) {
+	if (*keystorePath == "") && !(*clientDisableAuth) && !(*serverDisableAuth) {
 		fmt.Printf("one of --keystore or --disable-authentication is required, try --help\n")
 		return fmt.Errorf("one of --keystore or --disable-authentication is required, try --help")
 	}
