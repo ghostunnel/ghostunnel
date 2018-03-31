@@ -179,6 +179,9 @@ func serverValidateFlags() error {
 		len(*serverAllowedIPs) > 0 ||
 		len(*serverAllowedURIs) > 0
 
+	if *keystorePath == "" {
+		return fmt.Errorf("--keystore flag is required in server mode, try --help")
+	}
 	if !(*serverDisableAuth) && !(*serverAllowAll) && !hasAccessFlags {
 		return fmt.Errorf("at least one access control flag (--allow-{all,cn,ou,dns-san,ip-san,uri-san} or --disable-authentication) is required")
 	}
@@ -207,7 +210,6 @@ func clientValidateFlags() error {
 		fmt.Printf("one of --keystore or --disable-authentication is required, try --help\n")
 		return fmt.Errorf("one of --keystore or --disable-authentication is required, try --help")
 	}
-
 	if !*clientUnsafeListen && !validateUnixOrLocalhost(*clientListenAddress) {
 		return fmt.Errorf("--listen must be unix:PATH, localhost:PORT, 127.0.0.1:PORT or [::1]:PORT (unless --unsafe-listen is set)")
 	}
