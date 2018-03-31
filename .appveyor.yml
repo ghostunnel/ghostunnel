@@ -9,7 +9,7 @@ environment:
       MSYS2_DIR: msys64
       MSYSTEM: MINGW64
       GOPATH: c:\gopath
-      GOROOT: c:\go19
+      GOROOT: c:\go
       GOARCH: amd64
       EXTLD: x86_64-w64-mingw32-gcc
     - ARCH: x86
@@ -17,7 +17,7 @@ environment:
       MSYS2_DIR: msys64
       MSYSTEM: MINGW32
       GOPATH: c:\gopath
-      GOROOT: c:\go19
+      GOROOT: c:\go
       GOARCH: 386
       EXTLD: i686-w64-mingw32-gcc
 
