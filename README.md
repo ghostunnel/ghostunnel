@@ -103,23 +103,28 @@ For more information on how to contribute, please see the [CONTRIBUTING](CONTRIB
 [gvt]: https://github.com/FiloSottile/gvt
 [gcvm]: https://github.com/wadey/gocovmerge
 
-Usage Examples
-==============
+Usage
+=====
 
-Below are some common usage examples. By default, ghostunnel logs to stderr and
-runs in the foreground. You can set `--syslog` to log to syslog. For daemonizing or
-running ghostunnel inside a container, we recommend [daemonize][daemonize] or
-[dumb-init][dumb-init].
+By default, ghostunnel runs in the foreground and logs to stderr. You can set
+`--syslog` to log to syslog instead of stderr. If you want to run ghostunnel
+in the background, we recommend using a service manager such as [systemd][systemd] or
+[runit][runit], or use a wrapper such as [daemonize][daemonize] or [dumb-init][dumb-init].
 
-Note that the examples below use PKCS#12 keystores, but ghostunnel also accepts
-PEM files with the certificate chain and private key if you prefer. Just pass
-a PEM file as an argument to the `--keystore` flag, ghostunnel will automatically
-detect the file format and handle it appropriately. We require that the certificate
-chain and private key are both present in the PEM file, except if PKCS#11 is used
-(see PKCS#11 examples further down for more info).
-
-[daemonize]: http://software.clapper.org/daemonize/
+[runit]: http://smarden.org/runit
+[systemd]: https://www.freedesktop.org/wiki/Software/systemd
+[daemonize]: http://software.clapper.org/daemonize
 [dumb-init]: https://github.com/Yelp/dumb-init
+
+### Certificates
+
+Ghostunnel accepts two formats of keystores, either a PKCS#12 keystore or a
+combined PEM file that contains both the certificate chain and private key.
+Both formats can be used with the `--keystore` flag, ghostunnel will
+automatically detect the file format and handle it appropriately. If you are
+using a PKCS#12 keystore protected by a password, you will also need to pass
+the `--storepass` flag. If you want to use ghostunnel with a PKCS#11 module,
+see the section on PKCS#11 below.
 
 ### Server mode 
 
@@ -142,17 +147,17 @@ Start a ghostunnel in server mode to proxy connections:
     ghostunnel server \
         --listen localhost:8443 \
         --target localhost:8080 \
-        --keystore test-keys/server.p12 \
-        --cacert test-keys/root.crt \
+        --keystore test-keys/server-keystore.p12 \
+        --cacert test-keys/cacert.pem \
         --allow-cn client
 
 Verify that clients can connect with their client certificate:
 
     openssl s_client \
         -connect localhost:8443 \
-        -cert test-keys/client.crt \
-        -key test-keys/client.key \
-        -CAfile test-keys/root.crt
+        -cert test-keys/client-combined.pem \
+        -key test-keys/client-combined.pem \
+        -CAfile test-keys/cacert.pem
 
 Now we have a TLS proxy running for our backend service. We terminate TLS in
 ghostunnel and forward the connections to the insecure backend.
@@ -166,17 +171,17 @@ Start a backend TLS server:
 
     openssl s_server \
         -accept 8443 \
-        -cert test-keys/server.crt \
-        -key test-keys/server.key \
-        -CAfile test-keys/root.crt
+        -cert test-keys/server-combined.pem \
+        -key test-keys/server-combined.pem \
+        -CAfile test-keys/cacert.pem
 
 Start a ghostunnel with a client certificate to forward connections:
 
     ghostunnel client \
         --listen localhost:8080 \
         --target localhost:8443 \
-        --keystore test-keys/client.p12 \
-        --cacert test-keys/root.crt
+        --keystore test-keys/client-combined.pem \
+        --cacert test-keys/cacert.pem
 
 Verify that we can connect to `8080`:
 
@@ -199,8 +204,8 @@ Start the ghostunnel server:
     ghostunnel server \
         --listen localhost:8002 \
         --target localhost:8001 \
-        --keystore test-keys/server.p12 \
-        --cacert test-keys/root.crt \
+        --keystore test-keys/server-combined.pem \
+        --cacert test-keys/cacert.pem \
         --allow-cn client
 
 Start the ghostunnel client:
@@ -208,8 +213,8 @@ Start the ghostunnel client:
     ghostunnel client \
         --listen localhost:8003 \
         --target localhost:8002 \
-        --keystore test-keys/client.p12 \
-        --cacert test-keys/root.crt
+        --keystore test-keys/client-keystore.p12 \
+        --cacert test-keys/cacert.pem
 
 Verify that we can connect to `8003`:
 
@@ -239,8 +244,8 @@ Example invocation with status port enabled:
     ghostunnel client \
         --listen localhost:8080 \
         --target localhost:8443 \
-        --keystore test-keys/client.p12 \
-        --cacert test-keys/root.crt \
+        --keystore test-keys/client-keystore.p12 \
+        --cacert test-keys/cacert.pem \
         --status localhost:6060
 
 Note that we set the status port to "localhost:6060". Ghostunnel will start an
@@ -250,15 +255,15 @@ can also specify a UNIX socket instead of a TCP port.
 How to check status and read connection metrics:
 
     # Status information (produces JSON output)
-    curl --cacert test-keys/root.crt https://localhost:6060/_status
+    curl --cacert test-keys/cacert.pem https://localhost:6060/_status
 
     # Metrics information (produces JSON output)
-    curl --cacert test-keys/root.crt https://localhost:6060/_metrics
+    curl --cacert test-keys/cacert.pem https://localhost:6060/_metrics
 
 How to use profiling endpoints, if `--enable-pprof` is set:
 
     # Human-readable goroutine dump
-    curl --cacert test-keys/root.crt 'https://localhost:6060/debug/pprof/goroutine?debug=1'
+    curl --cacert test-keys/cacert.pem 'https://localhost:6060/debug/pprof/goroutine?debug=1'
 
     # Analyze execution trace using pprof tool
     go tool pprof -seconds 5 https+insecure://localhost:6060/debug/pprof/profile
@@ -296,14 +301,14 @@ To import the server test key into SoftHSM, for example:
     softhsm2-util --id 01 \
       --token ghostunnel-server \
       --label ghostunnel-server \
-      --import test-keys/server.pkcs8.key \
+      --import test-keys/server-pkcs8.pem \
       --so-pin 1234 \
       --pin 1234
 
 To launch ghostunnel with the SoftHSM-backed PKCS11 key (on macOS):
 
     ghostunnel server \
-      --keystore test-keys/server.crt \
+      --keystore test-keys/server-cert.pem \
       --pkcs11-module /usr/local/Cellar/softhsm/2.3.0/lib/softhsm/libsofthsm2.so \
       --pkcs11-token-label ghostunnel-server \
       --pkcs11-pin 1234 \

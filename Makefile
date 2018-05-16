@@ -42,7 +42,7 @@ softhsm-import:
 		--label ${GHOSTUNNEL_TEST_PKCS11_LABEL} \
 		--so-pin ${GHOSTUNNEL_TEST_PKCS11_PIN} \
 		--pin ${GHOSTUNNEL_TEST_PKCS11_PIN} \
-		--import test-keys/server.pkcs8.key
+		--import test-keys/server-pkcs8.pem
 .PHONY: softhsm-import
 
 # Build Docker image
