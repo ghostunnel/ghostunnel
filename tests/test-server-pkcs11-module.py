@@ -16,14 +16,14 @@ if __name__ == "__main__":
     # start ghostunnel
     # hack: point target to STATUS_PORT so that /_status doesn't 503.
     ghostunnel = run_ghostunnel(['server', '--listen={0}:13001'.format(LOCALHOST),
-      '--target={0}:{1}'.format(LOCALHOST, STATUS_PORT), '--keystore=../test-keys/server.crt',
+      '--target={0}:{1}'.format(LOCALHOST, STATUS_PORT), '--keystore=../test-keys/server-cert.pem',
       '--pkcs11-module={0}'.format(os.environ['GHOSTUNNEL_TEST_PKCS11_MODULE']),
       '--pkcs11-token-label={0}'.format(os.environ['GHOSTUNNEL_TEST_PKCS11_LABEL']),
       '--pkcs11-pin={0}'.format(os.environ['GHOSTUNNEL_TEST_PKCS11_PIN']),
-      '--cacert=../test-keys/root.crt', '--allow-ou=client',
+      '--cacert=../test-keys/cacert.pem', '--allow-ou=client',
       '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
 
-    urlopen = lambda path: urllib.request.urlopen(path, cafile='../test-keys/root.crt')
+    urlopen = lambda path: urllib.request.urlopen(path, cafile='../test-keys/cacert.pem')
 
     # block until ghostunnel is up
     TcpClient(STATUS_PORT).connect(3)

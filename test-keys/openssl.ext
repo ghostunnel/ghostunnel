@@ -1,6 +1,9 @@
 [root]
 keyUsage=critical, keyCertSign
 basicConstraints=critical, CA:TRUE, pathlen:0
-[leaf]
-extendedKeyUsage = clientAuth, serverAuth
+[server]
+extendedKeyUsage = serverAuth
+subjectAltName = IP:127.0.0.1,IP:::1,DNS:localhost
+[client]
+extendedKeyUsage = clientAuth
 subjectAltName = IP:127.0.0.1,IP:::1,DNS:localhost
