@@ -23,7 +23,6 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/spiffe/go-spiffe/uri"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -41,15 +40,6 @@ var fakeChains = [][]*x509.Certificate{
 			URIs:        []*url.URL{sanURI},
 		},
 	},
-}
-
-func getURISANFromString(s string) (uriSAN []byte) {
-	uriSAN, err := uri.MarshalUriSANs([]string{s})
-	if err != nil {
-		panic(err)
-	}
-
-	return uriSAN
 }
 
 func TestAuthorizeNotVerified(t *testing.T) {
