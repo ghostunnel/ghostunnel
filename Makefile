@@ -13,6 +13,7 @@ ghostunnel.test: $(SOURCE_FILES)
 # Clean build output
 clean:
 	rm -rf ghostunnel *.out */*.out ghostunnel.test tests/__pycache__
+.PHONY: clean
 
 # Run all tests (unit + integration tests)
 test: unit $(INTEGRATION_TESTS)
