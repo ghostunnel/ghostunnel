@@ -20,8 +20,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"net"
-
-	"github.com/spiffe/go-spiffe/uri"
 )
 
 // Logger is used by this package to log messages
@@ -36,7 +34,7 @@ type Acl struct {
 	AllowedDNSs []string
 	AllowedIPs  []net.IP
 	AllowedURIs []string
-	Logger Logger
+	Logger      Logger
 }
 
 func (a Acl) VerifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
@@ -83,19 +81,11 @@ func (a Acl) VerifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*
 		}
 	}
 
-	// Get URIs from the SAN in the certificate
-	if len(a.AllowedURIs) > 0 {
-		uris, err := uri.GetURINamesFromCertificate(cert)
-		if err == nil {
-			for _, expectedURI := range a.AllowedURIs {
-				for _, clientURI := range uris {
-					if clientURI == expectedURI {
-						return nil
-					}
-				}
+	for _, expectedURI := range a.AllowedURIs {
+		for _, clientURI := range cert.URIs {
+			if clientURI.String() == expectedURI {
+				return nil
 			}
-		} else {
-			a.Logger.Printf("error getting URIs from SAN: %s", err)
 		}
 	}
 
@@ -148,19 +138,11 @@ func (a Acl) VerifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*
 		}
 	}
 
-	// Get URIs from the SAN in the certificate
-	if len(a.AllowedURIs) > 0 {
-		uris, err := uri.GetURINamesFromCertificate(cert)
-		if err == nil {
-			for _, expectedURI := range a.AllowedURIs {
-				for _, serverURI := range uris {
-					if serverURI == expectedURI {
-						return nil
-					}
-				}
+	for _, expectedURI := range a.AllowedURIs {
+		for _, clientURI := range cert.URIs {
+			if clientURI.String() == expectedURI {
+				return nil
 			}
-		} else {
-			a.Logger.Printf("error getting URIs from SAN: %s", err)
 		}
 	}
 

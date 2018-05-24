@@ -20,11 +20,13 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"net"
+	"net/url"
 	"testing"
 
-	"github.com/spiffe/go-spiffe/uri"
 	"github.com/stretchr/testify/assert"
 )
+
+var sanURI, _ = url.Parse("scheme://valid/path")
 
 var fakeChains = [][]*x509.Certificate{
 	{
@@ -35,24 +37,9 @@ var fakeChains = [][]*x509.Certificate{
 			},
 			DNSNames:    []string{"circle"},
 			IPAddresses: []net.IP{net.IPv4(192, 168, 99, 100)},
-			Extensions: []pkix.Extension{
-				{
-					Id:       uri.OidExtensionSubjectAltName,
-					Value:    getURISANFromString("scheme://valid/path"),
-					Critical: false,
-				},
-			},
+			URIs:        []*url.URL{sanURI},
 		},
 	},
-}
-
-func getURISANFromString(s string) (uriSAN []byte) {
-	uriSAN, err := uri.MarshalUriSANs([]string{s})
-	if err != nil {
-		panic(err)
-	}
-
-	return uriSAN
 }
 
 func TestAuthorizeNotVerified(t *testing.T) {
