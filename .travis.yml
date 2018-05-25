@@ -37,6 +37,8 @@ install:
   - CGO_ENABLED=1 go build -o ghostunnel-${TRAVIS_TAG}-linux-amd64-with-pkcs11 .
   # Build Docker container
   - make docker-build
+  # Make sure Docker image runs
+  - docker run --rm squareup/ghostunnel --version
   # Cross-compile dist binaries
   - GO_VERSION=${TRAVIS_GO_VERSION} VERSION=${TRAVIS_TAG} make -f Makefile.dist dist
 
