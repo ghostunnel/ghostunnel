@@ -2,48 +2,53 @@
 
 from subprocess import Popen
 from common import *
-import socket, ssl, time, os, signal
+import socket
+import ssl
+import time
+import os
+import signal
 
 if __name__ == "__main__":
-  ghostunnel = None
-  try:
-    # create certs
-    root = RootCert('root')
-    root.create_signed_cert('server')
-    root.create_signed_cert('client')
+    ghostunnel = None
+    try:
+        # create certs
+        root = RootCert('root')
+        root.create_signed_cert('server')
+        root.create_signed_cert('client')
 
-    # start ghostunnel
-    ghostunnel = run_ghostunnel(['client', '--listen={0}:13001'.format(LOCALHOST),
-      '--target={0}:13002'.format(LOCALHOST), '--keystore=client.p12',
-      '--cacert=root.crt', '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
+        # start ghostunnel
+        ghostunnel = run_ghostunnel(['client', '--listen={0}:13001'.format(LOCALHOST),
+                                     '--target={0}:13002'.format(
+                                         LOCALHOST), '--keystore=client.p12',
+                                     '--cacert=root.crt', '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
 
-    # wait for startup
-    TlsClient(None, 'root', STATUS_PORT).connect(20, 'client')
+        # wait for startup
+        TlsClient(None, 'root', STATUS_PORT).connect(20, 'client')
 
-    # create connections with client
-    pair1 = SocketPair(TcpClient(13001), TlsServer('server', 'root', 13002))
-    pair1.validate_can_send_from_client("toto", "pair1 works")
+        # create connections with client
+        pair1 = SocketPair(
+            TcpClient(13001), TlsServer('server', 'root', 13002))
+        pair1.validate_can_send_from_client("toto", "pair1 works")
 
-    # shut down ghostunnel with connection open, make sure it doesn't hang
-    print_ok('attempting to terminate ghostunnel via SIGTERM signals')
-    for n in range(0, 90):
-      try:
-        try:
-          ghostunnel.terminate()
-          ghostunnel.wait(timeout=1)
-        except:
-          pass
-        os.kill(ghostunnel.pid, 0)
-        print_ok("ghostunnel is still alive")
-      except:
-        stopped = True
-        break
-      time.sleep(1)
+        # shut down ghostunnel with connection open, make sure it doesn't hang
+        print_ok('attempting to terminate ghostunnel via SIGTERM signals')
+        for n in range(0, 90):
+            try:
+                try:
+                    ghostunnel.terminate()
+                    ghostunnel.wait(timeout=1)
+                except:
+                    pass
+                os.kill(ghostunnel.pid, 0)
+                print_ok("ghostunnel is still alive")
+            except:
+                stopped = True
+                break
+            time.sleep(1)
 
-    if not stopped:
-      raise Exception('ghostunnel did not terminate within 90 seconds')
+        if not stopped:
+            raise Exception('ghostunnel did not terminate within 90 seconds')
 
-    print_ok("OK (terminated)")
-  finally:
-    terminate(ghostunnel)
-      
+        print_ok("OK (terminated)")
+    finally:
+        terminate(ghostunnel)

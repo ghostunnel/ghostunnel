@@ -4,35 +4,46 @@
 
 from subprocess import Popen
 from common import *
-import urllib.request, urllib.error, urllib.parse, socket, ssl, time, os, signal, json, http.server, threading
+import urllib.request
+import urllib.error
+import urllib.parse
+import socket
+import ssl
+import time
+import os
+import signal
+import json
+import http.server
+import threading
 
 if __name__ == "__main__":
-  ghostunnel = None
-  try:
-    # create certs
-    root = RootCert('root')
-    root.create_signed_cert('client')
+    ghostunnel = None
+    try:
+        # create certs
+        root = RootCert('root')
+        root.create_signed_cert('client')
 
-    # Mock out a graphite server
-    m = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    m.settimeout(10)
-    m.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    m.bind((LOCALHOST, 13099))
-    m.listen(1)
+        # Mock out a graphite server
+        m = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        m.settimeout(10)
+        m.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        m.bind((LOCALHOST, 13099))
+        m.listen(1)
 
-    # start ghostunnel
-    ghostunnel = run_ghostunnel(['client', '--listen={0}:13001'.format(LOCALHOST),
-      '--target={0}:13002'.format(LOCALHOST), '--keystore=client.p12',
-      '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT), '--metrics-interval=1s',
-      '--cacert=root.crt', '--metrics-graphite=localhost:13099'])
+        # start ghostunnel
+        ghostunnel = run_ghostunnel(['client', '--listen={0}:13001'.format(LOCALHOST),
+                                     '--target={0}:13002'.format(
+                                         LOCALHOST), '--keystore=client.p12',
+                                     '--status={0}:{1}'.format(
+                                         LOCALHOST, STATUS_PORT), '--metrics-interval=1s',
+                                     '--cacert=root.crt', '--metrics-graphite=localhost:13099'])
 
-    # wait for metrics to be sent
-    conn, addr = m.accept()
-    for line in conn.makefile().readlines():
-      if len(line.partition(' ')) != 3:
-        raise Exception('invalid metric: ' + line)
+        # wait for metrics to be sent
+        conn, addr = m.accept()
+        for line in conn.makefile().readlines():
+            if len(line.partition(' ')) != 3:
+                raise Exception('invalid metric: ' + line)
 
-    print_ok("OK")
-  finally:
-    terminate(ghostunnel)
-      
+        print_ok("OK")
+    finally:
+        terminate(ghostunnel)
