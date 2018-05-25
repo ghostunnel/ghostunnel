@@ -13,10 +13,8 @@ LOCALHOST = '127.0.0.1'
 STATUS_PORT = 13100
 TIMEOUT = 5
 
-# Helper to run ghostunnel in integration test mode
-
-
 def run_ghostunnel(args):
+    """Helper to run ghostunnel in integration test mode"""
     os.environ["GHOSTUNNEL_INTEGRATION_TEST"] = "true"
     os.environ["GHOSTUNNEL_INTEGRATION_ARGS"] = json.dumps(args)
     print_ok("running with args:\n {0}".format(' \ \n '.join(args)))
@@ -26,10 +24,8 @@ def run_ghostunnel(args):
         '-test.run=TestIntegrationMain',
         '-test.coverprofile=coverage-{0}'.format(test)])
 
-# Gracefully terminate ghostunnel (with timeout)
-
-
 def terminate(ghostunnel):
+    """Gracefully terminate ghostunnel (with timeout)"""
     print_ok("terminating ghostunnel instance")
     try:
         if ghostunnel:
@@ -49,10 +45,8 @@ def terminate(ghostunnel):
     except BaseException:
         pass
 
-# Attempt to dump goroutines via status port/pprof
-
-
 def dump_goroutines():
+    """Attempt to dump goroutines via status port/pprof"""
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
@@ -64,10 +58,8 @@ def dump_goroutines():
     except Exception as e:
         print('unable to dump goroutines:', e)
 
-# Helper class to create root + signed certs
-
-
 class RootCert:
+    """Helper class to create root + signed certs"""
     def __init__(self, name):
         self.name = name
         self.leaf_certs = []
