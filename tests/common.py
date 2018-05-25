@@ -1,15 +1,11 @@
 from subprocess import call, Popen
 from tempfile import mkstemp, mkdtemp
-import socketserver
 import json
 import sys
-import threading
 import time
 import socket
 import ssl
 import os
-import base64
-import textwrap
 import urllib.request
 
 FNULL = open(os.devnull, 'w')

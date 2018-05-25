@@ -5,9 +5,7 @@ Test a client which has disabled authentication. It will not send a TLS Client
 Certificate, but should still perform verification.
 """
 
-from subprocess import Popen
 from common import *
-import socket
 import ssl
 
 if __name__ == "__main__":

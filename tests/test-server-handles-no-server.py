@@ -3,10 +3,8 @@
 # Creates a ghostunnel. Ensures that client gets a timeout if there is no
 # server.
 
-from subprocess import Popen
 from common import *
 import socket
-import ssl
 
 if __name__ == "__main__":
     ghostunnel = None

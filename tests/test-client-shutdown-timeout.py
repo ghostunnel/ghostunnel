@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
 
-from subprocess import Popen
 from common import *
-import socket
-import ssl
 import time
 import os
-import signal
 
 if __name__ == "__main__":
     ghostunnel = None

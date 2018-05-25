@@ -2,11 +2,8 @@
 
 # Creates a ghostunnel. Ensures that multiple servers can communicate.
 
-from subprocess import Popen
 from multiprocessing import Process
 from common import *
-import socket
-import ssl
 import time
 import random
 

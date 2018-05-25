@@ -7,11 +7,8 @@
 # - tunnel picks up ca change and connects to other_server.
 # - tunnel picks up client cert change and uses it on the status port.
 
-from subprocess import Popen
 from common import *
-import socket
 import ssl
-import time
 import os
 import signal
 

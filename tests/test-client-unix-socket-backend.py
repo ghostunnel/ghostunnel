@@ -2,11 +2,8 @@
 
 # Creates a ghostunnel. Ensures ghostunnel can listen on a unix socket.
 
-from subprocess import Popen
 from common import *
 import socket
-import ssl
-import tempfile
 import os
 import os.path
 

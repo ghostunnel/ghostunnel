@@ -3,20 +3,13 @@
 # Creates a ghostunnel. Ensures that /_status endpoint using UNIX sockets
 # works.
 
-from subprocess import Popen
 from common import *
 from tempfile import mkdtemp
 from shutil import rmtree
-import urllib.request
-import urllib.error
-import urllib.parse
 import socket
-import ssl
 import time
 import os
-import signal
 import json
-import sys
 import http.client
 
 

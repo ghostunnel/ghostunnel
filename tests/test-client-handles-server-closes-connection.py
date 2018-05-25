@@ -3,10 +3,7 @@
 # Creates a ghostunnel. Ensures when server disconnects that the client
 # connection also disconnects.
 
-from subprocess import Popen
 from common import *
-import socket
-import ssl
 
 if __name__ == "__main__":
     ghostunnel = None

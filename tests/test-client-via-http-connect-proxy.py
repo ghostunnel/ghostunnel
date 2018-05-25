@@ -1,13 +1,6 @@
 #!/usr/bin/env python3
 
-from subprocess import Popen
 from common import *
-import socket
-import ssl
-import time
-import os
-import signal
-import json
 import http.server
 import threading
 import select

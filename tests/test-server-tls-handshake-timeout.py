@@ -2,19 +2,12 @@
 
 # Simulates a hanging handshake, waits for timeout.
 
-from subprocess import Popen
 from common import *
 import urllib.request
 import urllib.error
 import urllib.parse
-import socket
-import ssl
 import time
-import os
-import signal
 import json
-import sys
-import errno
 
 if __name__ == "__main__":
     ghostunnel = None

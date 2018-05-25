@@ -3,9 +3,7 @@
 # Creates a ghostunnel. Ensures we can connect to a server signed by root1 but
 # not root2.
 
-from subprocess import Popen
 from common import *
-import socket
 import ssl
 
 if __name__ == "__main__":

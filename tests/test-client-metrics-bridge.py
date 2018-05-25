@@ -2,16 +2,8 @@
 
 # Creates a ghostunnel. Ensures that /_status endpoint works.
 
-from subprocess import Popen
 from common import *
-import urllib.request
-import urllib.error
-import urllib.parse
-import socket
-import ssl
 import time
-import os
-import signal
 import json
 import http.server
 import threading

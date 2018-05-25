@@ -3,9 +3,7 @@
 # Creates a ghostunnel. Ensures client1 can connect but that clients with
 # ou=client2 or ca=other_root can't connect.
 
-from subprocess import Popen
 from common import *
-import socket
 import ssl
 
 if __name__ == "__main__":
