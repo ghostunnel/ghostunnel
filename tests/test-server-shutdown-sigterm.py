@@ -17,11 +17,14 @@ if __name__ == "__main__":
         root.create_signed_cert('client')
 
         # start ghostunnel
-        ghostunnel = run_ghostunnel(['server', '--listen={0}:13001'.format(LOCALHOST),
-                                     '--target={0}:13002'.format(
-                                         LOCALHOST), '--keystore=server.p12',
-                                     '--cacert=root.crt', '--allow-ou=client',
-                                     '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
+        ghostunnel = run_ghostunnel(['server',
+                                     '--listen={0}:13001'.format(LOCALHOST),
+                                     '--target={0}:13002'.format(LOCALHOST),
+                                     '--keystore=server.p12',
+                                     '--cacert=root.crt',
+                                     '--allow-ou=client',
+                                     '--status={0}:{1}'.format(LOCALHOST,
+                                                               STATUS_PORT)])
 
         # wait for startup
         TlsClient(None, 'root', STATUS_PORT).connect(20, 'server')
@@ -38,11 +41,11 @@ if __name__ == "__main__":
                 try:
                     ghostunnel.terminate()
                     ghostunnel.wait(timeout=1)
-                except:
+                except BaseException:
                     pass
                 os.kill(ghostunnel.pid, 0)
                 print_ok("ghostunnel is still alive")
-            except:
+            except BaseException:
                 stopped = True
                 break
             time.sleep(1)

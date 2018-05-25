@@ -40,12 +40,14 @@ if __name__ == "__main__":
         server.start()
 
         # start ghostunnel
-        ghostunnel = run_ghostunnel(['client', '--listen={0}:13001'.format(LOCALHOST),
-                                     '--target={0}:13002'.format(
-                                         LOCALHOST), '--keystore=client.p12',
-                                     '--cacert=root.crt', '--metrics-interval=1s',
-                                     '--status={0}:{1}'.format(
-                                         LOCALHOST, STATUS_PORT),
+        ghostunnel = run_ghostunnel(['client',
+                                     '--listen={0}:13001'.format(LOCALHOST),
+                                     '--target={0}:13002'.format(LOCALHOST),
+                                     '--keystore=client.p12',
+                                     '--cacert=root.crt',
+                                     '--metrics-interval=1s',
+                                     '--status={0}:{1}'.format(LOCALHOST,
+                                                               STATUS_PORT),
                                      '--metrics-url=http://localhost:13080/post'])
 
         # wait for metrics to post
@@ -59,7 +61,7 @@ if __name__ == "__main__":
         if not received_metrics:
             raise Exception("did not receive metrics from instance")
 
-        if type(received_metrics) != list:
+        if not isinstance(received_metrics, list):
             raise Exception("ghostunnel metrics expected to be JSON list")
 
         print_ok("OK")

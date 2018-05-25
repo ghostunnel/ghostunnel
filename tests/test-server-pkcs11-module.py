@@ -24,17 +24,18 @@ if __name__ == "__main__":
 
         # start ghostunnel
         # hack: point target to STATUS_PORT so that /_status doesn't 503.
-        ghostunnel = run_ghostunnel(['server', '--listen={0}:13001'.format(LOCALHOST),
-                                     '--target={0}:{1}'.format(
-                                         LOCALHOST, STATUS_PORT), '--keystore=../test-keys/server-cert.pem',
-                                     '--pkcs11-module={0}'.format(
-                                         os.environ['GHOSTUNNEL_TEST_PKCS11_MODULE']),
-                                     '--pkcs11-token-label={0}'.format(
-                                         os.environ['GHOSTUNNEL_TEST_PKCS11_LABEL']),
-                                     '--pkcs11-pin={0}'.format(
-                                         os.environ['GHOSTUNNEL_TEST_PKCS11_PIN']),
-                                     '--cacert=../test-keys/cacert.pem', '--allow-ou=client',
-                                     '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
+        ghostunnel = run_ghostunnel(['server',
+                                     '--listen={0}:13001'.format(LOCALHOST),
+                                     '--target={0}:{1}'.format(LOCALHOST,
+                                                               STATUS_PORT),
+                                     '--keystore=../test-keys/server-cert.pem',
+                                     '--pkcs11-module={0}'.format(os.environ['GHOSTUNNEL_TEST_PKCS11_MODULE']),
+                                     '--pkcs11-token-label={0}'.format(os.environ['GHOSTUNNEL_TEST_PKCS11_LABEL']),
+                                     '--pkcs11-pin={0}'.format(os.environ['GHOSTUNNEL_TEST_PKCS11_PIN']),
+                                     '--cacert=../test-keys/cacert.pem',
+                                     '--allow-ou=client',
+                                     '--status={0}:{1}'.format(LOCALHOST,
+                                                               STATUS_PORT)])
 
         def urlopen(path): return urllib.request.urlopen(
             path, cafile='../test-keys/cacert.pem')
@@ -49,7 +50,7 @@ if __name__ == "__main__":
         if not status['ok']:
             raise Exception("ghostunnel reported non-ok status")
 
-        if type(metrics) != list:
+        if not isinstance(metrics, list):
             raise Exception("ghostunnel metrics expected to be JSON list")
 
         # Test reloading

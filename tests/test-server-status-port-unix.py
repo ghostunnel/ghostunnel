@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
-# Creates a ghostunnel. Ensures that /_status endpoint using UNIX sockets works.
+# Creates a ghostunnel. Ensures that /_status endpoint using UNIX sockets
+# works.
 
 from subprocess import Popen
 from common import *
@@ -41,10 +42,12 @@ if __name__ == "__main__":
         tempdir = mkdtemp()
         path = os.path.join(tempdir, 'ghostunnel-status-socket')
 
-        ghostunnel = run_ghostunnel(['server', '--listen={0}:13001'.format(LOCALHOST),
-                                     '--target=unix:{0}'.format(
-                                         path), '--keystore=server.p12',
-                                     '--cacert=root.crt', '--allow-ou=client',
+        ghostunnel = run_ghostunnel(['server',
+                                     '--listen={0}:13001'.format(LOCALHOST),
+                                     '--target=unix:{0}'.format(path),
+                                     '--keystore=server.p12',
+                                     '--cacert=root.crt',
+                                     '--allow-ou=client',
                                      '--status=unix:{0}'.format(path)])
 
         # wait for startup

@@ -17,10 +17,13 @@ if __name__ == "__main__":
         root.create_signed_cert('client')
 
         # start ghostunnel
-        ghostunnel = run_ghostunnel(['client', '--listen={0}:13001'.format(LOCALHOST),
-                                     '--target={0}:13002'.format(
-                                         LOCALHOST), '--keystore=client.p12',
-                                     '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT), '--cacert=root.crt'])
+        ghostunnel = run_ghostunnel(['client',
+                                     '--listen={0}:13001'.format(LOCALHOST),
+                                     '--target={0}:13002'.format(LOCALHOST),
+                                     '--keystore=client.p12',
+                                     '--status={0}:{1}'.format(LOCALHOST,
+                                                               STATUS_PORT),
+                                     '--cacert=root.crt'])
 
         # client should fail to connect since nothing is listening on 13003
         try:

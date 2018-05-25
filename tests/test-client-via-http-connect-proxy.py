@@ -26,7 +26,9 @@ class FakeConnectProxyHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(
                 bytearray("HTTP/1.1 200 Connection established\r\n", "utf-8"))
             self.wfile.write(
-                bytearray("Proxy-agent: FakeConnectProxyHandler\r\n\r\n", "utf-8"))
+                bytearray(
+                    "Proxy-agent: FakeConnectProxyHandler\r\n\r\n",
+                    "utf-8"))
             remote = socket.get_socket()
             rlist = [self.connection, remote]
             for _ in range(0, 1000):
@@ -46,7 +48,7 @@ class FakeConnectProxyHandler(http.server.BaseHTTPRequestHandler):
                 socket.get_socket().shutdown()
                 socket.cleanup()
                 self.connection.close()
-            except:
+            except BaseException:
                 pass
 
 
@@ -64,12 +66,15 @@ if __name__ == "__main__":
         server.start()
 
         # start ghostunnel
-        ghostunnel = run_ghostunnel(['client', '--listen={0}:13001'.format(LOCALHOST),
-                                     '--target={0}:13002'.format(
-                                         LOCALHOST), '--keystore=client.p12', '--cacert=root.crt',
-                                     '--connect-proxy=http://{0}:13080'.format(
-                                         LOCALHOST), '--connect-timeout=30s',
-                                     '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
+        ghostunnel = run_ghostunnel(['client',
+                                     '--listen={0}:13001'.format(LOCALHOST),
+                                     '--target={0}:13002'.format(LOCALHOST),
+                                     '--keystore=client.p12',
+                                     '--cacert=root.crt',
+                                     '--connect-proxy=http://{0}:13080'.format(LOCALHOST),
+                                     '--connect-timeout=30s',
+                                     '--status={0}:{1}'.format(LOCALHOST,
+                                                               STATUS_PORT)])
 
         # connect to server, confirm that the tunnel is up
         pair = SocketPair(TcpClient(13001), TlsServer('server', 'root', 13002))

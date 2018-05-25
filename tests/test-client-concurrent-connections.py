@@ -45,11 +45,12 @@ if __name__ == "__main__":
             root.create_signed_cert("server{0}".format(i))
 
         # start ghostunnel
-        ghostunnel = run_ghostunnel(['client', '--listen={0}:13001'.format(LOCALHOST),
-                                     '--target={0}:13002'.format(
-                                         LOCALHOST), '--keystore=client.p12',
-                                     '--status={0}:{1}'.format(
-                                         LOCALHOST, STATUS_PORT),
+        ghostunnel = run_ghostunnel(['client',
+                                     '--listen={0}:13001'.format(LOCALHOST),
+                                     '--target={0}:13002'.format(LOCALHOST),
+                                     '--keystore=client.p12',
+                                     '--status={0}:{1}'.format(LOCALHOST,
+                                                               STATUS_PORT),
                                      '--cacert=root.crt'])
 
         # servers should be able to communicate all at the same time.

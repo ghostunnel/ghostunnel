@@ -41,7 +41,7 @@ def terminate(ghostunnel):
             for i in range(0, 10):
                 try:
                     ghostunnel.wait(timeout=1)
-                except:
+                except BaseException:
                     pass
                 if ghostunnel.returncode is not None:
                     print_ok("ghostunnel stopped with exit code {0}".format(
@@ -50,7 +50,7 @@ def terminate(ghostunnel):
                 time.sleep(1)
             print_ok("timeout, killing ghostunnel")
             ghostunnel.kill()
-    except:
+    except BaseException:
         pass
 
 # Attempt to dump goroutines via status port/pprof
@@ -77,9 +77,12 @@ class RootCert:
         self.leaf_certs = []
         print_ok("generating {0}.key, {0}.crt".format(name))
         call(
-            'openssl genrsa -out {0}.key 1024'.format(name), shell=True, stderr=FNULL)
+            'openssl genrsa -out {0}.key 1024'.format(name),
+            shell=True,
+            stderr=FNULL)
         call(
-            'openssl req -x509 -new -key {0}.key -days 5 -out {0}_temp.crt -subj /C=US/ST=CA/O=ghostunnel/OU={0}'.format(name), shell=True)
+            'openssl req -x509 -new -key {0}.key -days 5 -out {0}_temp.crt -subj /C=US/ST=CA/O=ghostunnel/OU={0}'.format(name),
+            shell=True)
         os.rename("{0}_temp.crt".format(name), "{0}.crt".format(name))
         call('chmod 600 {0}.key'.format(name), shell=True)
 
@@ -90,13 +93,21 @@ class RootCert:
         os.write(fd, "subjectAltName = {0}".format(san).encode('utf-8'))
         call("openssl genrsa -out {0}.key 1024".format(ou),
              shell=True, stderr=FNULL)
-        call("openssl req -new -key {0}.key -out {0}.csr -subj /C=US/ST=CA/O=ghostunnel/OU={0}".format(
-            ou), shell=True, stderr=FNULL)
-        call("chmod 600 {0}.key".format(ou), shell=True)
-        call("openssl x509 -req -in {0}.csr -CA {1}.crt -CAkey {1}.key -CAcreateserial -out {0}_temp.crt -days 5 -extfile {2}".format(
-            ou, self.name, openssl_config), shell=True, stderr=FNULL)
         call(
-            "openssl pkcs12 -export -out {0}_temp.p12 -in {0}_temp.crt -inkey {0}.key -password pass:".format(ou), shell=True)
+            "openssl req -new -key {0}.key -out {0}.csr -subj /C=US/ST=CA/O=ghostunnel/OU={0}".format(ou),
+            shell=True,
+            stderr=FNULL)
+        call("chmod 600 {0}.key".format(ou), shell=True)
+        call(
+            "openssl x509 -req -in {0}.csr -CA {1}.crt -CAkey {1}.key -CAcreateserial -out {0}_temp.crt -days 5 -extfile {2}".format(
+                ou,
+                self.name,
+                openssl_config),
+            shell=True,
+            stderr=FNULL)
+        call(
+            "openssl pkcs12 -export -out {0}_temp.p12 -in {0}_temp.crt -inkey {0}.key -password pass:".format(ou),
+            shell=True)
         os.rename("{0}_temp.crt".format(ou), "{0}.crt".format(ou))
         os.rename("{0}_temp.p12".format(ou), "{0}.p12".format(ou))
         os.close(fd)
@@ -197,7 +208,7 @@ class TlsClient(MySocket):
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.settimeout(TIMEOUT)
-                if self.cert != None:
+                if self.cert is not None:
                     self.socket = ssl.wrap_socket(sock,
                                                   keyfile='{0}.key'.format(
                                                       self.cert),
@@ -215,7 +226,7 @@ class TlsClient(MySocket):
                                                   ssl_version=self.ssl_version)
                 self.socket.connect((LOCALHOST, self.port))
 
-                if peer != None:
+                if peer is not None:
                     if self.socket.getpeercert()['subject'][3][0][1] == peer:
                         return self
                     else:
@@ -233,7 +244,13 @@ class TlsClient(MySocket):
 
 
 class TlsServer(MySocket):
-    def __init__(self, cert, ca, port, cert_reqs=ssl.CERT_REQUIRED, ssl_version=ssl.PROTOCOL_SSLv23):
+    def __init__(
+            self,
+            cert,
+            ca,
+            port,
+            cert_reqs=ssl.CERT_REQUIRED,
+            ssl_version=ssl.PROTOCOL_SSLv23):
         super().__init__()
         self.cert = cert
         self.ca = ca
@@ -385,13 +402,15 @@ class SocketPair():
     def validate_closing_client_closes_server(self, msg):
         self.client.get_socket().shutdown(socket.SHUT_RDWR)
         self.client.get_socket().close()
-        # if the tunnel doesn't close the connection, recv(1) will raise a Timeout
+        # if the tunnel doesn't close the connection, recv(1) will raise a
+        # Timeout
         self.server.get_socket().recv(1)
 
     def validate_closing_server_closes_client(self, msg):
         self.server.get_socket().shutdown(socket.SHUT_RDWR)
         self.server.get_socket().close()
-        # if the tunnel doesn't close the connection, recv(1) will raise a Timeout
+        # if the tunnel doesn't close the connection, recv(1) will raise a
+        # Timeout
         self.client.get_socket().recv(1)
 
     def validate_client_cert(self, ou, msg):

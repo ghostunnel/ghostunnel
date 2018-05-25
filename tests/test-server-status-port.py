@@ -26,11 +26,15 @@ if __name__ == "__main__":
 
         # start ghostunnel
         # hack: point target to STATUS_PORT so that /_status doesn't 503.
-        ghostunnel = run_ghostunnel(['server', '--listen={0}:13001'.format(LOCALHOST),
-                                     '--target={0}:{1}'.format(
-                                         LOCALHOST, STATUS_PORT), '--keystore=server.p12',
-                                     '--cacert=root.crt', '--allow-ou=client',
-                                     '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
+        ghostunnel = run_ghostunnel(['server',
+                                     '--listen={0}:13001'.format(LOCALHOST),
+                                     '--target={0}:{1}'.format(LOCALHOST,
+                                                               STATUS_PORT),
+                                     '--keystore=server.p12',
+                                     '--cacert=root.crt',
+                                     '--allow-ou=client',
+                                     '--status={0}:{1}'.format(LOCALHOST,
+                                                               STATUS_PORT)])
 
         def urlopen(path): return urllib.request.urlopen(
             path, cafile='root.crt')
@@ -45,7 +49,7 @@ if __name__ == "__main__":
         if not status['ok']:
             raise Exception("ghostunnel reported non-ok status")
 
-        if type(metrics) != list:
+        if not isinstance(metrics, list):
             raise Exception("ghostunnel metrics expected to be JSON list")
 
         # reload, check we get the new cert on /_status
@@ -63,7 +67,7 @@ if __name__ == "__main__":
         if not status['ok']:
             raise Exception("ghostunnel reported non-ok status")
 
-        if type(metrics) != list:
+        if not isinstance(metrics, list):
             raise Exception("ghostunnel metrics expected to be JSON list")
 
         print_ok("OK")
