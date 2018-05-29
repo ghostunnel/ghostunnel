@@ -3,7 +3,7 @@
 # Creates a ghostunnel. Ensures when server disconnects that the client
 # connection also disconnects.
 
-from common import *
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, print_ok, run_ghostunnel, terminate
 
 if __name__ == "__main__":
     ghostunnel = None

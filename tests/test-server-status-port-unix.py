@@ -3,7 +3,7 @@
 # Creates a ghostunnel. Ensures that /_status endpoint using UNIX sockets
 # works.
 
-from common import *
+from common import LOCALHOST, RootCert, print_ok, run_ghostunnel, terminate
 from tempfile import mkdtemp
 from shutil import rmtree
 import socket

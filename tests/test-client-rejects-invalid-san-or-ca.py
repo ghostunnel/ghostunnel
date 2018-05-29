@@ -3,7 +3,7 @@
 # Creates a ghostunnel. Ensures we can connect to a server signed by root1 but
 # not root2.
 
-from common import *
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TlsServer, print_ok, run_ghostunnel, terminate
 import ssl
 
 if __name__ == "__main__":

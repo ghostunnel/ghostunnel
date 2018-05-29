@@ -5,7 +5,7 @@ Test a client which has disabled authentication. It will not send a TLS Client
 Certificate, but should still perform verification.
 """
 
-from common import *
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TlsServer, print_ok, run_ghostunnel, terminate
 import ssl
 
 if __name__ == "__main__":

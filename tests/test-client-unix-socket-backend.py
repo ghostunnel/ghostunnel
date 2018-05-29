@@ -2,7 +2,7 @@
 
 # Creates a ghostunnel. Ensures ghostunnel can listen on a unix socket.
 
-from common import *
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TlsServer, UnixClient, print_ok, run_ghostunnel, terminate
 import socket
 import os
 import os.path

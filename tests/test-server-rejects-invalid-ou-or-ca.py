@@ -3,7 +3,7 @@
 # Creates a ghostunnel. Ensures client1 can connect but that clients with
 # ou=client2 or ca=other_root can't connect.
 
-from common import *
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, print_ok, run_ghostunnel, terminate
 import ssl
 
 if __name__ == "__main__":

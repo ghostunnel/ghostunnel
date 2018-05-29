@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-from subprocess import run
 import sys
 import time
 import subprocess
@@ -11,7 +10,7 @@ path = './%s.py' % test
 print("=== RUN   %s" % test)
 
 start = time.time()
-proc = run([path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+proc = subprocess.run([path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 end = time.time()
 
 if proc.returncode == 0:

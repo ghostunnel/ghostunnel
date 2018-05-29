@@ -3,7 +3,7 @@
 # Creates a ghostunnel. Ensures that multiple clients can communicate.
 
 from multiprocessing import Process
-from common import *
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, print_ok, run_ghostunnel, terminate
 import time
 import random
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from common import *
+from common import LOCALHOST, RootCert, STATUS_PORT, print_ok, run_ghostunnel, terminate
 
 if __name__ == "__main__":
     ghostunnel = None

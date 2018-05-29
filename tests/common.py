@@ -30,7 +30,7 @@ def terminate(ghostunnel):
     try:
         if ghostunnel:
             ghostunnel.terminate()
-            for i in range(0, 10):
+            for _ in range(0, 10):
                 try:
                     ghostunnel.wait(timeout=1)
                 except BaseException:

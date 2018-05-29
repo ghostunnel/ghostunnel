@@ -2,7 +2,7 @@
 
 # Simulates a hanging handshake, waits for timeout.
 
-from common import *
+from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, print_ok, run_ghostunnel, terminate
 import urllib.request
 import urllib.error
 import urllib.parse

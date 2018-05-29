@@ -2,7 +2,7 @@
 
 # Creates a ghostunnel. Ensures that /_status endpoint works.
 
-from common import *
+from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, TlsClient, print_ok, run_ghostunnel, terminate
 import urllib.request
 import urllib.error
 import urllib.parse

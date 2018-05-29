@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from common import *
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TlsServer, print_ok, run_ghostunnel, terminate
 import http.server
 import threading
 import select

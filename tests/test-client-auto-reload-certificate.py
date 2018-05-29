@@ -7,9 +7,9 @@
 # - tunnel picks up ca change and connects to other_server.
 # - tunnel picks up client cert change and uses it on the status port.
 
-from common import *
 import ssl
 import os
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TlsClient, TlsServer, print_ok, run_ghostunnel, terminate
 
 if __name__ == "__main__":
     ghostunnel = None

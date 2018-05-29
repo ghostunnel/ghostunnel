@@ -3,7 +3,7 @@
 # Creates a ghostunnel. Ensures that tunnel sees & reloads a certificate
 # change.
 
-from common import *
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, print_ok, run_ghostunnel, terminate
 import os
 import signal
 
