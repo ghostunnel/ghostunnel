@@ -16,10 +16,10 @@ import http.client
 
 
 class UnixHTTPConnection(http.client.HTTPConnection):
-    def __init__(self, path):
+    def __init__(self, socket_path):
         super().__init__(self, 'localhost')
         self.host = 'localhost'
-        self.path = path
+        self.path = socket_path
 
     def connect(self):
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)

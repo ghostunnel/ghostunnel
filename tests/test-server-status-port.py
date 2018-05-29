@@ -33,8 +33,8 @@ if __name__ == "__main__":
                                      '--status={0}:{1}'.format(LOCALHOST,
                                                                STATUS_PORT)])
 
-        def urlopen(path): return urllib.request.urlopen(
-            path, cafile='root.crt')
+        def urlopen(path):
+            return urllib.request.urlopen(path, cafile='root.crt')
 
         # block until ghostunnel is up
         TcpClient(STATUS_PORT).connect(20)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
- 
+
 """
 Ensures that client gets a timeout if there is no server.
 """

@@ -41,9 +41,9 @@ if __name__ == "__main__":
         # create certs
         root = RootCert('root')
         root.create_signed_cert('server')
-        for i in range(1, n_clients):
-            root.create_signed_cert("client{0}".format(i))
-            allow_ou.append("--allow-ou=client{0}".format(i))
+        for n in range(1, n_clients):
+            root.create_signed_cert("client{0}".format(n))
+            allow_ou.append("--allow-ou=client{0}".format(n))
 
         # start ghostunnel
         ghostunnel = run_ghostunnel(['server',
@@ -55,15 +55,15 @@ if __name__ == "__main__":
                                      '--cacert=root.crt'] + allow_ou)
 
         # clients should be able to communicate all at the same time.
-        proc = []
-        for i in range(1, n_clients):
+        procs = []
+        for n in range(1, n_clients):
             pair = SocketPair(TlsClient("client{0}".format(
-                i), 'root', 13001), TcpServer(13002))
-            p = Process(target=send_data, args=(i, pair,))
-            p.start()
-            proc.append(p)
-        for p in proc:
-            p.join()
+                n), 'root', 13001), TcpServer(13002))
+            proc = Process(target=send_data, args=(n, pair,))
+            proc.start()
+            procs.append(proc)
+        for proc in procs:
+            proc.join()
 
         print_ok("OK")
     finally:

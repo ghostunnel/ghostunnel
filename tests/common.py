@@ -141,7 +141,7 @@ class TcpClient(MySocket):
         self.port = port
 
     def connect(self, attempts=1, msg=''):
-        for i in range(0, attempts):
+        for _ in range(0, attempts):
             try:
                 self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.socket.settimeout(TIMEOUT)
@@ -192,7 +192,7 @@ class TlsClient(MySocket):
         self.tls_listener = None
 
     def connect(self, attempts=1, peer=None):
-        for i in range(0, attempts):
+        for _ in range(0, attempts):
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.settimeout(TIMEOUT)
@@ -290,7 +290,7 @@ class UnixClient(MySocket):
         return self.socket_path
 
     def connect(self, attempts=1, msg=''):
-        for i in range(0, attempts):
+        for _ in range(0, attempts):
             try:
                 self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                 self.socket.settimeout(TIMEOUT)
@@ -388,6 +388,7 @@ class SocketPair():
         print_ok(msg)
 
     def validate_closing_client_closes_server(self, msg):
+        print_ok(msg)
         self.client.get_socket().shutdown(socket.SHUT_RDWR)
         self.client.get_socket().close()
         # if the tunnel doesn't close the connection, recv(1) will raise a
@@ -395,6 +396,7 @@ class SocketPair():
         self.server.get_socket().recv(1)
 
     def validate_closing_server_closes_client(self, msg):
+        print_ok(msg)
         self.server.get_socket().shutdown(socket.SHUT_RDWR)
         self.server.get_socket().close()
         # if the tunnel doesn't close the connection, recv(1) will raise a
@@ -402,7 +404,7 @@ class SocketPair():
         self.client.get_socket().recv(1)
 
     def validate_client_cert(self, ou, msg):
-        for i in range(1, 20):
+        for _ in range(1, 20):
             try:
                 self.server.validate_client_cert(ou)
                 print_ok(msg)

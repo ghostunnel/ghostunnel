@@ -36,8 +36,8 @@ if __name__ == "__main__":
         client.connect(20)
         client.get_socket().setblocking(False)
 
-        def urlopen(path): return urllib.request.urlopen(
-            path, cafile='root.crt')
+        def urlopen(path):
+            return urllib.request.urlopen(path, cafile='root.crt')
 
         # wait until handshake times out
         timeout = False

@@ -15,6 +15,7 @@ received_metrics = None
 
 class FakeMetricsBridgeHandler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
+        # pylint: disable=global-statement
         global received_metrics
         print_ok("handling POST to fake bridge")
         length = int(self.headers['Content-Length'])
