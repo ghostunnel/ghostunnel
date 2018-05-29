@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
-# Creates a ghostunnel. Ensures that /_status endpoint using UNIX sockets
-# works.
+"""
+Ensures that /_status endpoint using UNIX sockets
+works.
+"""
 
 from common import LOCALHOST, RootCert, print_ok, run_ghostunnel, terminate
 from tempfile import mkdtemp

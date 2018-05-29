@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
-# Creates a ghostunnel. Ensures that /_status endpoint works.
+"""
+Test that ensures that PKCS11 module support works.
+"""
 
 from common import LOCALHOST, STATUS_PORT, TcpClient, print_ok, run_ghostunnel, terminate
 import urllib.request

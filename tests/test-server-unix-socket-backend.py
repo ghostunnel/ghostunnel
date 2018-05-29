@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
-# Creates a ghostunnel. Ensures ghostunnel can connect to a unix socket.
+"""
+Ensures ghostunnel can connect to a unix socket.
+"""
 
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TlsClient, UnixServer, print_ok, run_ghostunnel, terminate
 import socket

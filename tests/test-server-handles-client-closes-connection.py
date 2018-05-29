@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
-# Creates a ghostunnel. Ensures when client disconnects that the server
-# connection also disconnects.
+"""
+Ensures when client disconnects that the server connection also disconnects.
+"""
 
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, print_ok, run_ghostunnel, terminate
 

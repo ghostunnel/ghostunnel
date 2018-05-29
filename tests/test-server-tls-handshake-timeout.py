@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
-# Simulates a hanging handshake, waits for timeout.
+"""
+Simulates a hanging handshake, waits for timeout.
+"""
 
 from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, print_ok, run_ghostunnel, terminate
 import urllib.request

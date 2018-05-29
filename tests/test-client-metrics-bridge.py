@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
-# Creates a ghostunnel. Ensures that /_status endpoint works.
+"""
+Ensures that metrics bridge submission works.
+"""
 
 from common import LOCALHOST, RootCert, STATUS_PORT, print_ok, run_ghostunnel, terminate
 import time

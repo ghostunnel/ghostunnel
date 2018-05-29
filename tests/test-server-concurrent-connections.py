@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
-# Creates a ghostunnel. Ensures that multiple clients can communicate.
+"""
+Ensures that multiple clients can communicate.
+"""
 
 from multiprocessing import Process
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, print_ok, run_ghostunnel, terminate

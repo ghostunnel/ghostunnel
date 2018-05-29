@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
-# Creates a ghostunnel. Ensures client1 can connect but that clients with
-# ou=client2 or ca=other_root can't connect.
+"""
+Ensures client1 can connect but that clients with ou=client2 or ca=other_root can't connect.
+"""
 
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, print_ok, run_ghostunnel, terminate
 import ssl

@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
-# Creates a ghostunnel. Ensures that tunnel sees & reloads a certificate
-# change.
+"""
+Ensures that tunnel sees & reloads a certificate
+change.
+"""
 
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, print_ok, run_ghostunnel, terminate
 import os

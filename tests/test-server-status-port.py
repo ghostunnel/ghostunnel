@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
-# Creates a ghostunnel. Ensures that /_status endpoint works.
+"""
+Ensures that /_status endpoint works.
+"""
 
 from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, TlsClient, print_ok, run_ghostunnel, terminate
 import urllib.request
