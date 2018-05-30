@@ -72,10 +72,10 @@ func (context *Context) signalHandler(proxy *proxy, closeables []io.Closer) {
 
 				logger.Printf("shutdown proxy, waiting for drain")
 				return
-			} else {
-				logger.Printf("received %s, reloading certificates", sig.String())
-				context.reload()
 			}
+
+			logger.Printf("received %s, reloading certificates", sig.String())
+			context.reload()
 		case <-context.watcher:
 			context.reload()
 		}

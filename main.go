@@ -359,7 +359,7 @@ func serverListen(context *Context) error {
 		return err
 	}
 
-	serverACL := auth.Acl{
+	serverACL := auth.ACL{
 		AllowAll:    *serverAllowAll,
 		AllowedCNs:  *serverAllowedCNs,
 		AllowedOUs:  *serverAllowedOUs,
@@ -481,7 +481,7 @@ func (context *Context) serveStatus() error {
 	}
 
 	var listener net.Listener
-	if network == "unix" {
+	if network == unixSocket {
 		listener, err = net.Listen(network, address)
 		listener.(*net.UnixListener).SetUnlinkOnClose(true)
 	} else {
@@ -493,7 +493,7 @@ func (context *Context) serveStatus() error {
 		return err
 	}
 
-	if network != "unix" {
+	if network != unixSocket {
 		listener = tls.NewListener(listener, config)
 	}
 
@@ -537,7 +537,7 @@ func clientBackendDialer(cert *certificate, network, address, host string) (func
 		config.ServerName = *clientServerName
 	}
 
-	clientACL := auth.Acl{
+	clientACL := auth.ACL{
 		AllowedCNs:  *clientAllowedCNs,
 		AllowedOUs:  *clientAllowedOUs,
 		AllowedDNSs: *clientAllowedDNSs,

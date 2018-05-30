@@ -43,7 +43,7 @@ var fakeChains = [][]*x509.Certificate{
 }
 
 func TestAuthorizeNotVerified(t *testing.T) {
-	testACL := Acl{
+	testACL := ACL{
 		AllowAll: true,
 	}
 
@@ -51,7 +51,7 @@ func TestAuthorizeNotVerified(t *testing.T) {
 }
 
 func TestAuthorizeReject(t *testing.T) {
-	testACL := Acl{
+	testACL := ACL{
 		AllowedCNs:  []string{"test"},
 		AllowedOUs:  []string{"test"},
 		AllowedDNSs: []string{"test"},
@@ -62,7 +62,7 @@ func TestAuthorizeReject(t *testing.T) {
 }
 
 func TestAuthorizeAllowAll(t *testing.T) {
-	testACL := Acl{
+	testACL := ACL{
 		AllowAll: true,
 	}
 
@@ -70,7 +70,7 @@ func TestAuthorizeAllowAll(t *testing.T) {
 }
 
 func TestAuthorizeAllowCN(t *testing.T) {
-	testACL := Acl{
+	testACL := ACL{
 		AllowedCNs: []string{"gopher"},
 	}
 
@@ -78,7 +78,7 @@ func TestAuthorizeAllowCN(t *testing.T) {
 }
 
 func TestAuthorizeAllowOU(t *testing.T) {
-	testACL := Acl{
+	testACL := ACL{
 		AllowedOUs: []string{"circle"},
 	}
 
@@ -86,7 +86,7 @@ func TestAuthorizeAllowOU(t *testing.T) {
 }
 
 func TestAuthorizeAllowDNS(t *testing.T) {
-	testACL := Acl{
+	testACL := ACL{
 		AllowedDNSs: []string{"circle"},
 	}
 
@@ -94,7 +94,7 @@ func TestAuthorizeAllowDNS(t *testing.T) {
 }
 
 func TestAuthorizeAllowIP(t *testing.T) {
-	testACL := Acl{
+	testACL := ACL{
 		AllowedIPs: []net.IP{net.IPv4(192, 168, 99, 100)},
 	}
 
@@ -102,7 +102,7 @@ func TestAuthorizeAllowIP(t *testing.T) {
 }
 
 func TestAuthorizeAllowURI(t *testing.T) {
-	testACL := Acl{
+	testACL := ACL{
 		AllowedURIs: []string{"scheme://valid/path"},
 	}
 
@@ -110,7 +110,7 @@ func TestAuthorizeAllowURI(t *testing.T) {
 }
 
 func TestAuthorizeRejectURI(t *testing.T) {
-	testACL := Acl{
+	testACL := ACL{
 		AllowedURIs: []string{"schema://invalid/path"},
 	}
 
@@ -118,7 +118,7 @@ func TestAuthorizeRejectURI(t *testing.T) {
 }
 
 func TestVerifyAllowEmpty(t *testing.T) {
-	testACL := Acl{}
+	testACL := ACL{}
 
 	// For VerifyPeerCertificateClient, we perform hostname verification
 	// and skip ACLs if the ACL is empty (i.e. no flag has been set to verify
@@ -127,7 +127,7 @@ func TestVerifyAllowEmpty(t *testing.T) {
 }
 
 func TestVerifyAllowCN(t *testing.T) {
-	testACL := Acl{
+	testACL := ACL{
 		AllowedCNs: []string{"gopher"},
 	}
 
@@ -135,7 +135,7 @@ func TestVerifyAllowCN(t *testing.T) {
 }
 
 func TestVerifyAllowOU(t *testing.T) {
-	testACL := Acl{
+	testACL := ACL{
 		AllowedOUs: []string{"circle"},
 	}
 
@@ -143,7 +143,7 @@ func TestVerifyAllowOU(t *testing.T) {
 }
 
 func TestVerifyAllowDNS(t *testing.T) {
-	testACL := Acl{
+	testACL := ACL{
 		AllowedDNSs: []string{"circle"},
 	}
 
@@ -151,7 +151,7 @@ func TestVerifyAllowDNS(t *testing.T) {
 }
 
 func TestVerifyAllowIP(t *testing.T) {
-	testACL := Acl{
+	testACL := ACL{
 		AllowedIPs: []net.IP{net.IPv4(192, 168, 99, 100)},
 	}
 
@@ -159,7 +159,7 @@ func TestVerifyAllowIP(t *testing.T) {
 }
 
 func TestVerifyRejectCN(t *testing.T) {
-	testACL := Acl{
+	testACL := ACL{
 		AllowedCNs: []string{"test"},
 	}
 
@@ -167,7 +167,7 @@ func TestVerifyRejectCN(t *testing.T) {
 }
 
 func TestVerifyRejectOU(t *testing.T) {
-	testACL := Acl{
+	testACL := ACL{
 		AllowedOUs: []string{"test"},
 	}
 
@@ -175,7 +175,7 @@ func TestVerifyRejectOU(t *testing.T) {
 }
 
 func TestVerifyRejectDNS(t *testing.T) {
-	testACL := Acl{
+	testACL := ACL{
 		AllowedDNSs: []string{"test"},
 	}
 
@@ -183,7 +183,7 @@ func TestVerifyRejectDNS(t *testing.T) {
 }
 
 func TestVerifyRejectIP(t *testing.T) {
-	testACL := Acl{
+	testACL := ACL{
 		AllowedIPs: []net.IP{net.IPv4(1, 1, 1, 1)},
 	}
 
@@ -191,7 +191,7 @@ func TestVerifyRejectIP(t *testing.T) {
 }
 
 func TestVerifyAllowURI(t *testing.T) {
-	testACL := Acl{
+	testACL := ACL{
 		AllowedURIs: []string{"scheme://valid/path"},
 	}
 
@@ -199,7 +199,7 @@ func TestVerifyAllowURI(t *testing.T) {
 }
 
 func TestVerifyRejectURI(t *testing.T) {
-	testACL := Acl{
+	testACL := ACL{
 		AllowedURIs: []string{"scheme://invalid/path"},
 	}
 
@@ -207,7 +207,7 @@ func TestVerifyRejectURI(t *testing.T) {
 }
 
 func TestVerifyNoVerifiedChains(t *testing.T) {
-	testACL := Acl{}
+	testACL := ACL{}
 
 	assert.NotNil(t, testACL.VerifyPeerCertificateClient(nil, nil), "should reject if no verified chains")
 }
