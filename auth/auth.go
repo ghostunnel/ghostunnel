@@ -27,17 +27,41 @@ type Logger interface {
 	Printf(format string, v ...interface{})
 }
 
-type Acl struct {
-	AllowAll    bool
-	AllowedCNs  []string
-	AllowedOUs  []string
+// ACL represents an access control list for mutually-authenticated TLS connections.
+// These options are disjunctive, if at least one attribute matches access will be granted.
+type ACL struct {
+	// AllowAll will allow all authenticated pricipals. If this option is set,
+	// all other options are ignored as all principals with valid certificates
+	// will be allowed no matter the subject.
+	AllowAll bool
+	// AllowCNs lists common names that should be allowed access. If a principal
+	// has a valid certificate with at least one of these CNs, we grant access.
+	AllowedCNs []string
+	// AllowOUs lists organizational units that should be allowed access. If a
+	// principal has a valid certificate with at least one of these OUs, we grant
+	// access.
+	AllowedOUs []string
+	// AllowDNSs lists DNS SANs that should be allowed access. If a principal
+	// has a valid certificate with at least one of these DNS SANs, we grant
+	// access.
 	AllowedDNSs []string
-	AllowedIPs  []net.IP
+	// AllowIPs lists IP SANs that should be allowed access. If a principal
+	// has a valid certificate with at least one of these IP SANs, we grant
+	// access.
+	AllowedIPs []net.IP
+	// AllowURIs lists URI SANs that should be allowed access. If a principal
+	// has a valid certificate with at least one of these URI SANs, we grant
+	// access.
 	AllowedURIs []string
-	Logger      Logger
+	// Logger is used to log authorization decisions.
+	Logger Logger
 }
 
-func (a Acl) VerifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+// VerifyPeerCertificateServer is an implementation of VerifyPeerCertificate
+// for crypto/tls.Config for servers terminating TLS connections that will
+// enforce access controls based on the given ACL. If the given ACL is empty,
+// no clients will be allowed (fails closed).
+func (a ACL) VerifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
 	if len(verifiedChains) == 0 {
 		return errors.New("unauthorized: invalid principal, or principal not allowed")
 	}
@@ -92,12 +116,18 @@ func (a Acl) VerifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*
 	return errors.New("unauthorized: invalid principal, or principal not allowed")
 }
 
-func (a Acl) VerifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+// VerifyPeerCertificateClient is an implementation of VerifyPeerCertificate
+// for crypto/tls.Config for clients initiating TLS connections that will
+// validate the server certificate based on the given ACL. If the ACL is empty,
+// all servers will be allowed (this function assumes that DNS name verification
+// has already taken place, and therefore fails open).
+func (a ACL) VerifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
 	if len(verifiedChains) == 0 {
 		return errors.New("unauthorized: invalid principal, or principal not allowed")
 	}
 
-	// If none of --verify-cn, --verify-ou, verify-dns-san, verify-uri-san or verify-ip-san is specified, only hostname verification is performed
+	// If the ACL is empty, only hostname verification is performed. The hostname
+	// verification happens in crypto/tls itself, so we can skip our checks here.
 	if len(a.AllowedCNs) == 0 && len(a.AllowedOUs) == 0 && len(a.AllowedDNSs) == 0 && len(a.AllowedURIs) == 0 && len(a.AllowedIPs) == 0 {
 		return nil
 	}

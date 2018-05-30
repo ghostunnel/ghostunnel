@@ -48,8 +48,8 @@ func TestWatchers(t *testing.T) {
 	tmpFile.Close()
 
 	select {
-	case _ = <-watcher:
-	case _ = <-time.Tick(time.Duration(1) * time.Second):
+	case <-watcher:
+	case <-time.Tick(time.Duration(1) * time.Second):
 		t.Fatalf("timeout, no notification on changed file")
 	}
 
@@ -63,8 +63,8 @@ func TestWatchers(t *testing.T) {
 	tmpFile.Close()
 
 	select {
-	case _ = <-watcher:
-	case _ = <-time.Tick(time.Duration(1) * time.Second):
+	case <-watcher:
+	case <-time.Tick(time.Duration(1) * time.Second):
 		t.Fatalf("timeout, no notification on changed file")
 	}
 }

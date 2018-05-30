@@ -28,13 +28,9 @@ import (
 	"github.com/rcrowley/go-metrics"
 )
 
-type proxy struct {
-	quit           int32
-	listener       net.Listener
-	handlers       *sync.WaitGroup
-	connectTimeout time.Duration
-	dial           func() (net.Conn, error)
-}
+const (
+	unixSocket = "unix"
+)
 
 var (
 	openCounter    = metrics.GetOrRegisterCounter("conn.open", metrics.DefaultRegistry)
@@ -45,6 +41,14 @@ var (
 	handshakeTimer = metrics.GetOrRegisterTimer("conn.handshake", metrics.DefaultRegistry)
 	connTimer      = metrics.GetOrRegisterTimer("conn.lifetime", metrics.DefaultRegistry)
 )
+
+type proxy struct {
+	quit           int32
+	listener       net.Listener
+	handlers       *sync.WaitGroup
+	connectTimeout time.Duration
+	dial           func() (net.Conn, error)
+}
 
 // Accept incoming connections in server mode and spawn Go routines to handle them.
 // The signal handler (serverSignalHandle) can close the listener socket and
@@ -154,7 +158,7 @@ func copyData(dst net.Conn, src net.Conn) {
 // for a UNIX socket.
 func parseUnixOrTCPAddress(input string) (network, address, host string, err error) {
 	if strings.HasPrefix(input, "unix:") {
-		network = "unix"
+		network = unixSocket
 		address = input[5:]
 		return
 	}

@@ -48,35 +48,6 @@ B0WlBgRiZld3JfFBuJu6xk1a8+XwwlGOgEsggepjkrAXbjbqnUMAKOJkjFIyIPvk
 nkOOZ6U4eEju7H1S46qlN9ZmUmSrrjwec3H7CnvxQ0ncEyZXlEiTlbO2JQI=
 -----END CERTIFICATE-----`
 
-var testPrivateKey = `
------BEGIN RSA PRIVATE KEY-----
-MIIEowIBAAKCAQEArgRtl/cQxv9yJbmcaU3Kt/k9x/PdmeNZHLWS8GuK48Po1BJl
-pNZM+Ymdt1L9DkUfSn/pmN1kpd/p/tY2cDMnBbRcrs1Pc3YOtZ+BCqutW8sBiV+q
-AecLsXGqrsUKmBaN/svzBxBd90hiSF2wTieiwuYJG/HupL7C5qxvqcvMG2Dtv31m
-87wr+x7OsMiPDN6YFYDVWi/O3D+8YPgnj+EPSGI46oUZay3AXEH2gbh39AnjlW20
-swa6JkJj4DgjIGA8LGmGsR5zrN/wfi79x5BsHyLUgyYPVVOyr1p95WEwq6hKfYGz
-dVEHpz0WkvjX9+03mZilkK15kf6pD8OEr/IPPQIDAQABAoIBAGE8QDDF8S4A1ruV
-t3xv53JdZtQvxAeVLdoI645DyVvzwEmf7gPpayGUb/hb+uLaZN2wE8tDClZVg97N
-u6V+L7PUUGWse1S9BwMdmXFo9HlyOe2U8t4VSEdiiEkX+Q96quVQ+P9deeQPIjvl
-ffpt01isSTLAQOT1YtqaR9rM8cPpvIVix29v/GfBlJSVY7FDjTPHkfv2PiXncxk4
-JKTF2Nc01OSNmRBCN+7TrQOvOSJYr1fwvs7v1xI2ABKQiTK4SbFAf+cpriEkuZsL
-xtlb7KuahG/cb0eeXEVqCEtqeBaCkXqVYUQwQa7u+pFWJbzPf34tSgxMPrQd9Pkr
-ojaE0lECgYEA58/az9tz0ZJt+8zSMnTNkunlcfsR2wKANP19emniDN+PS4CwHPbf
-OxQFIazR2F9kbHtVoRxP6W9HVNRsc+Ta/8D8ZeYs8u7sImwqmMEmlc88YY+6WI7/
-0CRkZN20aZsqgwDsrNcXUq0ifNzulxHjxodDiqheNsZ1Y1SDbrfnk+sCgYEAwCzE
-TsR0Ol2FCBazgCTrs1PlZL64br8Pd7mGtx/wUVA0dg7oROvMC2mn7iR7RKmT67Pj
-oH7tW1cd1B/XPB1WkChbI9CqKR1XeS0+St8wqrinnb7RB4f1gtPYKmKBxjDTZs+c
-of8pebOMieHE2y1OOmuj7kuscK35kEladYfqp3cCgYAk1BUDaO4hoY3vrz7F3WC7
-soVNcoIHtYIA6TUCOcg8G1h8ullAgMg+bpPSIc7E/YLK6V1VV1Yq1A8VHxqL3xQc
-BeETn1oMzoCdh2nNEwK6Uk5ZgagtYaqqut1oWQDMtmYuofr4CsQd0nvkMoWFYsY5
-SEwmv1EYircjrM2kzXrxOQKBgGnb/yM4mqHQBEkJYEW1kNTO4S0W1jfDLX0RCMF1
-aYcRPGTQH2hfz511zRikpfaTxzTuefReFtfa7EZ+Z6zoqFdus43OEv3k+Nt6bbcG
-rSNN5p9BjpmsbjRsB8aJTt1i5gDbWnfuO+WbX05QvITTtyT9SGcq7kl/vFqb3aWi
-gkNPAoGBALtEwTNfsd2vHGn4yS27v1i1eRrVQxiGR/9+/yObTmwBCSHjI6T7H5H7
-pEB0ktBcO+jH0KujblvBJrOTEs599XdFKsX+SOIYxH1plV9qMMd9VBuV66nB7rEO
-u1wsPBxUVfrnDxA8gyM2ghew9xRJNujJVQAgx/vyygr1u2N2LHPL
------END RSA PRIVATE KEY-----`
-
 var testKeystore, _ = base64.StdEncoding.DecodeString(`
 MIIJaQIBAzCCCS8GCSqGSIb3DQEHAaCCCSAEggkcMIIJGDCCA88GCSqGSIb3DQEH
 BqCCA8AwggO8AgEAMIIDtQYJKoZIhvcNAQcBMBwGCiqGSIb3DQEMAQYwDgQI8d08
@@ -180,10 +151,10 @@ func TestBuildConfig(t *testing.T) {
 	defer os.Remove(tmpCaBundle.Name())
 	defer os.Remove(tmpKeystoreNoPrivKey.Name())
 
-	conf, err := buildConfig("", tmpCaBundle.Name())
+	_, err = buildConfig("", tmpCaBundle.Name())
 	assert.NotNil(t, err, "should fail to build config with no cipher suites")
 
-	conf, err = buildConfig("AES,CHACHA", tmpCaBundle.Name())
+	conf, err := buildConfig("AES,CHACHA", tmpCaBundle.Name())
 	assert.Nil(t, err, "should be able to build TLS config")
 	assert.NotNil(t, conf.RootCAs, "config must have CA certs")
 	assert.NotNil(t, conf.ClientCAs, "config must have CA certs")
