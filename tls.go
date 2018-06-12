@@ -53,6 +53,7 @@ func (timeoutError) Temporary() bool { return true }
 
 // certificate wraps a TLS certificate in a reloadable way
 type certificate struct {
+	reloadable                 bool
 	keystorePath, keystorePass string
 	cached                     unsafe.Pointer
 }
@@ -62,7 +63,7 @@ func buildCertificate(keystorePath, keystorePass string) (*certificate, error) {
 	if keystorePath == "" {
 		return &certificate{}, nil
 	}
-	cert := &certificate{keystorePath, keystorePass, nil}
+	cert := &certificate{true, keystorePath, keystorePass, nil}
 	err := cert.reload()
 	if err != nil {
 		return nil, err
@@ -77,6 +78,11 @@ func (c *certificate) getCertificate(clientHello *tls.ClientHelloInfo) (*tls.Cer
 
 // Reload certificate
 func (c *certificate) reload() error {
+	if !c.reloadable {
+		logger.Printf("certificate not reloadable, skipping")
+		return nil
+	}
+
 	var err error
 	if hasPKCS11() {
 		err = c.reloadFromPKCS11()
