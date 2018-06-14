@@ -19,17 +19,12 @@ package main
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"strings"
-	"sync/atomic"
-	"time"
-	"unsafe"
 
-	certigo "github.com/square/certigo/lib"
+	"github.com/square/ghostunnel/certloader"
 )
 
 var cipherSuites = map[string][]uint16{
@@ -45,144 +40,34 @@ var cipherSuites = map[string][]uint16{
 	},
 }
 
-type timeoutError struct{}
-
-func (timeoutError) Error() string   { return "tls: DialWithDialer timed out" }
-func (timeoutError) Timeout() bool   { return true }
-func (timeoutError) Temporary() bool { return true }
-
-// certificate wraps a TLS certificate in a reloadable way
-type certificate struct {
-	reloadable                 bool
-	keystorePath, keystorePass string
-	cached                     unsafe.Pointer
-}
-
 // Build reloadable certificate
-func buildCertificate(keystorePath, keystorePass string) (*certificate, error) {
-	if keystorePath == "" {
-		return &certificate{}, nil
-	}
-	cert := &certificate{true, keystorePath, keystorePass, nil}
-	err := cert.reload()
-	if err != nil {
-		return nil, err
-	}
-	return cert, nil
-}
-
-// Retrieve actual certificate
-func (c *certificate) getCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-	return (*tls.Certificate)(atomic.LoadPointer(&c.cached)), nil
-}
-
-// Reload certificate
-func (c *certificate) reload() error {
-	if !c.reloadable {
-		logger.Printf("certificate not reloadable, skipping")
-		return nil
-	}
-
-	var err error
+func buildCertificate(keystorePath, keystorePass string) (certloader.Certificate, error) {
 	if hasPKCS11() {
-		err = c.reloadFromPKCS11()
-	} else {
-		err = c.reloadFromPEM()
+		return buildCertificateFromPKCS11(keystorePath)
 	}
-
-	if err == nil {
-		cert, _ := c.getCertificate(nil)
-		logger.Printf("loaded certificate with common name '%s'", cert.Leaf.Subject.CommonName)
+	if hasKeychainIdentity() {
+		return buildCertificateFromCertstore()
 	}
-	return err
+	if keystorePath != "" {
+		return certloader.CertificateFromKeystore(keystorePath, keystorePass)
+	}
+	return nil, nil
 }
 
-func (c *certificate) reloadFromPEM() error {
-	keystore, err := os.Open(c.keystorePath)
-	if err != nil {
-		return err
-	}
-
-	var pemBlocks []*pem.Block
-	err = certigo.ReadAsPEMFromFiles(
-		[]*os.File{keystore},
-		"",
-		func(prompt string) string {
-			return c.keystorePass
-		},
-		func(block *pem.Block) {
-			pemBlocks = append(pemBlocks, block)
-		})
-	if err != nil {
-		return fmt.Errorf("error during keystore read (%s)", err)
-	}
-	if len(pemBlocks) == 0 {
-		return errors.New("no certificates or private key found in keystore")
-	}
-
-	var pemBytes []byte
-	for _, block := range pemBlocks {
-		pemBytes = append(pemBytes, pem.EncodeToMemory(block)...)
-	}
-
-	certAndKey, err := tls.X509KeyPair(pemBytes, pemBytes)
-	if err != nil {
-		return err
-	}
-
-	certAndKey.Leaf, err = x509.ParseCertificate(certAndKey.Certificate[0])
-	if err != nil {
-		return err
-	}
-
-	atomic.StorePointer(&c.cached, unsafe.Pointer(&certAndKey))
-	return nil
+func buildCertificateFromPKCS11(certificatePath string) (certloader.Certificate, error) {
+	return certloader.CertificateFromPKCS11Module(certificatePath, *pkcs11Module, *pkcs11TokenLabel, *pkcs11PIN)
 }
 
-func (c *certificate) reloadFromPKCS11() error {
-	// Expecting keystore file to only have certificate,
-	// with the private key being in an HSM/PKCS11 module.
-	keystore, err := os.Open(c.keystorePath)
-	if err != nil {
-		return err
-	}
+func hasPKCS11() bool {
+	return pkcs11Module != nil && *pkcs11Module != ""
+}
 
-	certAndKey := tls.Certificate{}
-	err = certigo.ReadAsX509FromFiles(
-		[]*os.File{keystore}, "", nil,
-		func(cert *x509.Certificate, err error) {
-			if err != nil {
-				logger.Printf("error during keystore read: %s", err)
-				return
-			}
-			if certAndKey.Leaf == nil {
-				certAndKey.Leaf = cert
-			}
-			certAndKey.Certificate = append(certAndKey.Certificate, cert.Raw)
-		})
-	if err != nil {
-		return fmt.Errorf("error during keystore read (%s)", err)
-	}
-	if certAndKey.Leaf == nil {
-		return errors.New("no certificates found in keystore")
-	}
+func buildCertificateFromCertstore() (certloader.Certificate, error) {
+	return certloader.CertificateFromKeychainIdentity(*keychainIdentity)
+}
 
-	// Reuse previously loaded PKCS11 private key if we already have it. We want to
-	// avoid reloading the key every time the cert reloads, as it's a potentially
-	// expensive operation that calls out into a shared library.
-	if c.cached != nil {
-		old, _ := c.getCertificate(nil)
-		certAndKey.PrivateKey = old.PrivateKey
-	} else {
-		privateKey, err := newPKCS11(certAndKey.Leaf.PublicKey)
-		if err != nil {
-			return err
-		}
-		certAndKey.PrivateKey = privateKey
-	}
-
-	atomic.StorePointer(&c.cached, unsafe.Pointer(&certAndKey))
-	return nil
+func hasKeychainIdentity() bool {
+	return keychainIdentity != nil && *keychainIdentity != ""
 }
 
 func caBundle(caBundlePath string) (*x509.CertPool, error) {
@@ -202,34 +87,6 @@ func caBundle(caBundlePath string) (*x509.CertPool, error) {
 	}
 
 	return bundle, nil
-}
-
-// Internal copy of tls.DialWithDialer, adapter so it can work with HTTP CONNECT dialers.
-// See: https://golang.org/pkg/crypto/tls/#DialWithDialer
-func dialWithDialer(dialer Dialer, timeout time.Duration, network, addr string, config *tls.Config) (*tls.Conn, error) {
-	errChannel := make(chan error, 2)
-	time.AfterFunc(timeout, func() {
-		errChannel <- timeoutError{}
-	})
-
-	rawConn, err := dialer.Dial(network, addr)
-	if err != nil {
-		return nil, err
-	}
-
-	conn := tls.Client(rawConn, config)
-	go func() {
-		errChannel <- conn.Handshake()
-	}()
-
-	err = <-errChannel
-
-	if err != nil {
-		rawConn.Close()
-		return nil, err
-	}
-
-	return conn, nil
 }
 
 // buildConfig reads command-line options and builds a tls.Config
