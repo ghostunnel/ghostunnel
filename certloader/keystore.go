@@ -70,7 +70,7 @@ func CertificateFromKeystore(keystorePath, keystorePassword string) (Certificate
 	c := keystoreCertificate{
 		keystorePaths:    []string{keystorePath},
 		keystorePassword: keystorePassword,
-		format:           "PKCS12",
+		format:           "",
 	}
 	err := c.Reload()
 	if err != nil {
