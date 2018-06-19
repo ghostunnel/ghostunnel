@@ -1,5 +1,3 @@
-// +build !cgo
-
 /*-
  * Copyright 2018 Square Inc.
  *
@@ -16,17 +14,17 @@
  * limitations under the License.
  */
 
-package main
+package certloader
 
 import (
-	"crypto"
-	"errors"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func newPKCS11(pubkey crypto.PublicKey) (crypto.PrivateKey, error) {
-	panic(errors.New("PKCS11 unavailable when compiled without CGO support"))
-}
-
-func hasPKCS11() bool {
-	return false
+func TestTimeoutError(t *testing.T) {
+	err := timeoutError{}
+	assert.False(t, err.Error() == "", "Timeout error should have message")
+	assert.True(t, err.Timeout(), "Timeout error should have Timeout() == true")
+	assert.True(t, err.Temporary(), "Timeout error should have Temporary() == true")
 }

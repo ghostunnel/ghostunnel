@@ -165,7 +165,6 @@ func TestBuildConfig(t *testing.T) {
 	assert.NotNil(t, err, "should reject invalid CA cert bundle")
 
 	cert, err := buildCertificate("", "")
-	assert.NotNil(t, cert, "empty keystorePath should lead to empty certificate")
 	assert.Nil(t, err, "empty keystorePath should not raise an error")
 
 	cert, err = buildCertificate(tmpKeystore.Name(), "totes invalid")
@@ -222,7 +221,7 @@ func TestReload(t *testing.T) {
 	c, err := buildCertificate(tmpKeystore.Name(), testKeystorePassword)
 	assert.Nil(t, err, "should be able to build certificate")
 
-	c.reload()
+	c.Reload()
 }
 
 func TestBuildConfigSystemRoots(t *testing.T) {
@@ -236,11 +235,4 @@ func TestBuildConfigSystemRoots(t *testing.T) {
 	assert.NotNil(t, conf.RootCAs, "config must have CA certs")
 	assert.NotNil(t, conf.ClientCAs, "config must have CA certs")
 	assert.True(t, conf.MinVersion == tls.VersionTLS12, "must have correct TLS min version")
-}
-
-func TestTimeoutError(t *testing.T) {
-	err := timeoutError{}
-	assert.False(t, err.Error() == "", "Timeout error should have message")
-	assert.True(t, err.Timeout(), "Timeout error should have Timeout() == true")
-	assert.True(t, err.Temporary(), "Timeout error should have Temporary() == true")
 }

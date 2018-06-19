@@ -1,5 +1,3 @@
-// +build !certstore
-
 /*-
  * Copyright 2018 Square Inc.
  *
@@ -16,17 +14,15 @@
  * limitations under the License.
  */
 
-package main
+package certloader
 
-import "fmt"
+import (
+	"testing"
 
-func validateKeystoreOrIdentity() error {
-	if *keystorePath == "" {
-		return fmt.Errorf("--keystore flag (or --disable-authentication in client mode) is required, try --help")
-	}
-	return nil
-}
+	"github.com/stretchr/testify/assert"
+)
 
-func buildCertificateFromKeystoreOrIdentity() (*certificate, error) {
-	return buildCertificate(*keystorePath, *keystorePass)
+func TestInvalidKeychainIdentity(t *testing.T) {
+	_, err := CertificateFromKeychainIdentity("")
+	assert.NotNil(t, err, "should not load invalid identity")
 }

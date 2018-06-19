@@ -37,6 +37,7 @@ import (
 	"github.com/mwitkow/go-http-dialer"
 	"github.com/rcrowley/go-metrics"
 	"github.com/square/ghostunnel/auth"
+	"github.com/square/ghostunnel/certloader"
 	"github.com/square/go-sq-metrics"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
@@ -46,6 +47,15 @@ var (
 	defaultMetricsPrefix = "ghostunnel"
 )
 
+// Optional flags (enabled conditionally based on build)
+var (
+	keychainIdentity *string
+	pkcs11Module     *string
+	pkcs11TokenLabel *string
+	pkcs11PIN        *string
+)
+
+// Main flags (always supported)
 var (
 	app = kingpin.New("ghostunnel", "A simple SSL/TLS proxy with mutual authentication for securing non-TLS services.")
 
@@ -97,6 +107,17 @@ var (
 	enableProf    = app.Flag("enable-pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
 )
 
+func init() {
+	if certloader.SupportsKeychain() {
+		keychainIdentity = app.Flag("keychain-identity", "Use local keychain identity with given common name (instead of keystore file).").PlaceHolder("CN").String()
+	}
+	if certloader.SupportsPKCS11() {
+		pkcs11Module = app.Flag("pkcs11-module", "Path to PKCS11 module (SO) file (optional).").Envar("PKCS11_MODULE").PlaceHolder("PATH").ExistingFile()
+		pkcs11TokenLabel = app.Flag("pkcs11-token-label", "Token label for slot/key in PKCS11 module (optional).").Envar("PKCS11_TOKEN_LABEL").PlaceHolder("LABEL").String()
+		pkcs11PIN = app.Flag("pkcs11-pin", "PIN code for slot/key in PKCS11 module (optional).").Envar("PKCS11_PIN").PlaceHolder("PIN").String()
+	}
+}
+
 var exitFunc = os.Exit
 
 // Context groups listening context data together
@@ -107,7 +128,7 @@ type Context struct {
 	shutdownTimeout time.Duration
 	dial            func() (net.Conn, error)
 	metrics         *sqmetrics.SquareMetrics
-	cert            *certificate
+	cert            certloader.Certificate
 }
 
 // Dialer is an interface for dialers (either net.Dialer, or http_dialer.HttpTunnel)
@@ -179,20 +200,23 @@ func serverValidateFlags() error {
 		len(*serverAllowedIPs) > 0 ||
 		len(*serverAllowedURIs) > 0
 
-	if err := validateKeystoreOrIdentity(); err != nil {
-		return err
+	if *keystorePath == "" && !hasKeychainIdentity() {
+		return errors.New("at least one of --keystore or --keychain-identity (if supported) flags is required")
+	}
+	if *keystorePath != "" && hasKeychainIdentity() {
+		return errors.New("--keystore and --keychain-identity flags are mutually exclusive")
 	}
 	if !(*serverDisableAuth) && !(*serverAllowAll) && !hasAccessFlags {
-		return fmt.Errorf("at least one access control flag (--allow-{all,cn,ou,dns-san,ip-san,uri-san} or --disable-authentication) is required")
+		return errors.New("at least one access control flag (--allow-{all,cn,ou,dns-san,ip-san,uri-san} or --disable-authentication) is required")
 	}
 	if !(*serverDisableAuth) && *serverAllowAll && hasAccessFlags {
-		return fmt.Errorf("--allow-all is mutually exclusive with other access control flags")
+		return errors.New("--allow-all is mutually exclusive with other access control flags")
 	}
 	if *serverDisableAuth && (*serverAllowAll || hasAccessFlags) {
-		return fmt.Errorf("--disable-authentication is mutually exclusive with other access control flags")
+		return errors.New("--disable-authentication is mutually exclusive with other access control flags")
 	}
 	if !*serverUnsafeTarget && !validateUnixOrLocalhost(*serverForwardAddress) {
-		return fmt.Errorf("--target must be unix:PATH, localhost:PORT, 127.0.0.1:PORT or [::1]:PORT (unless --unsafe-target is set)")
+		return errors.New("--target must be unix:PATH, localhost:PORT, 127.0.0.1:PORT or [::1]:PORT (unless --unsafe-target is set)")
 	}
 
 	for _, suite := range strings.Split(*enabledCipherSuites, ",") {
@@ -206,8 +230,11 @@ func serverValidateFlags() error {
 
 // Validate flags for client mode
 func clientValidateFlags() error {
-	if err := validateKeystoreOrIdentity(); err != nil && !(*clientDisableAuth) {
-		return err
+	if *keystorePath == "" && !hasKeychainIdentity() && !*clientDisableAuth {
+		return errors.New("at least one of --keystore, --keychain-identity (if supported), or --disable-authentication flags is required")
+	}
+	if *keystorePath != "" && hasKeychainIdentity() && !*clientDisableAuth {
+		return errors.New("--keystore, --keychain-identity, and --disable-authentication flags are mutually exclusive")
 	}
 	if !*clientUnsafeListen && !validateUnixOrLocalhost(*clientListenAddress) {
 		return fmt.Errorf("--listen must be unix:PATH, localhost:PORT, 127.0.0.1:PORT or [::1]:PORT (unless --unsafe-listen is set)")
@@ -283,7 +310,7 @@ func run(args []string) error {
 		go watchFiles([]string{*keystorePath}, *timedReload, watcher)
 	}
 
-	cert, err := buildCertificateFromKeystoreOrIdentity()
+	cert, err := buildCertificate(*keystorePath, *keystorePass)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: unable to load certificates: %s\n", err)
 		return err
@@ -368,7 +395,7 @@ func serverListen(context *Context) error {
 		Logger:      logger,
 	}
 
-	config.GetCertificate = context.cert.getCertificate
+	config.GetCertificate = context.cert.GetCertificate
 	config.VerifyPeerCertificate = serverACL.VerifyPeerCertificateServer
 	if *serverDisableAuth {
 		config.ClientAuth = tls.NoClientCert
@@ -472,7 +499,9 @@ func (context *Context) serveStatus() error {
 		return err
 	}
 	config.ClientAuth = tls.NoClientCert
-	config.GetCertificate = context.cert.getCertificate
+	if context.cert != nil {
+		config.GetCertificate = context.cert.GetCertificate
+	}
 
 	network, address, _, err := parseUnixOrTCPAddress(*statusAddress)
 	if err != nil {
@@ -524,7 +553,7 @@ func serverBackendDialer() (func() (net.Conn, error), error) {
 }
 
 // Get backend dialer function in client mode (connecting to a TLS port)
-func clientBackendDialer(cert *certificate, network, address, host string) (func() (net.Conn, error), error) {
+func clientBackendDialer(cert certloader.Certificate, network, address, host string) (func() (net.Conn, error), error) {
 	config, err := buildConfig(*enabledCipherSuites, *caBundlePath)
 	if err != nil {
 		return nil, err
@@ -565,12 +594,6 @@ func clientBackendDialer(cert *certificate, network, address, host string) (func
 			http_dialer.WithTls(proxyConfig))
 	}
 
-	return func() (net.Conn, error) {
-		if !(*clientDisableAuth) {
-			// Fetch latest cached certificate before initiating new connection
-			crt, _ := cert.getCertificate(nil)
-			config.Certificates = []tls.Certificate{*crt}
-		}
-		return dialWithDialer(dialer, *timeoutDuration, network, address, config)
-	}, nil
+	d := certloader.DialerWithCertificate(cert, config, *timeoutDuration, dialer)
+	return func() (net.Conn, error) { return d.Dial(network, address) }, nil
 }

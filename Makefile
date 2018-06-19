@@ -1,4 +1,4 @@
-SOURCE_FILES := $(shell find . \( -name '*.go' -not -path './vendor*' \))
+SOURCE_FILES := $(shell find . \( -name '*.go' -not -path './vendor/*' \))
 INTEGRATION_TESTS := $(shell find tests -name 'test-*.py' -exec basename {} .py \;)
 VERSION := $(shell git describe --always --dirty)
 
@@ -8,7 +8,7 @@ ghostunnel: $(SOURCE_FILES)
 
 # Test binary with coverage instrumentation
 ghostunnel.test: $(SOURCE_FILES)
-	go test -c -covermode=count -coverpkg .
+	go test -c -covermode=count -coverpkg .,./auth,./certloader
 
 # Clean build output
 clean:
@@ -25,6 +25,7 @@ test: unit $(INTEGRATION_TESTS)
 unit:
 	go test -v -covermode=count -coverprofile=coverage-unit-test-base.out .
 	go test -v -covermode=count -coverprofile=coverage-unit-test-auth.out ./auth
+	go test -v -covermode=count -coverprofile=coverage-unit-test-certloader.out ./certloader
 .PHONY: unit
 
 # Run integration tests
