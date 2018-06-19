@@ -293,28 +293,29 @@ cross-compile with CGO enabled).
 To import the server test key into SoftHSM, for example:
 
     softhsm2-util --init-token \
-      --slot 0 \
-      --label ghostunnel-server \
-      --so-pin 1234 \
-      --pin 1234
+        --slot 0 \
+        --label ghostunnel-server \
+        --so-pin 1234 \
+        --pin 1234
 
     softhsm2-util --id 01 \
-      --token ghostunnel-server \
-      --label ghostunnel-server \
-      --import test-keys/server-pkcs8.pem \
-      --so-pin 1234 \
-      --pin 1234
+        --token ghostunnel-server \
+        --label ghostunnel-server \
+        --import test-keys/server-pkcs8.pem \
+        --so-pin 1234 \
+        --pin 1234
 
 To launch ghostunnel with the SoftHSM-backed PKCS11 key (on macOS):
 
     ghostunnel server \
-      --keystore test-keys/server-cert.pem \
-      --pkcs11-module /usr/local/Cellar/softhsm/2.3.0/lib/softhsm/libsofthsm2.so \
-      --pkcs11-token-label ghostunnel-server \
-      --pkcs11-pin 1234 \
-      --listen localhost:8443 \
-      --target localhost:8080 \
-      --allow-cn client
+        --keystore test-keys/server-cert.pem \
+        --pkcs11-module /usr/local/Cellar/softhsm/2.3.0/lib/softhsm/libsofthsm2.so \
+        --pkcs11-token-label ghostunnel-server \
+        --pkcs11-pin 1234 \
+        --listen localhost:8443 \
+        --target localhost:8080 \
+        --cacert test-keys/cacert.pem \
+        --allow-cn client
 
 Note that `--keystore` needs to point to the certificate chain that corresponds
 to the private key in the PKCS#11 module, with the leaf certificate being the
@@ -323,3 +324,25 @@ and `--pkcs11-pin` flags can be used to configure how to load the key from the
 PKCS11 module you are using. It's also possible to use environment variables to
 set PKCS11 options instead of flags (via `PKCS11_MODULE`, `PKCS11_TOKEN_LABEL`
 and `PKCS11_PIN`).
+
+### macOS keychain support (experimental)
+
+If ghostunnel has been compiled with build tag `certstore` (off by default,
+requires macOS 10.12+) a new flag will be available that allows for loading
+certificates from the macOS keychain. This is useful if you have identities
+stored in your local keychain that you want to use with ghostunnel, e.g. if you
+want your private key(s) to be backed by the SEP on newer Touch ID MacBooks.
+Certificates from the keychain can be loaded by selecting them based on Common
+Name (CN).
+
+For example, if you have an identity with CN 'example' in your login keychain:
+
+    ghostunnel client
+        --keychain-identity example
+        --listen localhost:8080
+        --target example.com:443
+        --cacert test-keys/cacert.pem \
+
+The command above launches a ghostunnel instance that uses the certificate and
+private key with Common Name 'example' from your login keychain to proxy plaintext
+connections from localhost:8080 to example.com:443.
