@@ -332,16 +332,16 @@ requires macOS 10.12+) a new flag will be available that allows for loading
 certificates from the macOS keychain. This is useful if you have identities
 stored in your local keychain that you want to use with ghostunnel, e.g. if you
 want your private key(s) to be backed by the SEP on newer Touch ID MacBooks.
-Certificates from the keychain can be loaded by selecting them based on Common
-Name (CN).
+Certificates from the keychain can be loaded by selecting them based on the
+Common Name (CN) of the subject.
 
 For example, if you have an identity with CN 'example' in your login keychain:
 
-    ghostunnel client
-        --keychain-identity example
-        --listen localhost:8080
-        --target example.com:443
-        --cacert test-keys/cacert.pem \
+    ghostunnel client \
+        --keychain-identity example \
+        --listen localhost:8080 \
+        --target example.com:443 \
+        --cacert test-keys/cacert.pem
 
 The command above launches a ghostunnel instance that uses the certificate and
 private key with Common Name 'example' from your login keychain to proxy plaintext
