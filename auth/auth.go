@@ -20,6 +20,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"net"
+	"net/url"
 )
 
 // Logger is used by this package to log messages
@@ -74,43 +75,28 @@ func (a ACL) VerifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*
 	cert := verifiedChains[0][0]
 
 	// Check CN against --allow-cn flag(s).
-	for _, expectedCN := range a.AllowedCNs {
-		if cert.Subject.CommonName == expectedCN {
-			return nil
-		}
+	if contains(a.AllowedCNs, cert.Subject.CommonName) {
+		return nil
 	}
 
 	// Check OUs against --allow-ou flag(s).
-	for _, expectedOU := range a.AllowedOUs {
-		for _, clientOU := range cert.Subject.OrganizationalUnit {
-			if clientOU == expectedOU {
-				return nil
-			}
-		}
+	if intersects(a.AllowedOUs, cert.Subject.OrganizationalUnit) {
+		return nil
 	}
 
-	for _, expectedDNS := range a.AllowedDNSs {
-		for _, clientDNS := range cert.DNSNames {
-			if clientDNS == expectedDNS {
-				return nil
-			}
-		}
+	// Check DNS SANs against --allow-dns-san flag(s).
+	if intersects(a.AllowedDNSs, cert.DNSNames) {
+		return nil
 	}
 
-	for _, expectedIP := range a.AllowedIPs {
-		for _, clientIP := range cert.IPAddresses {
-			if expectedIP.Equal(clientIP) {
-				return nil
-			}
-		}
+	// Check IP SANs against --allow-dns-san flag(s).
+	if intersectsIP(a.AllowedIPs, cert.IPAddresses) {
+		return nil
 	}
 
-	for _, expectedURI := range a.AllowedURIs {
-		for _, clientURI := range cert.URIs {
-			if clientURI.String() == expectedURI {
-				return nil
-			}
-		}
+	// Check URI SANs against --allow-uri-san flag(s).
+	if intersectsURI(a.AllowedURIs, cert.URIs) {
+		return nil
 	}
 
 	return errors.New("unauthorized: invalid principal, or principal not allowed")
@@ -134,47 +120,74 @@ func (a ACL) VerifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*
 
 	cert := verifiedChains[0][0]
 
-	// Check CNs against --verify-cn flag(s).
-	for _, expectedCN := range a.AllowedCNs {
-		if cert.Subject.CommonName == expectedCN {
-			return nil
-		}
+	// Check CN against --verify-cn flag(s).
+	if contains(a.AllowedCNs, cert.Subject.CommonName) {
+		return nil
 	}
 
 	// Check OUs against --verify-ou flag(s).
-	for _, expectedOU := range a.AllowedOUs {
-		for _, serverOU := range cert.Subject.OrganizationalUnit {
-			if serverOU == expectedOU {
-				return nil
-			}
-		}
+	if intersects(a.AllowedOUs, cert.Subject.OrganizationalUnit) {
+		return nil
 	}
 
-	// Check DNSs against --verify-dns-san flag(s).
-	for _, expectedDNS := range a.AllowedDNSs {
-		for _, serverDNS := range cert.DNSNames {
-			if serverDNS == expectedDNS {
-				return nil
-			}
-		}
+	// Check DNS SANs against --verify-dns-san flag(s).
+	if intersects(a.AllowedDNSs, cert.DNSNames) {
+		return nil
 	}
 
-	// Check IPs against --verify-ip-san flag(s).
-	for _, expectedIP := range a.AllowedIPs {
-		for _, serverIP := range cert.IPAddresses {
-			if expectedIP.Equal(serverIP) {
-				return nil
-			}
-		}
+	// Check IP SANs against --verify-dns-san flag(s).
+	if intersectsIP(a.AllowedIPs, cert.IPAddresses) {
+		return nil
 	}
 
-	for _, expectedURI := range a.AllowedURIs {
-		for _, clientURI := range cert.URIs {
-			if clientURI.String() == expectedURI {
-				return nil
-			}
-		}
+	// Check URI SANs against --verify-uri-san flag(s).
+	if intersectsURI(a.AllowedURIs, cert.URIs) {
+		return nil
 	}
 
 	return errors.New("unauthorized: invalid principal, or principal not allowed")
+}
+
+// Returns true if item is contained in set.
+func contains(set []string, item string) bool {
+	for _, c := range set {
+		if c == item {
+			return true
+		}
+	}
+	return false
+}
+
+// Returns true if at least one item from left is also contained in right.
+func intersects(left, right []string) bool {
+	for _, item := range left {
+		if contains(right, item) {
+			return true
+		}
+	}
+	return false
+}
+
+// Returns true if at least one item from left is also contained in right.
+func intersectsIP(left, right []net.IP) bool {
+	for _, l := range left {
+		for _, r := range right {
+			if r.Equal(l) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// Returns true if at least one item from left is also contained in right.
+func intersectsURI(left []string, right []*url.URL) bool {
+	for _, l := range left {
+		for _, r := range right {
+			if r.String() == l {
+				return true
+			}
+		}
+	}
+	return false
 }
