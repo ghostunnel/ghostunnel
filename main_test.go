@@ -118,6 +118,11 @@ func TestFlagValidation(t *testing.T) {
 	err = validateFlags(nil)
 	assert.NotNil(t, err, "invalid --metrics-url should be rejected")
 	*metricsURL = ""
+
+	*timeoutDuration = 0
+	err = validateFlags(nil)
+	assert.NotNil(t, err, "invalid --connect-timeout should be rejected")
+	*timeoutDuration = 10 * time.Second
 }
 
 func TestServerFlagValidation(t *testing.T) {
@@ -156,17 +161,18 @@ func TestServerFlagValidation(t *testing.T) {
 	err = serverValidateFlags()
 	assert.NotNil(t, err, "--disable-authentication mutually exclusive with --allow-all and other server access control flags")
 
-	*serverAllowAll = false
-	*serverAllowedCNs = []string{"test"}
-	*serverDisableAuth = true
-	err = serverValidateFlags()
-	assert.NotNil(t, err, "--disable-authentication mutually exclusive with --allow-all and other server access control flags")
-
 	*serverAllowedCNs = nil
 	*serverAllowAll = true
 	*serverDisableAuth = true
 	err = serverValidateFlags()
 	assert.NotNil(t, err, "--disable-authentication mutually exclusive with --allow-all and other server access control flags")
+
+	*keystorePath = "file"
+	*serverAllowedCNs = []string{"test"}
+	*serverDisableAuth = false
+	err = serverValidateFlags()
+	assert.NotNil(t, err, "--allow-all mutually exclusive with other access control flags")
+	*serverAllowedCNs = nil
 
 	*serverAllowAll = false
 	*serverUnsafeTarget = false
@@ -174,17 +180,51 @@ func TestServerFlagValidation(t *testing.T) {
 	err = serverValidateFlags()
 	assert.NotNil(t, err, "unsafe target should be rejected")
 
+	test := "test"
+	*keystorePath = "file"
+	keychainIdentity = &test
+	err = serverValidateFlags()
+	assert.NotNil(t, err, "--keystore and --keychain-identity can't be set at the same time")
+	keychainIdentity = nil
+
+	*serverDisableAuth = true
+	*serverAllowAll = true
+	err = serverValidateFlags()
+	assert.NotNil(t, err, "can't use access control flags if auth is disabled")
+	*serverDisableAuth = false
+
+	*serverForwardAddress = "example.com:443"
+	err = serverValidateFlags()
+	assert.NotNil(t, err, "should reject non-local address if unsafe flag not set")
+
 	*enabledCipherSuites = "ABC"
 	*serverForwardAddress = "127.0.0.1:8080"
 	err = serverValidateFlags()
 	assert.NotNil(t, err, "invalid cipher suite option should be rejected")
+
+	*enabledCipherSuites = "AES,CHACHA"
+	*serverForwardAddress = ""
+	*serverAllowAll = false
+	*keystorePath = ""
 }
 
 func TestClientFlagValidation(t *testing.T) {
+	*keystorePath = "file"
 	*clientUnsafeListen = false
 	*clientListenAddress = "0.0.0.0:8080"
 	err := clientValidateFlags()
 	assert.NotNil(t, err, "unsafe listen should be rejected")
+
+	*clientDisableAuth = true
+	err = clientValidateFlags()
+	assert.NotNil(t, err, "--keystore can't be used with --disable-authentication")
+	*clientDisableAuth = false
+
+	test := "test"
+	keychainIdentity = &test
+	err = clientValidateFlags()
+	assert.NotNil(t, err, "--keystore can't be used with --keychain-identity")
+	keychainIdentity = nil
 
 	*enabledCipherSuites = "ABC"
 	*clientListenAddress = "127.0.0.1:8080"

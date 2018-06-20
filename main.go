@@ -233,7 +233,9 @@ func clientValidateFlags() error {
 	if *keystorePath == "" && !hasKeychainIdentity() && !*clientDisableAuth {
 		return errors.New("at least one of --keystore, --keychain-identity (if supported), or --disable-authentication flags is required")
 	}
-	if *keystorePath != "" && hasKeychainIdentity() && !*clientDisableAuth {
+	if (*keystorePath != "" && hasKeychainIdentity()) ||
+		(*keystorePath != "" && *clientDisableAuth) ||
+		(hasKeychainIdentity() && *clientDisableAuth) {
 		return errors.New("--keystore, --keychain-identity, and --disable-authentication flags are mutually exclusive")
 	}
 	if !*clientUnsafeListen && !validateUnixOrLocalhost(*clientListenAddress) {
