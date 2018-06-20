@@ -1,3 +1,5 @@
+// +build cgo
+
 /*-
  * Copyright 2018 Square Inc.
  *
@@ -17,7 +19,9 @@
 package certloader
 
 import (
+	"crypto/tls"
 	"testing"
+	"unsafe"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -25,4 +29,19 @@ import (
 func TestInvalidPKCS11Module(t *testing.T) {
 	_, err := CertificateFromPKCS11Module("", "", "", "")
 	assert.NotNil(t, err, "should not load invalid PKCS11 certificate/key")
+}
+
+func TestGetCachedCertificatePKCS11(t *testing.T) {
+	tlscert := &tls.Certificate{}
+	p11cert := &pkcs11Certificate{
+		cached: unsafe.Pointer(tlscert),
+	}
+
+	c, err := p11cert.GetCertificate(nil)
+	assert.Nil(t, err, "should be able to read certificate")
+	assert.Equal(t, tlscert, c)
+
+	c, err = p11cert.GetClientCertificate(nil)
+	assert.Nil(t, err, "should be able to read certificate")
+	assert.Equal(t, tlscert, c)
 }

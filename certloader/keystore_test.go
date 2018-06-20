@@ -17,9 +17,11 @@
 package certloader
 
 import (
+	"crypto/tls"
 	"io/ioutil"
 	"os"
 	"testing"
+	"unsafe"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -108,4 +110,19 @@ func TestCertificateFromPEMFilesInvalid(t *testing.T) {
 	cert, err := CertificateFromPEMFiles(file.Name(), file.Name())
 	assert.Nil(t, cert, "should not return certificate on error")
 	assert.NotNil(t, err, "should read PEM file with certificate & private key")
+}
+
+func TestGetCachedCertificateKeystore(t *testing.T) {
+	tlscert := &tls.Certificate{}
+	kscert := &keystoreCertificate{
+		cached: unsafe.Pointer(tlscert),
+	}
+
+	c, err := kscert.GetCertificate(nil)
+	assert.Nil(t, err, "should be able to read certificate")
+	assert.Equal(t, tlscert, c)
+
+	c, err = kscert.GetClientCertificate(nil)
+	assert.Nil(t, err, "should be able to read certificate")
+	assert.Equal(t, tlscert, c)
 }
