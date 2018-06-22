@@ -61,6 +61,38 @@ if __name__ == "__main__":
         if not isinstance(received_metrics, list):
             raise Exception("ghostunnel metrics expected to be JSON list")
 
+        # some metrics we expect to be present
+        expected_metrics = [
+            "ghostunnel.accept.total",
+            "ghostunnel.accept.success",
+            "ghostunnel.accept.timeout",
+            "ghostunnel.accept.error",
+            "ghostunnel.conn.open",
+            "ghostunnel.conn.lifetime.count",
+            "ghostunnel.conn.lifetime.min",
+            "ghostunnel.conn.lifetime.max",
+            "ghostunnel.conn.lifetime.mean",
+            "ghostunnel.conn.lifetime.50-percentile",
+            "ghostunnel.conn.lifetime.75-percentile",
+            "ghostunnel.conn.lifetime.95-percentile",
+            "ghostunnel.conn.lifetime.99-percentile",
+            "ghostunnel.conn.handshake.count",
+            "ghostunnel.conn.handshake.min",
+            "ghostunnel.conn.handshake.max",
+            "ghostunnel.conn.handshake.mean",
+            "ghostunnel.conn.handshake.50-percentile",
+            "ghostunnel.conn.handshake.75-percentile",
+            "ghostunnel.conn.handshake.95-percentile",
+            "ghostunnel.conn.handshake.99-percentile",
+        ]
+
+        metrics_found = [item['metric'] for item in received_metrics]
+        missing_metrics = [metric for metric in expected_metrics if metric not in metrics_found]
+
+        if missing_metrics:
+            raise Exception('missing metrics from ghostunnel instance: %s' % missing_metrics)
+
+
         print_ok("OK")
     finally:
         terminate(ghostunnel)
