@@ -275,3 +275,33 @@ func TestInvalidCABundle(t *testing.T) {
 	})
 	assert.NotNil(t, err, "invalid CA bundle should exit with error")
 }
+
+func TestParseUnixOrTcpAddress(t *testing.T) {
+	network, address, host, _ := parseUnixOrTCPAddress("unix:/tmp/foo")
+	if network != "unix" {
+		t.Errorf("unexpected network: %s", network)
+	}
+	if address != "/tmp/foo" {
+		t.Errorf("unexpected address: %s", address)
+	}
+	if host != "" {
+		t.Errorf("unexpected host: %s", host)
+	}
+
+	network, address, host, _ = parseUnixOrTCPAddress("localhost:8080")
+	if network != "tcp" {
+		t.Errorf("unexpected network: %s", network)
+	}
+	if address != "localhost:8080" {
+		t.Errorf("unexpected address: %s", address)
+	}
+	if host != "localhost" {
+		t.Errorf("unexpected host: %s", host)
+	}
+
+	_, _, _, err := parseUnixOrTCPAddress("localhost")
+	assert.NotNil(t, err, "was able to parse invalid host/port")
+
+	_, _, _, err = parseUnixOrTCPAddress("256.256.256.256:99999")
+	assert.NotNil(t, err, "was able to parse invalid host/port")
+}

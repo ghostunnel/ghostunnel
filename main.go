@@ -20,7 +20,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/http"
@@ -28,7 +27,6 @@ import (
 	"os"
 	"runtime"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/cyberdelia/go-metrics-graphite"
@@ -38,6 +36,7 @@ import (
 	"github.com/rcrowley/go-metrics"
 	"github.com/square/ghostunnel/auth"
 	"github.com/square/ghostunnel/certloader"
+	"github.com/square/ghostunnel/proxy"
 	"github.com/square/go-sq-metrics"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
@@ -409,13 +408,12 @@ func serverListen(context *Context) error {
 		return err
 	}
 
-	proxy := &proxy{
-		quit:           0,
-		listener:       tls.NewListener(listener, config),
-		handlers:       &sync.WaitGroup{},
-		connectTimeout: *timeoutDuration,
-		dial:           context.dial,
-	}
+	p := proxy.New(
+		tls.NewListener(listener, config),
+		*timeoutDuration,
+		context.dial,
+		logger,
+	)
 
 	if *statusAddress != "" {
 		err := context.serveStatus()
@@ -427,11 +425,11 @@ func serverListen(context *Context) error {
 
 	logger.Printf("listening for connections on %s", (*serverListenAddress).String())
 
-	go proxy.accept()
+	go p.Accept()
 
 	context.status.Listening()
-	context.signalHandler(proxy, []io.Closer{listener})
-	proxy.handlers.Wait()
+	context.signalHandler(p)
+	p.Wait()
 
 	return nil
 }
@@ -456,13 +454,12 @@ func clientListen(context *Context) error {
 		ul.SetUnlinkOnClose(true)
 	}
 
-	proxy := &proxy{
-		quit:           0,
-		listener:       listener,
-		handlers:       &sync.WaitGroup{},
-		connectTimeout: *timeoutDuration,
-		dial:           context.dial,
-	}
+	p := proxy.New(
+		listener,
+		*timeoutDuration,
+		context.dial,
+		logger,
+	)
 
 	if *statusAddress != "" {
 		err := context.serveStatus()
@@ -474,11 +471,11 @@ func clientListen(context *Context) error {
 
 	logger.Printf("listening for connections on %s", *clientListenAddress)
 
-	go proxy.accept()
+	go p.Accept()
 
 	context.status.Listening()
-	context.signalHandler(proxy, []io.Closer{listener})
-	proxy.handlers.Wait()
+	context.signalHandler(p)
+	p.Wait()
 
 	return nil
 }
@@ -511,7 +508,7 @@ func (context *Context) serveStatus() error {
 	}
 
 	var listener net.Listener
-	if network == unixSocket {
+	if network == "unix" {
 		listener, err = net.Listen(network, address)
 		listener.(*net.UnixListener).SetUnlinkOnClose(true)
 	} else {
@@ -523,7 +520,7 @@ func (context *Context) serveStatus() error {
 		return err
 	}
 
-	if network != unixSocket {
+	if network != "unix" {
 		listener = tls.NewListener(listener, config)
 	}
 
@@ -598,4 +595,29 @@ func clientBackendDialer(cert certloader.Certificate, network, address, host str
 
 	d := certloader.DialerWithCertificate(cert, config, *timeoutDuration, dialer)
 	return func() (net.Conn, error) { return d.Dial(network, address) }, nil
+}
+
+// Parse a string representing a TCP address or UNIX socket for our backend
+// target. The input can be or the form "HOST:PORT" for TCP or "unix:PATH"
+// for a UNIX socket.
+func parseUnixOrTCPAddress(input string) (network, address, host string, err error) {
+	if strings.HasPrefix(input, "unix:") {
+		network = "unix"
+		address = input[5:]
+		return
+	}
+
+	host, _, err = net.SplitHostPort(input)
+	if err != nil {
+		return
+	}
+
+	// Make sure target address resolves
+	_, err = net.ResolveTCPAddr("tcp", input)
+	if err != nil {
+		return
+	}
+
+	network, address = "tcp", input
+	return
 }

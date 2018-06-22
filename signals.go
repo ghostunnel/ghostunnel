@@ -18,11 +18,11 @@ package main
 
 import (
 	ctx "context"
-	"io"
 	"os"
 	"os/signal"
-	"sync/atomic"
 	"time"
+
+	"github.com/square/ghostunnel/proxy"
 )
 
 // isShutdownSignal checks if the received signal is a shutdown signal
@@ -40,7 +40,7 @@ func isShutdownSignal(sig os.Signal) bool {
 // signalHandler listens for incoming shutdown or refresh signals. If we get
 // a shutdown signal, we stop listening for new connections and gracefully
 // terminate the process. If we get a refresh signal, reload certificates.
-func (context *Context) signalHandler(proxy *proxy, closeables []io.Closer) {
+func (context *Context) signalHandler(p *proxy.Proxy) {
 	signals := make(chan os.Signal, 3)
 	signal.Notify(signals, append(shutdownSignals, refreshSignals...)...)
 	defer signal.Stop(signals)
@@ -65,11 +65,7 @@ func (context *Context) signalHandler(proxy *proxy, closeables []io.Closer) {
 					exitFunc(1)
 				})
 
-				atomic.StoreInt32(&proxy.quit, 1)
-				for _, closeable := range closeables {
-					closeable.Close()
-				}
-
+				p.Shutdown()
 				logger.Printf("shutdown proxy, waiting for drain")
 				return
 			}
