@@ -85,6 +85,9 @@ func New(listener net.Listener, timeout time.Duration, dial Dialer, logger Logge
 
 // Shutdown tells the proxy to close the listener & stop accepting connections.
 func (p *Proxy) Shutdown() {
+	if atomic.LoadInt32(&p.quit) == 1 {
+		return
+	}
 	atomic.StoreInt32(&p.quit, 1)
 	p.Listener.Close()
 	p.handlers.Done()
