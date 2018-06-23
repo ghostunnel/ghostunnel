@@ -121,7 +121,6 @@ var exitFunc = os.Exit
 
 // Context groups listening context data together
 type Context struct {
-	watcher         chan bool
 	status          *statusHandler
 	statusHTTP      *http.Server
 	shutdownTimeout time.Duration
@@ -305,12 +304,6 @@ func run(args []string) error {
 	}
 	metrics := sqmetrics.NewMetrics(*metricsURL, *metricsPrefix, client, *metricsInterval, metrics.DefaultRegistry, logger)
 
-	// Set up file watchers (if requested)
-	watcher := make(chan bool, 1)
-	if *timedReload > 0 {
-		go watchFiles([]string{*keystorePath}, *timedReload, watcher)
-	}
-
 	cert, err := buildCertificate(*keystorePath, *keystorePass)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: unable to load certificates: %s\n", err)
@@ -332,7 +325,8 @@ func run(args []string) error {
 		logger.Printf("using target address %s", *serverForwardAddress)
 
 		status := newStatusHandler(dial)
-		context := &Context{watcher, status, nil, *shutdownTimeout, dial, metrics, cert}
+		context := &Context{status, nil, *shutdownTimeout, dial, metrics, cert}
+		go context.reloadHandler(*timedReload)
 
 		// Start listening
 		err = serverListen(context)
@@ -361,7 +355,8 @@ func run(args []string) error {
 		}
 
 		status := newStatusHandler(dial)
-		context := &Context{watcher, status, nil, *shutdownTimeout, dial, metrics, cert}
+		context := &Context{status, nil, *shutdownTimeout, dial, metrics, cert}
+		go context.reloadHandler(*timedReload)
 
 		// Start listening
 		err = clientListen(context)

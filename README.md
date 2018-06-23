@@ -36,7 +36,7 @@ control.
 **Certificate hotswapping**: Ghostunnel can reload certificates at runtime
 without dropping existing connections. To trigger a reload, simply send
 `SIGUSR1` to the process (or set a time-based reloading interval). This will
-cause ghostunnel to reload the keystore files. Once successful, the reloaded
+cause ghostunnel to reload the certificate/key. Once successful, the reloaded
 certificate will be used for new connections going forward.
 
 **Monitoring and metrics**: Ghostunnel has a built-in status feature that

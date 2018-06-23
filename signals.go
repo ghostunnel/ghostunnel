@@ -72,9 +72,16 @@ func (context *Context) signalHandler(p *proxy.Proxy) {
 
 			logger.Printf("received %s, reloading certificates", sig.String())
 			context.reload()
-		case <-context.watcher:
-			context.reload()
 		}
+	}
+}
+
+func (context *Context) reloadHandler(interval time.Duration) {
+	if interval == 0 {
+		return
+	}
+	for range time.Tick(interval) {
+		context.reload()
 	}
 }
 
