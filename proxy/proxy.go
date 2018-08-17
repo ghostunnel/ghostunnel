@@ -18,13 +18,13 @@ package proxy
 
 import (
 	"crypto/tls"
-	"io"
 	"net"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/rcrowley/go-metrics"
+	"github.com/square/ghostunnel/copier"
 )
 
 var (
@@ -188,16 +188,16 @@ func (p *Proxy) fuse(client, backend net.Conn) {
 	defer p.logConnectionMessage("closed", client, backend)
 	p.logConnectionMessage("opening", client, backend)
 
-	go func() { p.copyData(client, backend) }()
-	p.copyData(backend, client)
+	go func() { p.copyData(client, backend, copier.Reverse) }()
+	p.copyData(backend, client, copier.Forward)
 }
 
 // Copy data between two connections
-func (p *Proxy) copyData(dst net.Conn, src net.Conn) {
+func (p *Proxy) copyData(dst, src net.Conn, direction copier.Direction) {
 	defer dst.Close()
 	defer src.Close()
 
-	_, err := io.Copy(dst, src)
+	err := copier.NewSimpleCopier(dst, src, direction).Run()
 
 	if err != nil {
 		p.Logger.Printf("error: %s", err)

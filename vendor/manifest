@@ -34,6 +34,14 @@
 			"notests": true
 		},
 		{
+			"importpath": "github.com/jordwest/mock-conn",
+			"repository": "https://github.com/jordwest/mock-conn",
+			"vcs": "git",
+			"revision": "4896c6bd164172da9f78789f233b470a3a6fb359",
+			"branch": "master",
+			"notests": true
+		},
+		{
 			"importpath": "github.com/kavu/go_reuseport",
 			"repository": "https://github.com/kavu/go_reuseport",
 			"vcs": "git",
