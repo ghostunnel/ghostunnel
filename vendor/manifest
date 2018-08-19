@@ -18,11 +18,46 @@
 			"notests": true
 		},
 		{
+			"importpath": "github.com/beorn7/perks/quantile",
+			"repository": "https://github.com/beorn7/perks",
+			"vcs": "git",
+			"revision": "3a771d992973f24aa725d07868b467d1ddfceafb",
+			"branch": "master",
+			"path": "/quantile",
+			"notests": true
+		},
+		{
 			"importpath": "github.com/cyberdelia/go-metrics-graphite",
 			"repository": "https://github.com/cyberdelia/go-metrics-graphite",
 			"vcs": "git",
 			"revision": "39f87cc3b432bbb898d7c643c0e93cac2bc865ad",
 			"branch": "master",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/deathowl/go-metrics-prometheus",
+			"repository": "https://github.com/deathowl/go-metrics-prometheus",
+			"vcs": "git",
+			"revision": "091131e49c335a452af504b8104ac262da41a6e9",
+			"branch": "master",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/golang/protobuf/proto",
+			"repository": "https://github.com/golang/protobuf",
+			"vcs": "git",
+			"revision": "aa810b61a9c79d51363740d207bb46cf8e620ed5",
+			"branch": "master",
+			"path": "/proto",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/golang/protobuf/ptypes/any",
+			"repository": "https://github.com/golang/protobuf",
+			"vcs": "git",
+			"revision": "aa810b61a9c79d51363740d207bb46cf8e620ed5",
+			"branch": "master",
+			"path": "ptypes/any",
 			"notests": true
 		},
 		{
@@ -58,6 +93,15 @@
 			"notests": true
 		},
 		{
+			"importpath": "github.com/matttproud/golang_protobuf_extensions/pbutil",
+			"repository": "https://github.com/matttproud/golang_protobuf_extensions",
+			"vcs": "git",
+			"revision": "c12348ce28de40eed0136aa2b644d0ee0650e56c",
+			"branch": "master",
+			"path": "/pbutil",
+			"notests": true
+		},
+		{
 			"importpath": "github.com/miekg/pkcs11",
 			"repository": "https://github.com/miekg/pkcs11",
 			"vcs": "git",
@@ -78,6 +122,59 @@
 			"repository": "https://github.com/pkg/errors",
 			"vcs": "git",
 			"revision": "816c9085562cd7ee03e7f8188a1cfd942858cded",
+			"branch": "master",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/prometheus/client_golang/prometheus",
+			"repository": "https://github.com/prometheus/client_golang",
+			"vcs": "git",
+			"revision": "5b23715facdef1452016bae512489c3cdf82458c",
+			"branch": "master",
+			"path": "/prometheus",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/prometheus/client_model/go",
+			"repository": "https://github.com/prometheus/client_model",
+			"vcs": "git",
+			"revision": "5c3871d89910bfb32f5fcab2aa4b9ec68e65a99f",
+			"branch": "master",
+			"path": "/go",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/prometheus/common/expfmt",
+			"repository": "https://github.com/prometheus/common",
+			"vcs": "git",
+			"revision": "c7de2306084e37d54b8be01f3541a8464345e9a5",
+			"branch": "master",
+			"path": "expfmt",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg",
+			"repository": "https://github.com/prometheus/common",
+			"vcs": "git",
+			"revision": "c7de2306084e37d54b8be01f3541a8464345e9a5",
+			"branch": "master",
+			"path": "internal/bitbucket.org/ww/goautoneg",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/prometheus/common/model",
+			"repository": "https://github.com/prometheus/common",
+			"vcs": "git",
+			"revision": "c7de2306084e37d54b8be01f3541a8464345e9a5",
+			"branch": "master",
+			"path": "/model",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/prometheus/procfs",
+			"repository": "https://github.com/prometheus/procfs",
+			"vcs": "git",
+			"revision": "05ee40e3a273f7245e8777337fc7b46e533a9a92",
 			"branch": "master",
 			"notests": true
 		},
@@ -266,6 +363,15 @@
 			"revision": "be8372ae8ec5c6daaed3cc28ebf73c54b737c240",
 			"branch": "master",
 			"path": "vendor/github.com/pmezard/go-difflib/difflib",
+			"notests": true
+		},
+		{
+			"importpath": "golang.org/x/net/context",
+			"repository": "https://go.googlesource.com/net",
+			"vcs": "git",
+			"revision": "aaf60122140d3fcf75376d319f0554393160eb50",
+			"branch": "master",
+			"path": "/context",
 			"notests": true
 		},
 		{
