@@ -33,12 +33,16 @@ import (
 	"github.com/hashicorp/go-syslog"
 	"github.com/kavu/go_reuseport"
 	"github.com/mwitkow/go-http-dialer"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rcrowley/go-metrics"
 	"github.com/square/ghostunnel/auth"
 	"github.com/square/ghostunnel/certloader"
 	"github.com/square/ghostunnel/proxy"
 	"github.com/square/go-sq-metrics"
 	"gopkg.in/alecthomas/kingpin.v2"
+
+	prometheusmetrics "github.com/deathowl/go-metrics-prometheus"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 var (
@@ -286,6 +290,10 @@ func run(args []string) error {
 	if *metricsURL != "" {
 		logger.Printf("metrics enabled; reporting metrics via POST to %s", *metricsURL)
 	}
+	// Always enable prometheus registry. The overhead should be quite minimal as an in-mem map is updated
+	// with the values.
+	pClient := prometheusmetrics.NewPrometheusProvider(metrics.DefaultRegistry, *metricsPrefix, "", prometheus.DefaultRegisterer, 1*time.Second)
+	go pClient.UpdatePrometheusMetrics()
 
 	// Read CA bundle for passing to metrics library
 	ca, err := caBundle(*caBundlePath)
@@ -477,9 +485,20 @@ func clientListen(context *Context) error {
 
 // Serve /_status (if configured)
 func (context *Context) serveStatus() error {
+	promHandler := promhttp.Handler()
+
 	mux := http.NewServeMux()
 	mux.Handle("/_status", context.status)
-	mux.Handle("/_metrics", context.metrics)
+	mux.HandleFunc("/_metrics", func(w http.ResponseWriter, r *http.Request) {
+		params := r.URL.Query()
+		format, ok := params["format"]
+		if !ok || format[0] != "prometheus" {
+			context.metrics.ServeHTTP(w, r)
+			return
+		}
+		promHandler.ServeHTTP(w, r)
+	})
+
 	if *enableProf {
 		mux.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
 		mux.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
