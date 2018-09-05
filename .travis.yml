@@ -9,7 +9,7 @@ services:
   - docker
 
 go:
-  - '1.10.2'
+  - '1.10.4'
 
 deploy:
   - provider: releases

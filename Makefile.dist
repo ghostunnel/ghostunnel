@@ -2,7 +2,7 @@
 MKFILE_PATH := $(lastword $(MAKEFILE_LIST))
 CURRENT_DIR := $(patsubst %/,%,$(dir $(realpath $(MKFILE_PATH))))
 
-GOVERSION ?= 1.10
+GOVERSION ?= 1.10.1
 
 # Current system information
 GOOS ?= $(shell go env GOOS)
