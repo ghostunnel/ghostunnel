@@ -73,7 +73,7 @@ Binaries can be built from source as follows (cross-compile requires Docker and 
     # Cross-compile release binaries
     make -f Makefile.dist dist
 
-Note that ghostunnel requires Go 1.10 or later to build, and CGO is required for
+Note that ghostunnel requires Go 1.11 or later to build, and CGO is required for
 PKCS#11 support.  See also [CROSS-COMPILE.md](CROSS-COMPILE.md) for
 instructions on how to cross-compile a custom build with CGO enabled.
 
@@ -93,7 +93,7 @@ To run tests:
     make test
 
     # Option 2: run unit & integration tests in a Docker container
-    GO_VERSION=1.10 make docker-test
+    GO_VERSION=1.11 make docker-test
 
     # Open coverage information in browser
     go tool cover -html coverage-merged.out
