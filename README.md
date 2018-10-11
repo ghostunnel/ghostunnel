@@ -133,9 +133,10 @@ incoming TLS connections on `localhost:8443` and forwarding them to
 `localhost:8080`. 
 
 To set allowed clients, you must specify at least one of `--allow-all`,
-`--allow-cn`, `--allow-ou`, `--allow-dns-san`, or `--allow-ip-san`. It's
-possible to use these together or to specify them repeatedly to allow multiple
-clients. In this example, we assume that the CN of the client cert we want to
+`--allow-cn`, `--allow-ou`, `--allow-dns` or `--allow-uri`. All checks are made
+against the certificate of the client. Multiple flags are treated as a logical
+disjunction (OR), meaning clients can connect as long as any of the flags
+matches. In this example, we assume that the CN of the client cert we want to
 accept connections from is `client`.
 
 Start a backend server:
