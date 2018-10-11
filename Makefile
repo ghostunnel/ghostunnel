@@ -8,7 +8,7 @@ ghostunnel: $(SOURCE_FILES)
 
 # Test binary with coverage instrumentation
 ghostunnel.test: $(SOURCE_FILES)
-	go test -c -covermode=count -coverpkg .,./auth,./certloader,./proxy
+	go test -c -covermode=count -coverpkg .,./auth,./certloader,./proxy,./wildcard
 
 # Clean build output
 clean:
