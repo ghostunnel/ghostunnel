@@ -42,4 +42,4 @@ build_script:
   - set CGO_ENABLED=1
   - go build -o ghostunnel-%GIT_VERSION%-windows-%GOARCH%-with-pkcs11.exe -ldflags "-w -extldflags \"-static\" -extld=%EXTLD%" -i .
   # Execute tests
-  - go test -v . ./auth
+  - go test -v ./...

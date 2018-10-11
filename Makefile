@@ -27,6 +27,7 @@ unit:
 	go test -v -covermode=count -coverprofile=coverage-unit-test-auth.out ./auth
 	go test -v -covermode=count -coverprofile=coverage-unit-test-certloader.out ./certloader
 	go test -v -covermode=count -coverprofile=coverage-unit-test-proxy.out ./proxy
+	go test -v -covermode=count -coverprofile=coverage-unit-test-wildcard.out ./wildcard
 .PHONY: unit
 
 # Run integration tests

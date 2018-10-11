@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"io/ioutil"
 	"os"
+	"runtime"
 	"testing"
 	"unsafe"
 
@@ -95,6 +96,11 @@ func TestCertificateFromPEMFilesValid(t *testing.T) {
 	assert.Nil(t, cert.Reload(), "should be able to reload")
 
 	// Remove file & test reload failure
+	if runtime.GOOS == "windows" {
+		// Reloading not supported on Windows
+		return
+	}
+
 	os.Remove(file.Name())
 	assert.NotNil(t, cert.Reload(), "should not be able to reload")
 }

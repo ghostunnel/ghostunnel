@@ -23,6 +23,7 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/square/ghostunnel/wildcard"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -55,7 +56,7 @@ func TestAuthorizeReject(t *testing.T) {
 		AllowedCNs:  []string{"test"},
 		AllowedOUs:  []string{"test"},
 		AllowedDNSs: []string{"test"},
-		AllowedURIs: []string{"test"},
+		AllowedURIs: []wildcard.Matcher{wildcard.MustCompile("test")},
 	}
 
 	assert.NotNil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "should reject cert w/o matching CN/OU")
@@ -103,7 +104,7 @@ func TestAuthorizeAllowIP(t *testing.T) {
 
 func TestAuthorizeAllowURI(t *testing.T) {
 	testACL := ACL{
-		AllowedURIs: []string{"scheme://valid/path"},
+		AllowedURIs: []wildcard.Matcher{wildcard.MustCompile("scheme://valid/path")},
 	}
 
 	assert.Nil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "allow-uri-san should allow clients with matching URI SAN")
@@ -111,7 +112,7 @@ func TestAuthorizeAllowURI(t *testing.T) {
 
 func TestAuthorizeRejectURI(t *testing.T) {
 	testACL := ACL{
-		AllowedURIs: []string{"schema://invalid/path"},
+		AllowedURIs: []wildcard.Matcher{wildcard.MustCompile("scheme://invalid/path")},
 	}
 
 	assert.NotNil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "should reject cert w/o matching URI")
@@ -192,7 +193,7 @@ func TestVerifyRejectIP(t *testing.T) {
 
 func TestVerifyAllowURI(t *testing.T) {
 	testACL := ACL{
-		AllowedURIs: []string{"scheme://valid/path"},
+		AllowedURIs: []wildcard.Matcher{wildcard.MustCompile("scheme://valid/path")},
 	}
 
 	assert.Nil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "verify-uri-san should allow clients with matching URI SAN")
@@ -200,7 +201,7 @@ func TestVerifyAllowURI(t *testing.T) {
 
 func TestVerifyRejectURI(t *testing.T) {
 	testACL := ACL{
-		AllowedURIs: []string{"scheme://invalid/path"},
+		AllowedURIs: []wildcard.Matcher{wildcard.MustCompile("scheme://invalid/path")},
 	}
 
 	assert.NotNil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "should reject cert w/o matching URI")

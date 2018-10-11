@@ -21,6 +21,8 @@ import (
 	"errors"
 	"net"
 	"net/url"
+
+	"github.com/square/ghostunnel/wildcard"
 )
 
 // Logger is used by this package to log messages
@@ -53,7 +55,7 @@ type ACL struct {
 	// AllowURIs lists URI SANs that should be allowed access. If a principal
 	// has a valid certificate with at least one of these URI SANs, we grant
 	// access.
-	AllowedURIs []string
+	AllowedURIs []wildcard.Matcher
 	// Logger is used to log authorization decisions.
 	Logger Logger
 }
@@ -181,10 +183,10 @@ func intersectsIP(left, right []net.IP) bool {
 }
 
 // Returns true if at least one item from left is also contained in right.
-func intersectsURI(left []string, right []*url.URL) bool {
+func intersectsURI(left []wildcard.Matcher, right []*url.URL) bool {
 	for _, l := range left {
 		for _, r := range right {
-			if r.String() == l {
+			if l.Matches(r.String()) {
 				return true
 			}
 		}

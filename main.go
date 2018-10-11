@@ -38,6 +38,7 @@ import (
 	"github.com/square/ghostunnel/auth"
 	"github.com/square/ghostunnel/certloader"
 	"github.com/square/ghostunnel/proxy"
+	"github.com/square/ghostunnel/wildcard"
 	"github.com/square/go-sq-metrics"
 	"gopkg.in/alecthomas/kingpin.v2"
 
@@ -400,13 +401,19 @@ func serverListen(context *Context) error {
 		return err
 	}
 
+	allowedURIs, err := wildcard.CompileList(*serverAllowedURIs)
+	if err != nil {
+		logger.Printf("invalid URI pattern in --allow-uri flag (%s)", err)
+		return err
+	}
+
 	serverACL := auth.ACL{
 		AllowAll:    *serverAllowAll,
 		AllowedCNs:  *serverAllowedCNs,
 		AllowedOUs:  *serverAllowedOUs,
 		AllowedDNSs: *serverAllowedDNSs,
 		AllowedIPs:  *serverAllowedIPs,
-		AllowedURIs: *serverAllowedURIs,
+		AllowedURIs: allowedURIs,
 		Logger:      logger,
 	}
 
@@ -589,12 +596,18 @@ func clientBackendDialer(cert certloader.Certificate, network, address, host str
 		config.ServerName = *clientServerName
 	}
 
+	allowedURIs, err := wildcard.CompileList(*clientAllowedURIs)
+	if err != nil {
+		logger.Printf("invalid URI pattern in --verify-uri flag (%s)", err)
+		return nil, err
+	}
+
 	clientACL := auth.ACL{
 		AllowedCNs:  *clientAllowedCNs,
 		AllowedOUs:  *clientAllowedOUs,
 		AllowedDNSs: *clientAllowedDNSs,
 		AllowedIPs:  *clientAllowedIPs,
-		AllowedURIs: *clientAllowedURIs,
+		AllowedURIs: allowedURIs,
 		Logger:      logger,
 	}
 
