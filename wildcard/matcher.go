@@ -47,6 +47,8 @@ const (
 )
 
 var (
+	errEmptyPattern          = errors.New("input pattern was empty string")
+	errInvalidWildcard       = errors.New("wildcard '*' can only appear between two separators")
 	errInvalidDoubleWildcard = errors.New("wildcard '**' can only appear at end of pattern")
 	errRegexpCompile         = errors.New("unable to compile generated regex (internal bug)")
 )
@@ -74,6 +76,10 @@ func NewWithSeparator(pattern string, separator rune) (Matcher, error) {
 	// - Wildcard '**' should match all chars, including forward slash
 	// All other regex meta chars will need to be quoted
 
+	if pattern == "" {
+		return nil, errEmptyPattern
+	}
+
 	segments := strings.Split(pattern, string(separator))
 
 	var regex bytes.Buffer
@@ -98,6 +104,9 @@ loop:
 			break loop
 		default:
 			// Segment to match literal string
+			if strings.Contains(segment, "*") {
+				return nil, errInvalidWildcard
+			}
 			regex.WriteString(regexp.QuoteMeta(segment))
 		}
 

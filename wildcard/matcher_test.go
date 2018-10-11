@@ -224,3 +224,18 @@ func TestMatchingWithMetaChars(t *testing.T) {
 			"invalid",
 		})
 }
+
+func TestInvalidPatterns(t *testing.T) {
+	for _, pattern := range []string{
+		"",
+		"test://foo*/asdf",
+		"test://*foo/asdf",
+		"test://**/asdf",
+		"**://foo/asdf",
+	} {
+		_, err := New(pattern)
+		if err == nil {
+			t.Errorf("should reject invalid pattern '%s'", pattern)
+		}
+	}
+}
