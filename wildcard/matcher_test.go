@@ -19,7 +19,7 @@ package wildcard
 import "testing"
 
 func testMatches(t *testing.T, pattern string, matches []string, invalids []string) {
-	matcher, err := New(pattern)
+	matcher, err := Compile(pattern)
 	if err != nil {
 		t.Fatalf("bad pattern: '%s' (%s)", pattern, err)
 	}
@@ -233,7 +233,7 @@ func TestInvalidPatterns(t *testing.T) {
 		"test://**/asdf",
 		"**://foo/asdf",
 	} {
-		_, err := New(pattern)
+		_, err := Compile(pattern)
 		if err == nil {
 			t.Errorf("should reject invalid pattern '%s'", pattern)
 		}

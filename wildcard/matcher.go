@@ -64,13 +64,36 @@ type regexpMatcher struct {
 	pattern *regexp.Regexp
 }
 
-// New creates a new Matcher given a pattern, using '/' as the separator.
-func New(pattern string) (Matcher, error) {
-	return NewWithSeparator(pattern, defaultSeparator)
+// Compile creates a new Matcher given a pattern, using '/' as the separator.
+func Compile(pattern string) (Matcher, error) {
+	return CompileWithSeparator(pattern, defaultSeparator)
 }
 
-// New creates a new Matcher given a pattern and separator rune.
-func NewWithSeparator(pattern string, separator rune) (Matcher, error) {
+// CompileList creates new Matchers given a list patterns, using '/' as the separator.
+func CompileList(patterns []string) ([]Matcher, error) {
+	ms := []Matcher{}
+	for _, pattern := range patterns {
+		m, err := Compile(pattern)
+		if err != nil {
+			return nil, err
+		}
+		ms = append(ms, m)
+	}
+	return ms, nil
+}
+
+// MustCompile creates a new Matcher given a pattern, using '/' as the separator,
+// and panics if the given pattern was invalid.
+func MustCompile(pattern string) Matcher {
+	m, err := CompileWithSeparator(pattern, defaultSeparator)
+	if err != nil {
+		panic(err)
+	}
+	return m
+}
+
+// CompileWithSeparator creates a new Matcher given a pattern and separator rune.
+func CompileWithSeparator(pattern string, separator rune) (Matcher, error) {
 	// Build regular expression from wildcard pattern
 	// - Wildcard '*' should match all chars except forward slash
 	// - Wildcard '**' should match all chars, including forward slash
