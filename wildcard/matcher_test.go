@@ -199,6 +199,7 @@ func TestMatchingWithDouble(t *testing.T) {
 			"spiffe://foo//bar",
 			"spiffe://foo//bar/asdf",
 			"spiff://foo/asdf/bar",
+			"spiffe://foo/baz/barf",
 		})
 	testMatches(t,
 		"spiffe://foo/*/bar/**",
@@ -217,6 +218,7 @@ func TestMatchingWithDouble(t *testing.T) {
 			"spiffe://foo//bar",
 			"spiffe://foo//bar/asdf",
 			"spiff://foo/asdf/bar",
+			"spiffe://foo/baz/barf",
 		})
 }
 

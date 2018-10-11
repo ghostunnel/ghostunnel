@@ -125,8 +125,9 @@ loop:
 			if i != len(segments)-1 {
 				return nil, errInvalidDoubleWildcard
 			}
-			regex.WriteRune('?')
-			regex.WriteString(".*$")
+			regex.WriteString("?(|")
+			regex.WriteRune(separator)
+			regex.WriteString(".*)$")
 			break loop
 		default:
 			// Segment to match literal string
