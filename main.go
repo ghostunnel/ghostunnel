@@ -70,9 +70,9 @@ var (
 	serverAllowAll       = serverCommand.Flag("allow-all", "Allow all clients, do not check client cert subject.").Bool()
 	serverAllowedCNs     = serverCommand.Flag("allow-cn", "Allow clients with given common name (can be repeated).").PlaceHolder("CN").Strings()
 	serverAllowedOUs     = serverCommand.Flag("allow-ou", "Allow clients with given organizational unit name (can be repeated).").PlaceHolder("OU").Strings()
-	serverAllowedDNSs    = serverCommand.Flag("allow-dns-san", "Allow clients with given DNS subject alternative name (can be repeated).").PlaceHolder("SAN").Strings()
-	serverAllowedIPs     = serverCommand.Flag("allow-ip-san", "Allow clients with given IP subject alternative name (can be repeated).").PlaceHolder("SAN").IPList()
-	serverAllowedURIs    = serverCommand.Flag("allow-uri-san", "Allow clients with given URI subject alternative name (can be repeated).").PlaceHolder("SAN").Strings()
+	serverAllowedDNSs    = serverCommand.Flag("allow-dns", "Allow clients with given DNS subject alternative name (can be repeated).").PlaceHolder("SAN").Strings()
+	serverAllowedIPs     = serverCommand.Flag("allow-ip", "Allow clients with given IP subject alternative name (can be repeated).").PlaceHolder("SAN").IPList()
+	serverAllowedURIs    = serverCommand.Flag("allow-uri", "Allow clients with given URI subject alternative name (can be repeated).").PlaceHolder("SAN").Strings()
 	serverDisableAuth    = serverCommand.Flag("disable-authentication", "Disable client authentication, no client certificate will be required.").Default("false").Bool()
 
 	clientCommand       = app.Command("client", "Client mode (plain TCP/UNIX listener -> TLS target).")
@@ -84,9 +84,9 @@ var (
 	clientConnectProxy   = clientCommand.Flag("connect-proxy", "If set, connect to target over given HTTP CONNECT proxy. Must be HTTP/HTTPS URL.").PlaceHolder("URL").URL()
 	clientAllowedCNs     = clientCommand.Flag("verify-cn", "Allow servers with given common name (can be repeated).").PlaceHolder("CN").Strings()
 	clientAllowedOUs     = clientCommand.Flag("verify-ou", "Allow servers with given organizational unit name (can be repeated).").PlaceHolder("OU").Strings()
-	clientAllowedDNSs    = clientCommand.Flag("verify-dns-san", "Allow servers with given DNS subject alternative name (can be repeated).").PlaceHolder("SAN").Strings()
-	clientAllowedIPs     = clientCommand.Flag("verify-ip-san", "Allow servers with given IP subject alternative name (can be repeated).").PlaceHolder("SAN").IPList()
-	clientAllowedURIs    = clientCommand.Flag("verify-uri-san", "Allow servers with given URI subject alternative name (can be repeated).").PlaceHolder("SAN").Strings()
+	clientAllowedDNSs    = clientCommand.Flag("verify-dns", "Allow servers with given DNS subject alternative name (can be repeated).").PlaceHolder("SAN").Strings()
+	clientAllowedIPs     = clientCommand.Flag("verify-ip", "Allow servers with given IP subject alternative name (can be repeated).").PlaceHolder("SAN").IPList()
+	clientAllowedURIs    = clientCommand.Flag("verify-uri", "Allow servers with given URI subject alternative name (can be repeated).").PlaceHolder("SAN").Strings()
 	clientDisableAuth    = clientCommand.Flag("disable-authentication", "Disable client authentication, no certificate will be provided to the server.").Default("false").Bool()
 
 	// TLS options
@@ -112,14 +112,25 @@ var (
 )
 
 func init() {
+	// Optional keychain identity flag, if compiled for a supported platform
 	if certloader.SupportsKeychain() {
 		keychainIdentity = app.Flag("keychain-identity", "Use local keychain identity with given common name (instead of keystore file).").PlaceHolder("CN").String()
 	}
+
+	// Optional PKCS#11 flags, if compiled with CGO enabled
 	if certloader.SupportsPKCS11() {
 		pkcs11Module = app.Flag("pkcs11-module", "Path to PKCS11 module (SO) file (optional).").Envar("PKCS11_MODULE").PlaceHolder("PATH").ExistingFile()
 		pkcs11TokenLabel = app.Flag("pkcs11-token-label", "Token label for slot/key in PKCS11 module (optional).").Envar("PKCS11_TOKEN_LABEL").PlaceHolder("LABEL").String()
 		pkcs11PIN = app.Flag("pkcs11-pin", "PIN code for slot/key in PKCS11 module (optional).").Envar("PKCS11_PIN").PlaceHolder("PIN").String()
 	}
+
+	// Aliases for flags that were renamed to be backwards-compatible
+	serverCommand.Flag("allow-dns-san", "").Hidden().StringsVar(serverAllowedDNSs)
+	serverCommand.Flag("allow-ip-san", "").Hidden().IPListVar(serverAllowedIPs)
+	serverCommand.Flag("allow-uri-san", "").Hidden().StringsVar(serverAllowedURIs)
+	clientCommand.Flag("verify-dns-san", "").Hidden().StringsVar(clientAllowedDNSs)
+	clientCommand.Flag("verify-ip-san", "").Hidden().IPListVar(clientAllowedIPs)
+	clientCommand.Flag("verify-uri-san", "").Hidden().StringsVar(clientAllowedURIs)
 }
 
 var exitFunc = os.Exit
