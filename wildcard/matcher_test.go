@@ -16,7 +16,36 @@
 
 package wildcard
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
+
+func ExampleCompile_simple() {
+	matcher, err := Compile("spiffe://some/*/pattern")
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("%t\n", matcher.Matches("spiffe://some/test/pattern"))
+	fmt.Printf("%t\n", matcher.Matches("spiffe://some/test/example"))
+	// Output:
+	// true
+	// false
+}
+
+func ExampleCompile_doubleWildcard() {
+	matcher, err := Compile("spiffe://some/*/pattern/**")
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("%t\n", matcher.Matches("spiffe://some/test/pattern"))
+	fmt.Printf("%t\n", matcher.Matches("spiffe://some/test/pattern/that/continues"))
+	// Output:
+	// true
+	// true
+}
 
 func testMatches(t *testing.T, pattern string, matches []string, invalids []string) {
 	matcher, err := Compile(pattern)
@@ -170,6 +199,7 @@ func TestMatchingWithDouble(t *testing.T) {
 			"spiffe://foo//bar",
 			"spiffe://foo//bar/asdf",
 			"spiff://foo/asdf/bar",
+			"spiffe://foo/baz/barf",
 		})
 	testMatches(t,
 		"spiffe://foo/*/bar/**",
@@ -188,6 +218,7 @@ func TestMatchingWithDouble(t *testing.T) {
 			"spiffe://foo//bar",
 			"spiffe://foo//bar/asdf",
 			"spiff://foo/asdf/bar",
+			"spiffe://foo/baz/barf",
 		})
 }
 
@@ -237,5 +268,48 @@ func TestInvalidPatterns(t *testing.T) {
 		if err == nil {
 			t.Errorf("should reject invalid pattern '%s'", pattern)
 		}
+	}
+}
+
+func TestMustCompile(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("call to MustCompile did not panic with invalid pattern")
+		}
+	}()
+
+	// Compile with valid pattern
+	p := MustCompile("test/**")
+	if p == nil {
+		t.Error("MustCompile returned nil with valid pattern?")
+	}
+
+	// Compile with invalid pattern (should panic)
+	MustCompile("**/test")
+}
+
+func TestCompileList(t *testing.T) {
+	// Compile with valid patterns
+	ms, err := CompileList([]string{
+		"test",
+		"test/**",
+	})
+	if err != nil {
+		t.Errorf("CompileList failed with valid patterns: %s", err)
+	}
+	if len(ms) != 2 {
+		t.Errorf("CompileList returned bad number of matchers (%d, wanted 2)", len(ms))
+	}
+
+	// Compile with valid patterns
+	ms, err = CompileList([]string{
+		"test",
+		"**/test",
+	})
+	if err == nil {
+		t.Error("CompileList failed with invalid pattern in input")
+	}
+	if len(ms) != 0 {
+		t.Errorf("CompileList returned bad number of matchers (%d, wanted 0)", len(ms))
 	}
 }

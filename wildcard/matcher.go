@@ -18,21 +18,24 @@
 // match URIs and paths against simple patterns. It's less powerful but also
 // less error-prone than regular expressions.
 //
-// We expose functions to build matchers from simple wildcard patterns.  Each
+// We expose functions to build matchers from simple wildcard patterns. Each
 // pattern is a sequence of segments separated by a separator, usually a
-// forward slash. Each segment may be a literal string, or a wildcard. We
-// support two types of wildcards, a single '*' wildcard and a double '**'
-// wildcard.
+// forward slash. Each segment in the pattern may be a literal string, or a
+// wildcard. A literal string will be matched exactly, a wildcard will match an
+// arbitrary string.
 //
-// A single '*' wildcard will match any literal string that does not contain
-// the separator. It may occur anywhere between two separators in the pattern.
+// Two types of wildcards are supported:
 //
-// A double '**' wildcard will match anything, including the separator rune.
-// It may only occur at the end of a pattern.
+// (1) A single '*' wildcard will match any literal string that does not
+// contain the separator. It may occur anywhere between two separators in the
+// pattern.
+//
+// (2) A double '**' wildcard will match anything, including the separator
+// rune. It may only occur at the end of a pattern, after a separator.
 //
 // Furthermore, the matcher will consider the separator optional if it occurs
-// at the end of a string. This means that the paths "foo/bar" and "foo/bar/"
-// are treated as equivalent.
+// at the end of a string. This means that, for example, the strings
+// "test://foo/bar" and "test://foo/bar/" are treated as equivalent.
 package wildcard
 
 import (
@@ -122,8 +125,9 @@ loop:
 			if i != len(segments)-1 {
 				return nil, errInvalidDoubleWildcard
 			}
-			regex.WriteRune('?')
-			regex.WriteString(".*$")
+			regex.WriteString("?(|")
+			regex.WriteRune(separator)
+			regex.WriteString(".*)$")
 			break loop
 		default:
 			// Segment to match literal string
