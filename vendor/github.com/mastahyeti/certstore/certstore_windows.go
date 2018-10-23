@@ -112,18 +112,18 @@ func (s *winStore) Identities() ([]Identity, error) {
 			goto fail
 		}
 
-		// maximum chain length. this is arbitrary
-		const maxChain = 1 << 30
+		// not sure why this isn't 1 << 29
+		const maxPointerArray = 1 << 28
 
 		// rgpChain is actually an array, but we only care about the first one.
 		simpleChain := *chainCtx.rgpChain
-		if simpleChain.cElement < 1 || simpleChain.cElement > maxChain {
+		if simpleChain.cElement < 1 || simpleChain.cElement > maxPointerArray {
 			err = errors.New("bad chain")
 			goto fail
 		}
 
 		// Hacky way to get chain elements (c array) as a slice.
-		chainElts := (*[maxChain]C.PCERT_CHAIN_ELEMENT)(unsafe.Pointer(simpleChain.rgpElement))[:simpleChain.cElement:simpleChain.cElement]
+		chainElts := (*[maxPointerArray]C.PCERT_CHAIN_ELEMENT)(unsafe.Pointer(simpleChain.rgpElement))[:simpleChain.cElement:simpleChain.cElement]
 
 		// Build chain of certificates from each elt's certificate context.
 		chain := make([]C.PCCERT_CONTEXT, len(chainElts))
@@ -654,10 +654,17 @@ func (ss securityStatus) Error() string {
 }
 
 func stringToUTF16(s string) C.LPCWSTR {
+	// Not sure why this isn't 1 << 30...
+	const maxUint16Array = 1 << 29
+
+	if len(s) > maxUint16Array {
+		panic("string too long")
+	}
+
 	wstr := utf16.Encode([]rune(s))
 
 	p := C.calloc(C.size_t(len(wstr)+1), C.size_t(unsafe.Sizeof(uint16(0))))
-	pp := (*[1 << 30]uint16)(p)
+	pp := (*[maxUint16Array]uint16)(p)
 	copy(pp[:], wstr)
 
 	return (C.LPCWSTR)(p)

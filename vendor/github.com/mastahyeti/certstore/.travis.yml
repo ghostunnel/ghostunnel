@@ -1,0 +1,10 @@
+language: go
+go:
+  - 1.8.x
+  - 1.9.x
+  - 1.10.x
+  - 1.11.x
+  - 1.x
+
+os: osx
+osx_image: xcode9.1 # OS X 10.12 w/ Xcode 9.1

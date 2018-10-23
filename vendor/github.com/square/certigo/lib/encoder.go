@@ -32,8 +32,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/spiffe/go-spiffe"
 )
 
 var keyUsages = []x509.KeyUsage{
@@ -244,12 +242,11 @@ func createSimpleCertificate(name string, cert *x509.Certificate) simpleCertific
 		PEM:                   string(pem.EncodeToMemory(EncodeX509ToPEM(cert, nil))),
 	}
 
-	uriNames, err := spiffe.GetURINamesFromCertificate(cert)
-	if err == nil {
-		out.URINames = uriNames
+	for _, uri := range cert.URIs {
+		out.URINames = append(out.URINames, uri.String())
 	}
 
-	out.Warnings = certWarnings(cert, uriNames)
+	out.Warnings = certWarnings(cert, out.URINames)
 
 	if cert.BasicConstraintsValid {
 		out.BasicConstraints = &basicConstraints{

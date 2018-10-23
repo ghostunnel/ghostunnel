@@ -211,7 +211,7 @@ func getPreKeyedHash(password []byte) hash.Hash {
 		buf[i*2+1] = password[i]
 	}
 	md.Write(buf)
-	// Yes, "Mighty Aprhodite" is a constant used by this method.
+	// Yes, "Mighty Aphrodite" is a constant used by this method.
 	md.Write([]byte("Mighty Aphrodite"))
 	return md
 }

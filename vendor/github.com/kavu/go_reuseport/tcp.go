@@ -108,31 +108,30 @@ func NewReusablePortListener(proto, addr string) (l net.Listener, err error) {
 	}
 	syscall.ForkLock.RUnlock()
 
-	defer func() {
-		if err != nil {
-			syscall.Close(fd)
-		}
-	}()
-
 	if err = syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1); err != nil {
+		syscall.Close(fd)
 		return nil, err
 	}
 
 	if err = syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, reusePort, 1); err != nil {
+		syscall.Close(fd)
 		return nil, err
 	}
 
 	if err = syscall.Bind(fd, sockaddr); err != nil {
+		syscall.Close(fd)
 		return nil, err
 	}
 
 	// Set backlog size to the maximum
 	if err = syscall.Listen(fd, listenerBacklogMaxSize); err != nil {
+		syscall.Close(fd)
 		return nil, err
 	}
 
 	file = os.NewFile(uintptr(fd), getSocketFileName(proto, addr))
 	if l, err = net.FileListener(file); err != nil {
+		file.Close()
 		return nil, err
 	}
 
