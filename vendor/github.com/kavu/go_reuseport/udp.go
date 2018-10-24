@@ -122,6 +122,10 @@ func NewReusablePortPacketConn(proto, addr string) (l net.PacketConn, err error)
 		return nil, err
 	}
 
+	if err = syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_BROADCAST, 1); err != nil {
+		return nil, err
+	}
+
 	if err = syscall.Bind(fd, sockaddr); err != nil {
 		return nil, err
 	}

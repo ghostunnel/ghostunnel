@@ -18,12 +18,6 @@ import (
 	"unsafe"
 )
 
-// work around https://github.com/golang/go/issues/24161
-var (
-	_ C.CFBooleanRef
-	_ C.SecPolicyRef
-)
-
 // work around https://golang.org/doc/go1.10#cgo
 // in go>=1.10 CFTypeRefs are translated to uintptrs instead of pointers.
 var (
@@ -35,6 +29,7 @@ var (
 	nilCFStringRef       C.CFStringRef
 	nilSecIdentityRef    C.SecIdentityRef
 	nilSecKeyRef         C.SecKeyRef
+	nilCFAllocatorRef    C.CFAllocatorRef
 )
 
 // macStore is a bogus type. We have to explicitly open/close the store on
@@ -210,7 +205,7 @@ func (i *macIdentity) Signer() (crypto.Signer, error) {
 func (i *macIdentity) Delete() error {
 	itemList := []C.SecIdentityRef{i.ref}
 	itemListPtr := (*unsafe.Pointer)(unsafe.Pointer(&itemList[0]))
-	citemList := C.CFArrayCreate(nil, itemListPtr, 1, nil)
+	citemList := C.CFArrayCreate(nilCFAllocatorRef, itemListPtr, 1, nil)
 	if citemList == nilCFArrayRef {
 		return errors.New("error creating CFArray")
 	}
@@ -284,15 +279,9 @@ func (i *macIdentity) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts
 		return nil, err
 	}
 
-	// Hack — algos is a SecKeyAlgorithm and SecKeyCreateSignature takes a
-	// SecKeyAlgorithm as its second argument. The compiler insists though that
-	// algos is a CFStringRef and that SecKeyCreateSignature wants a
-	// *C.struct___CFString as its second argument.
-	algoHack := (*C.struct___CFString)(unsafe.Pointer(algo))
-
 	// sign the digest
 	var cerr C.CFErrorRef
-	csig := C.SecKeyCreateSignature(kref, algoHack, cdigest, &cerr)
+	csig := C.SecKeyCreateSignature(kref, algo, cdigest, &cerr)
 
 	if err := cfErrorError(cerr); err != nil {
 		defer C.CFRelease(C.CFTypeRef(cerr))
@@ -406,7 +395,7 @@ func stringToCFString(gostr string) C.CFStringRef {
 	cstr := C.CString(gostr)
 	defer C.free(unsafe.Pointer(cstr))
 
-	return C.CFStringCreateWithCString(nil, cstr, C.kCFStringEncodingUTF8)
+	return C.CFStringCreateWithCString(nilCFAllocatorRef, cstr, C.kCFStringEncodingUTF8)
 }
 
 // mapToCFDictionary converts a Go map[C.CFTypeRef]C.CFTypeRef to a
@@ -423,7 +412,7 @@ func mapToCFDictionary(gomap map[C.CFTypeRef]C.CFTypeRef) C.CFDictionaryRef {
 		values = append(values, unsafe.Pointer(v))
 	}
 
-	return C.CFDictionaryCreate(nil, &keys[0], &values[0], C.CFIndex(n), nil, nil)
+	return C.CFDictionaryCreate(nilCFAllocatorRef, &keys[0], &values[0], C.CFIndex(n), nil, nil)
 }
 
 // cfDataToBytes converts a CFDataRef to a Go byte slice.
@@ -444,7 +433,7 @@ func bytesToCFData(gobytes []byte) (C.CFDataRef, error) {
 		cptr = (*C.UInt8)(&gobytes[0])
 	}
 
-	cdata := C.CFDataCreate(nil, cptr, clen)
+	cdata := C.CFDataCreate(nilCFAllocatorRef, cptr, clen)
 	if cdata == nilCFDataRef {
 		return nilCFDataRef, errors.New("error creatin cfdata")
 	}
