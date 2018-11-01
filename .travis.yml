@@ -47,4 +47,5 @@ script:
   - GO_VERSION=${TRAVIS_GO_VERSION} make docker-test
 
 after_success:
+  - sed -i bak 's_github.com/square/ghostunnel/__g' coverage-merged.out
   - $HOME/gopath/bin/goveralls -coverprofile coverage-merged.out -service=travis-ci
