@@ -1,5 +1,5 @@
-Access Control
-==============
+Access Control Flags
+====================
 
 Ghostunnel uses TLS with mutual authentication for authentication and access
 control. This means that both the client and server present a certificate that
