@@ -85,8 +85,8 @@ instructions on how to cross-compile a custom build with CGO enabled.
 ### Develop
 
 Ghostunnel has an extensive suite of integration tests. Our integration test
-suite requires Python 3.5 (or later) and [gocovmerge][gcvm] to run. We use [gvt][gvt] for
-managing vendored dependencies. 
+suite requires Python 3.5 (or later) and [gocovmerge][gcvm] to run. We use [Go
+modules][gomod] for managing vendored dependencies. 
 
 To run tests:
 
@@ -101,8 +101,8 @@ To run tests:
 
 For more information on how to contribute, please see the [CONTRIBUTING](CONTRIBUTING.md) file.
 
-[gvt]: https://github.com/FiloSottile/gvt
 [gcvm]: https://github.com/wadey/gocovmerge
+[gomod]: https://github.com/golang/go/wiki/Modules
 
 Usage
 =====
