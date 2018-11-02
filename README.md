@@ -44,11 +44,12 @@ can be used to collect metrics and monitor a running instance. Metrics can
 be fed into Graphite (or other systems) to see number of open connections,
 rate of new connections, connection lifetimes, timeouts, and other info.
 
-**Emphasis on security**: We have put some thought into making ghostunnel secure
-by default and prevent accidental misconfiguration. For example,  we always
-negotiate TLS v1.2 and only use safe cipher suites. Ghostunnel also supports
-PKCS#11 which makes it possible to use Hardware Security Modules (HSMs) to protect
-private keys. 
+**Emphasis on security**: We have put some thought into making ghostunnel
+secure by default and prevent accidental misconfiguration. For example,  we
+always negotiate TLS v1.2 and only use safe cipher suites. Ghostunnel also
+supports PKCS#11 which makes it possible to use Hardware Security Modules
+(HSMs) to protect private keys. We also have a [BUG-BOUNTY](BUG-BOUNTY.md) that
+pays rewards for security findings. 
 
 Getting Started
 ===============
@@ -74,7 +75,7 @@ Binaries can be built from source as follows (cross-compile requires Docker and 
     make -f Makefile.dist dist
 
 Note that ghostunnel requires Go 1.11 or later to build, and CGO is required for
-PKCS#11 support.  See also [CROSS-COMPILE.md](CROSS-COMPILE.md) for
+PKCS#11 support.  See also [CROSS-COMPILE](CROSS-COMPILE.md) for
 instructions on how to cross-compile a custom build with CGO enabled.
 
 [rel]: https://github.com/square/ghostunnel/releases
@@ -136,8 +137,9 @@ To set allowed clients, you must specify at least one of `--allow-all`,
 `--allow-cn`, `--allow-ou`, `--allow-dns` or `--allow-uri`. All checks are made
 against the certificate of the client. Multiple flags are treated as a logical
 disjunction (OR), meaning clients can connect as long as any of the flags
-matches. In this example, we assume that the CN of the client cert we want to
-accept connections from is `client`.
+matches (see [ACCESS-CONTROL](ACCESS-CONTROL.md) for more information). In this
+example, we assume that the CN of the client cert we want to accept connections
+from is `client`.
 
 Start a backend server:
 
