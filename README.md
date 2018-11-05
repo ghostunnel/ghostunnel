@@ -262,6 +262,8 @@ feature).
 
 Note that if you are using an HSM/PKCS#11 module, only the certificate will
 be reloaded. It is assumed that the private key in the HSM remains the same.
+This means the updated/reissued certificate much match the private key that
+was loaded from the HSM previously, everything else works the same.
 
 ### Metrics & Profiling
 
