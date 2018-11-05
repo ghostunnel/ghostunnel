@@ -16,7 +16,7 @@ a TCP domain/port or a UNIX domain socket. Ghostunnel in client mode accepts
 a TLS-secured service. In other words, ghostunnel is a replacement for stunnel.
 
 **Supported platforms**: Ghostunnel is developed primarily for Linux on x86-64
-platforms, although it should run on any UNIX system that exposes SO_REUSEPORT,
+platforms, although it should run on any UNIX system that exposes `SO_REUSEPORT`,
 including Darwin (macOS), FreeBSD, OpenBSD and NetBSD. Ghostunnel also supports
 running on Windows, though with a reduced feature set. We recommend running on
 x86-64 to benefit from constant-time implementations of cryptographic algorithms
@@ -27,28 +27,31 @@ See `ghostunnel --help`, `ghostunnel server --help` and `ghostunnel client --hel
 Features
 ========
 
-**Access control**: Ghostunnel enforces mutual authentication by requiring
-a valid client certificate for all connections. We also support access control
-via checks on the subject (or subject alternative names) of a client certificate.
-This is useful for restricting access to services that don't have native access
-control.
+**[Access control](#access-control-flags)**: Ghostunnel enforces mutual
+authentication by requiring a valid client certificate for all connections. We
+also support access control via checks on the subject (or subject alternative
+names) of a client certificate. This is useful for restricting access to
+services that don't have native access control.
 
-**Certificate hotswapping**: Ghostunnel can reload certificates at runtime
-without dropping existing connections. To trigger a reload, simply send
-`SIGUSR1` to the process (or set a time-based reloading interval). This will
-cause ghostunnel to reload the certificate/key. Once successful, the reloaded
-certificate will be used for new connections going forward.
+**[Certificate hotswapping](#certificate-hotswapping)**: Ghostunnel can reload
+certificates at runtime without dropping existing connections. Certificate
+reloading can be triggered with a signal or on a regular time interval. This
+allows short-lived certificates to be used with ghostunnel, new certificates
+will get picked up transparently. And on platforms with `SO_REUSEPORT` support,
+restarts can be done with minimal downtime.
 
-**Monitoring and metrics**: Ghostunnel has a built-in status feature that
-can be used to collect metrics and monitor a running instance. Metrics can
-be fed into Graphite (or other systems) to see number of open connections,
-rate of new connections, connection lifetimes, timeouts, and other info.
+**[Monitoring and metrics](#metrics--profiling)**: Ghostunnel has a built-in
+status feature that can be used to collect metrics and monitor a running
+instance. Metrics can be fed into Graphite (or other systems) to see number of
+open connections, rate of new connections, connection lifetimes, timeouts, and
+other info.
 
-**Emphasis on security**: We have put some thought into making ghostunnel secure
-by default and prevent accidental misconfiguration. For example,  we always
-negotiate TLS v1.2 and only use safe cipher suites. Ghostunnel also supports
-PKCS#11 which makes it possible to use Hardware Security Modules (HSMs) to protect
-private keys. 
+**Emphasis on security**: We have put some thought into making ghostunnel
+secure by default and prevent accidental misconfiguration. For example,  we
+always negotiate TLS v1.2 and only use safe cipher suites. Ghostunnel also
+supports PKCS#11 which makes it possible to use Hardware Security Modules
+(HSMs) to protect private keys, and we have a [BUG-BOUNTY](BUG-BOUNTY.md) that
+pays rewards for security findings. 
 
 Getting Started
 ===============
@@ -74,7 +77,7 @@ Binaries can be built from source as follows (cross-compile requires Docker and 
     make -f Makefile.dist dist
 
 Note that ghostunnel requires Go 1.11 or later to build, and CGO is required for
-PKCS#11 support.  See also [CROSS-COMPILE.md](CROSS-COMPILE.md) for
+PKCS#11 support.  See also [CROSS-COMPILE](docs/CROSS-COMPILE.md) for
 instructions on how to cross-compile a custom build with CGO enabled.
 
 [rel]: https://github.com/square/ghostunnel/releases
@@ -84,8 +87,8 @@ instructions on how to cross-compile a custom build with CGO enabled.
 ### Develop
 
 Ghostunnel has an extensive suite of integration tests. Our integration test
-suite requires Python 3.5 (or later) and [gocovmerge][gcvm] to run. We use [gvt][gvt] for
-managing vendored dependencies. 
+suite requires Python 3.5 (or later) and [gocovmerge][gcvm] to run. We use [Go
+modules][gomod] for managing vendored dependencies. 
 
 To run tests:
 
@@ -100,8 +103,8 @@ To run tests:
 
 For more information on how to contribute, please see the [CONTRIBUTING](CONTRIBUTING.md) file.
 
-[gvt]: https://github.com/FiloSottile/gvt
 [gcvm]: https://github.com/wadey/gocovmerge
+[gomod]: https://github.com/golang/go/wiki/Modules
 
 Usage
 =====
@@ -136,8 +139,9 @@ To set allowed clients, you must specify at least one of `--allow-all`,
 `--allow-cn`, `--allow-ou`, `--allow-dns` or `--allow-uri`. All checks are made
 against the certificate of the client. Multiple flags are treated as a logical
 disjunction (OR), meaning clients can connect as long as any of the flags
-matches. In this example, we assume that the CN of the client cert we want to
-accept connections from is `client`.
+matches (see [ACCESS-FLAGS](docs/ACCESS-FLAGS.md) for more information). In
+this example, we assume that the CN of the client cert we want to accept
+connections from is `client`.
 
 Start a backend server:
 
@@ -228,121 +232,54 @@ and proxy the connection to the insecure backend.
 Advanced Features
 =================
 
-### Metrics & profiling
+### Access Control Flags
+
+Ghostunnel supports different types of access control flags in both client and
+server modes.  All checks are made against the certificate of the client or
+server. Multiple flags are treated as a logical disjunction (OR), meaning
+clients can connect as long as any of the flags matches. Ghostunnel is
+compatible with [SPIFFE][spiffe] [X.509 SVIDs][svid].
+
+See [ACCESS-FLAGS](docs/ACCESS-FLAGS.md) for details.
+
+[spiffe]: https://spiffe.io/
+[svid]: https://github.com/spiffe/spiffe/blob/master/standards/X509-SVID.md
+
+### Certificate Hotswapping
+
+To trigger a reload, simply send `SIGUSR1` to the process or set a time-based
+reloading interval with the `--timed-reload` flag. This will cause ghostunnel
+to reload the certificate and private key from the files on disk. Once
+successful, the reloaded certificate will be used for new connections going
+forward.
+
+Additionally, ghostunnel uses `SO_REUSEPORT` to bind the listening socket on
+platforms where it is supported (Linux, Apple macOS, FreeBSD, NetBSD, OpenBSD
+and DragonflyBSD). This means a new ghostunnel can be started on the same
+host/port before the old one is terminated, to minimize dropped connections (or
+avoid them entirely depending on how the OS implements the `SO_REUSEPORT`
+feature).
+
+Note that if you are using an HSM/PKCS#11 module, only the certificate will
+be reloaded. It is assumed that the private key in the HSM remains the same.
+This means the updated/reissued certificate much match the private key that
+was loaded from the HSM previously, everything else works the same.
+
+### Metrics & Profiling
 
 Ghostunnel has a notion of "status port", a TCP port (or UNIX socket) that can
 be used to expose status and metrics information over HTTPS. The status port
 feature can be controlled via the `--status` flag. Profiling endpoints on the
 status port can be enabled with `--enable-pprof`.
 
-The X.509 certificate on the status port will be the same as the certificate
-used for proxying (either the client or server certificate). This means you can
-use the status port to inspect/verify the certificate that is being used, which
-can be useful for orchestration systems.
-
-Example invocation with status port enabled:
-
-    ghostunnel client \
-        --listen localhost:8080 \
-        --target localhost:8443 \
-        --keystore test-keys/client-keystore.p12 \
-        --cacert test-keys/cacert.pem \
-        --status localhost:6060
-
-Note that we set the status port to "localhost:6060". Ghostunnel will start an
-internal HTTPS server and listen for connections on the given host/port. You
-can also specify a UNIX socket instead of a TCP port.
-
-How to check status and read connection metrics:
-
-    # Status information (produces JSON output)
-    curl --cacert test-keys/cacert.pem https://localhost:6060/_status
-
-    # Metrics information (produces JSON output)
-    curl --cacert test-keys/cacert.pem https://localhost:6060/_metrics
-
-How to use profiling endpoints, if `--enable-pprof` is set:
-
-    # Human-readable goroutine dump
-    curl --cacert test-keys/cacert.pem 'https://localhost:6060/debug/pprof/goroutine?debug=1'
-
-    # Analyze execution trace using pprof tool
-    go tool pprof -seconds 5 https+insecure://localhost:6060/debug/pprof/profile
-
-Note that `go tool pprof` does not support setting CA certificates at the
-moment, hence the use of the `https+insecure` scheme in the last example. You
-can use the standard `https` scheme if your ghostunnel is using a certificate
-trusted by your system (c.f. [golang/go#20939][pprof-bug]). For more
-information on profiling via pprof, see the [`runtime/pprof`][pprof] and
-[`net/http/pprof`][http-pprof] docs.
-
-[pprof]: https://golang.org/pkg/runtime/pprof
-[http-pprof]: https://golang.org/pkg/net/http/pprof
-[pprof-bug]: https://github.com/golang/go/issues/20939
+See [METRICS](docs/METRICS.md) for details.
 
 ### HSM/PKCS#11 support
 
 Ghostunnel has support for loading private keys from PKCS#11 modules, which
 should work with any hardware security module that exposes a PKCS#11 interface.
-An easy way to test the PKCS#11 interface for development purposes is with
-[SoftHSM][softhsm]. Note that CGO is required in order for PKCS#11 support to
-work (see [CROSS-COMPILE.md](CROSS-COMPILE.md) for instructions to
-cross-compile with CGO enabled).
 
-[softhsm]: https://github.com/opendnssec/SoftHSMv2
-
-To import the server test key into SoftHSM, for example:
-
-    softhsm2-util --init-token \
-        --slot 0 \
-        --label ghostunnel-server \
-        --so-pin 1234 \
-        --pin 1234
-
-    softhsm2-util --id 01 \
-        --token ghostunnel-server \
-        --label ghostunnel-server \
-        --import test-keys/server-pkcs8.pem \
-        --so-pin 1234 \
-        --pin 1234
-
-To launch ghostunnel with the SoftHSM-backed PKCS11 key (on macOS):
-
-    ghostunnel server \
-        --keystore test-keys/server-cert.pem \
-        --pkcs11-module /usr/local/Cellar/softhsm/2.4.0/lib/softhsm/libsofthsm2.so \
-        --pkcs11-token-label ghostunnel-server \
-        --pkcs11-pin 1234 \
-        --listen localhost:8443 \
-        --target localhost:8080 \
-        --cacert test-keys/cacert.pem \
-        --allow-cn client
-
-The `--pkcs11-module`, `--pkcs11-token-label` and `--pkcs11-pin` flags can be
-used to select the private key to be used the PKCS11 module. It's also possible
-to use environment variables to set PKCS11 options instead of flags (via
-`PKCS11_MODULE`, `PKCS11_TOKEN_LABEL` and `PKCS11_PIN`), useful if you don't
-want to show the PIN on the command line.
-
-Note that `--keystore` needs to point to the certificate chain that corresponds
-to the private key in the PKCS#11 module, with the leaf certificate being the
-first certificate in the chain. Ghostunnel doesn't have the ability to read
-the certificate chain directly from the module at this point in time.
-
-If you need to inspect the state of a PKCS11 module/token, we recommend the
-[`pkcs11-tool`][pkcs11-tool] utility from OpenSC. For example, it can be used
-to list slots or read certificate(s) from a module:
-
-    # List slots on a module
-    pkcs11-tool --module $MODULE -L
-
-    # Show certificates (if any) available
-    pkcs11-tool --module $MODULE -O -y cert
-
-    # Read certificate chain given a label
-    pkcs11-tool --module $MODULE --label $LABEL --read-object -y cert
-
-[pkcs11-tool]: https://github.com/OpenSC/OpenSC/wiki/SmartCardHSM#using-pkcs11-tool
+See [HSM-PKCS11](docs/HSM-PKCS11.md) for details.
 
 ### macOS keychain support (experimental)
 
