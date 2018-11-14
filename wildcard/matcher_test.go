@@ -301,7 +301,7 @@ func TestCompileList(t *testing.T) {
 		t.Errorf("CompileList returned bad number of matchers (%d, wanted 2)", len(ms))
 	}
 
-	// Compile with valid patterns
+	// Compile with invalid patterns
 	ms, err = CompileList([]string{
 		"test",
 		"**/test",
