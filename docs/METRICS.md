@@ -26,11 +26,14 @@ can also specify a UNIX socket instead of a TCP port.
 
 How to check status and read connection metrics:
 
-    # Status information (produces JSON output)
+    # Status information (JSON)
     curl --cacert test-keys/cacert.pem https://localhost:6060/_status
 
-    # Metrics information (produces JSON output)
-    curl --cacert test-keys/cacert.pem https://localhost:6060/_metrics
+    # Metrics information (JSON)
+    curl --cacert test-keys/cacert.pem 'https://localhost:6060/_metrics?format=json'
+    
+    # Metrics information (Prometheus)
+    curl --cacert test-keys/cacert.pem 'https://localhost:6060/_metrics?format=prometheus'
 
 How to use profiling endpoints, if `--enable-pprof` is set:
 
