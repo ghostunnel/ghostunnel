@@ -2,7 +2,8 @@
 MKFILE_PATH := $(lastword $(MAKEFILE_LIST))
 CURRENT_DIR := $(patsubst %/,%,$(dir $(realpath $(MKFILE_PATH))))
 
-GOVERSION ?= 1.11.x
+GO_VERSION ?= 1.11.4
+XGO_BASE_IMAGE ?= cssx/xgo-${GO_VERSION}
 
 # Current system information
 GOOS ?= $(shell go env GOOS)
@@ -34,12 +35,12 @@ define make-xc-target
 		@printf "%s%20s %s\n" "-->" "${1}/${2}:" "${PROJECT} (excluded)"
   else ifeq (${1},windows)
 		@printf "%s%20s %s\n" "-->" "${1}/${2}:" "${PROJECT} (-w -extldflags "-static" -extld ${WINDOWS_EXTLD_${2}})"
-		@xgo -go ${GOVERSION} -deps ${LIBTOOL_PATH} -targets '${1}-${WINDOWS_API_LEVEL}/${2}' \
+		@xgo -go ${GO_VERSION} -image ${XGO_BASE_IMAGE} -deps ${LIBTOOL_PATH} -targets '${1}-${WINDOWS_API_LEVEL}/${2}' \
 			-ldflags '${LD_FLAGS} -w -extldflags "-static" -extld ${WINDOWS_EXTLD_${2}}' .
 		@mv ghostunnel-${1}-${WINDOWS_API_LEVEL}-${2}.exe dist/ghostunnel-${VERSION}-${1}-${2}-with-pkcs11.exe
   else
 		@printf "%s%20s %s\n" "-->" "${1}/${2}:" "${PROJECT}"
-		@xgo -go ${GOVERSION} -deps ${LIBTOOL_PATH} -ldflags "${LD_FLAGS}" -targets '${1}/${2}' .
+		@xgo -go ${GO_VERSION} -image ${XGO_BASE_IMAGE} -deps ${LIBTOOL_PATH} -ldflags "${LD_FLAGS}" -targets '${1}/${2}' .
 		@mv ghostunnel-${1}*-${2} dist/ghostunnel-${VERSION}-${1}-${2}-with-pkcs11
   endif
   .PHONY: $1/$2
