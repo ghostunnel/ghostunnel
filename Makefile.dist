@@ -18,7 +18,7 @@ XC_EXCLUDE ?= darwin/386 linux/386
 WINDOWS_EXTLD_amd64 = x86_64-w64-mingw32-gcc
 WINDOWS_EXTLD_386 = i686-w64-mingw32-gcc
 WINDOWS_API_LEVEL = 5.1
-LIBTOOL_PATH = https://ftp.gnu.org/pub/gnu/libtool/libtool-2.4.6.tar.gz
+LIBTOOL_PATH = https://mirrors.kernel.org/gnu/libtool/libtool-2.4.6.tar.gz
 
 PROJECT := $(CURRENT_DIR:$(GOPATH)/src/%=%)
 NAME := $(notdir $(PROJECT))
