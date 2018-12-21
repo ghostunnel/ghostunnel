@@ -7,7 +7,7 @@ require (
 	github.com/gogo/protobuf v1.1.1 // indirect
 	github.com/golang/protobuf v1.2.0 // indirect
 	github.com/hashicorp/go-syslog v0.0.0-20170829120034-326bf4a7f709
-	github.com/kavu/go_reuseport v1.4.0
+	github.com/kavu/go_reuseport v1.4.1-0.20181221084137-1f6171f327ed
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/letsencrypt/pkcs11key v0.0.0-20170608213348-396559074696
 	github.com/mastahyeti/certstore v0.0.0-20180913173610-ffa8f4c5d2af

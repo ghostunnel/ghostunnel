@@ -37,7 +37,11 @@ func getUDPSockaddr(proto, addr string) (sa syscall.Sockaddr, soType int, err er
 		sa := &syscall.SockaddrInet4{Port: udp.Port}
 
 		if udp.IP != nil {
-			copy(sa.Addr[:], udp.IP[12:16]) // copy last 4 bytes of slice to array
+			if len(udp.IP) == 16 {
+				copy(sa.Addr[:], udp.IP[12:16]) // copy last 4 bytes of slice to array
+			} else {
+				copy(sa.Addr[:], udp.IP) // copy all bytes of slice to array
+			}
 		}
 
 		return sa, syscall.AF_INET, nil

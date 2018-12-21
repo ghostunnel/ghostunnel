@@ -29,7 +29,7 @@ github.com/hashicorp/go-syslog
 github.com/huandu/xstrings
 # github.com/imdario/mergo v0.3.6
 github.com/imdario/mergo
-# github.com/kavu/go_reuseport v1.4.0
+# github.com/kavu/go_reuseport v1.4.1-0.20181221084137-1f6171f327ed
 github.com/kavu/go_reuseport
 # github.com/letsencrypt/pkcs11key v0.0.0-20170608213348-396559074696
 github.com/letsencrypt/pkcs11key
