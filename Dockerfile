@@ -22,7 +22,7 @@ RUN go build -o /usr/bin/ghostunnel github.com/square/ghostunnel
 # Create a multi-stage build with the binary
 FROM alpine
 
-RUN apk add --no-cache --update libtool
+RUN apk add --no-cache --update libtool curl
 COPY --from=build /usr/bin/ghostunnel /usr/bin/ghostunnel
 
 ENTRYPOINT ["/usr/bin/ghostunnel"]
