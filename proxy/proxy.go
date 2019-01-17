@@ -226,14 +226,16 @@ func (p *Proxy) fuse(client, backend net.Conn) {
 	defer p.logConnectionMessage("closed", client, backend)
 	p.logConnectionMessage("opening", client, backend)
 
-	go func() { p.copyData(client, backend) }()
-	p.copyData(backend, client)
+	wg := &sync.WaitGroup{}
+	wg.Add(2)
+	go func() { p.copyData(client, backend, wg) }()
+	go func() { p.copyData(backend, client, wg) }()
+	wg.Wait()
 }
 
 // Copy data between two connections
-func (p *Proxy) copyData(dst net.Conn, src net.Conn) {
-	defer dst.Close()
-	defer src.Close()
+func (p *Proxy) copyData(dst net.Conn, src net.Conn, wg *sync.WaitGroup) {
+	defer wg.Done()
 
 	_, err := io.Copy(dst, src)
 
@@ -241,6 +243,28 @@ func (p *Proxy) copyData(dst net.Conn, src net.Conn) {
 		if !p.quiet {
 			p.Logger.Printf("error: %s", err)
 		}
+	}
+
+	switch srcConn := src.(type) {
+	case *net.TCPConn:
+		srcConn.SetLinger(0)
+		srcConn.CloseRead()
+	case *net.UnixConn:
+		srcConn.CloseRead()
+	default:
+		src.Close()
+	}
+
+	switch dstConn := dst.(type) {
+	case *net.TCPConn:
+		dstConn.SetLinger(0)
+		dstConn.CloseWrite()
+	case *tls.Conn:
+		dstConn.CloseWrite()
+	case *net.UnixConn:
+		dstConn.CloseWrite()
+	default:
+		dst.Close()
 	}
 }
 
