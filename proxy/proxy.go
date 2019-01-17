@@ -24,7 +24,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/rcrowley/go-metrics"
+	metrics "github.com/rcrowley/go-metrics"
 )
 
 var (
@@ -63,8 +63,26 @@ type Proxy struct {
 	// Silence TLS errors
 	quiet bool
 
+	proxyProtocol bool
+
 	// Internal wait group to keep track of outstanding handlers.
 	handlers *sync.WaitGroup
+}
+
+func getProxyProtoHeaderFor(c net.Conn) *proxyproto.Header {
+
+	sAddr := c.RemoteAddr().(*net.TCPAddr)
+	dAddr := c.LocalAddr().(*net.TCPAddr)
+
+	return &proxyproto.Header{
+		Version:            2,
+		Command:            proxyproto.PROXY,
+		TransportProtocol:  proxyproto.TCPv4,
+		SourceAddress:      sAddr.IP,
+		DestinationAddress: dAddr.IP,
+		SourcePort:         uint16(sAddr.Port),
+		DestinationPort:    uint16(dAddr.Port),
+	}
 }
 
 // New creates a new proxy.
@@ -85,6 +103,10 @@ func New(listener net.Listener, timeout time.Duration, dial Dialer, logger Logge
 	// calls Wait() on the proxy object.
 	p.handlers.Add(1)
 	return p
+}
+
+func (p *Proxy) EnableProxyProtocol() {
+	p.proxyProtocol = true
 }
 
 // Shutdown tells the proxy to close the listener & stop accepting connections.
@@ -144,6 +166,15 @@ func (p *Proxy) Accept() {
 					p.Logger.Printf("error: %s", err)
 				}
 				return
+			}
+
+			if p.proxyProtocol {
+				h := getProxyProtoHeaderFor(conn)
+				_, err = h.WriteTo(backend)
+				if err != nil {
+					p.Logger.Printf("error: %s", err)
+					return
+				}
 			}
 
 			successCounter.Inc(1)
