@@ -66,6 +66,7 @@ var (
 	serverCommand        = app.Command("server", "Server mode (TLS listener -> plain TCP/UNIX target).")
 	serverListenAddress  = serverCommand.Flag("listen", "Address and port to listen on (HOST:PORT).").PlaceHolder("ADDR").Required().TCP()
 	serverForwardAddress = serverCommand.Flag("target", "Address to forward connections to (HOST:PORT, or unix:PATH).").PlaceHolder("ADDR").Required().String()
+	serverProxyProtocol  = serverCommand.Flag("proxy-protocol", "Enable proxy protocol").Bool()
 	serverUnsafeTarget   = serverCommand.Flag("unsafe-target", "If set, does not limit target to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
 	serverAllowAll       = serverCommand.Flag("allow-all", "Allow all clients, do not check client cert subject.").Bool()
 	serverAllowedCNs     = serverCommand.Flag("allow-cn", "Allow clients with given common name (can be repeated).").PlaceHolder("CN").Strings()
@@ -435,6 +436,10 @@ func serverListen(context *Context) error {
 		context.dial,
 		logger,
 	)
+
+	if *serverProxyProtocol {
+		p.EnableProxyProtocol()
+	}
 
 	if *statusAddress != "" {
 		err := context.serveStatus()
