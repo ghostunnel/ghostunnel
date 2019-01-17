@@ -134,7 +134,7 @@ func (s *winStore) Identities() ([]Identity, error) {
 		idents = append(idents, newWinIdentity(chain))
 	}
 
-	if err = lastError("failed to iterate certs in store"); err != nil && errors.Cause(err) != errCode(CRYPT_E_NOT_FOUND) {
+	if err = checkError("failed to iterate certs in store"); err != nil && errors.Cause(err) != errCode(CRYPT_E_NOT_FOUND) {
 		goto fail
 	}
 
@@ -184,7 +184,7 @@ func (s *winStore) Import(data []byte, password string) error {
 	for {
 		// iterate through certs in temporary store
 		if ctx = C.CertFindCertificateInStore(store, encoding, 0, C.CERT_FIND_ANY, nil, ctx); ctx == nil {
-			if err := lastError("failed to iterate certs in store"); err != nil && errors.Cause(err) != errCode(CRYPT_E_NOT_FOUND) {
+			if err := checkError("failed to iterate certs in store"); err != nil && errors.Cause(err) != errCode(CRYPT_E_NOT_FOUND) {
 				return err
 			}
 
@@ -612,8 +612,19 @@ func exportCertCtx(ctx C.PCCERT_CONTEXT) (*x509.Certificate, error) {
 
 type errCode uint64
 
-// lastError gets the last error from the current thread.
+// lastError gets the last error from the current thread. If there isn't one, it
+// returns a new error.
 func lastError(msg string) error {
+	if err := checkError(msg); err != nil {
+		return err
+	}
+
+	return errors.New(msg)
+}
+
+// checkError tries to get the last error from the current thread. If there
+// isn't one, it returns nil.
+func checkError(msg string) error {
 	if code := errCode(C.GetLastError()); code != 0 {
 		return errors.Wrap(code, msg)
 	}
