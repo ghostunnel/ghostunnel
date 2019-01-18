@@ -45,6 +45,8 @@ github.com/matttproud/golang_protobuf_extensions/pbutil
 github.com/miekg/pkcs11
 # github.com/mwitkow/go-http-dialer v0.0.0-20161116154839-378f744fb2b8
 github.com/mwitkow/go-http-dialer
+# github.com/pires/go-proxyproto v0.0.0-20190111085350-4d51b51e3bfc
+github.com/pires/go-proxyproto
 # github.com/pkg/errors v0.8.1
 github.com/pkg/errors
 # github.com/pmezard/go-difflib v1.0.0
