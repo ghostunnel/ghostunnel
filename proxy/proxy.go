@@ -60,18 +60,22 @@ type Proxy struct {
 	// Internal state to indicate that we want to shut down.
 	quit int32
 
+	// Silence TLS errors
+	quiet bool
+
 	// Internal wait group to keep track of outstanding handlers.
 	handlers *sync.WaitGroup
 }
 
 // New creates a new proxy.
-func New(listener net.Listener, timeout time.Duration, dial Dialer, logger Logger) *Proxy {
+func New(listener net.Listener, timeout time.Duration, dial Dialer, logger Logger, quiet bool) *Proxy {
 	p := &Proxy{
 		Listener:       listener,
 		ConnectTimeout: timeout,
 		Dial:           dial,
 		Logger:         logger,
 		quit:           0,
+		quiet:          quiet,
 		handlers:       &sync.WaitGroup{},
 	}
 
@@ -128,13 +132,17 @@ func (p *Proxy) Accept() {
 			err := forceHandshake(p.ConnectTimeout, conn)
 			if err != nil {
 				errorCounter.Inc(1)
-				p.Logger.Printf("error on TLS handshake from %s: %s", conn.RemoteAddr(), err)
+				if !p.quiet {
+					p.Logger.Printf("error on TLS handshake from %s: %s", conn.RemoteAddr(), err)
+				}
 				return
 			}
 
 			backend, err := p.Dial()
 			if err != nil {
-				p.Logger.Printf("error: %s", err)
+				if !p.quiet {
+					p.Logger.Printf("error: %s", err)
+				}
 				return
 			}
 
@@ -200,7 +208,9 @@ func (p *Proxy) copyData(dst net.Conn, src net.Conn) {
 	_, err := io.Copy(dst, src)
 
 	if err != nil {
-		p.Logger.Printf("error: %s", err)
+		if !p.quiet {
+			p.Logger.Printf("error: %s", err)
+		}
 	}
 }
 
