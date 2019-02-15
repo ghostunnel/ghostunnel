@@ -127,6 +127,57 @@ KYMB/SV5VsjIOckZuBIn8mMQIAqFGIvqeCS2qovntjHZMyuAbenOFLfi+WRg1KZZ
 YAnq2h6R3bmXYwpZzI/S+E/0PQDXHArbsM4XgimleOle+O2bqjAxMCEwCQYFKw4D
 AhoFAAQUMdr6fwPsXl5nAlbi51zv2YJHelkECLJyvuiCk4LpAgIIAA==`)
 
+var testKeystoreCertOnly, _ = base64.StdEncoding.DecodeString(`
+-----BEGIN CERTIFICATE-----
+MIIDPjCCAiagAwIBAgIRAPdQja0pEoBqXPO5PCsSDAcwDQYJKoZIhvcNAQELBQAw
+NzEVMBMGA1UEChMMY2VydC1tYW5hZ2VyMR4wHAYDVQQDExVmbHVlbnQtYml0LWZv
+cndhcmQtY2EwHhcNMTkwMjE0MjMzNDM3WhcNMTkwNTE1MjMzNDM3WjA3MRUwEwYD
+VQQKEwxjZXJ0LW1hbmFnZXIxHjAcBgNVBAMTFWZsdWVudC1iaXQtZm9yd2FyZC1j
+YTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAMHgh2SL8kw77Md/ILpX
+0cq8MOvexi3v0uixbUUQMxL8M/3cCcmGIEopoi+GuJuLaa/DOY4c6EHKLgfHCG7M
+Uf3YVksf8IXRwHcG6uK9HI7mgsyCPo/rtaYUBGnt8UpGPS8NsLKFWJcGXaclQETp
+pBXlqPXHePxmYVJLt8T38IC/fTVx2IwWHTz51HYBuSQK10dvYUGFu53ckE/G7eik
+eVRoHIJH9yoqxj1xP9QhFL2GswzoDEs1ketlzZgSdJa1N4bFe7R3Ghqd4spQhM5f
+Uf5kmj+lYQLqBErIK3uzOfPHQ0WGoUW/EoW2twuLWZ/7ZDXSKjvMfw7ubS1FvfY2
+eIkCAwEAAaNFMEMwDgYDVR0PAQH/BAQDAgKkMA8GA1UdEwEB/wQFMAMBAf8wIAYD
+VR0RBBkwF4IVZmx1ZW50LWJpdC1mb3J3YXJkLWNhMA0GCSqGSIb3DQEBCwUAA4IB
+AQAyY8/C8yC+5GjKtJmMZfhacIuDw32kzNnsQtLKVNNk3DLA/9yLQx3FIjOV+ON4
+1zwhsQ/ZatTuWbxYqzymXE6Ti1Q+yiCjvGsz9fmQ60OwkMxxAcrAY4hd0IipPhNB
+ygCDcUf65hPgOvSn+NQJY92XZAGZz9Uwppl+l/1Dda+o+v8jAXJwQo3qkLmRYHuc
+uyupqf08h2KgLtfDp6XW+m/kPgjA+S7H2jXcKZk1mZqsSJ5WO1GtGUlfJyfPR8m2
+6iPYjqdyz7KL/m+LjngudVruTqVmoT7mI5C+7jsS/K0+rLPhv6d2vD/zcvbjONn7
+F9hYbnHTh38g/4uq2fVnW6C0
+-----END CERTIFICATE-----`)
+
+var testKeystoreKeyPath, _ = base64.StdEncoding.DecodeString(`
+-----BEGIN RSA PRIVATE KEY-----
+MIIEowIBAAKCAQEAweCHZIvyTDvsx38gulfRyrww697GLe/S6LFtRRAzEvwz/dwJ
+yYYgSimiL4a4m4tpr8M5jhzoQcouB8cIbsxR/dhWSx/whdHAdwbq4r0cjuaCzII+
+j+u1phQEae3xSkY9Lw2wsoVYlwZdpyVAROmkFeWo9cd4/GZhUku3xPfwgL99NXHY
+jBYdPPnUdgG5JArXR29hQYW7ndyQT8bt6KR5VGgcgkf3KirGPXE/1CEUvYazDOgM
+SzWR62XNmBJ0lrU3hsV7tHcaGp3iylCEzl9R/mSaP6VhAuoESsgre7M588dDRYah
+Rb8Shba3C4tZn/tkNdIqO8x/Du5tLUW99jZ4iQIDAQABAoIBABvfedecvxLyspHj
+1wKzSXgKIkZm2rsT9ZB6oakCMTWTiK4Aim+slsvSvHx0s+m421LnkEi8IzACLyfz
+F2VGfqsuBQn754p1o2P5XJ+IbKimvztDplbunkjoK9JG4R+6hWVUZIjl3tynj6NO
+GbVOmcaEJAxhxyUSWv+H3z20H6GCpfyyWYRbWhzmp1GeoXBb0vsOnPMgOB7pdlYZ
+qoUextffEnmuEQ55DKS6G3+UUNlasnfxz/77BGqHuX8pz3p2eK8py1fbAeIth0og
+4Ppj+zsB0N/YmifelzDHeQTMNE1RUGVIz195JrsDTvdHJu9R2hPpsstR2cZVPi1F
+2WuEwAECgYEA0IJ6sUGesBFtUuWJu26a/iUxZvyTUyz7im6Wr9x0VmVFHUuGhQhP
+0QGS3/weM5zOZe5ArIRqTAb67TySL83/SOLRR7s+KL9uS01ZazODOVHaU+ImyWz4
+xB3ZI5BCH0dk1BDREkIaMYj6hlJsYvW/aPXeB1wXdO2g5UJXxd2pBAECgYEA7gje
+h/+dj52JBbbHygDvuvNbYDhO3MELDIVoFoU5bgQBg3WPGywRikwKtd+7ko9Q5TPW
+0LrPvtAk/kZvg6YmtnY9fsGRXM9v5DoRJ1GVB13hYvUsl3bWz+yhYh5FjBiIiQBm
+h3QBve7SojmwNgN+untatm+jgxaEBWB33hVzVIkCgYEAzkxqrDpqkXWMnvowfdv/
+SfjumiDIewEEl4C3YqRSDrD/4u442CLTJc3Szf4au6InrD5AivAwY6x8VIEbemTs
+cebIfZpK8/IDZEnRcPl0mh/cTiZxjdVdhFyr3D38zgnLPu6sjM4OMHiAtqmSR48x
+pN2uocWCB9Sc3nf3c/POKAECgYAozmZvxBdbvnL2As6fR6fRUdTRWvXSDFn7jIc6
+jR46SP+FbMraqqRbJAwV/8PlLSJ+GHP0FoJ0wLQGz0ZguEQctYp3R3HHClyxMG8u
+YWL9/08bKtK5KItM29ESxAPCL5aAfgwVnoKJ7/42B1O4/sJj76+uZNcQKvT5Av+p
+l93MmQKBgH1glvxJzN+B2uaPND/ux4Iz+FVNxwRxOSIvDA87nMlzzCnUQZflJ2Zh
+AzsLLA4Co1ouYxA7ecfQe4Y0DjeoZ2Ft5KzAsPhM1D1ztXI5gr3/6HvgJ6xdrXJu
+hHV17et3tJKiSuKwz1wSwx7J5hxxPB38+GhfstzSde5LwuAFTfAn
+-----END RSA PRIVATE KEY-----`)
+
 var testKeystorePassword = "password"
 
 func TestBuildConfig(t *testing.T) {
@@ -134,6 +185,12 @@ func TestBuildConfig(t *testing.T) {
 	panicOnError(err)
 
 	tmpKeystoreNoPrivKey, err := ioutil.TempFile("", "ghostunnel-test")
+	panicOnError(err)
+
+	tmpKeystoreSeparateCert, err := ioutil.TempFile("", "ghostunnel-test")
+	panicOnError(err)
+
+	tmpKeystoreSeparateKey, err := ioutil.TempFile("", "ghostunnel-test")
 	panicOnError(err)
 
 	tmpCaBundle, err := ioutil.TempFile("", "ghostunnel-test")
@@ -144,12 +201,20 @@ func TestBuildConfig(t *testing.T) {
 	tmpCaBundle.WriteString(testCertificate)
 	tmpCaBundle.WriteString("\n")
 
+	tmpKeystoreSeparateCert.Write(testKeystoreCertOnly)
+	tmpKeystoreSeparateKey.Write(testKeystoreKeyPath)
+
+	tmpKeystoreSeparateCert.Sync()
+	tmpKeystoreSeparateKey.Sync()
+
 	tmpKeystore.Sync()
 	tmpCaBundle.Sync()
 
 	defer os.Remove(tmpKeystore.Name())
 	defer os.Remove(tmpCaBundle.Name())
 	defer os.Remove(tmpKeystoreNoPrivKey.Name())
+	defer os.Remove(tmpKeystoreSeparateCert.Name())
+	defer os.Remove(tmpKeystoreSeparateKey.Name())
 
 	_, err = buildConfig("", tmpCaBundle.Name())
 	assert.NotNil(t, err, "should fail to build config with no cipher suites")
@@ -164,24 +229,27 @@ func TestBuildConfig(t *testing.T) {
 	assert.Nil(t, conf, "conf with invalid params should be nil")
 	assert.NotNil(t, err, "should reject invalid CA cert bundle")
 
-	cert, err := buildCertificate("", "")
+	cert, err := buildCertificate("", "", "")
 	assert.Nil(t, err, "empty keystorePath should not raise an error")
 
-	cert, err = buildCertificate(tmpKeystore.Name(), "totes invalid")
+	cert, err = buildCertificate(tmpKeystore.Name(), "", "totes invalid")
 	assert.Nil(t, cert, "cert with invalid params should be nil")
 	assert.NotNil(t, err, "should reject invalid keystore pass")
 
-	cert, err = buildCertificate("does-not-exist", testKeystorePassword)
+	cert, err = buildCertificate("does-not-exist", "", testKeystorePassword)
 	assert.Nil(t, cert, "cert with invalid params should be nil")
 	assert.NotNil(t, err, "should reject missing keystore (not found)")
 
-	cert, err = buildCertificate(tmpKeystoreNoPrivKey.Name(), "")
+	cert, err = buildCertificate(tmpKeystoreNoPrivKey.Name(), "", "")
 	assert.Nil(t, cert, "cert with invalid params should be nil")
 	assert.NotNil(t, err, "should reject invalid keystore (no private key)")
 
-	cert, err = buildCertificate("/dev/null", "")
+	cert, err = buildCertificate("/dev/null", "", "")
 	assert.Nil(t, cert, "cert with invalid params should be nil")
 	assert.NotNil(t, err, "should reject invalid keystore (empty)")
+
+	cert, err = buildCertificate(tmpKeystoreSeparateCert.Name(), tmpKeystoreSeparateKey.Name(), "")
+	assert.Nil(t, cert, "cert with sep key be ok")
 }
 
 func TestCipherSuitePreference(t *testing.T) {
@@ -218,7 +286,7 @@ func TestReload(t *testing.T) {
 
 	defer os.Remove(tmpKeystore.Name())
 
-	c, err := buildCertificate(tmpKeystore.Name(), testKeystorePassword)
+	c, err := buildCertificate(tmpKeystore.Name(), "", testKeystorePassword)
 	assert.Nil(t, err, "should be able to build certificate")
 
 	c.Reload()

@@ -91,6 +91,7 @@ var (
 
 	// TLS options
 	keystorePath        = app.Flag("keystore", "Path to certificate and keystore (PEM with certificate/key, or PKCS12).").PlaceHolder("PATH").String()
+	keystoreKeyPath     = app.Flag("keystoreKeyPath", "Path to certificate key (PEM with key).").PlaceHolder("PATH").String()
 	keystorePass        = app.Flag("storepass", "Password for certificate and keystore (optional).").PlaceHolder("PASS").String()
 	caBundlePath        = app.Flag("cacert", "Path to CA bundle file (PEM/X509). Uses system trust store by default.").String()
 	enabledCipherSuites = app.Flag("cipher-suites", "Set of cipher suites to enable, comma-separated, in order of preference (AES, CHACHA).").Default("AES,CHACHA").String()
@@ -325,7 +326,7 @@ func run(args []string) error {
 	}
 	metrics := sqmetrics.NewMetrics(*metricsURL, *metricsPrefix, client, *metricsInterval, metrics.DefaultRegistry, logger)
 
-	cert, err := buildCertificate(*keystorePath, *keystorePass)
+	cert, err := buildCertificate(*keystorePath, *keystoreKeyPath, *keystorePass)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: unable to load certificates: %s\n", err)
 		return err

@@ -41,7 +41,7 @@ var cipherSuites = map[string][]uint16{
 }
 
 // Build reloadable certificate
-func buildCertificate(keystorePath, keystorePass string) (certloader.Certificate, error) {
+func buildCertificate(keystorePath, keystoreKeyPath, keystorePass string) (certloader.Certificate, error) {
 	if hasPKCS11() {
 		return buildCertificateFromPKCS11(keystorePath)
 	}
@@ -49,6 +49,9 @@ func buildCertificate(keystorePath, keystorePass string) (certloader.Certificate
 		return buildCertificateFromCertstore()
 	}
 	if keystorePath != "" {
+		if keystoreKeyPath != "" {
+			return certloader.CertificateFromPEMFiles(keystorePath, keystoreKeyPath)
+		}
 		return certloader.CertificateFromKeystore(keystorePath, keystorePass)
 	}
 	return nil, nil
