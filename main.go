@@ -74,7 +74,6 @@ var (
 	serverAllowedIPs     = serverCommand.Flag("allow-ip", "").Hidden().PlaceHolder("SAN").IPList()
 	serverAllowedURIs    = serverCommand.Flag("allow-uri", "Allow clients with given URI subject alternative name (can be repeated).").PlaceHolder("URI").Strings()
 	serverDisableAuth    = serverCommand.Flag("disable-authentication", "Disable client authentication, no client certificate will be required.").Default("false").Bool()
-	serverQuiet          = serverCommand.Flag("server-quiet", "Silence server logging about inbound TLS errors").Default("false").Bool()
 
 	clientCommand       = app.Command("client", "Client mode (plain TCP/UNIX listener -> TLS target).")
 	clientListenAddress = clientCommand.Flag("listen", "Address and port to listen on (HOST:PORT, or unix:PATH).").PlaceHolder("ADDR").Required().String()
@@ -89,7 +88,6 @@ var (
 	clientAllowedIPs     = clientCommand.Flag("verify-ip", "").Hidden().PlaceHolder("SAN").IPList()
 	clientAllowedURIs    = clientCommand.Flag("verify-uri", "Allow servers with given URI subject alternative name (can be repeated).").PlaceHolder("URI").Strings()
 	clientDisableAuth    = clientCommand.Flag("disable-authentication", "Disable client authentication, no certificate will be provided to the server.").Default("false").Bool()
-	clientQuiet          = clientCommand.Flag("client-quiet", "Silence client logging about TLS errors").Default("false").Bool()
 
 	// TLS options
 	keystorePath        = app.Flag("keystore", "Path to certificate and keystore (PEM with certificate/key, or PKCS12).").PlaceHolder("PATH").String()
@@ -111,6 +109,7 @@ var (
 	// Status & logging
 	statusAddress = app.Flag("status", "Enable serving /_status and /_metrics on given HOST:PORT (or unix:SOCKET).").PlaceHolder("ADDR").String()
 	enableProf    = app.Flag("enable-pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
+	quiet         = app.Flag("quiet", "Silence logging about TLS errors").Default("false").Bool()
 )
 
 func init() {
@@ -436,7 +435,7 @@ func serverListen(context *Context) error {
 		*timeoutDuration,
 		context.dial,
 		logger,
-		*serverQuiet,
+		*quiet,
 	)
 
 	if *statusAddress != "" {
@@ -483,7 +482,7 @@ func clientListen(context *Context) error {
 		*timeoutDuration,
 		context.dial,
 		logger,
-		*clientQuiet,
+		*quiet,
 	)
 
 	if *statusAddress != "" {
