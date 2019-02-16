@@ -130,8 +130,8 @@ the `--storepass` flag. If you want to use ghostunnel with a PKCS#11 module,
 see the section on PKCS#11 below.
 
 In the event your certificate and key are not bundled together (for example
-created by cert-manager in Kubernetes), you can use `--keystore <cert>`
-and `--keystoreKeyPath <key-file>`.
+created by cert-manager in Kubernetes), you can use `--cert <cert>`
+and `--key <key-file>`.
 
 
 ### Server mode 
