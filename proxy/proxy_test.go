@@ -17,6 +17,7 @@
 package proxy
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -26,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	proxyproto "github.com/pires/go-proxyproto"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -39,7 +41,7 @@ func TestMultipleShutdownCalls(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	assert.Nil(t, err, "should be able to listen on random port")
 
-	p := New(ln, 60*time.Second, nil, &testLogger{}, false)
+	p := New(ln, 60*time.Second, nil, &testLogger{}, false, false)
 
 	// Should not panic
 	p.Shutdown()
@@ -62,7 +64,7 @@ func TestProxySuccess(t *testing.T) {
 	}
 
 	// Start accept loop
-	p := New(incoming, 60*time.Second, dialer, &testLogger{}, false)
+	p := New(incoming, 60*time.Second, dialer, &testLogger{}, false, false)
 	go p.Accept()
 	defer p.Shutdown()
 
@@ -96,6 +98,65 @@ func TestProxySuccess(t *testing.T) {
 	p.Wait()
 }
 
+func TestProxyProtocolSuccess(t *testing.T) {
+	// Incoming listener
+	incoming, err := net.Listen("tcp", "127.0.0.1:0")
+	assert.Nil(t, err, "should be able to listen on random port")
+
+	// Target listener
+	target, err := net.Listen("tcp", "127.0.0.1:0")
+	assert.Nil(t, err, "should be able to listen on random port")
+
+	dialer := func() (net.Conn, error) {
+		return net.Dial("tcp", target.Addr().String())
+	}
+
+	// Start accept loop
+	p := New(incoming, 60*time.Second, dialer, &testLogger{}, false, true)
+	go p.Accept()
+	defer p.Shutdown()
+
+	// Proxy a connection
+	src, err := net.Dial("tcp", incoming.Addr().String())
+	assert.Nil(t, err, "should be able to dial into proxy")
+
+	dst, err := target.Accept()
+	assert.Nil(t, err, "should be able to receive connection on target")
+
+	header, err := proxyproto.Read(bufio.NewReaderSize(dst, 12))
+	assert.Equal(t, header, &proxyproto.Header{
+		Version:            2,
+		Command:            proxyproto.PROXY,
+		TransportProtocol:  proxyproto.TCPv4,
+		SourceAddress:      net.ParseIP("127.0.0.1").To4(),
+		DestinationAddress: net.ParseIP("127.0.0.1").To4(),
+		SourcePort:         uint16(src.LocalAddr().(*net.TCPAddr).Port),
+		DestinationPort:    uint16(incoming.Addr().(*net.TCPAddr).Port),
+	}, "sould be able to receive proxy protocol header")
+
+	src.Write([]byte("A"))
+
+	received := make([]byte, 1)
+	for {
+		n, err := dst.Read(received)
+		if err != io.EOF {
+			assert.Nil(t, err, "should be able to receive data from connection on target")
+		}
+		if n == 1 {
+			break
+		}
+	}
+
+	if !bytes.Equal([]byte("A"), received) {
+		t.Error("got wrong data from connection on target")
+	}
+
+	p.Shutdown()
+	dst.Close()
+	src.Close()
+	p.Wait()
+}
+
 func TestBackendDialError(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	assert.Nil(t, err, "should be able to listen on random port")
@@ -104,7 +165,7 @@ func TestBackendDialError(t *testing.T) {
 		return nil, errors.New("failure for test")
 	}
 
-	p := New(ln, 60*time.Second, dialer, &testLogger{}, false)
+	p := New(ln, 60*time.Second, dialer, &testLogger{}, false, false)
 	go p.Accept()
 	defer p.Shutdown()
 
