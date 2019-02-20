@@ -46,11 +46,11 @@ instance. Metrics can be fed into Graphite (or other systems) to see number of
 open connections, rate of new connections, connection lifetimes, timeouts, and
 other info.
 
-**Emphasis on security**: We have put some thought into making ghostunnel
+**[Emphasis on security](BUG-BOUNTY.md)**: We have put some thought into making ghostunnel
 secure by default and prevent accidental misconfiguration. For example,  we
 always negotiate TLS v1.2 and only use safe cipher suites. Ghostunnel also
 supports PKCS#11 which makes it possible to use Hardware Security Modules
-(HSMs) to protect private keys, and we have a [BUG-BOUNTY](BUG-BOUNTY.md) that
+(HSMs) to protect private keys, and we have a bug bounty that
 pays rewards for security findings. 
 
 Getting Started
