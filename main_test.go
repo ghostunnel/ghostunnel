@@ -180,13 +180,27 @@ func TestServerFlagValidation(t *testing.T) {
 	err = serverValidateFlags()
 	assert.NotNil(t, err, "unsafe target should be rejected")
 
+	*certPath = "file"
+	err = serverValidateFlags()
+	assert.NotNil(t, err, "--cert also requires --key or should error")
+	*certPath = ""
+
 	test := "test"
 	*keystorePath = "file"
 	keychainIdentity = &test
 	err = serverValidateFlags()
 	assert.NotNil(t, err, "--keystore and --keychain-identity can't be set at the same time")
+
+	*keystorePath = ""
+	*certPath = "file"
+	*keyPath = "file"
+	err = serverValidateFlags()
+	assert.NotNil(t, err, "--cert and --keychain-identity can't be set at the same time")
+	*certPath = ""
+	*keyPath = ""
 	keychainIdentity = nil
 
+	*keystorePath = "test"
 	*serverDisableAuth = true
 	*serverAllowAll = true
 	err = serverValidateFlags()

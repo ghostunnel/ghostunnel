@@ -221,7 +221,7 @@ func serverValidateFlags() error {
 	if ((*keyPath != "" && *certPath == "") || (*keyPath == "" && *certPath != "")) && !hasPKCS11() {
 		return errors.New("when using --cert, must also specify --key")
 	}
-	if *keyPath != "" && *certPath != "" && *keystorePath != "" {
+	if *certPath != "" && *keystorePath != "" {
 		return errors.New("--key/--cert and --keystore are mutually exclusive")
 	}
 	if *keystorePath == "" && !hasKeychainIdentity() && *certPath == "" {
@@ -229,6 +229,9 @@ func serverValidateFlags() error {
 	}
 	if *keystorePath != "" && hasKeychainIdentity() {
 		return errors.New("--keystore and --keychain-identity flags are mutually exclusive")
+	}
+	if *certPath != "" && hasKeychainIdentity() {
+		return errors.New("--cert/--key and --keychain-identity flags are mutually exclusive")
 	}
 	if !(*serverDisableAuth) && !(*serverAllowAll) && !hasAccessFlags {
 		return errors.New("at least one access control flag (--allow-{all,cn,ou,dns-san,ip-san,uri-san} or --disable-authentication) is required")
