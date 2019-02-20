@@ -27,8 +27,8 @@ import (
 	"testing"
 	"time"
 
+	proxyproto "github.com/pires/go-proxyproto"
 	"github.com/stretchr/testify/assert"
-	"github.com/pires/go-proxyproto"
 )
 
 type testLogger struct{}
@@ -41,7 +41,7 @@ func TestMultipleShutdownCalls(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	assert.Nil(t, err, "should be able to listen on random port")
 
-	p := New(ln, 60*time.Second, nil, &testLogger{}, false)
+	p := New(ln, 60*time.Second, nil, &testLogger{}, false, false)
 
 	// Should not panic
 	p.Shutdown()
@@ -64,7 +64,7 @@ func TestProxySuccess(t *testing.T) {
 	}
 
 	// Start accept loop
-	p := New(incoming, 60*time.Second, dialer, &testLogger{}, false)
+	p := New(incoming, 60*time.Second, dialer, &testLogger{}, false, false)
 	go p.Accept()
 	defer p.Shutdown()
 
@@ -112,8 +112,7 @@ func TestProxyProtocolSuccess(t *testing.T) {
 	}
 
 	// Start accept loop
-	p := New(incoming, 60*time.Second, dialer, &testLogger{})
-	p.EnableProxyProtocol()
+	p := New(incoming, 60*time.Second, dialer, &testLogger{}, false, true)
 	go p.Accept()
 	defer p.Shutdown()
 
@@ -166,7 +165,7 @@ func TestBackendDialError(t *testing.T) {
 		return nil, errors.New("failure for test")
 	}
 
-	p := New(ln, 60*time.Second, dialer, &testLogger{}, false)
+	p := New(ln, 60*time.Second, dialer, &testLogger{}, false, false)
 	go p.Accept()
 	defer p.Shutdown()
 

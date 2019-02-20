@@ -24,6 +24,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	proxyproto "github.com/pires/go-proxyproto"
 	metrics "github.com/rcrowley/go-metrics"
 )
 
@@ -63,14 +64,15 @@ type Proxy struct {
 	// Silence TLS errors
 	quiet bool
 
+	// Enable HAproxy's PROXY protocol
+	// see: https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt
 	proxyProtocol bool
 
 	// Internal wait group to keep track of outstanding handlers.
 	handlers *sync.WaitGroup
 }
 
-func getProxyProtoHeaderFor(c net.Conn) *proxyproto.Header {
-
+func proxyProtoHeader(c net.Conn) *proxyproto.Header {
 	sAddr := c.RemoteAddr().(*net.TCPAddr)
 	dAddr := c.LocalAddr().(*net.TCPAddr)
 
@@ -86,7 +88,7 @@ func getProxyProtoHeaderFor(c net.Conn) *proxyproto.Header {
 }
 
 // New creates a new proxy.
-func New(listener net.Listener, timeout time.Duration, dial Dialer, logger Logger, quiet bool) *Proxy {
+func New(listener net.Listener, timeout time.Duration, dial Dialer, logger Logger, quiet, proxyProtocol bool) *Proxy {
 	p := &Proxy{
 		Listener:       listener,
 		ConnectTimeout: timeout,
@@ -94,6 +96,7 @@ func New(listener net.Listener, timeout time.Duration, dial Dialer, logger Logge
 		Logger:         logger,
 		quit:           0,
 		quiet:          quiet,
+		proxyProtocol:  proxyProtocol,
 		handlers:       &sync.WaitGroup{},
 	}
 
@@ -103,10 +106,6 @@ func New(listener net.Listener, timeout time.Duration, dial Dialer, logger Logge
 	// calls Wait() on the proxy object.
 	p.handlers.Add(1)
 	return p
-}
-
-func (p *Proxy) EnableProxyProtocol() {
-	p.proxyProtocol = true
 }
 
 // Shutdown tells the proxy to close the listener & stop accepting connections.
@@ -169,7 +168,7 @@ func (p *Proxy) Accept() {
 			}
 
 			if p.proxyProtocol {
-				h := getProxyProtoHeaderFor(conn)
+				h := proxyProtoHeader(conn)
 				_, err = h.WriteTo(backend)
 				if err != nil {
 					p.Logger.Printf("error: %s", err)
