@@ -220,7 +220,10 @@ func serverValidateFlags() error {
 	if (*key != "" && *cert == "") || (*key == "" && *cert != "") {
 		return errors.New("both key and cert are required")
 	}
-	if (*key == "" && *cert == "" && *keystorePath == "") && !hasKeychainIdentity() {
+	if *key != "" && *cert != "" && *keystorePath != "" {
+		return errors.New("Cannot specificy both key/cert and keystorePath")
+	}
+	if *keystorePath == "" && !hasKeychainIdentity() {
 		return errors.New("at least one of --keystore/cert/key or --keychain-identity (if supported) flags is required")
 	}
 	if *keystorePath != "" && hasKeychainIdentity() {
