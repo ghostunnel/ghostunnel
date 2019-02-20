@@ -26,7 +26,7 @@ if __name__ == "__main__":
                                      '--listen={0}:13001'.format(LOCALHOST),
                                      '--target={0}:{1}'.format(LOCALHOST,
                                                                STATUS_PORT),
-                                     '--keystore=../test-keys/server-cert.pem',
+                                     '--cert=../test-keys/server-cert.pem',
                                      '--pkcs11-module={0}'.format(os.environ['GHOSTUNNEL_TEST_PKCS11_MODULE']),
                                      '--pkcs11-token-label={0}'.format(os.environ['GHOSTUNNEL_TEST_PKCS11_LABEL']),
                                      '--pkcs11-pin={0}'.format(os.environ['GHOSTUNNEL_TEST_PKCS11_PIN']),

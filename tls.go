@@ -41,12 +41,19 @@ var cipherSuites = map[string][]uint16{
 }
 
 // Build reloadable certificate
-func buildCertificate(keystorePath, keystorePass string) (certloader.Certificate, error) {
+func buildCertificate(keystorePath, certPath, keyPath, keystorePass string) (certloader.Certificate, error) {
 	if hasPKCS11() {
-		return buildCertificateFromPKCS11(keystorePath)
+		if keystorePath != "" {
+			return buildCertificateFromPKCS11(keystorePath)
+		} else {
+			return buildCertificateFromPKCS11(certPath)
+		}
 	}
 	if hasKeychainIdentity() {
 		return buildCertificateFromCertstore()
+	}
+	if keyPath != "" && certPath != "" {
+		return certloader.CertificateFromPEMFiles(certPath, keyPath)
 	}
 	if keystorePath != "" {
 		return certloader.CertificateFromKeystore(keystorePath, keystorePass)

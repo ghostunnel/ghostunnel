@@ -28,7 +28,7 @@ To import the server test key into SoftHSM, for example:
 To launch ghostunnel with the SoftHSM-backed PKCS11 key (on macOS):
 
     ghostunnel server \
-        --keystore test-keys/server-cert.pem \
+        --cert test-keys/server-cert.pem \
         --pkcs11-module /usr/local/Cellar/softhsm/2.4.0/lib/softhsm/libsofthsm2.so \
         --pkcs11-token-label ghostunnel-server \
         --pkcs11-pin 1234 \
@@ -43,7 +43,7 @@ to use environment variables to set PKCS11 options instead of flags (via
 `PKCS11_MODULE`, `PKCS11_TOKEN_LABEL` and `PKCS11_PIN`), useful if you don't
 want to show the PIN on the command line.
 
-Note that `--keystore` needs to point to the certificate chain that corresponds
+Note that `--cert` needs to point to the certificate chain that corresponds
 to the private key in the PKCS#11 module, with the leaf certificate being the
 first certificate in the chain. Ghostunnel doesn't have the ability to read
 the certificate chain directly from the module at this point in time.
