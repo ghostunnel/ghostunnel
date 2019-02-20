@@ -29,18 +29,18 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cyberdelia/go-metrics-graphite"
-	"github.com/hashicorp/go-syslog"
-	"github.com/kavu/go_reuseport"
-	"github.com/mwitkow/go-http-dialer"
+	graphite "github.com/cyberdelia/go-metrics-graphite"
+	gsyslog "github.com/hashicorp/go-syslog"
+	reuseport "github.com/kavu/go_reuseport"
+	http_dialer "github.com/mwitkow/go-http-dialer"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/rcrowley/go-metrics"
+	metrics "github.com/rcrowley/go-metrics"
 	"github.com/square/ghostunnel/auth"
 	"github.com/square/ghostunnel/certloader"
 	"github.com/square/ghostunnel/proxy"
 	"github.com/square/ghostunnel/wildcard"
-	"github.com/square/go-sq-metrics"
-	"gopkg.in/alecthomas/kingpin.v2"
+	sqmetrics "github.com/square/go-sq-metrics"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
 
 	prometheusmetrics "github.com/deathowl/go-metrics-prometheus"
 	"github.com/prometheus/client_golang/prometheus"
@@ -90,10 +90,10 @@ var (
 	clientDisableAuth    = clientCommand.Flag("disable-authentication", "Disable client authentication, no certificate will be provided to the server.").Default("false").Bool()
 
 	// TLS options
-	keystorePath        = app.Flag("keystore", "Path to certificate and keystore (PEM with certificate/key, or PKCS12).").PlaceHolder("PATH").String()
-	cert                = app.Flag("cert", "Path to certificate (PEM without key).").PlaceHolder("PATH").String()
-	key                 = app.Flag("key", "Path to certificate private key (PEM key).").PlaceHolder("PATH").String()
-	keystorePass        = app.Flag("storepass", "Password for certificate and keystore (optional).").PlaceHolder("PASS").String()
+	keystorePath        = app.Flag("keystore", "Path to keystore (combined PEM with cert/key, or PKCS12 keystore).").PlaceHolder("PATH").String()
+	certPath            = app.Flag("cert", "Path to certificate (PEM with certificate chain).").PlaceHolder("PATH").String()
+	keyPath             = app.Flag("key", "Path to certificate private key (PEM with private key).").PlaceHolder("PATH").String()
+	keystorePass        = app.Flag("storepass", "Password for keystore (if using PKCS keystore, optional).").PlaceHolder("PASS").String()
 	caBundlePath        = app.Flag("cacert", "Path to CA bundle file (PEM/X509). Uses system trust store by default.").String()
 	enabledCipherSuites = app.Flag("cipher-suites", "Set of cipher suites to enable, comma-separated, in order of preference (AES, CHACHA).").Default("AES,CHACHA").String()
 
@@ -217,14 +217,14 @@ func serverValidateFlags() error {
 		len(*serverAllowedIPs) > 0 ||
 		len(*serverAllowedURIs) > 0
 
-	if (*key != "" && *cert == "") || (*key == "" && *cert != "") {
-		return errors.New("both key and cert are required")
+	if ((*keyPath != "" && *certPath == "") || (*keyPath == "" && *certPath != "")) && !hasPKCS11() {
+		return errors.New("when using --cert, must also specify --key")
 	}
-	if *key != "" && *cert != "" && *keystorePath != "" {
-		return errors.New("Cannot specificy both key/cert and keystorePath")
+	if *keyPath != "" && *certPath != "" && *keystorePath != "" {
+		return errors.New("--key/--cert and --keystore are mutually exclusive")
 	}
-	if *keystorePath == "" && !hasKeychainIdentity() {
-		return errors.New("at least one of --keystore/cert/key or --keychain-identity (if supported) flags is required")
+	if *keystorePath == "" && !hasKeychainIdentity() && *certPath == "" {
+		return errors.New("at least one of --keystore, --cert/--key or --keychain-identity (if supported) flags is required")
 	}
 	if *keystorePath != "" && hasKeychainIdentity() {
 		return errors.New("--keystore and --keychain-identity flags are mutually exclusive")
@@ -333,7 +333,7 @@ func run(args []string) error {
 	}
 	metrics := sqmetrics.NewMetrics(*metricsURL, *metricsPrefix, client, *metricsInterval, metrics.DefaultRegistry, logger)
 
-	cert, err := buildCertificate(*keystorePath, *cert, *key, *keystorePass)
+	cert, err := buildCertificate(*keystorePath, *certPath, *keyPath, *keystorePass)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: unable to load certificates: %s\n", err)
 		return err
