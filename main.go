@@ -110,6 +110,7 @@ var (
 	// Status & logging
 	statusAddress = app.Flag("status", "Enable serving /_status and /_metrics on given HOST:PORT (or unix:SOCKET).").PlaceHolder("ADDR").String()
 	enableProf    = app.Flag("enable-pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
+	quiet         = app.Flag("quiet", "Silence logging about TLS errors").Default("false").Bool()
 )
 
 func init() {
@@ -435,6 +436,7 @@ func serverListen(context *Context) error {
 		*timeoutDuration,
 		context.dial,
 		logger,
+		*quiet,
 	)
 
 	if *serverProxyProtocol {
@@ -485,6 +487,7 @@ func clientListen(context *Context) error {
 		*timeoutDuration,
 		context.dial,
 		logger,
+		*quiet,
 	)
 
 	if *statusAddress != "" {
