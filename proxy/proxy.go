@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"io"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -36,6 +37,17 @@ var (
 	timeoutCounter = metrics.GetOrRegisterCounter("accept.timeout", metrics.DefaultRegistry)
 	handshakeTimer = metrics.GetOrRegisterTimer("conn.handshake", metrics.DefaultRegistry)
 	connTimer      = metrics.GetOrRegisterTimer("conn.lifetime", metrics.DefaultRegistry)
+)
+
+const (
+	// LogConnections will log messages about open/closed connections.
+	LogConnections = 1
+	// LogConnectionErrors will log errors encountered during backend dialing, other errors (after handshake).
+	LogConnectionErrors = 2
+	// LogHandshakeErrors will log errors with new connections before/during handshake.
+	LogHandshakeErrors = 4
+	// LogEverything will log all things.
+	LogEverything = LogHandshakeErrors | LogConnectionErrors | LogConnections
 )
 
 // Logger is used by this package to log messages
@@ -61,8 +73,8 @@ type Proxy struct {
 	// Internal state to indicate that we want to shut down.
 	quit int32
 
-	// Silence TLS errors
-	quiet bool
+	// Logging flags
+	loggerFlags int
 
 	// Enable HAproxy's PROXY protocol
 	// see: https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt
@@ -88,14 +100,14 @@ func proxyProtoHeader(c net.Conn) *proxyproto.Header {
 }
 
 // New creates a new proxy.
-func New(listener net.Listener, timeout time.Duration, dial Dialer, logger Logger, quiet, proxyProtocol bool) *Proxy {
+func New(listener net.Listener, timeout time.Duration, dial Dialer, logger Logger, loggerFlags int, proxyProtocol bool) *Proxy {
 	p := &Proxy{
 		Listener:       listener,
 		ConnectTimeout: timeout,
 		Dial:           dial,
 		Logger:         logger,
 		quit:           0,
-		quiet:          quiet,
+		loggerFlags:    loggerFlags,
 		proxyProtocol:  proxyProtocol,
 		handlers:       &sync.WaitGroup{},
 	}
@@ -153,17 +165,13 @@ func (p *Proxy) Accept() {
 			err := forceHandshake(p.ConnectTimeout, conn)
 			if err != nil {
 				errorCounter.Inc(1)
-				if !p.quiet {
-					p.Logger.Printf("error on TLS handshake from %s: %s", conn.RemoteAddr(), err)
-				}
+				p.logConditional(LogHandshakeErrors, "error on TLS handshake from %s: %s", conn.RemoteAddr(), err)
 				return
 			}
 
 			backend, err := p.Dial()
 			if err != nil {
-				if !p.quiet {
-					p.Logger.Printf("error: %s", err)
-				}
+				p.logConditional(LogConnectionErrors, "error: %s", err)
 				return
 			}
 
@@ -171,7 +179,7 @@ func (p *Proxy) Accept() {
 				h := proxyProtoHeader(conn)
 				_, err = h.WriteTo(backend)
 				if err != nil {
-					p.Logger.Printf("error: %s", err)
+					p.logConditional(LogConnectionErrors, "error: %s", err)
 					return
 				}
 			}
@@ -226,31 +234,48 @@ func (p *Proxy) fuse(client, backend net.Conn) {
 	defer p.logConnectionMessage("closed", client, backend)
 	p.logConnectionMessage("opening", client, backend)
 
-	go func() { p.copyData(client, backend) }()
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	go func() { p.copyData(client, backend); wg.Done() }()
 	p.copyData(backend, client)
+	wg.Wait()
 }
 
 // Copy data between two connections
 func (p *Proxy) copyData(dst net.Conn, src net.Conn) {
-	defer dst.Close()
 	defer src.Close()
+	defer dst.Close()
 
 	_, err := io.Copy(dst, src)
 
-	if err != nil {
-		if !p.quiet {
-			p.Logger.Printf("error: %s", err)
-		}
+	if err != nil && !isClosedConnectionError(err) {
+		// We don't log individual "read from closed connection" errors, because
+		// we already have a log statement showing that a pipe has been closed.
+		p.logConditional(LogConnectionErrors, "error: %s", err)
 	}
 }
 
 // Log information message about connection
 func (p *Proxy) logConnectionMessage(action string, dst net.Conn, src net.Conn) {
-	p.Logger.Printf(
+	p.logConditional(
+		LogConnections,
 		"%s pipe: %s:%s <-> %s:%s",
 		action,
 		dst.RemoteAddr().Network(),
 		dst.RemoteAddr().String(),
 		src.RemoteAddr().Network(),
 		src.RemoteAddr().String())
+}
+
+func (p *Proxy) logConditional(flag int, msg string, args ...interface{}) {
+	if (p.loggerFlags & flag) > 0 {
+		p.Logger.Printf(msg, args...)
+	}
+}
+
+func isClosedConnectionError(err error) bool {
+	if e, ok := err.(*net.OpError); ok {
+		return e.Op == "read" && strings.Contains(err.Error(), "closed network connection")
+	}
+	return false
 }

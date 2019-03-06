@@ -112,7 +112,7 @@ var (
 	// Status & logging
 	statusAddress = app.Flag("status", "Enable serving /_status and /_metrics on given HOST:PORT (or unix:SOCKET).").PlaceHolder("ADDR").String()
 	enableProf    = app.Flag("enable-pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
-	quiet         = app.Flag("quiet", "Silence logging about TLS errors").Default("false").Bool()
+	quiet         = app.Flag("quiet", "Silence selected log messages (can be 'conns', 'conn-errs' and 'handshake-errs')").Default("").Enums("", "conns", "handshake-errs", "conn-errs")
 )
 
 func init() {
@@ -447,7 +447,7 @@ func serverListen(context *Context) error {
 		*timeoutDuration,
 		context.dial,
 		logger,
-		*quiet,
+		proxyLoggerFlags(*quiet),
 		*serverProxyProtocol,
 	)
 
@@ -495,7 +495,7 @@ func clientListen(context *Context) error {
 		*timeoutDuration,
 		context.dial,
 		logger,
-		*quiet,
+		proxyLoggerFlags(*quiet),
 		false,
 	)
 
@@ -675,4 +675,19 @@ func parseUnixOrTCPAddress(input string) (network, address, host string, err err
 
 	network, address = "tcp", input
 	return
+}
+
+func proxyLoggerFlags(flags []string) int {
+	out := proxy.LogEverything
+	for _, flag := range flags {
+		switch flag {
+		case "conns":
+			out = out & ^proxy.LogConnections
+		case "conn-errs":
+			out = out & ^proxy.LogConnectionErrors
+		case "handshake-errs":
+			out = out & ^proxy.LogHandshakeErrors
+		}
+	}
+	return out
 }
