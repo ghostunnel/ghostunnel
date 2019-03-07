@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -112,7 +113,7 @@ var (
 	// Status & logging
 	statusAddress = app.Flag("status", "Enable serving /_status and /_metrics on given HOST:PORT (or unix:SOCKET).").PlaceHolder("ADDR").String()
 	enableProf    = app.Flag("enable-pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
-	quiet         = app.Flag("quiet", "Silence logging about TLS errors").Default("false").Bool()
+	quiet         = app.Flag("quiet", "Silence log messages (can be all, conns, conn-errs, handshake-errs; repeat flag for more than one)").Default("").Enums("", "all", "conns", "handshake-errs", "conn-errs")
 )
 
 func init() {
@@ -157,10 +158,17 @@ type Dialer interface {
 // Global logger instance
 var logger = log.New(os.Stderr, "", log.LstdFlags|log.Lmicroseconds)
 
-func initLogger(syslog bool) (err error) {
+func initLogger(syslog bool, flags []string) (err error) {
 	// If user has indicated request for syslog, override default stderr
 	// logger with a syslog one instead. This can fail, e.g. in containers
 	// that don't have syslog available.
+	for _, flag := range flags {
+		if flag == "all" {
+			// If --quiet=all if passed, disable all logging
+			logger = log.New(ioutil.Discard, "", 0)
+			return
+		}
+	}
 	if syslog {
 		var syslogWriter gsyslog.Syslogger
 		syslogWriter, err = gsyslog.NewLogger(gsyslog.LOG_INFO, "DAEMON", "")
@@ -298,7 +306,7 @@ func run(args []string) error {
 	command := kingpin.MustParse(app.Parse(args))
 
 	// Logger
-	err := initLogger(useSyslog())
+	err := initLogger(useSyslog(), *quiet)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error initializing logger: %s\n", err)
 		os.Exit(1)
@@ -447,7 +455,7 @@ func serverListen(context *Context) error {
 		*timeoutDuration,
 		context.dial,
 		logger,
-		*quiet,
+		proxyLoggerFlags(*quiet),
 		*serverProxyProtocol,
 	)
 
@@ -495,7 +503,7 @@ func clientListen(context *Context) error {
 		*timeoutDuration,
 		context.dial,
 		logger,
-		*quiet,
+		proxyLoggerFlags(*quiet),
 		false,
 	)
 
@@ -675,4 +683,25 @@ func parseUnixOrTCPAddress(input string) (network, address, host string, err err
 
 	network, address = "tcp", input
 	return
+}
+
+func proxyLoggerFlags(flags []string) int {
+	out := proxy.LogEverything
+	for _, flag := range flags {
+		switch flag {
+		case "all":
+			// Disable all proxy logs
+			out = 0
+		case "conns":
+			// Disable connection logs
+			out = out & ^proxy.LogConnections
+		case "conn-errs":
+			// Disable connection errors logs
+			out = out & ^proxy.LogConnectionErrors
+		case "handshake-errs":
+			// Disable handshake error logs
+			out = out & ^proxy.LogHandshakeErrors
+		}
+	}
+	return out
 }

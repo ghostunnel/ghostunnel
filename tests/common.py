@@ -13,16 +13,27 @@ LOCALHOST = '127.0.0.1'
 STATUS_PORT = 13100
 TIMEOUT = 5
 
-def run_ghostunnel(args):
+def run_ghostunnel(args, stdout=None, stderr=None):
     """Helper to run ghostunnel in integration test mode"""
+
+    # Default shuthdown timeout to speed up tests (otherwise defaults to 5m)
+    if not any('shutdown-timeout' in f for f in args):
+        args.append('--shutdown-timeout=5s')
+
+    # Pass args through env var into integration test hook
     os.environ["GHOSTUNNEL_INTEGRATION_TEST"] = "true"
     os.environ["GHOSTUNNEL_INTEGRATION_ARGS"] = json.dumps(args)
+
+    # Print args for debugging
     print_ok("running with args:\n {0}".format(' \ \n '.join(args)))
+
+    # Run it, hook up stdout/stderr if desired
     test = os.path.basename(sys.argv[0]).replace('.py', '.out')
     return Popen([
         '../ghostunnel.test',
         '-test.run=TestIntegrationMain',
-        '-test.coverprofile=coverage-{0}'.format(test)])
+        '-test.coverprofile=coverage-{0}'.format(test)],
+        stdout=stdout, stderr=stderr)
 
 def terminate(ghostunnel):
     """Gracefully terminate ghostunnel (with timeout)"""

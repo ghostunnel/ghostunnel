@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/square/ghostunnel/proxy"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -81,9 +82,19 @@ func TestIntegrationMain(t *testing.T) {
 	}
 }
 
+func TestInitLoggerQuiet(t *testing.T) {
+	originalLogger := logger
+	err := initLogger(false, []string{"all"})
+	assert.Nil(t, err)
+
+	updatedLogger := logger
+	assert.NotEqual(t, originalLogger, updatedLogger, "should have updated logger object")
+	assert.NotNil(t, logger, "logger should never be nil after init")
+}
+
 func TestInitLoggerSyslog(t *testing.T) {
 	originalLogger := logger
-	err := initLogger(true)
+	err := initLogger(true, []string{})
 	updatedLogger := logger
 	if err != nil {
 		// Tests running in containers often don't have access to syslog,
@@ -318,4 +329,14 @@ func TestParseUnixOrTcpAddress(t *testing.T) {
 
 	_, _, _, err = parseUnixOrTCPAddress("256.256.256.256:99999")
 	assert.NotNil(t, err, "was able to parse invalid host/port")
+}
+
+func TestProxyLoggingFlags(t *testing.T) {
+	assert.Equal(t, proxyLoggerFlags([]string{""}), proxy.LogEverything)
+	assert.Equal(t, proxyLoggerFlags([]string{"conns"}), proxy.LogEverything & ^proxy.LogConnections)
+	assert.Equal(t, proxyLoggerFlags([]string{"conn-errs"}), proxy.LogEverything & ^proxy.LogConnectionErrors)
+	assert.Equal(t, proxyLoggerFlags([]string{"handshake-errs"}), proxy.LogEverything & ^proxy.LogHandshakeErrors)
+	assert.Equal(t, proxyLoggerFlags([]string{"conns", "handshake-errs"}), proxy.LogConnectionErrors)
+	assert.Equal(t, proxyLoggerFlags([]string{"conn-errs", "handshake-errs"}), proxy.LogConnections)
+	assert.Equal(t, proxyLoggerFlags([]string{"conns", "conn-errs"}), proxy.LogHandshakeErrors)
 }
