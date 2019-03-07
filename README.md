@@ -76,7 +76,7 @@ Binaries can be built from source as follows (cross-compile requires Docker and 
     # Cross-compile release binaries
     make -f Makefile.dist dist
 
-Note that ghostunnel requires Go 1.11 or later to build, and CGO is required for
+Note that ghostunnel requires Go 1.12 or later to build, and CGO is required for
 PKCS#11 support.  See also [CROSS-COMPILE](docs/CROSS-COMPILE.md) for
 instructions on how to cross-compile a custom build with CGO enabled.
 
@@ -96,7 +96,7 @@ To run tests:
     make test
 
     # Option 2: run unit & integration tests in a Docker container
-    GO_VERSION=1.11 make docker-test
+    GO_VERSION=1.12 make docker-test
 
     # Open coverage information in browser
     go tool cover -html coverage-merged.out
@@ -248,6 +248,23 @@ See [ACCESS-FLAGS](docs/ACCESS-FLAGS.md) for details.
 [spiffe]: https://spiffe.io/
 [svid]: https://github.com/spiffe/spiffe/blob/master/standards/X509-SVID.md
 
+### Logging Options
+
+You can silence specific types of log messages using the `--quiet=...` flag,
+such as `--quiet=conns` or `--quiet=handshake-errs`. You can pass this flag
+repeatedly if you want to silence multiple different kinds of log messages.
+
+Supported values are:
+* `all`: silences **all** log messages
+* `conns`: silences log messages about new and closed connections. 
+* `conn-errs`: silences log messages about connection errors encountered (post handshake). 
+* `handshake-errs`: silences log messages about failed handshakes. 
+
+In particular we recommend setting `--quiet=handshake-errs` if you are
+running TCP health checks in Kubernetes on the listening port, and you
+want to avoid seeing error messages from aborted connections on each health
+check.
+
 ### Certificate Hotswapping
 
 To trigger a reload, simply send `SIGUSR1` to the process or set a time-based
@@ -267,6 +284,14 @@ Note that if you are using an HSM/PKCS#11 module, only the certificate will
 be reloaded. It is assumed that the private key in the HSM remains the same.
 This means the updated/reissued certificate much match the private key that
 was loaded from the HSM previously, everything else works the same.
+
+### PROXY protocol (v2)
+
+Ghostunnel in server mode supports signalling of transport connection information
+to the backend using the [PROXY protocol](https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt),
+just pass the `--proxy-protocol` flag on startup. Note that the backend must
+also support the PROXY protocol and must be configured to use it when setting
+this option.
 
 ### Metrics & Profiling
 
