@@ -82,9 +82,19 @@ func TestIntegrationMain(t *testing.T) {
 	}
 }
 
+func TestInitLoggerQuiet(t *testing.T) {
+	originalLogger := logger
+	err := initLogger(false, []string{"all"})
+	assert.Nil(t, err)
+
+	updatedLogger := logger
+	assert.NotEqual(t, originalLogger, updatedLogger, "should have updated logger object")
+	assert.NotNil(t, logger, "logger should never be nil after init")
+}
+
 func TestInitLoggerSyslog(t *testing.T) {
 	originalLogger := logger
-	err := initLogger(true)
+	err := initLogger(true, []string{})
 	updatedLogger := logger
 	if err != nil {
 		// Tests running in containers often don't have access to syslog,

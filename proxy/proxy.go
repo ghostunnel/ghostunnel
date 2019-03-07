@@ -243,8 +243,8 @@ func (p *Proxy) fuse(client, backend net.Conn) {
 
 // Copy data between two connections
 func (p *Proxy) copyData(dst net.Conn, src net.Conn) {
-	defer src.Close()
 	defer dst.Close()
+	defer src.Close()
 
 	_, err := io.Copy(dst, src)
 
