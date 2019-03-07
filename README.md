@@ -121,18 +121,16 @@ in the background, we recommend using a service manager such as [systemd][system
 
 ### Certificates
 
-Ghostunnel accepts two formats of keystores, either a PKCS#12 keystore or a
-combined PEM file that contains both the certificate chain and private key.
-Both formats can be used with the `--keystore` flag, ghostunnel will
-automatically detect the file format and handle it appropriately. If you are
-using a PKCS#12 keystore protected by a password, you will also need to pass
-the `--storepass` flag. If you want to use ghostunnel with a PKCS#11 module,
-see the section on PKCS#11 below.
+Ghostunnel accepts certificates in multiple different file formats.
 
-In the event your certificate and key are not bundled together (for example
-created by cert-manager in Kubernetes), you can use `--cert <cert>`
-and `--key <key-file>`.
+The `--keystore` flag can take a PKCS#12 keystore or a combined PEM file with the
+certificate chain and private key as input (format is auto-detected). The `--cert` /
+`--key` flags can be used to load a certificate chain and key from separate PEM files
+(instead of a combined one).
 
+Ghostunnel also supports loading identities from the macOS keychain and having
+private keys backed by PKCS#11 modules, see the "Advanced Features" section below
+for more information.
 
 ### Server mode 
 
