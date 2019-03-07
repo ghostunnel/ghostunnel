@@ -40,7 +40,7 @@ if __name__ == "__main__":
         pair1 = SocketPair(
                 TlsClient('client1', 'root', 13001), TcpServer(13002))
         pair1.validate_can_send_from_client("toto", "pair1 works")
-        pair1.validate_can_send_from_server
+        pair1.validate_can_send_from_server("toto", "pair1 works")
 
         try:
             pair2 = SocketPair(
