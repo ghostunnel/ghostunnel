@@ -285,14 +285,6 @@ be reloaded. It is assumed that the private key in the HSM remains the same.
 This means the updated/reissued certificate much match the private key that
 was loaded from the HSM previously, everything else works the same.
 
-### PROXY protocol (v2)
-
-Ghostunnel in server mode supports signalling of transport connection information
-to the backend using the [PROXY protocol](https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt),
-just pass the `--proxy-protocol` flag on startup. Note that the backend must
-also support the PROXY protocol and must be configured to use it when setting
-this option.
-
 ### Metrics & Profiling
 
 Ghostunnel has a notion of "status port", a TCP port (or UNIX socket) that can
@@ -308,6 +300,14 @@ Ghostunnel has support for loading private keys from PKCS#11 modules, which
 should work with any hardware security module that exposes a PKCS#11 interface.
 
 See [HSM-PKCS11](docs/HSM-PKCS11.md) for details.
+
+### PROXY protocol (experimental)
+
+Ghostunnel in server mode supports signalling of transport connection information
+to the backend using the [PROXY protocol](https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt)
+(v2), just pass the `--proxy-protocol` flag on startup. Note that the backend must
+also support the PROXY protocol and must be configured to use it when setting
+this option.
 
 ### macOS keychain support (experimental)
 
