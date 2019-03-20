@@ -96,7 +96,7 @@ certificate.
 Verify the presence of a DNS subject alternative name (DNS SAN) on the server
 certificate, on top of the hostname. This checks that the given DNS name is
 listed as a valid name on the certificate. Can be repeated to require
-multiple that at least one of a set of hostnames is present.
+that at least one of a set of hostnames is present.
 
 * `--verify-uri`
 
