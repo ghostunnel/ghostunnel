@@ -73,7 +73,7 @@ hostname verification was also successful.
 * `--override-server-name`
 
 If set, overrides the server name used for hostname verification to be
-different from the hostname that was passed in `--listen`. This also sets the
+different from the hostname that was passed in `--target`. This also sets the
 hostname passed to the backend for SNI purposes. The logic for hostname
 verification is implemented as part of the [crypto/tls][tls] package in Go's
 standard library, see the `ServerName` field on the `tls.Config` struct.
