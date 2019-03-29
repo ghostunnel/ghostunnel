@@ -8,7 +8,7 @@ ghostunnel: $(SOURCE_FILES)
 
 # Man page
 ghostunnel.man: ghostunnel
-	./ghostunnel --help-man > $@
+	./ghostunnel --help-custom-man > $@
 
 # Test binary with coverage instrumentation
 ghostunnel.test: $(SOURCE_FILES)
