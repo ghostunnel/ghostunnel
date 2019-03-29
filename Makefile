@@ -6,6 +6,10 @@ VERSION := $(shell git describe --always --dirty)
 ghostunnel: $(SOURCE_FILES)
 	go build -ldflags '-X main.version=${VERSION}' -o ghostunnel .
 
+# Man page
+ghostunnel.man: ghostunnel
+	./ghostunnel --help-man > $@
+
 # Test binary with coverage instrumentation
 ghostunnel.test: $(SOURCE_FILES)
 	go test -c -covermode=count -coverpkg .,./auth,./certloader,./proxy,./wildcard

@@ -57,5 +57,7 @@ $(foreach goarch,$(XC_ARCH),$(foreach goos,$(XC_OS),$(eval $(call make-xc-target
 dist:
 	@rm -rf "${CURRENT_DIR}/dist/"
 	@mkdir -p "${CURRENT_DIR}/dist/"
+	@$(MAKE) -f Makefile ghostunnel.man
+	@mv ghostunnel.man "${CURRENT_DIR}/dist/ghostunnel-${VERSION}.man"
 	@$(MAKE) -f "${MKFILE_PATH}" -j1 build
 .PHONY: dist

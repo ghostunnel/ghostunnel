@@ -20,6 +20,7 @@ deploy:
       - dist/ghostunnel-${TRAVIS_TAG}-darwin-amd64-with-pkcs11
       - dist/ghostunnel-${TRAVIS_TAG}-windows-386-with-pkcs11.exe
       - dist/ghostunnel-${TRAVIS_TAG}-windows-amd64-with-pkcs11.exe
+      - dist/ghostunnel-${TRAVIS_TAG}.man
     draft: true
     skip_cleanup: true
     on:
