@@ -136,7 +136,9 @@ for more information.
 
 This is an example for how to launch ghostunnel in server mode, listening for
 incoming TLS connections on `localhost:8443` and forwarding them to
-`localhost:8080`. 
+`localhost:8080`. Note that while we use TCP sockets on `localhost` in this
+example, both the listen and target flags can also accept paths to UNIX domain
+sockets as their argument.
 
 To set allowed clients, you must specify at least one of `--allow-all`,
 `--allow-cn`, `--allow-ou`, `--allow-dns` or `--allow-uri`. All checks are made
@@ -323,10 +325,10 @@ For example, if you have an identity with CN 'example' in your login keychain:
 
     ghostunnel client \
         --keychain-identity example \
-        --listen localhost:8080 \
+        --listen unix:/path/to/unix/socket \
         --target example.com:443 \
         --cacert test-keys/cacert.pem
 
 The command above launches a ghostunnel instance that uses the certificate and
 private key with Common Name 'example' from your login keychain to proxy plaintext
-connections from localhost:8080 to example.com:443.
+connections from a given UNIX socket to example.com:443.
