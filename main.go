@@ -442,9 +442,10 @@ func serverListen(context *Context) error {
 	}
 
 	config.GetCertificate = context.cert.GetCertificate
-	config.VerifyPeerCertificate = serverACL.VerifyPeerCertificateServer
 	if *serverDisableAuth {
 		config.ClientAuth = tls.NoClientCert
+	} else {
+		config.VerifyPeerCertificate = serverACL.VerifyPeerCertificateServer
 	}
 
 	listener, err := reuseport.NewReusablePortListener("tcp", (*serverListenAddress).String())

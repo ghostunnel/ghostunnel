@@ -29,13 +29,23 @@ if __name__ == "__main__":
                                      '--cacert=root.crt',
                                      '--disable-authentication'])
 
-        # connect with client1, confirm that the tunnel is up
+        # connect with no client cert, confirm that the tunnel is up
         pair = SocketPair(TlsClient(None, 'root', 13001), TcpServer(13002))
         pair.validate_can_send_from_client(
             "hello world", "1: client -> server")
         pair.validate_can_send_from_server(
             "hello world", "1: server -> client")
         pair.validate_closing_client_closes_server(
+            "1: client closed -> server closed")
+
+        # connect with client1 cert, confirm that the tunnel is up
+        pair2 = SocketPair(
+            TlsClient('client1', 'root', 13001), TcpServer(13002))
+        pair2.validate_can_send_from_client(
+            "hello world", "1: client -> server")
+        pair2.validate_can_send_from_server(
+            "hello world", "1: server -> client")
+        pair2.validate_closing_client_closes_server(
             "1: client closed -> server closed")
 
         # connect with client2, confirm that the tunnel isn't up
