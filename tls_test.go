@@ -229,26 +229,26 @@ func TestBuildConfig(t *testing.T) {
 	assert.Nil(t, conf, "conf with invalid params should be nil")
 	assert.NotNil(t, err, "should reject invalid CA cert bundle")
 
-	cert, err := buildCertificate("", "", "", "")
+	cert, err := buildCertificate("", "", "", "", "")
 	assert.Nil(t, err, "empty keystorePath should not raise an error")
 
-	cert, err = buildCertificate(tmpKeystore.Name(), "", "", "totes invalid")
+	cert, err = buildCertificate(tmpKeystore.Name(), "", "", "totes invalid", "")
 	assert.Nil(t, cert, "cert with invalid params should be nil")
 	assert.NotNil(t, err, "should reject invalid keystore pass")
 
-	cert, err = buildCertificate("does-not-exist", "", "", testKeystorePassword)
+	cert, err = buildCertificate("does-not-exist", "", "", testKeystorePassword, "")
 	assert.Nil(t, cert, "cert with invalid params should be nil")
 	assert.NotNil(t, err, "should reject missing keystore (not found)")
 
-	cert, err = buildCertificate(tmpKeystoreNoPrivKey.Name(), "", "", "")
+	cert, err = buildCertificate(tmpKeystoreNoPrivKey.Name(), "", "", "", "")
 	assert.Nil(t, cert, "cert with invalid params should be nil")
 	assert.NotNil(t, err, "should reject invalid keystore (no private key)")
 
-	cert, err = buildCertificate("/dev/null", "", "", "")
+	cert, err = buildCertificate("/dev/null", "", "", "", "")
 	assert.Nil(t, cert, "cert with invalid params should be nil")
 	assert.NotNil(t, err, "should reject invalid keystore (empty)")
 
-	cert, err = buildCertificate("", tmpKeystoreSeparateCert.Name(), tmpKeystoreSeparateKey.Name(), "")
+	cert, err = buildCertificate("", tmpKeystoreSeparateCert.Name(), tmpKeystoreSeparateKey.Name(), "", "")
 	assert.Nil(t, cert, "cert with sep key be ok")
 }
 
@@ -286,7 +286,7 @@ func TestReload(t *testing.T) {
 
 	defer os.Remove(tmpKeystore.Name())
 
-	c, err := buildCertificate(tmpKeystore.Name(), "", "", testKeystorePassword)
+	c, err := buildCertificate(tmpKeystore.Name(), "", "", testKeystorePassword, "")
 	assert.Nil(t, err, "should be able to build certificate")
 
 	c.Reload()

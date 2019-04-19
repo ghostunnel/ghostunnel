@@ -27,14 +27,14 @@ import (
 )
 
 func TestInvalidPKCS11Module(t *testing.T) {
-	_, err := CertificateFromPKCS11Module("", "", "", "")
+	_, err := CertificateFromPKCS11Module("", "", "", "", "")
 	assert.NotNil(t, err, "should not load invalid PKCS11 certificate/key")
 }
 
 func TestGetCachedCertificatePKCS11(t *testing.T) {
 	tlscert := &tls.Certificate{}
 	p11cert := &pkcs11Certificate{
-		cached: unsafe.Pointer(tlscert),
+		cachedCertificate: unsafe.Pointer(tlscert),
 	}
 
 	c, err := p11cert.GetCertificate(nil)

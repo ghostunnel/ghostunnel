@@ -56,6 +56,9 @@ func DialerWithCertificate(cert Certificate, config *tls.Config, timeout time.Du
 }
 
 func (d *mtlsDialer) Dial(network, address string) (net.Conn, error) {
+	if d.cert != nil {
+		d.config.RootCAs = d.cert.GetTrustStore()
+	}
 	return dialWithDialer(d.dialer, d.timeout, network, address, d.config)
 }
 

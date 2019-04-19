@@ -70,16 +70,15 @@ type Proxy struct {
 	// Logger is used to log information messages about connections, errors.
 	Logger Logger
 
+	// TLS config for incoming connections (will wrap incoming connections in TLS if set)
+	listenTLSConfig func() *tls.Config
 	// Internal state to indicate that we want to shut down.
 	quit int32
-
 	// Logging flags
 	loggerFlags int
-
 	// Enable HAproxy's PROXY protocol
 	// see: https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt
 	proxyProtocol bool
-
 	// Internal wait group to keep track of outstanding handlers.
 	handlers *sync.WaitGroup
 }
@@ -118,6 +117,10 @@ func New(listener net.Listener, timeout time.Duration, dial Dialer, logger Logge
 	// calls Wait() on the proxy object.
 	p.handlers.Add(1)
 	return p
+}
+
+func (p *Proxy) ListenWithTLS(callback func() *tls.Config) {
+	p.listenTLSConfig = callback
 }
 
 // Shutdown tells the proxy to close the listener & stop accepting connections.
@@ -161,6 +164,10 @@ func (p *Proxy) Accept() {
 		go connTimer.Time(func() {
 			defer conn.Close()
 			defer openCounter.Dec(1)
+
+			if p.listenTLSConfig != nil {
+				conn = tls.Server(conn, p.listenTLSConfig())
+			}
 
 			err := forceHandshake(p.ConnectTimeout, conn)
 			if err != nil {

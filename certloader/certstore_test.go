@@ -23,6 +23,6 @@ import (
 )
 
 func TestInvalidKeychainIdentity(t *testing.T) {
-	_, err := CertificateFromKeychainIdentity("")
+	_, err := CertificateFromKeychainIdentity("", "")
 	assert.NotNil(t, err, "should not load invalid identity")
 }

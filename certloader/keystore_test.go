@@ -82,7 +82,7 @@ func TestCertificateFromPEMFilesValid(t *testing.T) {
 	_, err = file.Write([]byte(testCombinedCertificateAndKey))
 	assert.Nil(t, err, "temp file error")
 
-	cert, err := CertificateFromPEMFiles(file.Name(), file.Name())
+	cert, err := CertificateFromPEMFiles(file.Name(), file.Name(), "")
 	assert.Nil(t, err, "should read PEM file with certificate & private key")
 
 	c0, err := cert.GetCertificate(nil)
@@ -113,7 +113,7 @@ func TestCertificateFromPEMFilesInvalid(t *testing.T) {
 	_, err = file.Write([]byte("invalid"))
 	assert.Nil(t, err, "temp file error")
 
-	cert, err := CertificateFromPEMFiles(file.Name(), file.Name())
+	cert, err := CertificateFromPEMFiles(file.Name(), file.Name(), "")
 	assert.Nil(t, cert, "should not return certificate on error")
 	assert.NotNil(t, err, "should read PEM file with certificate & private key")
 }
@@ -121,7 +121,7 @@ func TestCertificateFromPEMFilesInvalid(t *testing.T) {
 func TestGetCachedCertificateKeystore(t *testing.T) {
 	tlscert := &tls.Certificate{}
 	kscert := &keystoreCertificate{
-		cached: unsafe.Pointer(tlscert),
+		cachedCertificate: unsafe.Pointer(tlscert),
 	}
 
 	c, err := kscert.GetCertificate(nil)

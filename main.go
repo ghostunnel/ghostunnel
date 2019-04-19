@@ -312,7 +312,7 @@ func run(args []string) error {
 	// Logger
 	err := initLogger(useSyslog(), *quiet)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error initializing logger: %s\n", err)
+		logger.Printf("error initializing logger: %s\n", err)
 		os.Exit(1)
 	}
 
@@ -333,9 +333,9 @@ func run(args []string) error {
 	go pClient.UpdatePrometheusMetrics()
 
 	// Read CA bundle for passing to metrics library
-	ca, err := caBundle(*caBundlePath)
+	ca, err := certloader.LoadTrustStore(*caBundlePath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: unable to build TLS config: %s\n", err)
+		logger.Printf("error: unable to build TLS config: %s\n", err)
 		return err
 	}
 
@@ -349,22 +349,22 @@ func run(args []string) error {
 	}
 	metrics := sqmetrics.NewMetrics(*metricsURL, *metricsPrefix, client, *metricsInterval, metrics.DefaultRegistry, logger)
 
-	cert, err := buildCertificate(*keystorePath, *certPath, *keyPath, *keystorePass)
+	cert, err := buildCertificate(*keystorePath, *certPath, *keyPath, *keystorePass, *caBundlePath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: unable to load certificates: %s\n", err)
+		logger.Printf("error: unable to load certificates: %s\n", err)
 		return err
 	}
 
 	switch command {
 	case serverCommand.FullCommand():
 		if err := serverValidateFlags(); err != nil {
-			fmt.Fprintf(os.Stderr, "error: %s\n", err)
+			logger.Printf("error: %s\n", err)
 			return err
 		}
 
 		dial, err := serverBackendDialer()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: invalid target address: %s\n", err)
+			logger.Printf("error: invalid target address: %s\n", err)
 			return err
 		}
 		logger.Printf("using target address %s", *serverForwardAddress)
@@ -376,26 +376,26 @@ func run(args []string) error {
 		// Start listening
 		err = serverListen(context)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error from server listen: %s\n", err)
+			logger.Printf("error from server listen: %s\n", err)
 		}
 		return err
 
 	case clientCommand.FullCommand():
 		if err := clientValidateFlags(); err != nil {
-			fmt.Fprintf(os.Stderr, "error: %s\n", err)
+			logger.Printf("error: %s\n", err)
 			return err
 		}
 
 		network, address, host, err := socket.ParseAddress(*clientForwardAddress)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: invalid target address: %s\n", err)
+			logger.Printf("error: invalid target address: %s\n", err)
 			return err
 		}
 		logger.Printf("using target address %s", *clientForwardAddress)
 
 		dial, err := clientBackendDialer(cert, network, address, host)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: unable to build dialer: %s\n", err)
+			logger.Printf("error: unable to build dialer: %s\n", err)
 			return err
 		}
 
@@ -406,7 +406,7 @@ func run(args []string) error {
 		// Start listening
 		err = clientListen(context)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error from client listen: %s\n", err)
+			logger.Printf("error from client listen: %s\n", err)
 		}
 		return err
 	}
@@ -456,13 +456,17 @@ func serverListen(context *Context) error {
 	}
 
 	p := proxy.New(
-		tls.NewListener(listener, config),
+		listener,
 		*timeoutDuration,
 		context.dial,
 		logger,
 		proxyLoggerFlags(*quiet),
 		*serverProxyProtocol,
 	)
+	p.ListenWithTLS(func() *tls.Config {
+		config.ClientCAs = context.cert.GetTrustStore()
+		return config
+	})
 
 	if *statusAddress != "" {
 		err := context.serveStatus()
@@ -554,6 +558,7 @@ func (context *Context) serveStatus() error {
 	}
 	config.ClientAuth = tls.NoClientCert
 	if context.cert != nil {
+		config.RootCAs = context.cert.GetTrustStore()
 		config.GetCertificate = context.cert.GetCertificate
 	}
 
@@ -564,7 +569,7 @@ func (context *Context) serveStatus() error {
 
 	listener, err := socket.Open(network, address)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: unable to bind on status port: %s\n", err)
+		logger.Printf("error: unable to bind on status port: %s\n", err)
 		return err
 	}
 
