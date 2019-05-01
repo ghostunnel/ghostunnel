@@ -2,7 +2,7 @@
 MKFILE_PATH := $(lastword $(MAKEFILE_LIST))
 CURRENT_DIR := $(patsubst %/,%,$(dir $(realpath $(MKFILE_PATH))))
 
-GO_VERSION ?= 1.12
+GO_VERSION ?= 1.12.4
 XGO_BASE_IMAGE ?= cssx/xgo-${GO_VERSION}
 
 # Current system information
