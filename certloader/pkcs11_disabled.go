@@ -1,4 +1,4 @@
-// +build !cgo
+// +build !cgo nopkcs11
 
 /*-
  * Copyright 2018 Square Inc.
