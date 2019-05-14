@@ -35,6 +35,7 @@ before_install:
 install:
   # Compile with CGO on/off for testing
   - CGO_ENABLED=0 go build -o ghostunnel-${TRAVIS_TAG}-linux-amd64-without-pkcs11 .
+  - CGO_ENABLED=1 go build -tags nopkcs11 -o ghostunnel-${TRAVIS_TAG}-linux-amd64-without-pkcs11-but-with-cgo .
   - CGO_ENABLED=1 go build -o ghostunnel-${TRAVIS_TAG}-linux-amd64-with-pkcs11 .
   # Build Docker container
   - make docker-build
