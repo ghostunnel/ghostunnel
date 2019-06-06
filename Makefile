@@ -6,6 +6,10 @@ VERSION := $(shell git describe --always --dirty)
 ghostunnel: $(SOURCE_FILES)
 	go build -ldflags '-X main.version=${VERSION}' -o ghostunnel .
 
+# Ghostunnel binary with certstore enabled
+ghostunnel.certstore: $(SOURCE_FILES)
+	go build -tags certstore -ldflags '-X main.version=${VERSION}' -o ghostunnel.certstore .
+
 # Man page
 ghostunnel.man: ghostunnel
 	./ghostunnel --help-custom-man > $@

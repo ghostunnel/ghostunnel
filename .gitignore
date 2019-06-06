@@ -11,6 +11,7 @@
 ghostunnel
 ghostunnel.exe
 ghostunnel.test
+ghostunnel.certstore
 ghostunnel-*
 __pycache__
 dist/
