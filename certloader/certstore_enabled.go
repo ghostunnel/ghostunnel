@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"sort"
 	"sync/atomic"
 	"unsafe"
 
@@ -66,33 +67,59 @@ func (c *certstoreCertificate) Reload() error {
 		return err
 	}
 
-	var certAndKey *tls.Certificate
+	// filter any certificates with the matching name, as the keychain allows
+	// multiple certificates with the same name
+	var candidates []certstore.Identity
 	for _, identity := range identitites {
 		chain, err := identity.CertificateChain()
 		if err != nil {
 			continue
 		}
 
-		signer, err := identity.Signer()
-		if err != nil {
-			continue
-		}
-
 		if chain[0].Subject.CommonName == c.commonName {
-			certAndKey = &tls.Certificate{
-				Certificate: serializeChain(chain),
-				PrivateKey:  signer,
-			}
-			break
+			candidates = append(candidates, identity)
 		}
 	}
 
-	if certAndKey != nil {
-		atomic.StorePointer(&c.cached, unsafe.Pointer(certAndKey))
-		return nil
+	if len(candidates) == 0 {
+		return fmt.Errorf("unable to find identity with common name '%s' in keychain", c.commonName)
 	}
 
-	return fmt.Errorf("unable to find identity with common name '%s' in keychain", c.commonName)
+	// sort the candidates by descending NotAfter
+	sort.Slice(candidates, func(i, j int) bool {
+		leftChain, err := candidates[i].CertificateChain()
+		if err != nil {
+			return true
+		}
+
+		rightChain, err := candidates[j].CertificateChain()
+		if err != nil {
+			return false
+		}
+
+		return leftChain[0].NotAfter.After(rightChain[0].NotAfter)
+	})
+
+	// choose the certificate with the NotAfter furthest in the future, which is
+	// the first item after the sort
+	chosenIdentity := candidates[0]
+	chain, err := chosenIdentity.CertificateChain()
+	if err != nil {
+		return fmt.Errorf("unable to find identity with common name '%s' in keychain", c.commonName)
+	}
+	signer, err := chosenIdentity.Signer()
+	if err != nil {
+		return fmt.Errorf("unable to find identity with common name '%s' in keychain", c.commonName)
+	}
+
+	certAndKey := &tls.Certificate{
+		Leaf:        chain[0],
+		Certificate: serializeChain(chain),
+		PrivateKey:  signer,
+	}
+
+	atomic.StorePointer(&c.cached, unsafe.Pointer(certAndKey))
+	return nil
 }
 
 // GetCertificate retrieves the actual underlying tls.Certificate.
