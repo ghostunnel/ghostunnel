@@ -217,6 +217,9 @@ func validateUnixOrLocalhost(addr string) bool {
 	if strings.HasPrefix(addr, "localhost:") {
 		return true
 	}
+	if addr == "launchd" {
+		return true
+	}
 	return false
 }
 
@@ -491,7 +494,12 @@ func clientListen(context *Context) error {
 		return err
 	}
 
-	listener, err := net.Listen(network, address)
+	var listener net.Listener
+	if network == "launchd" {
+		listener, err = LaunchdSocket()
+	} else {
+		listener, err = net.Listen(network, address)
+	}
 	if err != nil {
 		logger.Printf("error opening socket: %s", err)
 		return err
@@ -668,6 +676,11 @@ func clientBackendDialer(cert certloader.Certificate, network, address, host str
 // target. The input can be or the form "HOST:PORT" for TCP or "unix:PATH"
 // for a UNIX socket.
 func parseUnixOrTCPAddress(input string) (network, address, host string, err error) {
+	if strings.HasPrefix(input, "launchd") {
+		network = "launchd"
+		return
+	}
+
 	if strings.HasPrefix(input, "unix:") {
 		network = "unix"
 		address = input[5:]
