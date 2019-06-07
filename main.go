@@ -205,7 +205,7 @@ func validateFlags(app *kingpin.Application) error {
 
 // Validates that addr is either a unix socket or localhost
 func validateUnixOrLocalhost(addr string) bool {
-	if strings.HasPrefix(addr, "unix:") {
+	if strings.HasPrefix(addr, "unix:") || strings.HasPrefix(addr, "systemd:") || addr == "launchd" {
 		return true
 	}
 	if strings.HasPrefix(addr, "127.0.0.1:") {

@@ -23,6 +23,6 @@ import (
 	"net"
 )
 
-func systemdSocket() (net.Listener, error) {
+func systemdSocket(name string) (net.Listener, error) {
 	return nil, errors.New("systemd socket activation is only supported on linux")
 }

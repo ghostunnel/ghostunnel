@@ -56,11 +56,11 @@ func TestParseAddress(t *testing.T) {
 		t.Errorf("unexpected host: %s", host)
 	}
 
-	network, address, host, _ = ParseAddress("systemd")
+	network, address, host, _ = ParseAddress("systemd:test")
 	if network != "systemd" {
 		t.Errorf("unexpected network: %s", network)
 	}
-	if address != "" {
+	if address != "test" {
 		t.Errorf("unexpected address: %s", address)
 	}
 	if host != "" {

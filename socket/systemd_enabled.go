@@ -25,13 +25,18 @@ import (
 	"github.com/coreos/go-systemd/activation"
 )
 
-func systemdSocket() (net.Listener, error) {
-	listeners, err := activation.Listeners()
+func systemdSocket(name string) (net.Listener, error) {
+	listeners, err := activation.ListenersWithNames()
 	if err != nil {
 		return nil, err
 	}
-	if len(listeners) != 1 {
-		return nil, fmt.Errorf("expected exactly 1 listening socket configured in systemd, found %d", length)
+
+	if listener, ok := listeners[name]; ok {
+		if len(listeners) != 1 {
+			return nil, fmt.Errorf("expected exactly 1 listening socket configured in systemd for name %s, found %d", name, len(listeners))
+		}
+		return listener[0], err
 	}
-	return listeners[0]
+
+	return nil, fmt.Errorf("expected listener with name %s, but found none", name)
 }

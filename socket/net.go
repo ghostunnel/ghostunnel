@@ -28,8 +28,14 @@ import (
 // TCP or "unix:PATH" for a UNIX socket. It also accepts 'launchd' or
 // 'systemd' for socket activation with those systems.
 func ParseAddress(input string) (network, address, host string, err error) {
-	if input == "launchd" || input == "systemd" {
+	if input == "launchd" {
 		network = input
+		return
+	}
+
+	if strings.HasPrefix(input, "systemd:") {
+		network = "systemd"
+		address = input[8:]
 		return
 	}
 
@@ -63,15 +69,18 @@ func ParseAddress(input string) (network, address, host string, err error) {
 // For 'unix' sockets, the address must be a path. The socket file
 // will be set to unlink on close automatically.
 //
-// For 'launchd' and 'systemd' sockets, the address must be empty.
-// The actual socket will come from launchd or systemd, which must
-// be configured for socket activation.
+// For 'launchd' sockets, the address must be empty. Only one socket
+// maybe configured in the plist and will be used as the one to use.
+//
+// For 'systemd' sockets, the address must be the name of the socket.
+// In the systemd unit file, the FileDescriptorName option must be
+// set and needs to match the address string.
 func Open(network, address string) (net.Listener, error) {
 	switch network {
 	case "launchd":
 		return launchdSocket()
 	case "systemd":
-		return systemdSocket()
+		return systemdSocket(address)
 	case "unix":
 		listener, err := net.Listen(network, address)
 		listener.(*net.UnixListener).SetUnlinkOnClose(true)
