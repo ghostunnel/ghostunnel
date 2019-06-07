@@ -3,6 +3,7 @@ module github.com/square/ghostunnel
 require (
 	github.com/Masterminds/sprig v2.17.1+incompatible // indirect
 	github.com/aokoli/goutils v1.1.0 // indirect
+	github.com/coreos/go-systemd v0.0.0-20190321100706-95778dfbb74e
 	github.com/cyberdelia/go-metrics-graphite v0.0.0-20161219230853-39f87cc3b432
 	github.com/deathowl/go-metrics-prometheus v0.0.0-20181105123824-7cfe975c505b
 	github.com/google/uuid v1.1.0 // indirect
