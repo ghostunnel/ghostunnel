@@ -303,7 +303,17 @@ should work with any hardware security module that exposes a PKCS#11 interface.
 
 See [HSM-PKCS11](docs/HSM-PKCS11.md) for details.
 
-### PROXY protocol (experimental)
+### Socket Activation (experimental)
+
+Ghostunnel supports socket activation via both systemd (on Linux) and launchd
+(on macOS). Socket activation is support for the `--listen` and `--status`
+flags, and can be used by passing an address of the form `systemd:<name>` or
+`launchd:<name>`, where `<name>` should be the name of the socket as defined in
+your systemd/launchd configuration.
+
+See [SOCKET-ACTIVATION](docs/SOCKET-ACTIVATION.md) for examples.
+
+### PROXY Protocol (experimental)
 
 Ghostunnel in server mode supports signalling of transport connection information
 to the backend using the [PROXY protocol](https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt)
@@ -311,7 +321,7 @@ to the backend using the [PROXY protocol](https://www.haproxy.org/download/1.8/d
 also support the PROXY protocol and must be configured to use it when setting
 this option.
 
-### macOS keychain support (experimental)
+### MacOS Keychain Support (experimental)
 
 If ghostunnel has been compiled with build tag `certstore` (off by default,
 requires macOS 10.12+) a new flag will be available that allows for loading
