@@ -281,12 +281,19 @@ func TestReload(t *testing.T) {
 	tmpKeystore, err := ioutil.TempFile("", "ghostunnel-test")
 	panicOnError(err)
 
+	tmpCaBundle, err := ioutil.TempFile("", "ghostunnel-test")
+	panicOnError(err)
+
+	tmpCaBundle.WriteString(testCertificate)
+	tmpCaBundle.WriteString("\n")
+	tmpCaBundle.Sync()
 	tmpKeystore.Write(testKeystore)
 	tmpKeystore.Sync()
 
+	defer os.Remove(tmpCaBundle.Name())
 	defer os.Remove(tmpKeystore.Name())
 
-	c, err := buildCertificate(tmpKeystore.Name(), "", "", testKeystorePassword, "")
+	c, err := buildCertificate(tmpKeystore.Name(), "", "", testKeystorePassword, tmpCaBundle.Name())
 	assert.Nil(t, err, "should be able to build certificate")
 
 	c.Reload()
