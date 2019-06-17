@@ -16,7 +16,7 @@ ghostunnel.man: ghostunnel
 
 # Test binary with coverage instrumentation
 ghostunnel.test: $(SOURCE_FILES)
-	go test -c -covermode=count -coverpkg .,./auth,./certloader,./proxy,./wildcard
+	go test -c -covermode=count -coverpkg .,./auth,./certloader,./proxy,./wildcard,./socket
 
 # Clean build output
 clean:
@@ -31,11 +31,7 @@ test: unit $(INTEGRATION_TESTS)
 
 # Run unit tests
 unit:
-	go test -v -covermode=count -coverprofile=coverage-unit-test-base.out .
-	go test -v -covermode=count -coverprofile=coverage-unit-test-auth.out ./auth
-	go test -v -covermode=count -coverprofile=coverage-unit-test-certloader.out ./certloader
-	go test -v -covermode=count -coverprofile=coverage-unit-test-proxy.out ./proxy
-	go test -v -covermode=count -coverprofile=coverage-unit-test-wildcard.out ./wildcard
+	go test -v -covermode=count -coverprofile=coverage-unit-test.out ./...
 .PHONY: unit
 
 # Run integration tests

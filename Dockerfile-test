@@ -14,7 +14,7 @@ MAINTAINER Cedric Staub "cs@squareup.com"
 
 # Install build dependencies
 RUN apt-get update && \
-    apt-get install --yes build-essential libtool python3.5 netcat softhsm2 rsyslog && \
+    apt-get install --yes build-essential libtool python3.5 netcat softhsm2 rsyslog systemd && \
     mkdir -p /etc/softhsm /var/lib/softhsm/tokens /go/src/github.com/square/ghostunnel && \
     ln -s /usr/bin/python3.5 /usr/bin/python3 && \
     go get github.com/wadey/gocovmerge && \
