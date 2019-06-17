@@ -270,18 +270,18 @@ func TestClientFlagValidation(t *testing.T) {
 
 func TestAllowsLocalhost(t *testing.T) {
 	*serverUnsafeTarget = false
-	assert.True(t, validateUnixOrLocalhost("localhost:1234"), "localhost should be allowed")
-	assert.True(t, validateUnixOrLocalhost("127.0.0.1:1234"), "127.0.0.1 should be allowed")
-	assert.True(t, validateUnixOrLocalhost("[::1]:1234"), "[::1] should be allowed")
-	assert.True(t, validateUnixOrLocalhost("unix:/tmp/foo"), "unix:/tmp/foo should be allowed")
+	assert.True(t, consideredSafe("localhost:1234"), "localhost should be allowed")
+	assert.True(t, consideredSafe("127.0.0.1:1234"), "127.0.0.1 should be allowed")
+	assert.True(t, consideredSafe("[::1]:1234"), "[::1] should be allowed")
+	assert.True(t, consideredSafe("unix:/tmp/foo"), "unix:/tmp/foo should be allowed")
 }
 
 func TestDisallowsFooDotCom(t *testing.T) {
 	*serverUnsafeTarget = false
-	assert.False(t, validateUnixOrLocalhost("foo.com:1234"), "foo.com should be disallowed")
-	assert.False(t, validateUnixOrLocalhost("alocalhost.com:1234"), "alocalhost.com should be disallowed")
-	assert.False(t, validateUnixOrLocalhost("localhost.com.foo.com:1234"), "localhost.com.foo.com should be disallowed")
-	assert.False(t, validateUnixOrLocalhost("74.122.190.83:1234"), "random ip address should be disallowed")
+	assert.False(t, consideredSafe("foo.com:1234"), "foo.com should be disallowed")
+	assert.False(t, consideredSafe("alocalhost.com:1234"), "alocalhost.com should be disallowed")
+	assert.False(t, consideredSafe("localhost.com.foo.com:1234"), "localhost.com.foo.com should be disallowed")
+	assert.False(t, consideredSafe("74.122.190.83:1234"), "random ip address should be disallowed")
 }
 
 func TestServerBackendDialerError(t *testing.T) {
