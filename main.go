@@ -203,22 +203,20 @@ func validateFlags(app *kingpin.Application) error {
 	return nil
 }
 
-// Validates that addr is either a unix socket or localhost
-func validateUnixOrLocalhost(addr string) bool {
-	if strings.HasPrefix(addr, "unix:") || strings.HasPrefix(addr, "systemd:") || addr == "launchd" {
-		return true
+// Validates that addr is "safe" and does not need --unsafe-listen (or --unsafe-target).
+func consideredSafe(addr string) bool {
+	safePrefixes := []string{
+		"unix:",
+		"systemd:",
+		"launchd:",
+		"127.0.0.1:",
+		"[::1]:",
+		"localhost:",
 	}
-	if strings.HasPrefix(addr, "127.0.0.1:") {
-		return true
-	}
-	if strings.HasPrefix(addr, "[::1]:") {
-		return true
-	}
-	if strings.HasPrefix(addr, "localhost:") {
-		return true
-	}
-	if addr == "launchd" || addr == "systemd" {
-		return true
+	for _, prefix := range safePrefixes {
+		if strings.HasPrefix(addr, prefix) {
+			return true
+		}
 	}
 	return false
 }
@@ -256,7 +254,7 @@ func serverValidateFlags() error {
 	if *serverDisableAuth && (*serverAllowAll || hasAccessFlags) {
 		return errors.New("--disable-authentication is mutually exclusive with other access control flags")
 	}
-	if !*serverUnsafeTarget && !validateUnixOrLocalhost(*serverForwardAddress) {
+	if !*serverUnsafeTarget && !consideredSafe(*serverForwardAddress) {
 		return errors.New("--target must be unix:PATH, localhost:PORT, 127.0.0.1:PORT or [::1]:PORT (unless --unsafe-target is set)")
 	}
 
@@ -279,7 +277,7 @@ func clientValidateFlags() error {
 		(hasKeychainIdentity() && *clientDisableAuth) {
 		return errors.New("--keystore, --keychain-identity, and --disable-authentication flags are mutually exclusive")
 	}
-	if !*clientUnsafeListen && !validateUnixOrLocalhost(*clientListenAddress) {
+	if !*clientUnsafeListen && !consideredSafe(*clientListenAddress) {
 		return fmt.Errorf("--listen must be unix:PATH, localhost:PORT, 127.0.0.1:PORT or [::1]:PORT (unless --unsafe-listen is set)")
 	}
 	if *clientConnectProxy != nil && (*clientConnectProxy).Scheme != "http" && (*clientConnectProxy).Scheme != "https" {

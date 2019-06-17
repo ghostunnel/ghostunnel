@@ -45,11 +45,11 @@ func TestParseAddress(t *testing.T) {
 		t.Errorf("unexpected host: %s", host)
 	}
 
-	network, address, host, _ = ParseAddress("launchd")
+	network, address, host, _ = ParseAddress("launchd:listener")
 	if network != "launchd" {
 		t.Errorf("unexpected network: %s", network)
 	}
-	if address != "" {
+	if address != "listener" {
 		t.Errorf("unexpected address: %s", address)
 	}
 	if host != "" {

@@ -23,6 +23,6 @@ import (
 	"net"
 )
 
-func launchdSocket() (net.Listener, error) {
+func launchdSocket(address string) (net.Listener, error) {
 	return nil, errors.New("launchd socket activation is only supported on darwin")
 }

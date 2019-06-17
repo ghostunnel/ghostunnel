@@ -31,8 +31,8 @@ import (
 	"unsafe"
 )
 
-func launchdSocket() (net.Listener, error) {
-	c_name := C.CString("Listeners")
+func launchdSocket(address string) (net.Listener, error) {
+	c_name := C.CString(address)
 	var c_fds *C.int
 	c_cnt := C.size_t(0)
 
@@ -43,13 +43,13 @@ func launchdSocket() (net.Listener, error) {
 
 	length := int(c_cnt)
 	if length != 1 {
-		return nil, fmt.Errorf("expected exactly 1 listening socket configured in launchd, found %d", length)
+		return nil, fmt.Errorf("expected exactly one socket to be configured in launchd for '%s', found %d", address, length)
 	}
-	pointer := unsafe.Pointer(c_fds)
-	fds := (*[1]C.int)(pointer)
+	ptr := unsafe.Pointer(c_fds)
+	defer C.free(ptr)
 
+	fds := (*[1]C.int)(ptr)
 	file := os.NewFile(uintptr(fds[0]), "")
 
-	C.free(pointer)
 	return net.FileListener(file)
 }

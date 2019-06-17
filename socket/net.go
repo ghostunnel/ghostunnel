@@ -28,8 +28,9 @@ import (
 // TCP or "unix:PATH" for a UNIX socket. It also accepts 'launchd' or
 // 'systemd' for socket activation with those systems.
 func ParseAddress(input string) (network, address, host string, err error) {
-	if input == "launchd" {
-		network = input
+	if strings.HasPrefix(input, "launchd:") {
+		network = "launchd"
+		address = input[8:]
 		return
 	}
 
@@ -78,7 +79,7 @@ func ParseAddress(input string) (network, address, host string, err error) {
 func Open(network, address string) (net.Listener, error) {
 	switch network {
 	case "launchd":
-		return launchdSocket()
+		return launchdSocket(address)
 	case "systemd":
 		return systemdSocket(address)
 	case "unix":
