@@ -44,6 +44,20 @@ type Certificate interface {
 	GetTrustStore() *x509.CertPool
 }
 
+func setupConfig(cert Certificate, config *tls.Config) *tls.Config {
+	c := config.Clone()
+	c.GetCertificate = cert.GetCertificate
+	c.GetClientCertificate = cert.GetClientCertificate
+	return c
+}
+
+func updateConfig(cert Certificate, config *tls.Config) *tls.Config {
+	c := config.Clone()
+	c.RootCAs = cert.GetTrustStore()
+	c.ClientCAs = cert.GetTrustStore()
+	return c
+}
+
 type keystoreCertificate struct {
 	// Keystore or PEM files path
 	keystorePaths []string

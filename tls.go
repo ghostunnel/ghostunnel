@@ -55,7 +55,7 @@ func buildCertificate(keystorePath, certPath, keyPath, keystorePass, caBundlePat
 	if keystorePath != "" {
 		return certloader.CertificateFromKeystore(keystorePath, keystorePass, caBundlePath)
 	}
-	return nil, nil
+	return certloader.NoCertificate(caBundlePath)
 }
 
 func buildCertificateFromPKCS11(certificatePath, caBundlePath string) (certloader.Certificate, error) {
@@ -75,12 +75,7 @@ func hasKeychainIdentity() bool {
 }
 
 // buildConfig reads command-line options and builds a tls.Config
-func buildConfig(enabledCipherSuites string, caBundlePath string) (*tls.Config, error) {
-	ca, err := certloader.LoadTrustStore(caBundlePath)
-	if err != nil {
-		return nil, err
-	}
-
+func buildConfig(enabledCipherSuites string) (*tls.Config, error) {
 	// List of cipher suite preferences:
 	// * We list ECDSA ahead of RSA to prefer ECDSA for multi-cert setups.
 	// * We list AES-128 ahead of AES-256 for performance reasons.
@@ -96,10 +91,6 @@ func buildConfig(enabledCipherSuites string, caBundlePath string) (*tls.Config, 
 	}
 
 	return &tls.Config{
-		// Certificates
-		RootCAs:   ca,
-		ClientCAs: ca,
-
 		PreferServerCipherSuites: true,
 
 		ClientAuth:   tls.RequireAndVerifyClientCert,

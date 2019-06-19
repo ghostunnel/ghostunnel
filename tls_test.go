@@ -193,13 +193,8 @@ func TestBuildConfig(t *testing.T) {
 	tmpKeystoreSeparateKey, err := ioutil.TempFile("", "ghostunnel-test")
 	panicOnError(err)
 
-	tmpCaBundle, err := ioutil.TempFile("", "ghostunnel-test")
-	panicOnError(err)
-
 	tmpKeystore.Write(testKeystore)
 	tmpKeystoreNoPrivKey.Write(testKeystoreNoPrivKey)
-	tmpCaBundle.WriteString(testCertificate)
-	tmpCaBundle.WriteString("\n")
 
 	tmpKeystoreSeparateCert.Write(testKeystoreCertOnly)
 	tmpKeystoreSeparateKey.Write(testKeystoreKeyPath)
@@ -208,26 +203,18 @@ func TestBuildConfig(t *testing.T) {
 	tmpKeystoreSeparateKey.Sync()
 
 	tmpKeystore.Sync()
-	tmpCaBundle.Sync()
 
 	defer os.Remove(tmpKeystore.Name())
-	defer os.Remove(tmpCaBundle.Name())
 	defer os.Remove(tmpKeystoreNoPrivKey.Name())
 	defer os.Remove(tmpKeystoreSeparateCert.Name())
 	defer os.Remove(tmpKeystoreSeparateKey.Name())
 
-	_, err = buildConfig("", tmpCaBundle.Name())
+	_, err = buildConfig("")
 	assert.NotNil(t, err, "should fail to build config with no cipher suites")
 
-	conf, err := buildConfig("AES,CHACHA", tmpCaBundle.Name())
+	conf, err := buildConfig("AES,CHACHA")
 	assert.Nil(t, err, "should be able to build TLS config")
-	assert.NotNil(t, conf.RootCAs, "config must have CA certs")
-	assert.NotNil(t, conf.ClientCAs, "config must have CA certs")
 	assert.True(t, conf.MinVersion == tls.VersionTLS12, "must have correct TLS min version")
-
-	conf, err = buildConfig("AES", "does-not-exist")
-	assert.Nil(t, conf, "conf with invalid params should be nil")
-	assert.NotNil(t, err, "should reject invalid CA cert bundle")
 
 	cert, err := buildCertificate("", "", "", "", "")
 	assert.Nil(t, err, "empty keystorePath should not raise an error")
@@ -253,26 +240,17 @@ func TestBuildConfig(t *testing.T) {
 }
 
 func TestCipherSuitePreference(t *testing.T) {
-	tmpCaBundle, err := ioutil.TempFile("", "ghostunnel-test")
-	panicOnError(err)
-
-	tmpCaBundle.WriteString(testCertificate)
-	tmpCaBundle.WriteString("\n")
-
-	tmpCaBundle.Sync()
-	defer os.Remove(tmpCaBundle.Name())
-
-	conf, err := buildConfig("XYZ", tmpCaBundle.Name())
+	conf, err := buildConfig("XYZ")
 	assert.NotNil(t, err, "should not be able to build TLS config with invalid cipher suite option")
 
-	conf, err = buildConfig("", tmpCaBundle.Name())
+	conf, err = buildConfig("")
 	assert.NotNil(t, err, "should not be able to build TLS config wihout cipher suite selection")
 
-	conf, err = buildConfig("CHACHA,AES", tmpCaBundle.Name())
+	conf, err = buildConfig("CHACHA,AES")
 	assert.Nil(t, err, "should be able to build TLS config")
 	assert.True(t, conf.CipherSuites[0] == tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305, "expecting ChaCha20")
 
-	conf, err = buildConfig("AES,CHACHA", tmpCaBundle.Name())
+	conf, err = buildConfig("AES,CHACHA")
 	assert.Nil(t, err, "should be able to build TLS config")
 	assert.True(t, conf.CipherSuites[0] == tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, "expecting AES")
 }
@@ -305,9 +283,17 @@ func TestBuildConfigSystemRoots(t *testing.T) {
 		t.SkipNow()
 		return
 	}
-	conf, err := buildConfig("AES", "")
-	assert.Nil(t, err, "should be able to build TLS config")
-	assert.NotNil(t, conf.RootCAs, "config must have CA certs")
-	assert.NotNil(t, conf.ClientCAs, "config must have CA certs")
-	assert.True(t, conf.MinVersion == tls.VersionTLS12, "must have correct TLS min version")
+
+	tmpKeystore, err := ioutil.TempFile("", "ghostunnel-test")
+	panicOnError(err)
+
+	tmpKeystore.Write(testKeystore)
+	tmpKeystore.Sync()
+
+	defer os.Remove(tmpKeystore.Name())
+
+	c, err := buildCertificate(tmpKeystore.Name(), "", "", testKeystorePassword, "")
+	assert.Nil(t, err, "should be able to build certificate")
+
+	c.Reload()
 }

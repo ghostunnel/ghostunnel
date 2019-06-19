@@ -420,7 +420,7 @@ func run(args []string) error {
 // connections. This is useful for the purpose of replacing certificates
 // in-place without having to take downtime, e.g. if a certificate is expiring.
 func serverListen(context *Context) error {
-	config, err := buildConfig(*enabledCipherSuites, *caBundlePath)
+	config, err := buildConfig(*enabledCipherSuites)
 	if err != nil {
 		logger.Printf("error trying to read CA bundle: %s", err)
 		return err
@@ -442,7 +442,6 @@ func serverListen(context *Context) error {
 		Logger:      logger,
 	}
 
-	config.GetCertificate = context.cert.GetCertificate
 	if *serverDisableAuth {
 		config.ClientAuth = tls.NoClientCert
 	} else {
@@ -456,17 +455,13 @@ func serverListen(context *Context) error {
 	}
 
 	p := proxy.New(
-		listener,
+		certloader.NewListener(listener, context.cert, config),
 		*timeoutDuration,
 		context.dial,
 		logger,
 		proxyLoggerFlags(*quiet),
 		*serverProxyProtocol,
 	)
-	p.ListenWithTLS(func() *tls.Config {
-		config.ClientCAs = context.cert.GetTrustStore()
-		return config
-	})
 
 	if *statusAddress != "" {
 		err := context.serveStatus()
@@ -552,16 +547,6 @@ func (context *Context) serveStatus() error {
 		mux.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
 	}
 
-	config, err := buildConfig(*enabledCipherSuites, *caBundlePath)
-	if err != nil {
-		return err
-	}
-	config.ClientAuth = tls.NoClientCert
-	if context.cert != nil {
-		config.RootCAs = context.cert.GetTrustStore()
-		config.GetCertificate = context.cert.GetCertificate
-	}
-
 	network, address, _, err := socket.ParseAddress(*statusAddress)
 	if err != nil {
 		return err
@@ -573,8 +558,14 @@ func (context *Context) serveStatus() error {
 		return err
 	}
 
-	if network != "unix" {
-		listener = tls.NewListener(listener, config)
+	cert, _ := context.cert.GetCertificate(nil)
+	if network != "unix" && cert != nil {
+		config, err := buildConfig(*enabledCipherSuites)
+		if err != nil {
+			return err
+		}
+		config.ClientAuth = tls.NoClientCert
+		listener = certloader.NewListener(listener, context.cert, config)
 	}
 
 	context.statusHTTP = &http.Server{
@@ -606,7 +597,7 @@ func serverBackendDialer() (func() (net.Conn, error), error) {
 
 // Get backend dialer function in client mode (connecting to a TLS port)
 func clientBackendDialer(cert certloader.Certificate, network, address, host string) (func() (net.Conn, error), error) {
-	config, err := buildConfig(*enabledCipherSuites, *caBundlePath)
+	config, err := buildConfig(*enabledCipherSuites)
 	if err != nil {
 		return nil, err
 	}
@@ -640,11 +631,19 @@ func clientBackendDialer(cert certloader.Certificate, network, address, host str
 		logger.Printf("using HTTP(S) CONNECT proxy %s", (*clientConnectProxy).String())
 
 		// Use HTTP CONNECT proxy to connect to target.
-		proxyConfig, err := buildConfig(*enabledCipherSuites, *caBundlePath)
+		proxyConfig, err := buildConfig(*enabledCipherSuites)
 		if err != nil {
 			return nil, err
 		}
 		config.ClientAuth = tls.NoClientCert
+
+		// Read CA bundle for passing to proxy library
+		ca, err := certloader.LoadTrustStore(*caBundlePath)
+		if err != nil {
+			logger.Printf("error: unable to build TLS config: %s\n", err)
+			return nil, err
+		}
+		config.RootCAs = ca
 
 		dialer = http_dialer.New(
 			*clientConnectProxy,

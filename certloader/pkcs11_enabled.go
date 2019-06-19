@@ -48,7 +48,7 @@ func SupportsPKCS11() bool {
 
 // CertificateFromPKCS11Module creates a reloadable certificate from a PKCS#11 module.
 func CertificateFromPKCS11Module(certificatePath, caBundlePath, modulePath, tokenLabel, pin string) (Certificate, error) {
-	c := pkcs11Certificate{
+	c := &pkcs11Certificate{
 		certificatePath: certificatePath,
 		caBundlePath:    caBundlePath,
 		modulePath:      modulePath,
@@ -59,7 +59,7 @@ func CertificateFromPKCS11Module(certificatePath, caBundlePath, modulePath, toke
 	if err != nil {
 		return nil, err
 	}
-	return &c, nil
+	return c, nil
 }
 
 // Reload transparently reloads the certificate.
@@ -98,7 +98,7 @@ func (c *pkcs11Certificate) Reload() error {
 	}
 
 	atomic.StorePointer(&c.cachedCertificate, unsafe.Pointer(&certAndKey))
-	atomic.StorePointer(&c.cachedCertPool, unsafe.Pointer(&bundle))
+	atomic.StorePointer(&c.cachedCertPool, unsafe.Pointer(bundle))
 
 	return nil
 }

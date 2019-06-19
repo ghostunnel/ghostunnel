@@ -70,8 +70,6 @@ type Proxy struct {
 	// Logger is used to log information messages about connections, errors.
 	Logger Logger
 
-	// TLS config for incoming connections (will wrap incoming connections in TLS if set)
-	listenTLSConfig func() *tls.Config
 	// Internal state to indicate that we want to shut down.
 	quit int32
 	// Logging flags
@@ -119,10 +117,6 @@ func New(listener net.Listener, timeout time.Duration, dial Dialer, logger Logge
 	return p
 }
 
-func (p *Proxy) ListenWithTLS(callback func() *tls.Config) {
-	p.listenTLSConfig = callback
-}
-
 // Shutdown tells the proxy to close the listener & stop accepting connections.
 func (p *Proxy) Shutdown() {
 	if atomic.LoadInt32(&p.quit) == 1 {
@@ -165,10 +159,6 @@ func (p *Proxy) Accept() {
 			defer conn.Close()
 			defer openCounter.Dec(1)
 
-			if p.listenTLSConfig != nil {
-				conn = tls.Server(conn, p.listenTLSConfig())
-			}
-
 			err := forceHandshake(p.ConnectTimeout, conn)
 			if err != nil {
 				errorCounter.Inc(1)
@@ -178,7 +168,7 @@ func (p *Proxy) Accept() {
 
 			backend, err := p.Dial()
 			if err != nil {
-				p.logConditional(LogConnectionErrors, "error: %s", err)
+				p.logConditional(LogConnectionErrors, "error on dial: %s", err)
 				return
 			}
 
@@ -186,7 +176,7 @@ func (p *Proxy) Accept() {
 				h := proxyProtoHeader(conn)
 				_, err = h.WriteTo(backend)
 				if err != nil {
-					p.logConditional(LogConnectionErrors, "error: %s", err)
+					p.logConditional(LogConnectionErrors, "error writing proxy header: %s", err)
 					return
 				}
 			}
@@ -258,7 +248,7 @@ func (p *Proxy) copyData(dst net.Conn, src net.Conn) {
 	if err != nil && !isClosedConnectionError(err) {
 		// We don't log individual "read from closed connection" errors, because
 		// we already have a log statement showing that a pipe has been closed.
-		p.logConditional(LogConnectionErrors, "error: %s", err)
+		p.logConditional(LogConnectionErrors, "error during copy: %s", err)
 	}
 }
 
