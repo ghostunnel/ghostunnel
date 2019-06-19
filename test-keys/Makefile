@@ -1,6 +1,6 @@
 .PHONY: all
-all: root-combined.pem server-combined.pem server-keystore.p12 client-combined.pem client-keystore.p12 server-pkcs8.pem client-pkcs8.pem cacert.pem
-	rm -f *.srl *-{csr,key}.pem
+all: root-combined.pem root-key.pem server-combined.pem server-keystore.p12 client-combined.pem client-keystore.p12 server-pkcs8.pem server-key.pem client-pkcs8.pem client-key.pem cacert.pem
+	rm -f *.srl *-csr.pem
 
 %-key.pem:
 	openssl genrsa -out $@ 2048
