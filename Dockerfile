@@ -6,7 +6,7 @@
 # To run ghostunnel from the image (for example):
 #     docker run --rm squareup/ghostunnel --version
 
-FROM golang:1.12.4-alpine as build
+FROM golang:1.12.6-alpine as build
 
 MAINTAINER Cedric Staub "cs@squareup.com"
 
@@ -17,7 +17,9 @@ RUN apk add --no-cache --update gcc musl-dev libtool
 COPY . /go/src/github.com/square/ghostunnel
 
 # Build
-RUN go build -o /usr/bin/ghostunnel github.com/square/ghostunnel
+RUN cd /go/src/github.com/square/ghostunnel && \
+    GO111MODULE=on make ghostunnel && \
+    cp ghostunnel /usr/bin/ghostunnel
 
 # Create a multi-stage build with the binary
 FROM alpine
