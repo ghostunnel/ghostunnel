@@ -11,14 +11,14 @@ FROM golang:1.12.6-alpine as build
 MAINTAINER Cedric Staub "cs@squareup.com"
 
 # Dependencies
-RUN apk add --no-cache --update gcc musl-dev libtool
+RUN apk add --no-cache --update gcc musl-dev libtool make git
 
 # Copy source
 COPY . /go/src/github.com/square/ghostunnel
 
 # Build
 RUN cd /go/src/github.com/square/ghostunnel && \
-    GO111MODULE=on make ghostunnel && \
+    GO111MODULE=on make clean ghostunnel && \
     cp ghostunnel /usr/bin/ghostunnel
 
 # Create a multi-stage build with the binary
