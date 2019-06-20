@@ -127,7 +127,7 @@ KYMB/SV5VsjIOckZuBIn8mMQIAqFGIvqeCS2qovntjHZMyuAbenOFLfi+WRg1KZZ
 YAnq2h6R3bmXYwpZzI/S+E/0PQDXHArbsM4XgimleOle+O2bqjAxMCEwCQYFKw4D
 AhoFAAQUMdr6fwPsXl5nAlbi51zv2YJHelkECLJyvuiCk4LpAgIIAA==`)
 
-var testKeystoreCertOnly, _ = base64.StdEncoding.DecodeString(`
+var testKeystoreCertOnly = `
 -----BEGIN CERTIFICATE-----
 MIIDPjCCAiagAwIBAgIRAPdQja0pEoBqXPO5PCsSDAcwDQYJKoZIhvcNAQELBQAw
 NzEVMBMGA1UEChMMY2VydC1tYW5hZ2VyMR4wHAYDVQQDExVmbHVlbnQtYml0LWZv
@@ -147,9 +147,9 @@ ygCDcUf65hPgOvSn+NQJY92XZAGZz9Uwppl+l/1Dda+o+v8jAXJwQo3qkLmRYHuc
 uyupqf08h2KgLtfDp6XW+m/kPgjA+S7H2jXcKZk1mZqsSJ5WO1GtGUlfJyfPR8m2
 6iPYjqdyz7KL/m+LjngudVruTqVmoT7mI5C+7jsS/K0+rLPhv6d2vD/zcvbjONn7
 F9hYbnHTh38g/4uq2fVnW6C0
------END CERTIFICATE-----`)
+-----END CERTIFICATE-----`
 
-var testKeystoreKeyPath, _ = base64.StdEncoding.DecodeString(`
+var testKeystoreKeyPath = `
 -----BEGIN RSA PRIVATE KEY-----
 MIIEowIBAAKCAQEAweCHZIvyTDvsx38gulfRyrww697GLe/S6LFtRRAzEvwz/dwJ
 yYYgSimiL4a4m4tpr8M5jhzoQcouB8cIbsxR/dhWSx/whdHAdwbq4r0cjuaCzII+
@@ -176,7 +176,7 @@ YWL9/08bKtK5KItM29ESxAPCL5aAfgwVnoKJ7/42B1O4/sJj76+uZNcQKvT5Av+p
 l93MmQKBgH1glvxJzN+B2uaPND/ux4Iz+FVNxwRxOSIvDA87nMlzzCnUQZflJ2Zh
 AzsLLA4Co1ouYxA7ecfQe4Y0DjeoZ2Ft5KzAsPhM1D1ztXI5gr3/6HvgJ6xdrXJu
 hHV17et3tJKiSuKwz1wSwx7J5hxxPB38+GhfstzSde5LwuAFTfAn
------END RSA PRIVATE KEY-----`)
+-----END RSA PRIVATE KEY-----`
 
 var testKeystorePassword = "password"
 
@@ -196,8 +196,8 @@ func TestBuildConfig(t *testing.T) {
 	tmpKeystore.Write(testKeystore)
 	tmpKeystoreNoPrivKey.Write(testKeystoreNoPrivKey)
 
-	tmpKeystoreSeparateCert.Write(testKeystoreCertOnly)
-	tmpKeystoreSeparateKey.Write(testKeystoreKeyPath)
+	tmpKeystoreSeparateCert.Write([]byte(testKeystoreCertOnly))
+	tmpKeystoreSeparateKey.Write([]byte(testKeystoreKeyPath))
 
 	tmpKeystoreSeparateCert.Sync()
 	tmpKeystoreSeparateKey.Sync()
@@ -216,27 +216,27 @@ func TestBuildConfig(t *testing.T) {
 	assert.Nil(t, err, "should be able to build TLS config")
 	assert.True(t, conf.MinVersion == tls.VersionTLS12, "must have correct TLS min version")
 
-	cert, err := buildCertificate("", "", "", "", "")
+	cert, err := buildCertificate("", "", "", "", tmpKeystoreSeparateCert.Name())
 	assert.Nil(t, err, "empty keystorePath should not raise an error")
 
-	cert, err = buildCertificate(tmpKeystore.Name(), "", "", "totes invalid", "")
+	cert, err = buildCertificate(tmpKeystore.Name(), "", "", "totes invalid", tmpKeystoreSeparateCert.Name())
 	assert.Nil(t, cert, "cert with invalid params should be nil")
 	assert.NotNil(t, err, "should reject invalid keystore pass")
 
-	cert, err = buildCertificate("does-not-exist", "", "", testKeystorePassword, "")
+	cert, err = buildCertificate("does-not-exist", "", "", testKeystorePassword, tmpKeystoreSeparateCert.Name())
 	assert.Nil(t, cert, "cert with invalid params should be nil")
 	assert.NotNil(t, err, "should reject missing keystore (not found)")
 
-	cert, err = buildCertificate(tmpKeystoreNoPrivKey.Name(), "", "", "", "")
+	cert, err = buildCertificate(tmpKeystoreNoPrivKey.Name(), "", "", "", tmpKeystoreSeparateCert.Name())
 	assert.Nil(t, cert, "cert with invalid params should be nil")
 	assert.NotNil(t, err, "should reject invalid keystore (no private key)")
 
-	cert, err = buildCertificate("/dev/null", "", "", "", "")
+	cert, err = buildCertificate("/dev/null", "", "", "", tmpKeystoreSeparateCert.Name())
 	assert.Nil(t, cert, "cert with invalid params should be nil")
 	assert.NotNil(t, err, "should reject invalid keystore (empty)")
 
-	cert, err = buildCertificate("", tmpKeystoreSeparateCert.Name(), tmpKeystoreSeparateKey.Name(), "", "")
-	assert.Nil(t, cert, "cert with sep key be ok")
+	cert, err = buildCertificate("", tmpKeystoreSeparateCert.Name(), tmpKeystoreSeparateKey.Name(), "", tmpKeystoreSeparateCert.Name())
+	assert.Nil(t, err, "cert with separate key should be ok")
 }
 
 func TestCipherSuitePreference(t *testing.T) {

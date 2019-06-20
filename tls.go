@@ -47,7 +47,7 @@ func buildCertificate(keystorePath, certPath, keyPath, keystorePass, caBundlePat
 		}
 	}
 	if hasKeychainIdentity() {
-		return buildCertificateFromCertstore(caBundlePath)
+		return certloader.CertificateFromKeychainIdentity(*keychainIdentity, caBundlePath)
 	}
 	if keyPath != "" && certPath != "" {
 		return certloader.CertificateFromPEMFiles(certPath, keyPath, caBundlePath)
@@ -64,10 +64,6 @@ func buildCertificateFromPKCS11(certificatePath, caBundlePath string) (certloade
 
 func hasPKCS11() bool {
 	return pkcs11Module != nil && *pkcs11Module != ""
-}
-
-func buildCertificateFromCertstore(caBundlePath string) (certloader.Certificate, error) {
-	return certloader.CertificateFromKeychainIdentity(*keychainIdentity, caBundlePath)
 }
 
 func hasKeychainIdentity() bool {

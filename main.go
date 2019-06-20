@@ -255,7 +255,7 @@ func serverValidateFlags() error {
 		return errors.New("--disable-authentication is mutually exclusive with other access control flags")
 	}
 	if !*serverUnsafeTarget && !consideredSafe(*serverForwardAddress) {
-		return errors.New("--target must be unix:PATH, localhost:PORT, 127.0.0.1:PORT or [::1]:PORT (unless --unsafe-target is set)")
+		return errors.New("--target must be unix:PATH or localhost:PORT (unless --unsafe-target is set)")
 	}
 
 	for _, suite := range strings.Split(*enabledCipherSuites, ",") {
@@ -278,7 +278,7 @@ func clientValidateFlags() error {
 		return errors.New("--keystore, --keychain-identity, and --disable-authentication flags are mutually exclusive")
 	}
 	if !*clientUnsafeListen && !consideredSafe(*clientListenAddress) {
-		return fmt.Errorf("--listen must be unix:PATH, localhost:PORT, 127.0.0.1:PORT or [::1]:PORT (unless --unsafe-listen is set)")
+		return fmt.Errorf("--listen must be unix:PATH, localhost:PORT, systemd:NAME or launchd:NAME (unless --unsafe-listen is set)")
 	}
 	if *clientConnectProxy != nil && (*clientConnectProxy).Scheme != "http" && (*clientConnectProxy).Scheme != "https" {
 		return fmt.Errorf("invalid CONNECT proxy %s, must have HTTP or HTTPS connection scheme", (*clientConnectProxy).String())
