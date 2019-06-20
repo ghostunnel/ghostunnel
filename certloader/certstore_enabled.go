@@ -32,8 +32,12 @@ import (
 type certstoreCertificate struct {
 	// Common name of keychain identity
 	commonName string
+	// Root CA bundle path
+	caBundlePath string
 	// Cached *tls.Certificate
-	cached unsafe.Pointer
+	cachedCertificate unsafe.Pointer
+	// Cached *x509.CertPool
+	cachedCertPool unsafe.Pointer
 }
 
 // SupportsKeychain returns true or false, depending on whether the
@@ -44,9 +48,10 @@ func SupportsKeychain() bool {
 }
 
 // CertificateFromKeychainIdentity creates a reloadable certificate from a system keychain identity.
-func CertificateFromKeychainIdentity(commonName string) (Certificate, error) {
+func CertificateFromKeychainIdentity(commonName string, caBundlePath string) (Certificate, error) {
 	c := certstoreCertificate{
-		commonName: commonName,
+		commonName:   commonName,
+		caBundlePath: caBundlePath,
 	}
 	err := c.Reload()
 	if err != nil {
@@ -118,18 +123,29 @@ func (c *certstoreCertificate) Reload() error {
 		PrivateKey:  signer,
 	}
 
-	atomic.StorePointer(&c.cached, unsafe.Pointer(certAndKey))
+	bundle, err := LoadTrustStore(c.caBundlePath)
+	if err != nil {
+		return err
+	}
+
+	atomic.StorePointer(&c.cachedCertificate, unsafe.Pointer(certAndKey))
+	atomic.StorePointer(&c.cachedCertPool, unsafe.Pointer(bundle))
 	return nil
 }
 
 // GetCertificate retrieves the actual underlying tls.Certificate.
 func (c *certstoreCertificate) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-	return (*tls.Certificate)(atomic.LoadPointer(&c.cached)), nil
+	return (*tls.Certificate)(atomic.LoadPointer(&c.cachedCertificate)), nil
 }
 
 // GetClientCertificate retrieves the actual underlying tls.Certificate.
 func (c *certstoreCertificate) GetClientCertificate(certInfo *tls.CertificateRequestInfo) (*tls.Certificate, error) {
-	return (*tls.Certificate)(atomic.LoadPointer(&c.cached)), nil
+	return (*tls.Certificate)(atomic.LoadPointer(&c.cachedCertificate)), nil
+}
+
+// GetTrustStore returns the most up-to-date version of the trust store / CA bundle.
+func (c *certstoreCertificate) GetTrustStore() *x509.CertPool {
+	return (*x509.CertPool)(atomic.LoadPointer(&c.cachedCertPool))
 }
 
 func serializeChain(chain []*x509.Certificate) [][]byte {

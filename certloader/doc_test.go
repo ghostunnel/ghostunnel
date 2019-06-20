@@ -20,7 +20,7 @@ import "crypto/tls"
 
 func ExampleCertificate() {
 	// Load a certificate from a set of PEM files.
-	cert, _ := CertificateFromPEMFiles("/path/to/cert.pem", "/path/to/privatekey.pem")
+	cert, _ := CertificateFromPEMFiles("/path/to/cert.pem", "/path/to/privatekey.pem", "/path/to/cacert.pem")
 
 	// Use the certificate in a tls.Config for servers
 	_ = tls.Config{

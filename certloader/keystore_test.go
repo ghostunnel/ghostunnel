@@ -82,7 +82,7 @@ func TestCertificateFromPEMFilesValid(t *testing.T) {
 	_, err = file.Write([]byte(testCombinedCertificateAndKey))
 	assert.Nil(t, err, "temp file error")
 
-	cert, err := CertificateFromPEMFiles(file.Name(), file.Name())
+	cert, err := CertificateFromPEMFiles(file.Name(), file.Name(), file.Name())
 	assert.Nil(t, err, "should read PEM file with certificate & private key")
 
 	c0, err := cert.GetCertificate(nil)
@@ -113,15 +113,34 @@ func TestCertificateFromPEMFilesInvalid(t *testing.T) {
 	_, err = file.Write([]byte("invalid"))
 	assert.Nil(t, err, "temp file error")
 
-	cert, err := CertificateFromPEMFiles(file.Name(), file.Name())
+	cert, err := CertificateFromPEMFiles(file.Name(), file.Name(), file.Name())
 	assert.Nil(t, cert, "should not return certificate on error")
-	assert.NotNil(t, err, "should read PEM file with certificate & private key")
+	assert.NotNil(t, err, "should not read PEM file with invalid certificate & private key")
+}
+
+func TestCertificateFromPEMFilesTrustStore(t *testing.T) {
+	fileValid, err := ioutil.TempFile("", "ghostunnel-test")
+	assert.Nil(t, err, "temp file error")
+	defer os.Remove(fileValid.Name())
+
+	fileInvalid, err := ioutil.TempFile("", "ghostunnel-test")
+	assert.Nil(t, err, "temp file error")
+	defer os.Remove(fileInvalid.Name())
+
+	_, err = fileValid.Write([]byte(testCombinedCertificateAndKey))
+	assert.Nil(t, err, "temp file error")
+	_, err = fileInvalid.Write([]byte("invalid"))
+	assert.Nil(t, err, "temp file error")
+
+	cert, err := CertificateFromPEMFiles(fileValid.Name(), fileValid.Name(), fileInvalid.Name())
+	assert.Nil(t, cert, "should not return certificate on error")
+	assert.NotNil(t, err, "should read PEM file with invalid trust bundle")
 }
 
 func TestGetCachedCertificateKeystore(t *testing.T) {
 	tlscert := &tls.Certificate{}
 	kscert := &keystoreCertificate{
-		cached: unsafe.Pointer(tlscert),
+		cachedCertificate: unsafe.Pointer(tlscert),
 	}
 
 	c, err := kscert.GetCertificate(nil)

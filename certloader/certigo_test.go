@@ -19,6 +19,7 @@ package certloader
 import (
 	"io/ioutil"
 	"os"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -118,4 +119,42 @@ func TestReadX509Invalid(t *testing.T) {
 	certs, err = readX509("does-not-exist")
 	assert.NotNil(t, err, "should not parse invalid file")
 	assert.Len(t, certs, 0, "should not parse invalid file")
+}
+
+func TestLoadTrustStoreSystemRoots(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// System roots are not supported on Windows
+		t.SkipNow()
+		return
+	}
+
+	_, err := LoadTrustStore("")
+	assert.Nil(t, err, "should load system trust store if empty string given")
+}
+
+func TestLoadTrustStorePEM(t *testing.T) {
+	cert, err := ioutil.TempFile("", "ghostunnel-test")
+	assert.Nil(t, err, "temp file error")
+	defer os.Remove(cert.Name())
+
+	_, err = cert.Write([]byte(testCertificate))
+	assert.Nil(t, err, "temp file error")
+
+	_, err = LoadTrustStore(cert.Name())
+	assert.Nil(t, err, "should read PEM file trust store")
+}
+
+func TestLoadTrustStoreInvalid(t *testing.T) {
+	cert, err := ioutil.TempFile("", "ghostunnel-test")
+	assert.Nil(t, err, "temp file error")
+	defer os.Remove(cert.Name())
+
+	_, err = cert.Write([]byte("this-is-not-a-cert"))
+	assert.Nil(t, err, "temp file error")
+
+	_, err = LoadTrustStore("file-that-does-not-exist")
+	assert.NotNil(t, err, "should not read non-existant file")
+
+	_, err = LoadTrustStore(cert.Name())
+	assert.NotNil(t, err, "should not read non-existant file")
 }

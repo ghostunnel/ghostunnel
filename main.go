@@ -255,7 +255,7 @@ func serverValidateFlags() error {
 		return errors.New("--disable-authentication is mutually exclusive with other access control flags")
 	}
 	if !*serverUnsafeTarget && !consideredSafe(*serverForwardAddress) {
-		return errors.New("--target must be unix:PATH, localhost:PORT, 127.0.0.1:PORT or [::1]:PORT (unless --unsafe-target is set)")
+		return errors.New("--target must be unix:PATH or localhost:PORT (unless --unsafe-target is set)")
 	}
 
 	for _, suite := range strings.Split(*enabledCipherSuites, ",") {
@@ -278,7 +278,7 @@ func clientValidateFlags() error {
 		return errors.New("--keystore, --keychain-identity, and --disable-authentication flags are mutually exclusive")
 	}
 	if !*clientUnsafeListen && !consideredSafe(*clientListenAddress) {
-		return fmt.Errorf("--listen must be unix:PATH, localhost:PORT, 127.0.0.1:PORT or [::1]:PORT (unless --unsafe-listen is set)")
+		return fmt.Errorf("--listen must be unix:PATH, localhost:PORT, systemd:NAME or launchd:NAME (unless --unsafe-listen is set)")
 	}
 	if *clientConnectProxy != nil && (*clientConnectProxy).Scheme != "http" && (*clientConnectProxy).Scheme != "https" {
 		return fmt.Errorf("invalid CONNECT proxy %s, must have HTTP or HTTPS connection scheme", (*clientConnectProxy).String())
@@ -312,7 +312,7 @@ func run(args []string) error {
 	// Logger
 	err := initLogger(useSyslog(), *quiet)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error initializing logger: %s\n", err)
+		logger.Printf("error initializing logger: %s\n", err)
 		os.Exit(1)
 	}
 
@@ -333,9 +333,9 @@ func run(args []string) error {
 	go pClient.UpdatePrometheusMetrics()
 
 	// Read CA bundle for passing to metrics library
-	ca, err := caBundle(*caBundlePath)
+	ca, err := certloader.LoadTrustStore(*caBundlePath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: unable to build TLS config: %s\n", err)
+		logger.Printf("error: unable to build TLS config: %s\n", err)
 		return err
 	}
 
@@ -349,22 +349,22 @@ func run(args []string) error {
 	}
 	metrics := sqmetrics.NewMetrics(*metricsURL, *metricsPrefix, client, *metricsInterval, metrics.DefaultRegistry, logger)
 
-	cert, err := buildCertificate(*keystorePath, *certPath, *keyPath, *keystorePass)
+	cert, err := buildCertificate(*keystorePath, *certPath, *keyPath, *keystorePass, *caBundlePath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: unable to load certificates: %s\n", err)
+		logger.Printf("error: unable to load certificates: %s\n", err)
 		return err
 	}
 
 	switch command {
 	case serverCommand.FullCommand():
 		if err := serverValidateFlags(); err != nil {
-			fmt.Fprintf(os.Stderr, "error: %s\n", err)
+			logger.Printf("error: %s\n", err)
 			return err
 		}
 
 		dial, err := serverBackendDialer()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: invalid target address: %s\n", err)
+			logger.Printf("error: invalid target address: %s\n", err)
 			return err
 		}
 		logger.Printf("using target address %s", *serverForwardAddress)
@@ -376,26 +376,26 @@ func run(args []string) error {
 		// Start listening
 		err = serverListen(context)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error from server listen: %s\n", err)
+			logger.Printf("error from server listen: %s\n", err)
 		}
 		return err
 
 	case clientCommand.FullCommand():
 		if err := clientValidateFlags(); err != nil {
-			fmt.Fprintf(os.Stderr, "error: %s\n", err)
+			logger.Printf("error: %s\n", err)
 			return err
 		}
 
 		network, address, host, err := socket.ParseAddress(*clientForwardAddress)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: invalid target address: %s\n", err)
+			logger.Printf("error: invalid target address: %s\n", err)
 			return err
 		}
 		logger.Printf("using target address %s", *clientForwardAddress)
 
 		dial, err := clientBackendDialer(cert, network, address, host)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: unable to build dialer: %s\n", err)
+			logger.Printf("error: unable to build dialer: %s\n", err)
 			return err
 		}
 
@@ -406,7 +406,7 @@ func run(args []string) error {
 		// Start listening
 		err = clientListen(context)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error from client listen: %s\n", err)
+			logger.Printf("error from client listen: %s\n", err)
 		}
 		return err
 	}
@@ -420,7 +420,7 @@ func run(args []string) error {
 // connections. This is useful for the purpose of replacing certificates
 // in-place without having to take downtime, e.g. if a certificate is expiring.
 func serverListen(context *Context) error {
-	config, err := buildConfig(*enabledCipherSuites, *caBundlePath)
+	config, err := buildConfig(*enabledCipherSuites)
 	if err != nil {
 		logger.Printf("error trying to read CA bundle: %s", err)
 		return err
@@ -442,7 +442,6 @@ func serverListen(context *Context) error {
 		Logger:      logger,
 	}
 
-	config.GetCertificate = context.cert.GetCertificate
 	if *serverDisableAuth {
 		config.ClientAuth = tls.NoClientCert
 	} else {
@@ -456,7 +455,7 @@ func serverListen(context *Context) error {
 	}
 
 	p := proxy.New(
-		tls.NewListener(listener, config),
+		certloader.NewListener(listener, context.cert, config),
 		*timeoutDuration,
 		context.dial,
 		logger,
@@ -548,15 +547,6 @@ func (context *Context) serveStatus() error {
 		mux.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
 	}
 
-	config, err := buildConfig(*enabledCipherSuites, *caBundlePath)
-	if err != nil {
-		return err
-	}
-	config.ClientAuth = tls.NoClientCert
-	if context.cert != nil {
-		config.GetCertificate = context.cert.GetCertificate
-	}
-
 	network, address, _, err := socket.ParseAddress(*statusAddress)
 	if err != nil {
 		return err
@@ -564,12 +554,18 @@ func (context *Context) serveStatus() error {
 
 	listener, err := socket.Open(network, address)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: unable to bind on status port: %s\n", err)
+		logger.Printf("error: unable to bind on status port: %s\n", err)
 		return err
 	}
 
-	if network != "unix" {
-		listener = tls.NewListener(listener, config)
+	cert, _ := context.cert.GetCertificate(nil)
+	if network != "unix" && cert != nil {
+		config, err := buildConfig(*enabledCipherSuites)
+		if err != nil {
+			return err
+		}
+		config.ClientAuth = tls.NoClientCert
+		listener = certloader.NewListener(listener, context.cert, config)
 	}
 
 	context.statusHTTP = &http.Server{
@@ -601,7 +597,7 @@ func serverBackendDialer() (func() (net.Conn, error), error) {
 
 // Get backend dialer function in client mode (connecting to a TLS port)
 func clientBackendDialer(cert certloader.Certificate, network, address, host string) (func() (net.Conn, error), error) {
-	config, err := buildConfig(*enabledCipherSuites, *caBundlePath)
+	config, err := buildConfig(*enabledCipherSuites)
 	if err != nil {
 		return nil, err
 	}
@@ -635,11 +631,19 @@ func clientBackendDialer(cert certloader.Certificate, network, address, host str
 		logger.Printf("using HTTP(S) CONNECT proxy %s", (*clientConnectProxy).String())
 
 		// Use HTTP CONNECT proxy to connect to target.
-		proxyConfig, err := buildConfig(*enabledCipherSuites, *caBundlePath)
+		proxyConfig, err := buildConfig(*enabledCipherSuites)
 		if err != nil {
 			return nil, err
 		}
 		config.ClientAuth = tls.NoClientCert
+
+		// Read CA bundle for passing to proxy library
+		ca, err := certloader.LoadTrustStore(*caBundlePath)
+		if err != nil {
+			logger.Printf("error: unable to build TLS config: %s\n", err)
+			return nil, err
+		}
+		config.RootCAs = ca
 
 		dialer = http_dialer.New(
 			*clientConnectProxy,

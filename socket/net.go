@@ -84,8 +84,11 @@ func Open(network, address string) (net.Listener, error) {
 		return systemdSocket(address)
 	case "unix":
 		listener, err := net.Listen(network, address)
+		if err != nil {
+			return nil, err
+		}
 		listener.(*net.UnixListener).SetUnlinkOnClose(true)
-		return listener, err
+		return listener, nil
 	default:
 		return reuseport.NewReusablePortListener(network, address)
 	}

@@ -43,20 +43,16 @@ type mtlsDialer struct {
 // DialerWithCertificate creates a dialer that reloads its certificate (if set) before dialing new connections.
 // If the certificate is nil, the dialer will still work, but it won't supply client certificates on connections.
 func DialerWithCertificate(cert Certificate, config *tls.Config, timeout time.Duration, dialer Dialer) Dialer {
-	d := mtlsDialer{
+	return &mtlsDialer{
 		cert:    cert,
-		config:  config,
+		config:  setupConfig(cert, config),
 		timeout: timeout,
 		dialer:  dialer,
 	}
-	if cert != nil && config.GetClientCertificate == nil {
-		config.GetClientCertificate = cert.GetClientCertificate
-	}
-	return &d
 }
 
 func (d *mtlsDialer) Dial(network, address string) (net.Conn, error) {
-	return dialWithDialer(d.dialer, d.timeout, network, address, d.config)
+	return dialWithDialer(d.dialer, d.timeout, network, address, updateConfig(d.cert, d.config))
 }
 
 // Internal copy of tls.DialWithDialer, adapted so it can work with HTTP CONNECT dialers.

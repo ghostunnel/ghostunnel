@@ -19,7 +19,9 @@ package certloader
 import (
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 
 	certigo "github.com/square/certigo/lib"
@@ -72,4 +74,23 @@ func readX509(path string) ([]*x509.Certificate, error) {
 		return nil, fmt.Errorf("no certificates found in file '%s'", path)
 	}
 	return out, nil
+}
+
+func LoadTrustStore(caBundlePath string) (*x509.CertPool, error) {
+	if caBundlePath == "" {
+		return x509.SystemCertPool()
+	}
+
+	caBundleBytes, err := ioutil.ReadFile(caBundlePath)
+	if err != nil {
+		return nil, err
+	}
+
+	bundle := x509.NewCertPool()
+	ok := bundle.AppendCertsFromPEM(caBundleBytes)
+	if !ok {
+		return nil, errors.New("unable to read certificates from CA bundle")
+	}
+
+	return bundle, nil
 }

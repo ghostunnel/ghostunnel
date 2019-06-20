@@ -27,6 +27,6 @@ func SupportsPKCS11() bool {
 }
 
 // CertificateFromPKCS11Module creates a reloadable certificate from a PKCS#11 module.
-func CertificateFromPKCS11Module(certificatePath, modulePath, tokenLabel, pin string) (Certificate, error) {
+func CertificateFromPKCS11Module(certificatePath, caBundlePath, modulePath, tokenLabel, pin string) (Certificate, error) {
 	return nil, errors.New("not supported")
 }

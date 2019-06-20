@@ -274,6 +274,8 @@ func TestAllowsLocalhost(t *testing.T) {
 	assert.True(t, consideredSafe("127.0.0.1:1234"), "127.0.0.1 should be allowed")
 	assert.True(t, consideredSafe("[::1]:1234"), "[::1] should be allowed")
 	assert.True(t, consideredSafe("unix:/tmp/foo"), "unix:/tmp/foo should be allowed")
+	assert.True(t, consideredSafe("systemd:foo"), "systemd:foo should be allowed")
+	assert.True(t, consideredSafe("launchd:foo"), "launchd:foo should be allowed")
 }
 
 func TestDisallowsFooDotCom(t *testing.T) {

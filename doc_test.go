@@ -1,5 +1,5 @@
 /*-
- * Copyright 2018 Square Inc.
+ * Copyright 2019 Square Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package certloader
+package main
 
 import (
 	"testing"
@@ -22,7 +22,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestInvalidKeychainIdentity(t *testing.T) {
-	_, err := CertificateFromKeychainIdentity("", "")
-	assert.NotNil(t, err, "should not load invalid identity")
+func TestGenerateManPage(t *testing.T) {
+	exitFunc = func(ret int) {}
+	context, err := app.ParseContext(nil)
+	assert.Nil(t, err)
+	err = generateManPage(context)
+	assert.Nil(t, err)
 }

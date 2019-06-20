@@ -72,14 +72,11 @@ type Proxy struct {
 
 	// Internal state to indicate that we want to shut down.
 	quit int32
-
 	// Logging flags
 	loggerFlags int
-
 	// Enable HAproxy's PROXY protocol
 	// see: https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt
 	proxyProtocol bool
-
 	// Internal wait group to keep track of outstanding handlers.
 	handlers *sync.WaitGroup
 }
@@ -171,7 +168,7 @@ func (p *Proxy) Accept() {
 
 			backend, err := p.Dial()
 			if err != nil {
-				p.logConditional(LogConnectionErrors, "error: %s", err)
+				p.logConditional(LogConnectionErrors, "error on dial: %s", err)
 				return
 			}
 
@@ -179,7 +176,7 @@ func (p *Proxy) Accept() {
 				h := proxyProtoHeader(conn)
 				_, err = h.WriteTo(backend)
 				if err != nil {
-					p.logConditional(LogConnectionErrors, "error: %s", err)
+					p.logConditional(LogConnectionErrors, "error writing proxy header: %s", err)
 					return
 				}
 			}
@@ -251,7 +248,7 @@ func (p *Proxy) copyData(dst net.Conn, src net.Conn) {
 	if err != nil && !isClosedConnectionError(err) {
 		// We don't log individual "read from closed connection" errors, because
 		// we already have a log statement showing that a pipe has been closed.
-		p.logConditional(LogConnectionErrors, "error: %s", err)
+		p.logConditional(LogConnectionErrors, "error during copy: %s", err)
 	}
 }
 

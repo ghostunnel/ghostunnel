@@ -4,7 +4,8 @@
 Test that ensures that PKCS11 module support works.
 """
 
-from common import LOCALHOST, STATUS_PORT, TcpClient, print_ok, run_ghostunnel, terminate
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, UnixServer, TcpClient, TcpServer, TlsClient, print_ok, run_ghostunnel, terminate
+from shutil import copyfile
 import urllib.request
 import urllib.error
 import urllib.parse
@@ -20,44 +21,46 @@ if __name__ == "__main__":
         if 'GHOSTUNNEL_TEST_PKCS11' not in os.environ:
             sys.exit(0)
 
+        copyfile('../test-keys/client-key.pem', 'client.key')
+        copyfile('../test-keys/client-cert.pem', 'client.crt')
+        copyfile('../test-keys/server-cert.pem', 'server.crt')
+        copyfile('../test-keys/cacert.pem', 'root.crt')
+
         # start ghostunnel
-        # hack: point target to STATUS_PORT so that /_status doesn't 503.
         ghostunnel = run_ghostunnel(['server',
                                      '--listen={0}:13001'.format(LOCALHOST),
-                                     '--target={0}:{1}'.format(LOCALHOST,
-                                                               STATUS_PORT),
-                                     '--cert=../test-keys/server-cert.pem',
+                                     '--target={0}:13002'.format(LOCALHOST),
+                                     '--cert=server.crt',
                                      '--pkcs11-module={0}'.format(os.environ['GHOSTUNNEL_TEST_PKCS11_MODULE']),
                                      '--pkcs11-token-label={0}'.format(os.environ['GHOSTUNNEL_TEST_PKCS11_LABEL']),
                                      '--pkcs11-pin={0}'.format(os.environ['GHOSTUNNEL_TEST_PKCS11_PIN']),
-                                     '--cacert=../test-keys/cacert.pem',
-                                     '--allow-ou=client',
-                                     '--status={0}:{1}'.format(LOCALHOST,
-                                                               STATUS_PORT)])
-
-        def urlopen(path):
-            return urllib.request.urlopen(path, cafile='../test-keys/cacert.pem')
+                                     '--cacert=root.crt',
+                                     '--allow-cn=client',
+                                     '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
 
         # block until ghostunnel is up
         TcpClient(STATUS_PORT).connect(3)
-        status = json.loads(str(urlopen(
-            "https://{0}:{1}/_status".format(LOCALHOST, STATUS_PORT)).read(), 'utf-8'))
-        metrics = json.loads(str(urlopen(
-            "https://{0}:{1}/_metrics".format(LOCALHOST, STATUS_PORT)).read(), 'utf-8'))
 
-        if not status['ok']:
-            raise Exception("ghostunnel reported non-ok status")
-
-        if not isinstance(metrics, list):
-            raise Exception("ghostunnel metrics expected to be JSON list")
+        # Test some connections
+        pair = SocketPair(TlsClient('client', 'root', 13001), TcpServer(13002))
+        pair.validate_can_send_from_client(
+            "hello world", "1: client -> server")
+        pair.validate_can_send_from_server(
+            "hello world", "1: server -> client")
+        pair.validate_closing_client_closes_server(
+            "1: client closed -> server closed")
 
         # Test reloading
         ghostunnel.send_signal(signal.SIGUSR1)
 
-        status = json.loads(str(urlopen(
-            "https://{0}:{1}/_status".format(LOCALHOST, STATUS_PORT)).read(), 'utf-8'))
-        if not status['ok']:
-            raise Exception("ghostunnel reported non-ok status")
+        # Test some connections (again)
+        pair = SocketPair(TlsClient('client', 'root', 13001), TcpServer(13002))
+        pair.validate_can_send_from_client(
+            "hello world", "1: client -> server")
+        pair.validate_can_send_from_server(
+            "hello world", "1: server -> client")
+        pair.validate_closing_client_closes_server(
+            "1: client closed -> server closed")
 
         print_ok("OK")
     finally:
