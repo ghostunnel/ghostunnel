@@ -70,7 +70,7 @@ func (context *Context) signalHandler(p *proxy.Proxy) {
 				return
 			}
 
-			logger.Printf("received %s, reloading certificates", sig.String())
+			logger.Printf("received %s, reloading TLS configuration", sig.String())
 			context.reload()
 		}
 	}
@@ -87,9 +87,8 @@ func (context *Context) reloadHandler(interval time.Duration) {
 
 func (context *Context) reload() {
 	context.status.Reloading()
-	err := context.cert.Reload()
-	if err != nil {
-		logger.Printf("error reloading certificates: %s", err)
+	if err := context.tlsConfigSource.Reload(); err != nil {
+		logger.Printf("error reloading TLS configuration: %s", err)
 	}
 	logger.Printf("reloading complete")
 	context.status.Listening()

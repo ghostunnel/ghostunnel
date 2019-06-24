@@ -29,14 +29,13 @@ type Listener struct {
 	net.Listener
 
 	cert   Certificate
-	config *tls.Config
+	config TLSServerConfig
 }
 
-func NewListener(listener net.Listener, cert Certificate, config *tls.Config) *Listener {
+func NewListener(listener net.Listener, config TLSServerConfig) *Listener {
 	return &Listener{
 		Listener: listener,
-		cert:     cert,
-		config:   setupConfig(cert, config),
+		config:   config,
 	}
 }
 
@@ -46,5 +45,5 @@ func (l *Listener) Accept() (net.Conn, error) {
 		return nil, err
 	}
 
-	return tls.Server(c, updateConfig(l.cert, l.config)), nil
+	return tls.Server(c, l.config.GetServerConfig()), nil
 }

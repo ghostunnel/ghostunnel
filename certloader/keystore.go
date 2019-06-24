@@ -24,26 +24,6 @@ import (
 	"unsafe"
 )
 
-// Certificate wraps a TLS certificate and supports reloading at runtime.
-type Certificate interface {
-	// Reload will reload the certificate and private key. Subsequent calls
-	// to GetCertificate/GetClientCertificate will return the newly loaded
-	// certificate, if reloading was successful. If reloading failed, the old
-	// state is kept.
-	Reload() error
-
-	// GetCertificate returns the current underlying certificate.
-	// Can be used for tls.Config's GetCertificate callback.
-	GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error)
-
-	// GetClientCertificate returns the current underlying certificate.
-	// Can be used for tls.Config's GetClientCertificate callback.
-	GetClientCertificate(certInfo *tls.CertificateRequestInfo) (*tls.Certificate, error)
-
-	// GetTrustStore returns the most up-to-date version of the trust store / CA bundle.
-	GetTrustStore() *x509.CertPool
-}
-
 func setupConfig(cert Certificate, config *tls.Config) *tls.Config {
 	c := config.Clone()
 	c.GetCertificate = cert.GetCertificate
