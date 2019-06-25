@@ -467,11 +467,7 @@ func serverListen(context *Context) error {
 		return err
 	}
 
-	serverConfig, ok := context.tlsConfigSource.GetServerConfig(config)
-	if !ok {
-		logger.Print("TLS config not appropriate for server role")
-		return errors.New("TLS config not appropriate for server role")
-	}
+	serverConfig := mustGetServerConfig(context.tlsConfigSource, config)
 
 	p := proxy.New(
 		certloader.NewListener(listener, serverConfig),
@@ -584,11 +580,7 @@ func (context *Context) serveStatus() error {
 		}
 		config.ClientAuth = tls.NoClientCert
 
-		serverConfig, ok := context.tlsConfigSource.GetServerConfig(config)
-		if !ok {
-			logger.Print("TLS config not appropriate for server role")
-			return errors.New("TLS config not appropriate for server role")
-		}
+		serverConfig := mustGetServerConfig(context.tlsConfigSource, config)
 		listener = certloader.NewListener(listener, serverConfig)
 	}
 
@@ -699,4 +691,12 @@ func proxyLoggerFlags(flags []string) int {
 		}
 	}
 	return out
+}
+
+func mustGetServerConfig(source certloader.TLSConfigSource, config *tls.Config) certloader.TLSServerConfig {
+	serverConfig, ok := source.GetServerConfig(config)
+	if !ok {
+		panic("TLS config not appropriate for server role")
+	}
+	return serverConfig
 }
