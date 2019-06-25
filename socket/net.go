@@ -25,8 +25,9 @@ import (
 
 // ParseAddress parses a string representing a TCP address or UNIX socket
 // for our backend target. The input can be or the form "HOST:PORT" for
-// TCP or "unix:PATH" for a UNIX socket. It also accepts 'launchd' or
-// 'systemd' for socket activation with those systems.
+// a TCP socket, "unix:PATH" for a UNIX socket, and "systemd:NAME" or
+// "launchd:NAME" for a socket provided by launchd/systemd for socket
+// activation.
 func ParseAddress(input string) (network, address, host string, err error) {
 	if strings.HasPrefix(input, "launchd:") {
 		network = "launchd"
@@ -70,8 +71,10 @@ func ParseAddress(input string) (network, address, host string, err error) {
 // For 'unix' sockets, the address must be a path. The socket file
 // will be set to unlink on close automatically.
 //
-// For 'launchd' sockets, the address must be empty. Only one socket
-// maybe configured in the plist and will be used as the one to use.
+// For 'launchd' sockets, the address must be the name of the socket
+// from the plist file. Only one socket maybe configured in the
+// plist for that name, multiple sockets per name (e.g. separate
+// IPv4/IPv4 sockets) are not supported.
 //
 // For 'systemd' sockets, the address must be the name of the socket.
 // In the systemd unit file, the FileDescriptorName option must be

@@ -36,6 +36,7 @@ build_script:
   - set /p GIT_VERSION= < version
   # Build without PKCS11 enabled
   - set CGO_ENABLED=0
+  - set GO111MODULE=on
   - go build -o ghostunnel-%GIT_VERSION%-windows-%GOARCH%-without-pkcs11.exe -i .
   - sha256sum ghostunnel-%GIT_VERSION%-windows-%GOARCH%-without-pkcs11.exe > ghostunnel-%GIT_VERSION%-windows-%GOARCH%-without-pkcs11.exe.sha256sum
   # Build with PKCS11 enabled
