@@ -150,7 +150,7 @@ type Context struct {
 	shutdownTimeout time.Duration
 	dial            func() (net.Conn, error)
 	metrics         *sqmetrics.SquareMetrics
-	cert            certloader.Certificate
+	tlsConfigSource certloader.TLSConfigSource
 }
 
 // Dialer is an interface for dialers (either net.Dialer, or http_dialer.HttpTunnel)
@@ -354,6 +354,7 @@ func run(args []string) error {
 		logger.Printf("error: unable to load certificates: %s\n", err)
 		return err
 	}
+	tlsConfigSource := certloader.TLSConfigSourceFromCertificate(cert)
 
 	switch command {
 	case serverCommand.FullCommand():
@@ -370,7 +371,13 @@ func run(args []string) error {
 		logger.Printf("using target address %s", *serverForwardAddress)
 
 		status := newStatusHandler(dial)
-		context := &Context{status, nil, *shutdownTimeout, dial, metrics, cert}
+		context := &Context{
+			status:          status,
+			shutdownTimeout: *shutdownTimeout,
+			dial:            dial,
+			metrics:         metrics,
+			tlsConfigSource: tlsConfigSource,
+		}
 		go context.reloadHandler(*timedReload)
 
 		// Start listening
@@ -393,14 +400,20 @@ func run(args []string) error {
 		}
 		logger.Printf("using target address %s", *clientForwardAddress)
 
-		dial, err := clientBackendDialer(cert, network, address, host)
+		dial, err := clientBackendDialer(tlsConfigSource, network, address, host)
 		if err != nil {
 			logger.Printf("error: unable to build dialer: %s\n", err)
 			return err
 		}
 
 		status := newStatusHandler(dial)
-		context := &Context{status, nil, *shutdownTimeout, dial, metrics, cert}
+		context := &Context{
+			status:          status,
+			shutdownTimeout: *shutdownTimeout,
+			dial:            dial,
+			metrics:         metrics,
+			tlsConfigSource: tlsConfigSource,
+		}
 		go context.reloadHandler(*timedReload)
 
 		// Start listening
@@ -454,8 +467,10 @@ func serverListen(context *Context) error {
 		return err
 	}
 
+	serverConfig := mustGetServerConfig(context.tlsConfigSource, config)
+
 	p := proxy.New(
-		certloader.NewListener(listener, context.cert, config),
+		certloader.NewListener(listener, serverConfig),
 		*timeoutDuration,
 		context.dial,
 		logger,
@@ -558,14 +573,15 @@ func (context *Context) serveStatus() error {
 		return err
 	}
 
-	cert, _ := context.cert.GetCertificate(nil)
-	if network != "unix" && cert != nil {
+	if network != "unix" && context.tlsConfigSource.CanServe() {
 		config, err := buildConfig(*enabledCipherSuites)
 		if err != nil {
 			return err
 		}
 		config.ClientAuth = tls.NoClientCert
-		listener = certloader.NewListener(listener, context.cert, config)
+
+		serverConfig := mustGetServerConfig(context.tlsConfigSource, config)
+		listener = certloader.NewListener(listener, serverConfig)
 	}
 
 	context.statusHTTP = &http.Server{
@@ -596,7 +612,7 @@ func serverBackendDialer() (func() (net.Conn, error), error) {
 }
 
 // Get backend dialer function in client mode (connecting to a TLS port)
-func clientBackendDialer(cert certloader.Certificate, network, address, host string) (func() (net.Conn, error), error) {
+func clientBackendDialer(tlsConfigSource certloader.TLSConfigSource, network, address, host string) (func() (net.Conn, error), error) {
 	config, err := buildConfig(*enabledCipherSuites)
 	if err != nil {
 		return nil, err
@@ -651,7 +667,8 @@ func clientBackendDialer(cert certloader.Certificate, network, address, host str
 			http_dialer.WithTls(proxyConfig))
 	}
 
-	d := certloader.DialerWithCertificate(cert, config, *timeoutDuration, dialer)
+	clientConfig := tlsConfigSource.GetClientConfig(config)
+	d := certloader.DialerWithCertificate(clientConfig, *timeoutDuration, dialer)
 	return func() (net.Conn, error) { return d.Dial(network, address) }, nil
 }
 
@@ -674,4 +691,12 @@ func proxyLoggerFlags(flags []string) int {
 		}
 	}
 	return out
+}
+
+func mustGetServerConfig(source certloader.TLSConfigSource, config *tls.Config) certloader.TLSServerConfig {
+	serverConfig, ok := source.GetServerConfig(config)
+	if !ok {
+		panic("TLS config not appropriate for server role")
+	}
+	return serverConfig
 }
