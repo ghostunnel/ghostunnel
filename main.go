@@ -231,10 +231,10 @@ func serverValidateFlags() error {
 		len(*serverAllowedURIs) > 0
 
 	if ((*keyPath != "" && *certPath == "") || (*keyPath == "" && *certPath != "")) && !hasPKCS11() {
-		return errors.New("when using --cert, must also specify --key")
+		return errors.New("when using --cert, must also specify --key (unless using PKCS11)")
 	}
-	if *certPath != "" && *keystorePath != "" {
-		return errors.New("--key/--cert and --keystore are mutually exclusive")
+	if (*certPath != "" || *keyPath != "") && *keystorePath != "" {
+		return errors.New("--cert/--key and --keystore are mutually exclusive")
 	}
 	if *keystorePath == "" && !hasKeychainIdentity() && *certPath == "" {
 		return errors.New("at least one of --keystore, --cert/--key or --keychain-identity (if supported) flags is required")
@@ -242,7 +242,7 @@ func serverValidateFlags() error {
 	if *keystorePath != "" && hasKeychainIdentity() {
 		return errors.New("--keystore and --keychain-identity flags are mutually exclusive")
 	}
-	if *certPath != "" && hasKeychainIdentity() {
+	if (*certPath != "" || *keyPath != "") && hasKeychainIdentity() {
 		return errors.New("--cert/--key and --keychain-identity flags are mutually exclusive")
 	}
 	if !(*serverDisableAuth) && !(*serverAllowAll) && !hasAccessFlags {
@@ -269,13 +269,23 @@ func serverValidateFlags() error {
 
 // Validate flags for client mode
 func clientValidateFlags() error {
-	if *keystorePath == "" && !hasKeychainIdentity() && !*clientDisableAuth {
-		return errors.New("at least one of --keystore, --keychain-identity (if supported), or --disable-authentication flags is required")
+	if *keystorePath == "" && *certPath == "" && !hasKeychainIdentity() && !*clientDisableAuth {
+		return errors.New("at least one of --keystore, --cert/--key, --keychain-identity (if supported), or --disable-authentication flags is required")
 	}
-	if (*keystorePath != "" && hasKeychainIdentity()) ||
-		(*keystorePath != "" && *clientDisableAuth) ||
-		(hasKeychainIdentity() && *clientDisableAuth) {
-		return errors.New("--keystore, --keychain-identity, and --disable-authentication flags are mutually exclusive")
+	if ((*keyPath != "" && *certPath == "") || (*keyPath == "" && *certPath != "")) && !hasPKCS11() {
+		return errors.New("when using --cert, must also specify --key (unless using PKCS11)")
+	}
+	if *keystorePath == "" && !hasKeychainIdentity() && *certPath == "" && !*clientDisableAuth {
+		return errors.New("at least one of --keystore, --cert/--key, --keychain-identity (if supported) or --disable-authentication flags is required")
+	}
+	if *keystorePath != "" && (*certPath != "" || hasKeychainIdentity() || *clientDisableAuth) {
+		return errors.New("--keystore, --cert/--key, --keychain-identity and --disable-authentication flags are mutually exclusive")
+	}
+	if (*certPath != "" || *keyPath != "") && (*keystorePath != "" || hasKeychainIdentity() || *clientDisableAuth) {
+		return errors.New("--keystore, --cert/--key, --keychain-identity and --disable-authentication flags are mutually exclusive")
+	}
+	if hasKeychainIdentity() && (*keystorePath != "" || *certPath != "" || *clientDisableAuth) {
+		return errors.New("--keystore, --cert/--key, --keychain-identity and --disable-authentication flags are mutually exclusive")
 	}
 	if !*clientUnsafeListen && !consideredSafe(*clientListenAddress) {
 		return fmt.Errorf("--listen must be unix:PATH, localhost:PORT, systemd:NAME or launchd:NAME (unless --unsafe-listen is set)")

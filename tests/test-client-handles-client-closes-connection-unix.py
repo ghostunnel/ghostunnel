@@ -19,7 +19,8 @@ if __name__ == "__main__":
         ghostunnel = run_ghostunnel(['client',
                                      '--listen=unix:{0}'.format(client.get_socket_path()),
                                      '--target={0}:13002'.format(LOCALHOST),
-                                     '--keystore=client.p12',
+                                     '--cert=client.crt',
+                                     '--key=client.key',
                                      '--status={0}:{1}'.format(LOCALHOST,
                                                                STATUS_PORT),
                                      '--cacert=root.crt'])

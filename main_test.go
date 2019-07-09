@@ -243,7 +243,21 @@ func TestClientFlagValidation(t *testing.T) {
 	*clientDisableAuth = true
 	err = clientValidateFlags()
 	assert.NotNil(t, err, "--keystore can't be used with --disable-authentication")
+
+	*keystorePath = ""
+	*certPath = "file"
+	*keyPath = "file"
+	err = clientValidateFlags()
+	assert.NotNil(t, err, "--cert/--key can't be used with --disable-authentication")
+
+	*keystorePath = "file"
+	*certPath = "file"
+	*keyPath = "file"
 	*clientDisableAuth = false
+	err = clientValidateFlags()
+	assert.NotNil(t, err, "--keystore can't be used with --cert/--key")
+	*certPath = ""
+	*keyPath = ""
 
 	test := "test"
 	keychainIdentity = &test
