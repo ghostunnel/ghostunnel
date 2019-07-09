@@ -42,6 +42,14 @@ def run_ghostunnel(args, stdout=sys.stdout.buffer, stderr=sys.stderr.buffer, pre
 
     return Popen(cmd, stdout=stdout, stderr=stderr)
 
+def assert_not_zero(ghostunnel):
+    ret = ghostunnel.wait(timeout=5)
+    if ret == 0:
+        raise Exception(
+            'ghostunnel terminated with zero, but expected otherwise')
+    else:
+        print_ok("OK (terminated)")
+
 def terminate(ghostunnel):
     """Gracefully terminate ghostunnel (with timeout)"""
     print_ok("terminating ghostunnel instance")
