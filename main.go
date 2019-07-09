@@ -65,8 +65,8 @@ var (
 	app = kingpin.New("ghostunnel", "A simple SSL/TLS proxy with mutual authentication for securing non-TLS services.")
 
 	serverCommand        = app.Command("server", "Server mode (TLS listener -> plain TCP/UNIX target).")
-	serverListenAddress  = serverCommand.Flag("listen", "Address and port to listen on (HOST:PORT, or unix:PATH).").PlaceHolder("ADDR").Required().String()
-	serverForwardAddress = serverCommand.Flag("target", "Address to forward connections to (HOST:PORT, or unix:PATH).").PlaceHolder("ADDR").Required().String()
+	serverListenAddress  = serverCommand.Flag("listen", "Address and port to listen on (can be HOST:PORT, unix:PATH, systemd:NAME or launchd:NAME).").PlaceHolder("ADDR").Required().String()
+	serverForwardAddress = serverCommand.Flag("target", "Address to forward connections to (can be HOST:PORT or unix:PATH).").PlaceHolder("ADDR").Required().String()
 	serverProxyProtocol  = serverCommand.Flag("proxy-protocol", "Enable PROXY protocol v2 to signal connection info to backend").Bool()
 	serverUnsafeTarget   = serverCommand.Flag("unsafe-target", "If set, does not limit target to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
 	serverAllowAll       = serverCommand.Flag("allow-all", "Allow all clients, do not check client cert subject.").Bool()
@@ -78,9 +78,9 @@ var (
 	serverDisableAuth    = serverCommand.Flag("disable-authentication", "Disable client authentication, no client certificate will be required.").Default("false").Bool()
 
 	clientCommand       = app.Command("client", "Client mode (plain TCP/UNIX listener -> TLS target).")
-	clientListenAddress = clientCommand.Flag("listen", "Address and port to listen on (HOST:PORT, or unix:PATH).").PlaceHolder("ADDR").Required().String()
+	clientListenAddress = clientCommand.Flag("listen", "Address and port to listen on (can be HOST:PORT, unix:PATH, systemd:NAME or launchd:NAME).").PlaceHolder("ADDR").Required().String()
 	// Note: can't use .TCP() for clientForwardAddress because we need to set the original string in tls.Config.ServerName.
-	clientForwardAddress = clientCommand.Flag("target", "Address to forward connections to (HOST:PORT).").PlaceHolder("ADDR").Required().String()
+	clientForwardAddress = clientCommand.Flag("target", "Address to forward connections to (must be HOST:PORT).").PlaceHolder("ADDR").Required().String()
 	clientUnsafeListen   = clientCommand.Flag("unsafe-listen", "If set, does not limit listen to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
 	clientServerName     = clientCommand.Flag("override-server-name", "If set, overrides the server name used for hostname verification.").PlaceHolder("NAME").String()
 	clientConnectProxy   = clientCommand.Flag("connect-proxy", "If set, connect to target over given HTTP CONNECT proxy. Must be HTTP/HTTPS URL.").PlaceHolder("URL").URL()
@@ -221,6 +221,16 @@ func consideredSafe(addr string) bool {
 	return false
 }
 
+func validateCredentials(creds []bool) int {
+	count := 0
+	for _, cred := range creds {
+		if cred {
+			count++
+		}
+	}
+	return count
+}
+
 // Validate flags for server mode
 func serverValidateFlags() error {
 	// hasAccessFlags is true if access control flags (besides allow-all) were specified
@@ -230,20 +240,25 @@ func serverValidateFlags() error {
 		len(*serverAllowedIPs) > 0 ||
 		len(*serverAllowedURIs) > 0
 
-	if ((*keyPath != "" && *certPath == "") || (*keyPath == "" && *certPath != "")) && !hasPKCS11() {
-		return errors.New("when using --cert, must also specify --key (unless using PKCS11)")
-	}
-	if (*certPath != "" || *keyPath != "") && *keystorePath != "" {
-		return errors.New("--cert/--key and --keystore are mutually exclusive")
-	}
-	if *keystorePath == "" && !hasKeychainIdentity() && *certPath == "" {
+	hasValidCredentials := validateCredentials([]bool{
+		// Standard keystore
+		*keystorePath != "",
+		// macOS keychain identity
+		hasKeychainIdentity(),
+		// A certificate and a key, in separate files
+		(*certPath != "" && *keyPath != ""),
+		// A certificate, with the key in a PKCS#11 module
+		(*certPath != "" && hasPKCS11()),
+	})
+
+	if hasValidCredentials == 0 {
 		return errors.New("at least one of --keystore, --cert/--key or --keychain-identity (if supported) flags is required")
 	}
-	if *keystorePath != "" && hasKeychainIdentity() {
-		return errors.New("--keystore and --keychain-identity flags are mutually exclusive")
+	if hasValidCredentials > 1 {
+		return errors.New("--keystore, --cert/--key and --keychain-identity flags are mutually exclusive")
 	}
-	if (*certPath != "" || *keyPath != "") && hasKeychainIdentity() {
-		return errors.New("--cert/--key and --keychain-identity flags are mutually exclusive")
+	if (*keyPath != "" && *certPath == "") || (*certPath != "" && *keyPath == "" && !hasPKCS11()) {
+		return errors.New("--cert/--key must be set together, unless using PKCS11 for private key")
 	}
 	if !(*serverDisableAuth) && !(*serverAllowAll) && !hasAccessFlags {
 		return errors.New("at least one access control flag (--allow-{all,cn,ou,dns-san,ip-san,uri-san} or --disable-authentication) is required")
@@ -269,23 +284,27 @@ func serverValidateFlags() error {
 
 // Validate flags for client mode
 func clientValidateFlags() error {
-	if *keystorePath == "" && *certPath == "" && !hasKeychainIdentity() && !*clientDisableAuth {
-		return errors.New("at least one of --keystore, --cert/--key, --keychain-identity (if supported), or --disable-authentication flags is required")
-	}
-	if ((*keyPath != "" && *certPath == "") || (*keyPath == "" && *certPath != "")) && !hasPKCS11() {
-		return errors.New("when using --cert, must also specify --key (unless using PKCS11)")
-	}
-	if *keystorePath == "" && !hasKeychainIdentity() && *certPath == "" && !*clientDisableAuth {
+	hasValidCredentials := validateCredentials([]bool{
+		// Standard keystore
+		*keystorePath != "",
+		// macOS keychain identity
+		hasKeychainIdentity(),
+		// A certificate and a key, in separate files
+		(*certPath != "" && *keyPath != ""),
+		// A certificate, with the key in a PKCS#11 module
+		(*certPath != "" && hasPKCS11()),
+		// No credentials needed if auth is disabled
+		*clientDisableAuth,
+	})
+
+	if hasValidCredentials == 0 {
 		return errors.New("at least one of --keystore, --cert/--key, --keychain-identity (if supported) or --disable-authentication flags is required")
 	}
-	if *keystorePath != "" && (*certPath != "" || hasKeychainIdentity() || *clientDisableAuth) {
+	if hasValidCredentials > 1 {
 		return errors.New("--keystore, --cert/--key, --keychain-identity and --disable-authentication flags are mutually exclusive")
 	}
-	if (*certPath != "" || *keyPath != "") && (*keystorePath != "" || hasKeychainIdentity() || *clientDisableAuth) {
-		return errors.New("--keystore, --cert/--key, --keychain-identity and --disable-authentication flags are mutually exclusive")
-	}
-	if hasKeychainIdentity() && (*keystorePath != "" || *certPath != "" || *clientDisableAuth) {
-		return errors.New("--keystore, --cert/--key, --keychain-identity and --disable-authentication flags are mutually exclusive")
+	if (*keyPath != "" && *certPath == "") || (*certPath != "" && *keyPath == "" && !hasPKCS11()) {
+		return errors.New("--cert/--key must be set together, unless using PKCS11 for private key")
 	}
 	if !*clientUnsafeListen && !consideredSafe(*clientListenAddress) {
 		return fmt.Errorf("--listen must be unix:PATH, localhost:PORT, systemd:NAME or launchd:NAME (unless --unsafe-listen is set)")
