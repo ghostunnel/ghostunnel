@@ -462,7 +462,7 @@ func run(args []string) error {
 // connections. This is useful for the purpose of replacing certificates
 // in-place without having to take downtime, e.g. if a certificate is expiring.
 func serverListen(context *Context) error {
-	config, err := buildConfig(*enabledCipherSuites)
+	config, err := buildServerConfig(*enabledCipherSuites)
 	if err != nil {
 		logger.Printf("error trying to read CA bundle: %s", err)
 		return err
@@ -603,7 +603,7 @@ func (context *Context) serveStatus() error {
 	}
 
 	if network != "unix" && context.tlsConfigSource.CanServe() {
-		config, err := buildConfig(*enabledCipherSuites)
+		config, err := buildServerConfig(*enabledCipherSuites)
 		if err != nil {
 			return err
 		}
@@ -642,7 +642,7 @@ func serverBackendDialer() (func() (net.Conn, error), error) {
 
 // Get backend dialer function in client mode (connecting to a TLS port)
 func clientBackendDialer(tlsConfigSource certloader.TLSConfigSource, network, address, host string) (func() (net.Conn, error), error) {
-	config, err := buildConfig(*enabledCipherSuites)
+	config, err := buildClientConfig(*enabledCipherSuites)
 	if err != nil {
 		return nil, err
 	}
@@ -676,7 +676,7 @@ func clientBackendDialer(tlsConfigSource certloader.TLSConfigSource, network, ad
 		logger.Printf("using HTTP(S) CONNECT proxy %s", (*clientConnectProxy).String())
 
 		// Use HTTP CONNECT proxy to connect to target.
-		proxyConfig, err := buildConfig(*enabledCipherSuites)
+		proxyConfig, err := buildClientConfig(*enabledCipherSuites)
 		if err != nil {
 			return nil, err
 		}

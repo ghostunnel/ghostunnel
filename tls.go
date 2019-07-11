@@ -70,7 +70,7 @@ func hasKeychainIdentity() bool {
 	return keychainIdentity != nil && *keychainIdentity != ""
 }
 
-// buildConfig reads command-line options and builds a tls.Config
+// buildConfig builds a generic tls.Config
 func buildConfig(enabledCipherSuites string) (*tls.Config, error) {
 	// List of cipher suite preferences:
 	// * We list ECDSA ahead of RSA to prefer ECDSA for multi-cert setups.
@@ -88,14 +88,33 @@ func buildConfig(enabledCipherSuites string) (*tls.Config, error) {
 
 	return &tls.Config{
 		PreferServerCipherSuites: true,
-
-		ClientAuth:   tls.RequireAndVerifyClientCert,
-		MinVersion:   tls.VersionTLS12,
-		CipherSuites: suites,
-		CurvePreferences: []tls.CurveID{
-			// P-256/X25519 have an ASM implementation, others do not (at least on x86-64).
-			tls.X25519,
-			tls.CurveP256,
-		},
+		MinVersion:               tls.VersionTLS12,
+		CipherSuites:             suites,
 	}, nil
+}
+
+// buildClientConfig builds a tls.Config for clients
+func buildClientConfig(enabledCipherSuites string) (*tls.Config, error) {
+	// At the moment, we don't apply any extra settings on top of the generic
+	// config for client contexts
+	return buildConfig(enabledCipherSuites)
+}
+
+// buildServerConfig builds a tls.Config for servers
+func buildServerConfig(enabledCipherSuites string) (*tls.Config, error) {
+	config, err := buildConfig(enabledCipherSuites)
+	if err != nil {
+		return nil, err
+	}
+
+	// Require client cert by default
+	config.ClientAuth = tls.RequireAndVerifyClientCert
+
+	// P-256/X25519 have an ASM implementation, others do not (at least on x86-64).
+	config.CurvePreferences = []tls.CurveID{
+		tls.X25519,
+		tls.CurveP256,
+	}
+
+	return config, nil
 }
