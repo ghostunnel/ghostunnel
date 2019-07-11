@@ -5,7 +5,7 @@ Ghostunnel has support for loading private keys from PKCS#11 modules, which
 should work with any hardware security module that exposes a PKCS#11 interface.
 An easy way to test the PKCS#11 interface for development purposes is with
 [SoftHSM][softhsm]. Note that CGO is required in order for PKCS#11 support to
-work (see [CROSS-COMPILE](docs/CROSS-COMPILE.md) for instructions to
+work (see [CROSS-COMPILE](CROSS-COMPILE.md) for instructions to
 cross-compile with CGO enabled).
 
 [softhsm]: https://github.com/opendnssec/SoftHSMv2
