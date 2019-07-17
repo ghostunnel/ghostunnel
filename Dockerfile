@@ -18,13 +18,12 @@ COPY . /go/src/github.com/square/ghostunnel
 
 # Build
 RUN cd /go/src/github.com/square/ghostunnel && \
-    GO111MODULE=on make clean ghostunnel && \
+    CGO_ENABLED=0 GOOS=linux GO111MODULE=on make clean ghostunnel && \
     cp ghostunnel /usr/bin/ghostunnel
 
 # Create a multi-stage build with the binary
-FROM alpine
+FROM gcr.io/distroless/static
 
-RUN apk add --no-cache --update libtool curl
-COPY --from=build /usr/bin/ghostunnel /usr/bin/ghostunnel
+COPY --from=build /usr/bin/ghostunnel /ghostunnel
 
-ENTRYPOINT ["/usr/bin/ghostunnel"]
+ENTRYPOINT ["/ghostunnel"]

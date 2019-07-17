@@ -4,11 +4,11 @@ VERSION := $(shell git describe --always --dirty)
 
 # Ghostunnel binary
 ghostunnel: $(SOURCE_FILES)
-	go build -ldflags '-X main.version=${VERSION}' -o ghostunnel .
+	go build -ldflags '-extldflags "-static" -X main.version=${VERSION}' -o ghostunnel .
 
 # Ghostunnel binary with certstore enabled
 ghostunnel.certstore: $(SOURCE_FILES)
-	go build -tags certstore -ldflags '-X main.version=${VERSION}' -o ghostunnel.certstore .
+	go build -tags certstore -ldflags '-extldflags "-static" -X main.version=${VERSION}' -o ghostunnel.certstore .
 
 # Man page
 ghostunnel.man: ghostunnel
