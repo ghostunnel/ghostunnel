@@ -98,6 +98,8 @@ var (
 	keystorePass        = app.Flag("storepass", "Password for keystore (if using PKCS keystore, optional).").PlaceHolder("PASS").String()
 	caBundlePath        = app.Flag("cacert", "Path to CA bundle file (PEM/X509). Uses system trust store by default.").String()
 	enabledCipherSuites = app.Flag("cipher-suites", "Set of cipher suites to enable, comma-separated, in order of preference (AES, CHACHA).").Default("AES,CHACHA").String()
+	useWorkloadAPI      = app.Flag("use-workload-api", "If true, certificate and root CAs are retrieved via the SPIFFE workload API").Bool()
+	workloadAPIAddr     = app.Flag("workload-api-addr", "The address to the Workload API").PlaceHolder("ADDR").String()
 
 	// Reloading and timeouts
 	timedReload     = app.Flag("timed-reload", "Reload keystores every given interval (e.g. 300s), refresh listener/client on changes.").PlaceHolder("DURATION").Duration()
@@ -249,6 +251,8 @@ func serverValidateFlags() error {
 		(*certPath != "" && *keyPath != ""),
 		// A certificate, with the key in a PKCS#11 module
 		(*certPath != "" && hasPKCS11()),
+		// SPIFFE Workload API
+		*useWorkloadAPI,
 	})
 
 	if hasValidCredentials == 0 {
@@ -293,6 +297,8 @@ func clientValidateFlags() error {
 		(*certPath != "" && *keyPath != ""),
 		// A certificate, with the key in a PKCS#11 module
 		(*certPath != "" && hasPKCS11()),
+		// SPIFFE Workload API
+		*useWorkloadAPI,
 		// No credentials needed if auth is disabled
 		*clientDisableAuth,
 	})
@@ -378,12 +384,21 @@ func run(args []string) error {
 	}
 	metrics := sqmetrics.NewMetrics(*metricsURL, *metricsPrefix, client, *metricsInterval, metrics.DefaultRegistry, logger)
 
-	cert, err := buildCertificate(*keystorePath, *certPath, *keyPath, *keystorePass, *caBundlePath)
-	if err != nil {
-		logger.Printf("error: unable to load certificates: %s\n", err)
-		return err
+	var tlsConfigSource certloader.TLSConfigSource
+	if *useWorkloadAPI {
+		tlsConfigSource, err = certloader.TLSConfigSourceFromWorkloadAPI(*workloadAPIAddr, logger)
+		if err != nil {
+			logger.Printf("error: unable to create workload API TLS source: %s\n", err)
+			return err
+		}
+	} else {
+		cert, err := buildCertificate(*keystorePath, *certPath, *keyPath, *keystorePass, *caBundlePath)
+		if err != nil {
+			logger.Printf("error: unable to load certificates: %s\n", err)
+			return err
+		}
+		tlsConfigSource = certloader.TLSConfigSourceFromCertificate(cert)
 	}
-	tlsConfigSource := certloader.TLSConfigSourceFromCertificate(cert)
 
 	switch command {
 	case serverCommand.FullCommand():
@@ -696,7 +711,7 @@ func clientBackendDialer(tlsConfigSource certloader.TLSConfigSource, network, ad
 			http_dialer.WithTls(proxyConfig))
 	}
 
-	clientConfig := tlsConfigSource.GetClientConfig(config)
+	clientConfig := mustGetClientConfig(tlsConfigSource, config)
 	d := certloader.DialerWithCertificate(clientConfig, *timeoutDuration, dialer)
 	return func() (net.Conn, error) { return d.Dial(network, address) }, nil
 }
@@ -723,9 +738,17 @@ func proxyLoggerFlags(flags []string) int {
 }
 
 func mustGetServerConfig(source certloader.TLSConfigSource, config *tls.Config) certloader.TLSServerConfig {
-	serverConfig, ok := source.GetServerConfig(config)
-	if !ok {
-		panic("TLS config not appropriate for server role")
+	serverConfig, err := source.GetServerConfig(config)
+	if err != nil {
+		panic(err)
 	}
 	return serverConfig
+}
+
+func mustGetClientConfig(source certloader.TLSConfigSource, config *tls.Config) certloader.TLSClientConfig {
+	clientConfig, err := source.GetClientConfig(config)
+	if err != nil {
+		panic(err)
+	}
+	return clientConfig
 }

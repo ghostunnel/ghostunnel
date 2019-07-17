@@ -1,6 +1,9 @@
 package certloader
 
-import "crypto/tls"
+import (
+	"crypto/tls"
+	"errors"
+)
 
 func TLSConfigSourceFromCertificate(cert Certificate) TLSConfigSource {
 	return &certTLSConfigSource{
@@ -21,15 +24,15 @@ func (c *certTLSConfigSource) CanServe() bool {
 	return cert != nil
 }
 
-func (c *certTLSConfigSource) GetClientConfig(base *tls.Config) TLSClientConfig {
-	return newCertTLSConfig(c.cert, base)
+func (c *certTLSConfigSource) GetClientConfig(base *tls.Config) (TLSClientConfig, error) {
+	return newCertTLSConfig(c.cert, base), nil
 }
 
-func (c *certTLSConfigSource) GetServerConfig(base *tls.Config) (TLSServerConfig, bool) {
+func (c *certTLSConfigSource) GetServerConfig(base *tls.Config) (TLSServerConfig, error) {
 	if !c.CanServe() {
-		return nil, false
+		return nil, errors.New("certificate cannot be used as a server")
 	}
-	return newCertTLSConfig(c.cert, base), true
+	return newCertTLSConfig(c.cert, base), nil
 }
 
 type certTLSConfig struct {

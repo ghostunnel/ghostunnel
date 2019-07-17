@@ -44,6 +44,5 @@ func (l *Listener) Accept() (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return tls.Server(c, l.config.GetServerConfig()), nil
 }
