@@ -33,7 +33,7 @@ How to check status and read connection metrics:
     curl --cacert test-keys/cacert.pem 'https://localhost:6060/_metrics?format=json'
     
     # Metrics information (Prometheus)
-    curl --cacert test-keys/cacert.pem 'https://localhost:6060/_metrics?format=prometheus'
+    curl --cacert test-keys/cacert.pem 'https://localhost:6060/_metrics/prometheus'
 
 How to use profiling endpoints, if `--enable-pprof` is set:
 
