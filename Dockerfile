@@ -24,6 +24,6 @@ RUN cd /go/src/github.com/square/ghostunnel && \
 # Create a multi-stage build with the binary
 FROM gcr.io/distroless/static
 
-COPY --from=build /usr/bin/ghostunnel /ghostunnel
+COPY --from=build /usr/bin/ghostunnel /usr/bin/ghostunnel
 
-ENTRYPOINT ["/ghostunnel"]
+ENTRYPOINT ["/usr/bin/ghostunnel"]
