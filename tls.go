@@ -24,16 +24,24 @@ import (
 	"github.com/square/ghostunnel/certloader"
 )
 
-var cipherSuites = map[string][]uint16{
-	"AES-UNSAFE": {
+// Unsafe cipher suites available for compatibility reasons. To unlock these
+// cipher suites you must use the (hidden) --allow-unsafe-cipher-suites flag.
+// New cipher suites will be added here only if personally requested through a
+// GitHub issue, and only to work around compatibility problems with large
+// providers.
+var unsafeCipherSuites = map[string][]uint16{
+	// Needed for Azure PaaS compatibilty, see PR #235 on square/ghostunnel.
+	"UNSAFE-AZURE": {
 		tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
 	},
+}
+
+var cipherSuites = map[string][]uint16{
 	"AES": {
 		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
 		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
 		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
 		tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-		tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
 	},
 	"CHACHA": {
 		tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
@@ -82,9 +90,13 @@ func buildConfig(enabledCipherSuites string) (*tls.Config, error) {
 
 	suites := []uint16{}
 	for _, suite := range strings.Split(enabledCipherSuites, ",") {
-		ciphers, ok := cipherSuites[strings.TrimSpace(suite)]
+		name := strings.TrimSpace(suite)
+		ciphers, ok := cipherSuites[name]
+		if !ok && *allowUnsafeCipherSuites {
+			ciphers, ok = unsafeCipherSuites[name]
+		}
 		if !ok {
-			return nil, fmt.Errorf("invalid cipher suite '%s' selected", suite)
+			return nil, fmt.Errorf("invalid cipher suite '%s' selected", name)
 		}
 
 		suites = append(suites, ciphers...)
