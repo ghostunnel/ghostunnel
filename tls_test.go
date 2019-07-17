@@ -253,6 +253,10 @@ func TestCipherSuitePreference(t *testing.T) {
 	conf, err = buildConfig("AES,CHACHA")
 	assert.Nil(t, err, "should be able to build TLS config")
 	assert.True(t, conf.CipherSuites[0] == tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, "expecting AES")
+
+	conf, err = buildConfig("AES-UNSAFE,AES,CHACHA")
+	assert.Nil(t, err, "should be able to build TLS config")
+	assert.True(t, conf.CipherSuites[0] == tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256, "expecting AES")
 }
 
 func TestReload(t *testing.T) {
