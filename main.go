@@ -573,6 +573,9 @@ func (context *Context) serveStatus() error {
 
 	mux := http.NewServeMux()
 	mux.Handle("/_status", context.status)
+	mux.HandleFunc("/_metrics/json", func(w http.ResponseWriter, r *http.Request) {
+		context.metrics.ServeHTTP(w, r)
+	})
 	mux.HandleFunc("/_metrics/prometheus", func(w http.ResponseWriter, r *http.Request) {
 		promHandler.ServeHTTP(w, r)
 	})
