@@ -14,19 +14,18 @@ communication between a frontend and backend service.
 
 There are several processes involved in the demo:
 
-* A backend server that receives TCP data
-* A frontend client that sends TCP data
-* A backend ghostunnel that receives TCP data over SPIFFE-authenticated mutual
+* Frontend client that sends TCP data
+* Frontend Ghostunnel that receives TCP data forwards it to the backend
+  Ghostunnel over SPIFFE-authenticated mutual TLS
+* Backend Ghostunnel that receives TCP data over SPIFFE-authenticated mutual
   TLS and forwards it to the backend server
-* A frontend ghostunnel that receives TCP data forwards it to the backend
-  ghostunnel over SPIFFE-authenticated mutual TLS.
+* Backend server that receives TCP data
+* Frontend SPIRE agent that identifies the frontend Ghostunnel and issues it a
+  frontend SPIFFE identity
+* Backend SPIRE agent that identifies the backend Ghostunnel and issues it a
+  backend SPIFFE identity
 * SPIRE server that mints the identities and delivers them to agents according
   to workload registration
-* Backend SPIRE agent that identifies the backend ghostunnel and issues it a
-  backend SPIFFE identity.
-* Frontend SPIRE agent that identifies the frontend ghostunnel and issues it a
-  frontend SPIFFE identity.
-
 
 ```
            TCP                         mTLS                         TCP
@@ -88,8 +87,12 @@ $ ./06-run-frontend-ghostunnel.sh
 $ ./07-run-backend.sh
 ```
 
-### Send Frontend Request
+### Send the Frontend Request
+
+Run the following the send a request from the frontend.
 
 ```
 $ ./08-send-frontend-request.sh
 ```
+
+You should see the backend print out a message!
