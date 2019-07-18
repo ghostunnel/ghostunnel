@@ -384,20 +384,9 @@ func run(args []string) error {
 	}
 	metrics := sqmetrics.NewMetrics(*metricsURL, *metricsPrefix, client, *metricsInterval, metrics.DefaultRegistry, logger)
 
-	var tlsConfigSource certloader.TLSConfigSource
-	if *useWorkloadAPI {
-		tlsConfigSource, err = certloader.TLSConfigSourceFromWorkloadAPI(*workloadAPIAddr, logger)
-		if err != nil {
-			logger.Printf("error: unable to create workload API TLS source: %s\n", err)
-			return err
-		}
-	} else {
-		cert, err := buildCertificate(*keystorePath, *certPath, *keyPath, *keystorePass, *caBundlePath)
-		if err != nil {
-			logger.Printf("error: unable to load certificates: %s\n", err)
-			return err
-		}
-		tlsConfigSource = certloader.TLSConfigSourceFromCertificate(cert)
+	tlsConfigSource, err := getTLSConfigSource()
+	if err != nil {
+		return err
 	}
 
 	switch command {
@@ -741,6 +730,24 @@ func proxyLoggerFlags(flags []string) int {
 		}
 	}
 	return out
+}
+
+func getTLSConfigSource() (certloader.TLSConfigSource, error) {
+	if *useWorkloadAPI {
+		source, err := certloader.TLSConfigSourceFromWorkloadAPI(*workloadAPIAddr, logger)
+		if err != nil {
+			logger.Printf("error: unable to create workload API TLS source: %s\n", err)
+			return nil, err
+		}
+		return source, nil
+	}
+
+	cert, err := buildCertificate(*keystorePath, *certPath, *keyPath, *keystorePass, *caBundlePath)
+	if err != nil {
+		logger.Printf("error: unable to load certificates: %s\n", err)
+		return nil, err
+	}
+	return certloader.TLSConfigSourceFromCertificate(cert), nil
 }
 
 func mustGetServerConfig(source certloader.TLSConfigSource, config *tls.Config) certloader.TLSServerConfig {

@@ -14,10 +14,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type testLogger bytes.Buffer
+type testLogger struct {
+	t *testing.T
+}
+
+func newTestLogger(t *testing.T) *testLogger {
+	return &testLogger{t: t}
+}
 
 func (l *testLogger) Printf(format string, args ...interface{}) {
-	fmt.Fprintf((*bytes.Buffer)(l), format, args...)
+	t.Logf(format, args...)
 }
 
 func TestWorkloadAPITLSConfigSource(t *testing.T) {
@@ -36,7 +42,7 @@ func TestWorkloadAPITLSConfigSource(t *testing.T) {
 	})
 	defer workloadAPI.Stop()
 
-	log := new(testLogger)
+	log := newTestLogger(t)
 
 	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), log)
 	require.NoError(t, err)

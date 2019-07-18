@@ -26,7 +26,7 @@ Authorization
 -------------------
 
 The identity of the peer, i.e. the [SPIFFE ID](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE-ID.md), is embedded as a URI SAN on the
-X509-SVID. Accordingly, the existing `--verify-uri-san` and `--allow-uri-san`
+X509-SVID. Accordingly, the existing `--verify-uri` and `--allow-uri`
 flags can be used to authorize the peer:
 
 As a server:
@@ -36,7 +36,7 @@ $ ghostunnel server \
     --use-workload-api \
     --listen localhost:8443 \
     --target localhost:8080 \
-    --allow-uri-san spiffe://domain.test/frontend
+    --allow-uri spiffe://domain.test/frontend
 ```
 
 As a client, 
@@ -46,7 +46,7 @@ $ ghostunnel client \
     --use-workload-api \
     --listen localhost:8080 \
     --target localhost:8443 \
-    --verify-uri-san spiffe://domain.test/backend
+    --verify-uri spiffe://domain.test/backend
 ```
 
 Demo

@@ -9,4 +9,4 @@ ghostunnel client \
     --workload-api-addr "unix://${PWD}/spire/frontend-agent.sock" \
     --listen=localhost:9001 \
     --target=localhost:9002 \
-    --verify-uri-san spiffe://domain.test/backend
+    --verify-uri spiffe://domain.test/backend
