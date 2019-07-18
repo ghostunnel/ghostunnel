@@ -52,5 +52,6 @@ $ ghostunnel client \
 Demo
 -------------------
 
-See the [end-to-end demo](spiffe-workload-api-demo/README.md) for an example of using ghostunnel
-backed by the [SPIRE](https://spiffe.io/spire/) of [SPIFFE](https://spiffe.io).
+See the [end-to-end demo](spiffe-workload-api-demo/README.md) for an example
+using Ghostunnel with SPIFFE Workload API support backed by
+[SPIRE](https://spiffe.io/spire/).
