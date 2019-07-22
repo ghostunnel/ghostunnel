@@ -98,8 +98,8 @@ var (
 	keystorePass        = app.Flag("storepass", "Password for keystore (if using PKCS keystore, optional).").PlaceHolder("PASS").String()
 	caBundlePath        = app.Flag("cacert", "Path to CA bundle file (PEM/X509). Uses system trust store by default.").String()
 	enabledCipherSuites = app.Flag("cipher-suites", "Set of cipher suites to enable, comma-separated, in order of preference (AES, CHACHA).").Default("AES,CHACHA").String()
-	useWorkloadAPI      = app.Flag("use-workload-api", "If true, certificate and root CAs are retrieved via the SPIFFE workload API").Bool()
-	workloadAPIAddr     = app.Flag("workload-api-addr", "The address to the Workload API").PlaceHolder("ADDR").String()
+	useWorkloadAPI      = app.Flag("use-workload-api", "If true, certificate and root CAs are retrieved via the SPIFFE Workload API").Bool()
+	useWorkloadAPIAddr  = app.Flag("use-workload-api-addr", "If set, certificates and root CAs are retrieved via the SPIFFE Workload API at the specified address").PlaceHolder("ADDR").String()
 
 	// Reloading and timeouts
 	timedReload     = app.Flag("timed-reload", "Reload keystores every given interval (e.g. 300s), refresh listener/client on changes.").PlaceHolder("DURATION").Duration()
@@ -343,6 +343,11 @@ func run(args []string) error {
 	app.Validate(validateFlags)
 	app.UsageTemplate(kingpin.LongHelpTemplate)
 	command := kingpin.MustParse(app.Parse(args))
+
+	// use-workload-api-addr implies use-workload-api
+	if *useWorkloadAPIAddr != "" {
+		*useWorkloadAPI = true
+	}
 
 	// Logger
 	err := initLogger(useSyslog(), *quiet)
@@ -734,7 +739,7 @@ func proxyLoggerFlags(flags []string) int {
 
 func getTLSConfigSource() (certloader.TLSConfigSource, error) {
 	if *useWorkloadAPI {
-		source, err := certloader.TLSConfigSourceFromWorkloadAPI(*workloadAPIAddr, logger)
+		source, err := certloader.TLSConfigSourceFromWorkloadAPI(*useWorkloadAPIAddr, logger)
 		if err != nil {
 			logger.Printf("error: unable to create workload API TLS source: %s\n", err)
 			return nil, err
