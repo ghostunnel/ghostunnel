@@ -102,6 +102,13 @@ type spiffeTLSConfig struct {
 
 func (c *spiffeTLSConfig) GetClientConfig() *tls.Config {
 	config := c.base.Clone()
+	// Go TLS stack will do hostname validation with is not a part of SPIFFE
+	// authentication. Unfortunately there is no way to just skip hostname
+	// validation without having to turn off all verification. This is still
+	// safe since Go will still invoke the VerifyPeerCertificate callback,
+	// albeit with an empty set of verified chains. The VerifyPeerCertificate
+	// callback provided by the SPIFFE library will perform SPIFFE
+	// authentication against the raw certificates.
 	config.InsecureSkipVerify = true
 	config.VerifyPeerCertificate = c.chainVerifyPeerCertificate(config.VerifyPeerCertificate)
 	config.GetClientCertificate = spiffe.AdaptGetClientCertificate(c.peer)
@@ -111,6 +118,13 @@ func (c *spiffeTLSConfig) GetClientConfig() *tls.Config {
 func (c *spiffeTLSConfig) GetServerConfig() *tls.Config {
 	config := c.base.Clone()
 	config.ClientAuth = tls.RequireAnyClientCert
+	// Go TLS stack will do hostname validation with is not a part of SPIFFE
+	// authentication. Unfortunately there is no way to just skip hostname
+	// validation without having to turn off all verification. This is still
+	// safe since Go will still invoke the VerifyPeerCertificate callback,
+	// albeit with an empty set of verified chains. The VerifyPeerCertificate
+	// callback provided by the SPIFFE library will perform SPIFFE
+	// authentication against the raw certificates.
 	config.InsecureSkipVerify = true
 	config.VerifyPeerCertificate = c.chainVerifyPeerCertificate(config.VerifyPeerCertificate)
 	config.GetCertificate = spiffe.AdaptGetCertificate(c.peer)
