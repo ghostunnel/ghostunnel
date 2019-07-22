@@ -1,2 +1,3 @@
 data/
 *.sock
+bootstrap.crt

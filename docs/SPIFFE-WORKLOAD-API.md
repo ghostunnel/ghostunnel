@@ -17,8 +17,7 @@ can be used to explicitly set the address, like so:
 
 ```
 $ ghostunnel server \
-    --use-workload-api \
-    --workload-api-addr /run/spire/sockets/agent.sock \
+    --use-workload-api-addr /run/spire/sockets/agent.sock \
     ... other server options ...
 ```
 
