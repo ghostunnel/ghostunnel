@@ -23,7 +23,7 @@ func newTestLogger(t *testing.T) *testLogger {
 }
 
 func (l *testLogger) Printf(format string, args ...interface{}) {
-	t.Logf(format, args...)
+	l.t.Logf(format, args...)
 }
 
 func TestWorkloadAPITLSConfigSource(t *testing.T) {
