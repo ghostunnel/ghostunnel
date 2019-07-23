@@ -46,6 +46,7 @@ func TestWorkloadAPITLSConfigSource(t *testing.T) {
 
 	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), log)
 	require.NoError(t, err)
+	defer source.(*spiffeTLSConfigSource).Close()
 
 	// set up server configuration
 	var serverVerifyCallCount int32

@@ -82,6 +82,10 @@ func (s *spiffeTLSConfigSource) GetServerConfig(base *tls.Config) (TLSServerConf
 	return s.newConfig(base)
 }
 
+func (s *spiffeTLSConfigSource) Close() error {
+	return s.peer.Close()
+}
+
 func (s *spiffeTLSConfigSource) newConfig(base *tls.Config) (*spiffeTLSConfig, error) {
 	s.log.Printf("waiting for initial SPIFFE Workload API update...")
 	if err := s.peer.WaitUntilReady(context.TODO()); err != nil {
