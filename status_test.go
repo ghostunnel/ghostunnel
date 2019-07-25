@@ -69,6 +69,10 @@ func TestStatusHandlerNew(t *testing.T) {
 	if response.Code != 503 {
 		t.Error("status should return 503 if not yet listening")
 	}
+
+	if response.Header().Get("Content-Type") != "application/json" {
+		t.Error("status response should be application/json")
+	}
 }
 
 func TestStatusHandlerListening(t *testing.T) {
@@ -79,6 +83,10 @@ func TestStatusHandlerListening(t *testing.T) {
 
 	if response.Code != 200 {
 		t.Error("status should return 200 once listening")
+	}
+
+	if response.Header().Get("Content-Type") != "application/json" {
+		t.Error("status response should be application/json")
 	}
 }
 
