@@ -30,7 +30,7 @@ import (
 // GitHub issue, and only to work around compatibility problems with large
 // providers.
 var unsafeCipherSuites = map[string][]uint16{
-	// Needed for Azure PaaS compatibilty, see PR #235 on square/ghostunnel.
+	// Needed for 'Azure Cache for Redis', see PR #239 on square/ghostunnel.
 	"UNSAFE-AZURE": {
 		tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
 	},
