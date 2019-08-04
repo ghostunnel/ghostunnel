@@ -111,6 +111,7 @@ func (s *statusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	out, err := json.Marshal(resp)
 	panicOnError(err)
 
+	w.Header().Set("Content-Type", "application/json")
 	if !resp.Ok {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}

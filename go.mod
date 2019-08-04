@@ -17,7 +17,7 @@ require (
 	github.com/mwitkow/go-http-dialer v0.0.0-20161116154839-378f744fb2b8
 	github.com/pires/go-proxyproto v0.0.0-20190111085350-4d51b51e3bfc
 	github.com/pkg/errors v0.8.1 // indirect
-	github.com/prometheus/client_golang v0.9.2
+	github.com/prometheus/client_golang v0.9.4
 	github.com/prometheus/client_model v0.0.0-20190115171406-56726106282f // indirect
 	github.com/prometheus/common v0.0.0-20190107103113-2998b132700a // indirect
 	github.com/prometheus/procfs v0.0.0-20190104112138-b1a0a9a36d74 // indirect
