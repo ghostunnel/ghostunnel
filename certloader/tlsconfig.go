@@ -35,13 +35,13 @@ type TLSConfigSource interface {
 	// GetClientConfig returns a TLSClientConfig interface that can be used to
 	// obtain TLS client configuration. The base configuration is cloned and
 	// used as a base for all returned TLS configuration.
-	GetClientConfig(base *tls.Config) TLSClientConfig
+	GetClientConfig(base *tls.Config) (TLSClientConfig, error)
 
 	// GetServerConfig returns a TLSServerConfig interface that can be used to
 	// obtain TLS server configuration. The base configuration is cloned and
 	// used as a base for all returned TLS configuration. If the TLSConfig is
 	// not appropriate for use as a server, false is returned.
-	GetServerConfig(base *tls.Config) (TLSServerConfig, bool)
+	GetServerConfig(base *tls.Config) (TLSServerConfig, error)
 }
 
 type TLSClientConfig interface {

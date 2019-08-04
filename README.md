@@ -128,9 +128,9 @@ certificate chain and private key as input (format is auto-detected). The `--cer
 `--key` flags can be used to load a certificate chain and key from separate PEM files
 (instead of a combined one).
 
-Ghostunnel also supports loading identities from the macOS keychain and having
-private keys backed by PKCS#11 modules, see the "Advanced Features" section below
-for more information.
+Ghostunnel also supports loading identities from the macOS keychain or the
+SPIFFE Workload API and having private keys backed by PKCS#11 modules, see the
+"Advanced Features" section below for more information.
 
 ### Server mode 
 
@@ -302,6 +302,13 @@ Ghostunnel has support for loading private keys from PKCS#11 modules, which
 should work with any hardware security module that exposes a PKCS#11 interface.
 
 See [HSM-PKCS11](docs/HSM-PKCS11.md) for details.
+
+### SPIFFE Workload API
+
+Ghostunnel has support for maintaining up-to-date, frequently rotated
+identities and trusted CA certificates from the SPIFFE Workload API.
+
+See [SPIFFE-WORKLOAD-API](docs/SPIFFE-WORKLOAD-API.md) for details.
 
 ### Socket Activation (experimental)
 
