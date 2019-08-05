@@ -279,7 +279,11 @@ func serverValidateFlags() error {
 	}
 
 	for _, suite := range strings.Split(*enabledCipherSuites, ",") {
-		_, ok := cipherSuites[strings.TrimSpace(suite)]
+		name := strings.TrimSpace(suite)
+		_, ok := cipherSuites[name]
+		if !ok && *allowUnsafeCipherSuites {
+			_, ok = unsafeCipherSuites[name]
+		}
 		if !ok {
 			return fmt.Errorf("invalid cipher suite option: %s", suite)
 		}
@@ -321,7 +325,11 @@ func clientValidateFlags() error {
 	}
 
 	for _, suite := range strings.Split(*enabledCipherSuites, ",") {
-		_, ok := cipherSuites[strings.TrimSpace(suite)]
+		name := strings.TrimSpace(suite)
+		_, ok := cipherSuites[name]
+		if !ok && *allowUnsafeCipherSuites {
+			_, ok = unsafeCipherSuites[name]
+		}
 		if !ok {
 			return fmt.Errorf("invalid cipher suite option: %s", suite)
 		}
