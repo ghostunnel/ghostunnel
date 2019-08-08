@@ -234,6 +234,20 @@ func validateCredentials(creds []bool) int {
 	return count
 }
 
+func validateCipherSuites() error {
+	for _, suite := range strings.Split(*enabledCipherSuites, ",") {
+		name := strings.TrimSpace(suite)
+		_, ok := cipherSuites[name]
+		if !ok && *allowUnsafeCipherSuites {
+			_, ok = unsafeCipherSuites[name]
+		}
+		if !ok {
+			return fmt.Errorf("invalid cipher suite option: %s", suite)
+		}
+	}
+	return nil
+}
+
 // Validate flags for server mode
 func serverValidateFlags() error {
 	// hasAccessFlags is true if access control flags (besides allow-all) were specified
@@ -277,13 +291,10 @@ func serverValidateFlags() error {
 	if !*serverUnsafeTarget && !consideredSafe(*serverForwardAddress) {
 		return errors.New("--target must be unix:PATH or localhost:PORT (unless --unsafe-target is set)")
 	}
-
-	for _, suite := range strings.Split(*enabledCipherSuites, ",") {
-		_, ok := cipherSuites[strings.TrimSpace(suite)]
-		if !ok {
-			return fmt.Errorf("invalid cipher suite option: %s", suite)
-		}
+	if err := validateCipherSuites(); err != nil {
+		return err
 	}
+
 	return nil
 }
 
@@ -319,13 +330,10 @@ func clientValidateFlags() error {
 	if *clientConnectProxy != nil && (*clientConnectProxy).Scheme != "http" && (*clientConnectProxy).Scheme != "https" {
 		return fmt.Errorf("invalid CONNECT proxy %s, must have HTTP or HTTPS connection scheme", (*clientConnectProxy).String())
 	}
-
-	for _, suite := range strings.Split(*enabledCipherSuites, ",") {
-		_, ok := cipherSuites[strings.TrimSpace(suite)]
-		if !ok {
-			return fmt.Errorf("invalid cipher suite option: %s", suite)
-		}
+	if err := validateCipherSuites(); err != nil {
+		return err
 	}
+
 	return nil
 }
 
