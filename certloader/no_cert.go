@@ -55,12 +55,12 @@ func (c *trustBundle) Reload() error {
 
 // GetCertificate retrieves the actual underlying tls.Certificate.
 func (c *trustBundle) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-	return nil, nil
+	return new(tls.Certificate), nil
 }
 
 // GetClientCertificate retrieves the actual underlying tls.Certificate.
 func (c *trustBundle) GetClientCertificate(certInfo *tls.CertificateRequestInfo) (*tls.Certificate, error) {
-	return nil, nil
+	return new(tls.Certificate), nil
 }
 
 // GetTrustStore returns the most up-to-date version of the trust store / CA bundle.
