@@ -8,16 +8,16 @@ all: root-combined.pem root-key.pem server-combined.pem server-keystore.p12 clie
 %-csr.pem: %-key.pem
 	openssl req -new -key $< -out $@ -subj /CN=$(@:-csr.pem=)
 
-root-cert.pem: root-csr.pem root-key.pem
+root-cert.pem: openssl.ext root-csr.pem root-key.pem
 	openssl x509 -req -sha256 -in $< -signkey $(word 2,$^) -out $@ -days 5000 -extfile openssl.ext -extensions root
 
 cacert.pem: root-cert.pem
 	cp $< $@
 
-server-cert.pem: server-csr.pem root-combined.pem
+server-cert.pem: openssl.ext server-csr.pem root-combined.pem
 	openssl x509 -req -sha256 -in $< -CA $(word 2,$^) -CAkey $(word 2,$^) -CAcreateserial -out $@ -days 5000 -extfile openssl.ext -extensions server
 
-client-cert.pem: client-csr.pem root-combined.pem
+client-cert.pem: openssl.ext client-csr.pem root-combined.pem
 	openssl x509 -req -sha256 -in $< -CA $(word 2,$^) -CAkey $(word 2,$^) -CAcreateserial -out $@ -days 5000 -extfile openssl.ext -extensions client
 
 # Combined certificate/key file
