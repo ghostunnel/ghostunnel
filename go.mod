@@ -22,7 +22,7 @@ require (
 	github.com/spiffe/go-spiffe v0.0.0-20190717182101-d8657cb50cae
 	github.com/square/certigo v1.11.0
 	github.com/square/go-sq-metrics v0.0.0-20170531223841-ae72f332d0d9
-	github.com/stretchr/testify v1.3.0
+	github.com/stretchr/testify v1.4.0
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
 	gopkg.in/yaml.v2 v2.2.2 // indirect
