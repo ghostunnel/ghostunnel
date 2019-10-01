@@ -283,17 +283,11 @@ func isClosedConnectionError(err error) bool {
 func peerCertificatesString(conn net.Conn) string {
 	if tlsConn, ok := conn.(*tls.Conn); ok {
 		if len(tlsConn.ConnectionState().PeerCertificates) > 0 {
-			subjects := make([]string, len(tlsConn.ConnectionState().PeerCertificates))
-
-			for i, p := range tlsConn.ConnectionState().PeerCertificates {
-				subjects[i] = p.Subject.String()
-			}
-
-			return strings.Join(subjects, "/")
+			return tlsConn.ConnectionState().PeerCertificates[0].Subject.String()
 		}
 
-		return "No Peer Certificate"
+		return "no peer certificate"
 	}
 
-	return "No TLS"
+	return "no tls"
 }
