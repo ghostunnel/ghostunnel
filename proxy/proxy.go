@@ -256,12 +256,15 @@ func (p *Proxy) copyData(dst net.Conn, src net.Conn) {
 func (p *Proxy) logConnectionMessage(action string, dst net.Conn, src net.Conn) {
 	p.logConditional(
 		LogConnections,
-		"%s pipe: %s:%s <-> %s:%s",
+		"%s pipe: %s:%s [%s] <-> %s:%s [%s]",
 		action,
 		dst.RemoteAddr().Network(),
 		dst.RemoteAddr().String(),
+		peerCertificatesString(dst),
 		src.RemoteAddr().Network(),
-		src.RemoteAddr().String())
+		src.RemoteAddr().String(),
+		peerCertificatesString(src),
+	)
 }
 
 func (p *Proxy) logConditional(flag int, msg string, args ...interface{}) {
@@ -275,4 +278,22 @@ func isClosedConnectionError(err error) bool {
 		return e.Op == "read" && strings.Contains(err.Error(), "closed network connection")
 	}
 	return false
+}
+
+func peerCertificatesString(conn net.Conn) string {
+	if tlsConn, ok := conn.(*tls.Conn); ok {
+		if len(tlsConn.ConnectionState().PeerCertificates) > 0 {
+			subjects := make([]string, len(tlsConn.ConnectionState().PeerCertificates))
+
+			for i, p := range tlsConn.ConnectionState().PeerCertificates {
+				subjects[i] = p.Subject.String()
+			}
+
+			return strings.Join(subjects, "/")
+		}
+
+		return "No Peer Certificate"
+	}
+
+	return "No TLS"
 }
