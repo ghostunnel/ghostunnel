@@ -10,10 +10,10 @@ require (
 	github.com/hashicorp/go-syslog v0.0.0-20170829120034-326bf4a7f709
 	github.com/kavu/go_reuseport v1.4.1-0.20181221084137-1f6171f327ed
 	github.com/kr/pretty v0.1.0 // indirect
-	github.com/letsencrypt/pkcs11key v0.0.0-20170608213348-396559074696
+	github.com/letsencrypt/pkcs11key v3.0.0+incompatible
 	github.com/mastahyeti/certstore v0.0.0-20181108160243-c84a6bb0b6ba
 	github.com/mastahyeti/fakeca v0.0.0-20180726170608-5f91b32d1226 // indirect
-	github.com/miekg/pkcs11 v0.0.0-20181204074848-79c216b7cb4d // indirect
+	github.com/miekg/pkcs11 v1.0.3 // indirect
 	github.com/mwitkow/go-http-dialer v0.0.0-20161116154839-378f744fb2b8
 	github.com/pires/go-proxyproto v0.0.0-20190111085350-4d51b51e3bfc
 	github.com/pkg/errors v0.8.1 // indirect
@@ -25,5 +25,6 @@ require (
 	github.com/stretchr/testify v1.4.0
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
-	gopkg.in/yaml.v2 v2.2.2 // indirect
 )
+
+go 1.13

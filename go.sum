@@ -70,6 +70,8 @@ github.com/kr/text v0.1.0 h1:45sCR5RtlFHMR4UwH9sdQ5TC8v0qDQCHnXt+kaKSTVE=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
 github.com/letsencrypt/pkcs11key v0.0.0-20170608213348-396559074696 h1:fuOtYR766upEC3oU7YqPuhx3jWgR5bF4Khia0GNzsI4=
 github.com/letsencrypt/pkcs11key v0.0.0-20170608213348-396559074696/go.mod h1:iGYXKqDXt0cpBthCHdr9ZdsQwyGlYFh/+8xa4WzIQ34=
+github.com/letsencrypt/pkcs11key v3.0.0+incompatible h1:HhdBAZRJuWxB0RZF+J2Z7t237R6uJlqR3lcfLRyxlDA=
+github.com/letsencrypt/pkcs11key v3.0.0+incompatible/go.mod h1:iGYXKqDXt0cpBthCHdr9ZdsQwyGlYFh/+8xa4WzIQ34=
 github.com/mastahyeti/certstore v0.0.0-20181108160243-c84a6bb0b6ba h1:E1glhsjKcDdDGNBvCh0zZRr6ag1wH/npU2huako+QaA=
 github.com/mastahyeti/certstore v0.0.0-20181108160243-c84a6bb0b6ba/go.mod h1:G29tHH2jDKK45cvISMzk8ZRf3KrhRS7ptoteyYzztsk=
 github.com/mastahyeti/fakeca v0.0.0-20180726170608-5f91b32d1226 h1:9XIsRp28SDGxrrkbPGBLwFgr1hcHDf/UxWIMQZNnV78=
@@ -82,6 +84,8 @@ github.com/matttproud/golang_protobuf_extensions v1.0.1 h1:4hp9jkHxhMHkqkrB3Ix0j
 github.com/matttproud/golang_protobuf_extensions v1.0.1/go.mod h1:D8He9yQNgCq6Z5Ld7szi9bcBfOoFv/3dc6xSMkL2PC0=
 github.com/miekg/pkcs11 v0.0.0-20181204074848-79c216b7cb4d h1:VT1D8wjIhSIm3ueg21QNwxz3xUQPN9+7O7B1leXDlAo=
 github.com/miekg/pkcs11 v0.0.0-20181204074848-79c216b7cb4d/go.mod h1:WCBAbTOdfhHhz7YXujeZMF7owC4tPb1naKFsgfUISjo=
+github.com/miekg/pkcs11 v1.0.3 h1:iMwmD7I5225wv84WxIG/bmxz9AXjWvTWIbM/TYHvWtw=
+github.com/miekg/pkcs11 v1.0.3/go.mod h1:XsNlhZGX73bx86s2hdc/FuaLm2CPZJemRLMA+WTFxgs=
 github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd/go.mod h1:6dJC0mAP4ikYIbvyc7fijjWJddQyLn8Ig3JB5CqoB9Q=
 github.com/modern-go/reflect2 v1.0.1/go.mod h1:bx2lNnkwVCuqBIxFjflWJWanXIb3RllmbCylyMrvgv0=
 github.com/mwitkow/go-conntrack v0.0.0-20161129095857-cc309e4a2223/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=
