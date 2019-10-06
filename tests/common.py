@@ -91,7 +91,7 @@ class RootCert:
         self.leaf_certs = []
         print_ok("generating {0}.key, {0}.crt".format(name))
         call(
-            'openssl genrsa -out {0}.key 1024'.format(name),
+            'openssl genrsa -out {0}.key 2048'.format(name),
             shell=True,
             stderr=FNULL)
         call(
@@ -105,7 +105,7 @@ class RootCert:
         fd, openssl_config = mkstemp(dir='.')
         os.write(fd, "extendedKeyUsage=clientAuth,serverAuth\n".encode('utf-8'))
         os.write(fd, "subjectAltName = {0}".format(san).encode('utf-8'))
-        call("openssl genrsa -out {0}.key 1024".format(ou),
+        call("openssl genrsa -out {0}.key 2048".format(ou),
              shell=True, stderr=FNULL)
         call(
             "openssl req -new -key {0}.key -out {0}.csr -subj /C=US/ST=CA/O=ghostunnel/OU={0}".format(ou),
