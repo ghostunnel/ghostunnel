@@ -14,9 +14,8 @@ MAINTAINER Cedric Staub "cs@squareup.com"
 
 # Install build dependencies
 RUN apt-get update && \
-    apt-get install --yes build-essential libtool python3.7 netcat softhsm2 rsyslog systemd git && \
+    apt-get install -y build-essential python3-minimal netcat softhsm2 rsyslog git python3-distutils </dev/null && \
     mkdir -p /etc/softhsm /var/lib/softhsm/tokens /go/src/github.com/square/ghostunnel && \
-    ln -s /usr/bin/python3.7 /usr/bin/python3 && \
     go get github.com/wadey/gocovmerge && \
     go get golang.org/x/tools/cmd/cover
 
