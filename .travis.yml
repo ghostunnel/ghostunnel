@@ -17,15 +17,11 @@ deploy:
       secure: 'rxcM8Ttmo0zTd2i+NBgG6YIDwtRwNCL28vPvAQ4GZ/SS7+8/fZn1RF8ZI2wWbZB2SqQveAiPmO66ZPXcGDsf/ynOHVvppn7IwJRSJoh2Z+QNu5i97JqQEtcM3DY5DZKO+scYqeCvINmLXmwSLHYDij/Nnu0hBXeobPizBDhqnN7AD0FZq2zbbCxZFPrAwUsB1G6wZTKWRFl4lX7baKDqyICc6OgGzb3m127SgrseW2zR6vBfHbc3Ep1hoIqjTf0vVXyDhCpDaIXAkZP43Jp1FxBwryrhEtPzx/46KWvPJLRwZc5gnRRrXX0HqrhlD577OxE/8VnjI+32mRTTNjSD8aOBraZ1Q71U5uLXLMoL1LD3qAfYv5sJaUKdbGtDkfGGwQ4X70A97gqmQI5gpYWU1LUksHwVJMwUqO2cPWciQikOTXQrDUT3qnuauZ432IP7izNhYmFWYwOEoQOzUA8pF1dl2jvUURY9dgQ2AHcJfCYV9C5TnBQ/2nO4Xbc96eo/Ky5OIX+lsfHx4bJmqvT6N+o/b9TJQYg3o4t0rqGB95Zt8/SbapvKlIU5I8SKGyuEpnKN4yUGAQRg8heuAPJ8mz3bmGriT9oC3q577vAqaCm2JcmvHCVx9OME0B04vLzxjYJXPHAi9CRmhUOZ8haHby3BkI3KYjnAaasUBot7oPI='
     file:
       - dist/ghostunnel-${TRAVIS_TAG}-linux-amd64-with-pkcs11
-      - dist/ghostunnel-${TRAVIS_TAG}-linux-amd64-with-pkcs11.sha256sum
       - dist/ghostunnel-${TRAVIS_TAG}-linux-arm64-with-pkcs11
-      - dist/ghostunnel-${TRAVIS_TAG}-linux-arm64-with-pkcs11.sha256sum
       - dist/ghostunnel-${TRAVIS_TAG}-darwin-amd64-with-pkcs11
-      - dist/ghostunnel-${TRAVIS_TAG}-darwin-amd64-with-pkcs11.sha256sum
       - dist/ghostunnel-${TRAVIS_TAG}-windows-386-with-pkcs11.exe
-      - dist/ghostunnel-${TRAVIS_TAG}-windows-386-with-pkcs11.exe.sha256sum
       - dist/ghostunnel-${TRAVIS_TAG}-windows-amd64-with-pkcs11.exe
-      - dist/ghostunnel-${TRAVIS_TAG}-windows-amd64-with-pkcs11.exe.sha256sum
+      - dist/sha256sums.txt
       - dist/ghostunnel-${TRAVIS_TAG}.man
     draft: true
     skip_cleanup: true
