@@ -47,7 +47,7 @@ install:
 
 script:
   # Run tests inside Docker (guarantees that we have proper PKCS11 test setup)
-  - GO_VERSION=${TRAVIS_GO_VERSION} make docker-test
+  - GO_VERSION=1.12.4 make docker-test
 
 after_success:
   - $HOME/gopath/bin/goveralls -coverprofile coverage-merged.out -service=travis-ci
