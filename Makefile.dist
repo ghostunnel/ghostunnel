@@ -37,12 +37,10 @@ define make-xc-target
 		@xgo -go ${GO_VERSION} -image ${XGO_BASE_IMAGE} -targets '${1}-${WINDOWS_API_LEVEL}/${2}' \
 			-ldflags '${LD_FLAGS} -w -extldflags "-static" -extld ${WINDOWS_EXTLD_${2}}' .
 		@mv ghostunnel-${1}-${WINDOWS_API_LEVEL}-${2}.exe dist/ghostunnel-${VERSION}-${1}-${2}-with-pkcs11.exe
-		@sha256sum dist/ghostunnel-${VERSION}-${1}-${2}-with-pkcs11.exe > dist/ghostunnel-${VERSION}-${1}-${2}-with-pkcs11.exe.sha256sum
   else
 		@printf "%s%20s %s\n" "-->" "${1}/${2}:" "${PROJECT}"
 		@xgo -go ${GO_VERSION} -image ${XGO_BASE_IMAGE} -ldflags "${LD_FLAGS}" -targets '${1}/${2}' .
 		@mv ghostunnel-${1}*-${2} dist/ghostunnel-${VERSION}-${1}-${2}-with-pkcs11
-		@sha256sum dist/ghostunnel-${VERSION}-${1}-${2}-with-pkcs11 > dist/ghostunnel-${VERSION}-${1}-${2}-with-pkcs11.sha256sum
   endif
   .PHONY: $1/$2
 
@@ -61,4 +59,5 @@ dist:
 	@$(MAKE) -f Makefile ghostunnel.man
 	@mv ghostunnel.man "${CURRENT_DIR}/dist/ghostunnel-${VERSION}.man"
 	@$(MAKE) -f "${MKFILE_PATH}" -j1 build
+	@cd "${CURRENT_DIR}/dist/" && sha256sum ghostunnel-* > sha256sums.txt
 .PHONY: dist
