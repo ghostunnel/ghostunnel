@@ -21,7 +21,7 @@ func (c *certTLSConfigSource) Reload() error {
 
 func (c *certTLSConfigSource) CanServe() bool {
 	cert, _ := c.cert.GetCertificate(nil)
-	return cert != nil
+	return cert != nil && cert.PrivateKey != nil
 }
 
 func (c *certTLSConfigSource) GetClientConfig(base *tls.Config) (TLSClientConfig, error) {
