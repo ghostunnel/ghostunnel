@@ -124,6 +124,7 @@ func TestProxyProtocolSuccess(t *testing.T) {
 	assert.Nil(t, err, "should be able to receive connection on target")
 
 	header, err := proxyproto.Read(bufio.NewReaderSize(dst, 12))
+	assert.Nil(t, err, "should be able to read header")
 	assert.Equal(t, header, &proxyproto.Header{
 		Version:            2,
 		Command:            proxyproto.PROXY,

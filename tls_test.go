@@ -217,6 +217,7 @@ func TestBuildConfig(t *testing.T) {
 	assert.True(t, conf.MinVersion == tls.VersionTLS12, "must have correct TLS min version")
 
 	cert, err := buildCertificate("", "", "", "", tmpKeystoreSeparateCert.Name())
+	assert.NotNil(t, cert, "cert with empty keystorePath should not be nil")
 	assert.Nil(t, err, "empty keystorePath should not raise an error")
 
 	cert, err = buildCertificate(tmpKeystore.Name(), "", "", "totes invalid", tmpKeystoreSeparateCert.Name())
@@ -236,6 +237,7 @@ func TestBuildConfig(t *testing.T) {
 	assert.NotNil(t, err, "should reject invalid keystore (empty)")
 
 	cert, err = buildCertificate("", tmpKeystoreSeparateCert.Name(), tmpKeystoreSeparateKey.Name(), "", tmpKeystoreSeparateCert.Name())
+	assert.NotNil(t, cert, "cert with separate key should not be nil")
 	assert.Nil(t, err, "cert with separate key should be ok")
 }
 

@@ -36,9 +36,11 @@ func TestNoCertificate(t *testing.T) {
 	assert.Nil(t, err, "should read valid bundle")
 
 	c, err := cert.GetCertificate(nil)
+	assert.Nil(t, err, "should not error on GetCertificate")
 	assert.NotNil(t, c, "should have non-nil server cert")
 
 	c, err = cert.GetClientCertificate(nil)
+	assert.Nil(t, err, "should not error on GetClientCertificate")
 	assert.NotNil(t, c, "should have non-nil client cert")
 }
 
