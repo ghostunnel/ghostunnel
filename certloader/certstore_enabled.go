@@ -67,7 +67,7 @@ func (c *certstoreCertificate) Reload() error {
 		return err
 	}
 
-	identitites, err := store.Identities()
+	identities, err := store.Identities()
 	if err != nil {
 		return err
 	}
@@ -75,7 +75,7 @@ func (c *certstoreCertificate) Reload() error {
 	// filter any certificates with the matching name, as the keychain allows
 	// multiple certificates with the same name
 	var candidates []certstore.Identity
-	for _, identity := range identitites {
+	for _, identity := range identities {
 		chain, err := identity.CertificateChain()
 		if err != nil {
 			continue

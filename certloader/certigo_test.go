@@ -153,8 +153,8 @@ func TestLoadTrustStoreInvalid(t *testing.T) {
 	assert.Nil(t, err, "temp file error")
 
 	_, err = LoadTrustStore("file-that-does-not-exist")
-	assert.NotNil(t, err, "should not read non-existant file")
+	assert.NotNil(t, err, "should not read non-existent file")
 
 	_, err = LoadTrustStore(cert.Name())
-	assert.NotNil(t, err, "should not read non-existant file")
+	assert.NotNil(t, err, "should not read non-existent file")
 }
