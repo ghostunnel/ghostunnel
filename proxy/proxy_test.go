@@ -132,7 +132,7 @@ func TestProxyProtocolSuccess(t *testing.T) {
 		DestinationAddress: net.ParseIP("127.0.0.1").To4(),
 		SourcePort:         uint16(src.LocalAddr().(*net.TCPAddr).Port),
 		DestinationPort:    uint16(incoming.Addr().(*net.TCPAddr).Port),
-	}, "sould be able to receive proxy protocol header")
+	}, "should be able to receive proxy protocol header")
 
 	src.Write([]byte("A"))
 
