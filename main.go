@@ -31,20 +31,20 @@ import (
 	"time"
 
 	graphite "github.com/cyberdelia/go-metrics-graphite"
+	prometheusmetrics "github.com/deathowl/go-metrics-prometheus"
 	gsyslog "github.com/hashicorp/go-syslog"
 	http_dialer "github.com/mwitkow/go-http-dialer"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	metrics "github.com/rcrowley/go-metrics"
+	sqmetrics "github.com/square/go-sq-metrics"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
+
 	"github.com/square/ghostunnel/auth"
 	"github.com/square/ghostunnel/certloader"
 	"github.com/square/ghostunnel/proxy"
 	"github.com/square/ghostunnel/socket"
 	"github.com/square/ghostunnel/wildcard"
-	sqmetrics "github.com/square/go-sq-metrics"
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
-
-	prometheusmetrics "github.com/deathowl/go-metrics-prometheus"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 var (
@@ -71,6 +71,7 @@ var (
 	serverUnsafeTarget   = serverCommand.Flag("unsafe-target", "If set, does not limit target to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
 	serverAllowAll       = serverCommand.Flag("allow-all", "Allow all clients, do not check client cert subject.").Bool()
 	serverAllowedCNs     = serverCommand.Flag("allow-cn", "Allow clients with given common name (can be repeated).").PlaceHolder("CN").Strings()
+	serverAllowedUIDs    = serverCommand.Flag("allow-uid", "Allow clients with given uid (can be repeated).").PlaceHolder("UID").Strings()
 	serverAllowedOUs     = serverCommand.Flag("allow-ou", "Allow clients with given organizational unit name (can be repeated).").PlaceHolder("OU").Strings()
 	serverAllowedDNSs    = serverCommand.Flag("allow-dns", "Allow clients with given DNS subject alternative name (can be repeated).").PlaceHolder("DNS").Strings()
 	serverAllowedIPs     = serverCommand.Flag("allow-ip", "").Hidden().PlaceHolder("SAN").IPList()
@@ -252,6 +253,7 @@ func validateCipherSuites() error {
 func serverValidateFlags() error {
 	// hasAccessFlags is true if access control flags (besides allow-all) were specified
 	hasAccessFlags := len(*serverAllowedCNs) > 0 ||
+		len(*serverAllowedUIDs) > 0 ||
 		len(*serverAllowedOUs) > 0 ||
 		len(*serverAllowedDNSs) > 0 ||
 		len(*serverAllowedIPs) > 0 ||
@@ -495,6 +497,7 @@ func serverListen(context *Context) error {
 	serverACL := auth.ACL{
 		AllowAll:    *serverAllowAll,
 		AllowedCNs:  *serverAllowedCNs,
+		AllowedUIDs: *serverAllowedUIDs,
 		AllowedOUs:  *serverAllowedOUs,
 		AllowedDNSs: *serverAllowedDNSs,
 		AllowedIPs:  *serverAllowedIPs,

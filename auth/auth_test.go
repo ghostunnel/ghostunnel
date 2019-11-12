@@ -23,8 +23,9 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/square/ghostunnel/wildcard"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/square/ghostunnel/wildcard"
 )
 
 var sanURI, _ = url.Parse("scheme://valid/path")
@@ -35,6 +36,12 @@ var fakeChains = [][]*x509.Certificate{
 			Subject: pkix.Name{
 				CommonName:         "gopher",
 				OrganizationalUnit: []string{"triangle", "circle"},
+				Names: []pkix.AttributeTypeAndValue{
+					{
+						Type:  []int{0, 9, 2342, 19200300, 100, 1, 1},
+						Value: "gopheruid",
+					},
+				},
 			},
 			DNSNames:    []string{"circle"},
 			IPAddresses: []net.IP{net.IPv4(192, 168, 99, 100)},
@@ -54,6 +61,7 @@ func TestAuthorizeNotVerified(t *testing.T) {
 func TestAuthorizeReject(t *testing.T) {
 	testACL := ACL{
 		AllowedCNs:  []string{"test"},
+		AllowedUIDs: []string{"test"},
 		AllowedOUs:  []string{"test"},
 		AllowedDNSs: []string{"test"},
 		AllowedURIs: []wildcard.Matcher{wildcard.MustCompile("test")},
@@ -76,6 +84,13 @@ func TestAuthorizeAllowCN(t *testing.T) {
 	}
 
 	assert.Nil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "allow-cn should allow clients with matching CN")
+}
+
+func TestAuthorizeAllowUID(t *testing.T) {
+	testACL := ACL{
+		AllowedUIDs: []string{"gopheruid"},
+	}
+	assert.Nil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "allow-uid should allow clients with matching UID")
 }
 
 func TestAuthorizeAllowOU(t *testing.T) {

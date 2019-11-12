@@ -25,6 +25,9 @@ import (
 	"github.com/square/ghostunnel/wildcard"
 )
 
+// OID that represents UID field
+const uidOID = "0.9.2342.19200300.100.1.1"
+
 // Logger is used by this package to log messages
 type Logger interface {
 	Printf(format string, v ...interface{})
@@ -40,6 +43,9 @@ type ACL struct {
 	// AllowCNs lists common names that should be allowed access. If a principal
 	// has a valid certificate with at least one of these CNs, we grant access.
 	AllowedCNs []string
+	// AllowUIDs lists UIDs that should be allowed access. If a principal
+	// has a valid certificate with at least one of these UIDs, we grant access.
+	AllowedUIDs []string
 	// AllowOUs lists organizational units that should be allowed access. If a
 	// principal has a valid certificate with at least one of these OUs, we grant
 	// access.
@@ -81,6 +87,17 @@ func (a ACL) VerifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*
 		return nil
 	}
 
+	// Check UID against --allow-uid flag(s).
+	if len(a.AllowedUIDs) > 0 {
+		for _, typeVal := range cert.Subject.Names {
+			if typeVal.Type.String() == uidOID {
+				if contains(a.AllowedUIDs, typeVal.Value.(string)) {
+					return nil
+				}
+			}
+		}
+	}
+
 	// Check OUs against --allow-ou flag(s).
 	if intersects(a.AllowedOUs, cert.Subject.OrganizationalUnit) {
 		return nil
@@ -113,10 +130,9 @@ func (a ACL) VerifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*
 	if len(verifiedChains) == 0 {
 		return errors.New("unauthorized: invalid principal, or principal not allowed")
 	}
-
 	// If the ACL is empty, only hostname verification is performed. The hostname
 	// verification happens in crypto/tls itself, so we can skip our checks here.
-	if len(a.AllowedCNs) == 0 && len(a.AllowedOUs) == 0 && len(a.AllowedDNSs) == 0 && len(a.AllowedURIs) == 0 && len(a.AllowedIPs) == 0 {
+	if len(a.AllowedCNs) == 0 && len(a.AllowedOUs) == 0 && len(a.AllowedDNSs) == 0 && len(a.AllowedURIs) == 0 && len(a.AllowedIPs) == 0 && len(a.AllowedUIDs) == 0 {
 		return nil
 	}
 
@@ -125,6 +141,17 @@ func (a ACL) VerifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*
 	// Check CN against --verify-cn flag(s).
 	if contains(a.AllowedCNs, cert.Subject.CommonName) {
 		return nil
+	}
+
+	// Check UID against --allow-uid flag(s).
+	if len(a.AllowedUIDs) > 0 {
+		for _, typeVal := range cert.Subject.Names {
+			if typeVal.Type.String() == uidOID {
+				if contains(a.AllowedUIDs, typeVal.Value.(string)) {
+					return nil
+				}
+			}
+		}
 	}
 
 	// Check OUs against --verify-ou flag(s).
