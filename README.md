@@ -96,7 +96,7 @@ To run tests:
     make test
 
     # Option 2: run unit & integration tests in a Docker container
-    GO_VERSION=1.13.3 make docker-test
+    GO_VERSION=1.13.4 make docker-test
 
     # Open coverage information in browser
     go tool cover -html coverage-merged.out
