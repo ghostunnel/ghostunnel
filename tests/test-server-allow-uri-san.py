@@ -10,6 +10,7 @@ from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, \
 import os
 import signal
 import ssl
+import socket
 
 if __name__ == "__main__":
     ghostunnel = None
@@ -46,7 +47,7 @@ if __name__ == "__main__":
             pair2 = SocketPair(
                 TlsClient('client2', 'root', 13001), TcpServer(13002))
             raise Exception('failed to reject client2')
-        except ssl.SSLError:
+        except (ssl.SSLError, socket.timeout):
             print_ok("client2 correctly rejected")
 
         print_ok("OK")
