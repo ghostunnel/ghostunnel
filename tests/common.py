@@ -26,11 +26,6 @@ def run_ghostunnel(args, stdout=sys.stdout.buffer, stderr=sys.stderr.buffer, pre
     os.environ["GHOSTUNNEL_INTEGRATION_TEST"] = "true"
     os.environ["GHOSTUNNEL_INTEGRATION_ARGS"] = json.dumps(args)
 
-    # TODO(cs): Python throws different exceptions on errors for TLS 1.3 connections,
-    # so we'll have to update the integration tests to anticipate those. Until then
-    # let's disable TLS 1.3 in unit tests.
-    os.environ["GODEBUG"] = "tls13=0"
-
     # Run it, hook up stdout/stderr if desired
     test = os.path.basename(sys.argv[0]).replace('.py', '.out')
     cmd = [

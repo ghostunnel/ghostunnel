@@ -24,7 +24,7 @@ import (
 	"sync/atomic"
 	"unsafe"
 
-	"github.com/letsencrypt/pkcs11key"
+	pkcs11key "github.com/letsencrypt/pkcs11key/v4"
 )
 
 type pkcs11Certificate struct {
