@@ -21,7 +21,7 @@ require (
 	github.com/mitchellh/reflectwalk v1.0.1 // indirect
 	github.com/mwitkow/go-http-dialer v0.0.0-20161116154839-378f744fb2b8
 	github.com/pires/go-proxyproto v0.0.0-20190615163442-2c19fd512994
-	github.com/prometheus/client_golang v1.4.0
+	github.com/prometheus/client_golang v1.4.1
 	github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563
 	github.com/spiffe/go-spiffe v0.0.0-20190922191205-018e7197ed1c
 	github.com/square/certigo v1.11.0
