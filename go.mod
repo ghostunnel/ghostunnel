@@ -24,7 +24,7 @@ require (
 	github.com/prometheus/client_golang v1.4.1
 	github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563
 	github.com/spiffe/go-spiffe v0.0.0-20190922191205-018e7197ed1c
-	github.com/square/certigo v1.11.0
+	github.com/square/certigo v1.12.0
 	github.com/square/go-sq-metrics v0.0.0-20170531223841-ae72f332d0d9
 	github.com/stretchr/testify v1.5.1
 	golang.org/x/crypto v0.0.0-20191002192127-34f69633bfdc // indirect
