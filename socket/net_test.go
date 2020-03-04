@@ -79,3 +79,29 @@ func TestParseAddress(t *testing.T) {
 	_, _, _, err = ParseAddress("systemdfoobar")
 	assert.NotNil(t, err, "was able to parse invalid host/port")
 }
+
+func TestParseHTTPAddress(t *testing.T) {
+	https, address := ParseHTTPAddress("http://localhost")
+	if https != false {
+		t.Errorf("unexpected https: %t", https)
+	}
+	if address != "localhost" {
+		t.Errorf("unexpected address: %s", address)
+	}
+
+	https, address = ParseHTTPAddress("https://localhost")
+	if https != true {
+		t.Errorf("unexpected https: %t", https)
+	}
+	if address != "localhost" {
+		t.Errorf("unexpected address: %s", address)
+	}
+
+	https, address = ParseHTTPAddress("127.0.0.1:8000")
+	if https != true {
+		t.Errorf("unexpected https: %t", https)
+	}
+	if address != "127.0.0.1:8000" {
+		t.Errorf("unexpected address: %s", address)
+	}
+}

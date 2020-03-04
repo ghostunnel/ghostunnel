@@ -615,13 +615,9 @@ func (context *Context) serveStatus() error {
 		mux.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
 	}
 
-	serveHTTPS := true
-	if strings.HasPrefix(*statusAddress, "http://") {
-		*statusAddress = (*statusAddress)[7:]
-		serveHTTPS = false
-	}
+	https, addr := socket.ParseHTTPAddress(*statusAddress)
 
-	network, address, _, err := socket.ParseAddress(*statusAddress)
+	network, address, _, err := socket.ParseAddress(addr)
 	if err != nil {
 		return err
 	}
@@ -632,7 +628,7 @@ func (context *Context) serveStatus() error {
 		return err
 	}
 
-	if network != "unix" && serveHTTPS && context.tlsConfigSource.CanServe() {
+	if network != "unix" && https && context.tlsConfigSource.CanServe() {
 		config, err := buildServerConfig(*enabledCipherSuites)
 		if err != nil {
 			return err
