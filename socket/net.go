@@ -62,6 +62,24 @@ func ParseAddress(input string) (network, address, host string, err error) {
 	return
 }
 
+// ParseHTTPAddress parses a string representing a TCP address or HTTP/HTTPS address
+// If the input is HTTP/HTTPS, return address will strip away the prefix
+// Otherwise, return address will be same as input
+// https is default to be true, unless http:// prefix is found
+func ParseHTTPAddress(input string) (https bool, address string) {
+	if strings.HasPrefix(input, "http://") {
+		https = false
+		address = input[7:]
+		return
+	} else if strings.HasPrefix(input, "https://") {
+		https = true
+		address = input[8:]
+		return
+	}
+
+	return true, input
+}
+
 // Open a listening socket with the given network and address.
 // Supports 'unix', 'tcp', 'launchd' and 'systemd' as the network.
 //
