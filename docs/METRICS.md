@@ -54,7 +54,7 @@ information on profiling via pprof, see the [`runtime/pprof`][pprof] and
 [http-pprof]: https://golang.org/pkg/net/http/pprof
 [pprof-bug]: https://github.com/golang/go/issues/20939
 
-### expossing status port with HTTP instead of HTTPS
+### exposing status port with HTTP instead of HTTPS
 
     # Add `http://` like an example below
     --status http://localhost:6060
