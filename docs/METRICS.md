@@ -54,3 +54,16 @@ information on profiling via pprof, see the [`runtime/pprof`][pprof] and
 [http-pprof]: https://golang.org/pkg/net/http/pprof
 [pprof-bug]: https://github.com/golang/go/issues/20939
 
+### exposing status port with HTTP instead of HTTPS
+
+    # Add `http://` like an example below
+    --status http://localhost:6060
+
+    # Status information (JSON)
+    curl http://localhost:6060/_status
+
+    # Metrics information (JSON)
+    curl http://localhost:6060/_metrics/json
+    
+    # Metrics information (Prometheus)
+    curl http://localhost:6060/_metrics/prometheus
