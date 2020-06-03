@@ -12,7 +12,6 @@ require (
 	github.com/hashicorp/go-syslog v1.0.0
 	github.com/imdario/mergo v0.3.8 // indirect
 	github.com/kavu/go_reuseport v1.4.1-0.20181221084137-1f6171f327ed
-	github.com/kr/pretty v0.1.0 // indirect
 	github.com/letsencrypt/pkcs11key/v4 v4.0.0
 	github.com/mastahyeti/certstore v0.0.5
 	github.com/mattn/go-colorable v0.1.4 // indirect
@@ -26,14 +25,13 @@ require (
 	github.com/spiffe/go-spiffe v0.0.0-20190922191205-018e7197ed1c
 	github.com/square/certigo v1.11.0
 	github.com/square/go-sq-metrics v0.0.0-20170531223841-ae72f332d0d9
-	github.com/stretchr/testify v1.5.1
+	github.com/stretchr/testify v1.6.0
 	golang.org/x/crypto v0.0.0-20191002192127-34f69633bfdc // indirect
 	golang.org/x/net v0.0.0-20191003171128-d98b1b443823 // indirect
 	golang.org/x/text v0.3.2 // indirect
 	google.golang.org/genproto v0.0.0-20191002211648-c459b9ce5143 // indirect
 	google.golang.org/grpc v1.24.0 // indirect
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
-	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
 )
 
 go 1.13
