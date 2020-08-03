@@ -22,7 +22,7 @@ require (
 	github.com/pires/go-proxyproto v0.0.0-20190615163442-2c19fd512994
 	github.com/prometheus/client_golang v1.7.1
 	github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563
-	github.com/spiffe/go-spiffe v0.0.0-20190922191205-018e7197ed1c
+	github.com/spiffe/go-spiffe v1.1.0
 	github.com/square/certigo v1.11.0
 	github.com/square/go-sq-metrics v0.0.0-20170531223841-ae72f332d0d9
 	github.com/stretchr/testify v1.6.1
