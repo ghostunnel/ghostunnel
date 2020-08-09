@@ -43,7 +43,7 @@ install:
   # Build Docker container
   - make docker-build
   # Make sure Docker image runs
-  - docker run --rm squareup/ghostunnel --version
+  - docker run --rm ghostunnel/ghostunnel --version
   # Cross-compile dist binaries
   - GO_VERSION=${TRAVIS_GO_VERSION} VERSION=${TRAVIS_TAG} make -f Makefile.dist dist
 

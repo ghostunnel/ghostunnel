@@ -22,7 +22,7 @@ import (
 	"net"
 	"net/url"
 
-	"github.com/square/ghostunnel/wildcard"
+	"github.com/ghostunnel/ghostunnel/wildcard"
 )
 
 // Logger is used by this package to log messages

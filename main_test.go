@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/square/ghostunnel/proxy"
+	"github.com/ghostunnel/ghostunnel/proxy"
 	"github.com/stretchr/testify/assert"
 )
 

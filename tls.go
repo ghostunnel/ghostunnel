@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/square/ghostunnel/certloader"
+	"github.com/ghostunnel/ghostunnel/certloader"
 )
 
 // Unsafe cipher suites available for compatibility reasons. To unlock these

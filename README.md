@@ -1,7 +1,7 @@
 Ghostunnel
 ==========
 
-[![license](http://img.shields.io/badge/license-apache_2.0-blue.svg?style=flat)](https://raw.githubusercontent.com/square/ghostunnel/master/LICENSE) [![release](https://img.shields.io/github/release/square/ghostunnel.svg?style=flat)](https://github.com/square/ghostunnel/releases) [![docker](https://img.shields.io/badge/docker-hub-blue.svg?style=flat)](https://hub.docker.com/r/squareup/ghostunnel) [![travis](https://img.shields.io/travis/square/ghostunnel/master.svg?maxAge=3600&logo=travis&label=travis)](https://travis-ci.org/square/ghostunnel) [![appveyor](https://img.shields.io/appveyor/ci/csstaub/ghostunnel-58e7k.svg?maxAge=3600&logo=appveyor&label=appveyor)](https://ci.appveyor.com/project/csstaub/ghostunnel-58e7k) [![coverage](https://coveralls.io/repos/github/square/ghostunnel/badge.svg?branch=master)](https://coveralls.io/r/square/ghostunnel) [![report](https://goreportcard.com/badge/github.com/square/ghostunnel)](https://goreportcard.com/report/github.com/square/ghostunnel)
+[![license](http://img.shields.io/badge/license-apache_2.0-blue.svg?style=flat)](https://raw.githubusercontent.com/square/ghostunnel/master/LICENSE) [![release](https://img.shields.io/github/release/square/ghostunnel.svg?style=flat)](https://github.com/ghostunnel/ghostunnel/releases) [![docker](https://img.shields.io/badge/docker-hub-blue.svg?style=flat)](https://hub.docker.com/r/ghostunnel/ghostunnel) [![travis](https://img.shields.io/travis/square/ghostunnel/master.svg?maxAge=3600&logo=travis&label=travis)](https://travis-ci.org/square/ghostunnel) [![appveyor](https://img.shields.io/appveyor/ci/csstaub/ghostunnel-58e7k.svg?maxAge=3600&logo=appveyor&label=appveyor)](https://ci.appveyor.com/project/csstaub/ghostunnel-58e7k) [![coverage](https://coveralls.io/repos/github/square/ghostunnel/badge.svg?branch=master)](https://coveralls.io/r/square/ghostunnel) [![report](https://goreportcard.com/badge/github.com/ghostunnel/ghostunnel)](https://goreportcard.com/report/github.com/ghostunnel/ghostunnel)
 
 👻
 
@@ -59,7 +59,7 @@ Getting Started
 To get started and play around with the implementation, you will need to
 generate some test certificates. If you want to bootstrap a full PKI, one
 good way to get started is to use a package like
-[square/certstrap](https://github.com/square/certstrap). If you only need
+[square/certstrap](https://github.com/ghostunnel/certstrap). If you only need
 some test certificates for playing around with the tunnel, you can find
 some pre-generated ones in the `test-keys` directory (alongside instructions
 on how to generate new ones with OpenSSL).
@@ -80,8 +80,8 @@ Note that ghostunnel requires Go 1.12 or later to build, and CGO is required for
 PKCS#11 support.  See also [CROSS-COMPILE](docs/CROSS-COMPILE.md) for
 instructions on how to cross-compile a custom build with CGO enabled.
 
-[rel]: https://github.com/square/ghostunnel/releases
-[hub]: https://hub.docker.com/r/squareup/ghostunnel
+[rel]: https://github.com/ghostunnel/ghostunnel/releases
+[hub]: https://hub.docker.com/r/ghostunnel/ghostunnel
 [xgo]: https://github.com/karalabe/xgo
 
 ### Develop

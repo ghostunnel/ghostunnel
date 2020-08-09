@@ -23,7 +23,7 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/square/ghostunnel/wildcard"
+	"github.com/ghostunnel/ghostunnel/wildcard"
 	"github.com/stretchr/testify/assert"
 )
 

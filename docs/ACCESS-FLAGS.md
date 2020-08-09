@@ -110,7 +110,7 @@ with `spiffe://ghostunnel/server1` or `spiffe://ghostunnel/server2` URI SANs (as
 well as other values). See documentation for the [wildcard][wildcard] package
 for more information.
 
-[wildcard]: https://godoc.org/github.com/square/ghostunnel/wildcard
+[wildcard]: https://godoc.org/github.com/ghostunnel/ghostunnel/wildcard
 
 * `--disable-authentication`
 
@@ -119,4 +119,4 @@ This is useful if you just want to use Ghostunnel to wrap a connection in TLS
 but the backend doesn't require mutual authentication.
 
 [tls]: https://golang.org/pkg/crypto/tls
-[wildcard]: https://godoc.org/github.com/square/ghostunnel/wildcard
+[wildcard]: https://godoc.org/github.com/ghostunnel/ghostunnel/wildcard

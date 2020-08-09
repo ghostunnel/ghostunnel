@@ -6,7 +6,7 @@ communication between a frontend and backend service.
 
 ## Prerequisites
 
-* `ghostunnel` binary from [Ghostunnel](https://github.com/square/ghostunnel/releases/latest)
+* `ghostunnel` binary from [Ghostunnel](https://github.com/ghostunnel/ghostunnel/releases/latest)
 * `spire-server` and `spire-agent` binaries from [SPIRE](https://github.com/spiffe/spire/releases/latest)
 * `socat`
 

@@ -1,4 +1,4 @@
-module github.com/square/ghostunnel
+module github.com/ghostunnel/ghostunnel
 
 require (
 	github.com/Masterminds/goutils v1.1.0 // indirect
