@@ -361,6 +361,8 @@ github.com/spiffe/go-spiffe v1.1.0 h1:4GCqq8teavqkCl2j3c/vxQDgr33JidVRVT3mfssR6o
 github.com/spiffe/go-spiffe v1.1.0/go.mod h1:HyNeJnVYkDyQgB2qcSPxVYkAA2F3lQu51bDxNpFcKxY=
 github.com/square/certigo v1.11.0 h1:JvLGOmbq/X1ohn/NyNfhhSuURjy8Y86kGxfcSF2wfHE=
 github.com/square/certigo v1.11.0/go.mod h1:p1H2U6xyGrh+kO/Zhi74zcLpLwaDkZo4NaxCK1kD2jw=
+github.com/square/certigo v1.12.0 h1:w6L40op6fex4dbRyIjl2gOq93T4cVk+KdON3oJGsIQc=
+github.com/square/certigo v1.12.0/go.mod h1:LDXUWuuXgES3rQ0w9hNP+MF10xWXbwIhp5hrg4tvdWw=
 github.com/square/certigo v1.12.1 h1:opmP5rcyi/6S9cO3oHO/xgt+INQ71GRdkvFErHzd2iQ=
 github.com/square/certigo v1.12.1/go.mod h1:LDXUWuuXgES3rQ0w9hNP+MF10xWXbwIhp5hrg4tvdWw=
 github.com/square/go-sq-metrics v0.0.0-20170531223841-ae72f332d0d9 h1:EjCIkN8CnRBciDeOM2c+5uBd+ek5r90N6r6zWwLUXgo=

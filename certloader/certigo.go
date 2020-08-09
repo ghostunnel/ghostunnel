@@ -38,7 +38,10 @@ func readPEM(path, password, format string) ([]*pem.Block, error) {
 		[]*os.File{file},
 		format,
 		func(prompt string) string { return password },
-		func(block *pem.Block) { pemBlocks = append(pemBlocks, block) })
+		func(block *pem.Block, format string) error {
+			pemBlocks = append(pemBlocks, block)
+			return nil
+		})
 	if err != nil {
 		return nil, fmt.Errorf("error reading file '%s': %s", path, err)
 	}
@@ -60,12 +63,13 @@ func readX509(path string) ([]*x509.Certificate, error) {
 
 	err = certigo.ReadAsX509FromFiles(
 		[]*os.File{file}, "PEM", nil,
-		func(cert *x509.Certificate, err error) {
+		func(cert *x509.Certificate, format string, err error) error {
 			if err != nil {
 				errs = append(errs, err)
-				return
+				return nil
 			}
 			out = append(out, cert)
+			return nil
 		})
 	if err != nil || len(errs) > 0 {
 		return nil, fmt.Errorf("error reading file '%s'", path)
