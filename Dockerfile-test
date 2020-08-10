@@ -1,25 +1,23 @@
 # Dockerfile for running integration tests, includes PKCS11/SoftHSM setup. 
 # 
 # Build image:
-#     docker build --build-arg GO_VERSION=[VERSION] -t squareup/ghostunnel-test -f Dockerfile-test .
+#     docker build --build-arg GO_VERSION=[VERSION] -t ghostunnel/ghostunnel-test -f Dockerfile-test .
 #
 # Run integration tests:
-#     docker run -v /dev/log:/dev/log -v $PWD:/go/src/github.com/square/ghostunnel squareup/ghostunnel-test
+#     docker run -v /dev/log:/dev/log -v $PWD:/go/src/github.com/ghostunnel/ghostunnel ghostunnel/ghostunnel-test
 
 ARG GO_VERSION
 
 FROM golang:${GO_VERSION}
 
-MAINTAINER Cedric Staub "cs@squareup.com"
-
 # Install build dependencies
 RUN apt-get update && \
     apt-get install -y build-essential python3-minimal netcat softhsm2 rsyslog git python3-distutils </dev/null && \
-    mkdir -p /etc/softhsm /var/lib/softhsm/tokens /go/src/github.com/square/ghostunnel && \
+    mkdir -p /etc/softhsm /var/lib/softhsm/tokens /go/src/github.com/ghostunnel/ghostunnel && \
     go get github.com/wadey/gocovmerge && \
     go get golang.org/x/tools/cmd/cover
 
-WORKDIR /go/src/github.com/square/ghostunnel
+WORKDIR /go/src/github.com/ghostunnel/ghostunnel
 
 ENV GO111MODULE=on
 

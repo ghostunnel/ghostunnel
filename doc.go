@@ -58,7 +58,7 @@ a TLS-secured service.
 
 For a more in-depth explanation, please see the README.md file (and docs
 folder) that shipped with ghostunnel or view the latest docs on
-github.com/square/ghostunnel.
+github.com/ghostunnel/ghostunnel.
 .SH "CERTIFICATES & PRIVATE KEYS"
 Ghostunnel accepts certificates in multiple different file formats.
 

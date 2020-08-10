@@ -17,7 +17,7 @@ For example, to build a static 64-bit Windows binary:
       -branch master \
       -targets 'windows/amd64' \
       -ldflags '-w -extldflags "-static" -extld x86_64-w64-mingw32-gcc' \
-      github.com/square/ghostunnel
+      github.com/ghostunnel/ghostunnel
 
 Ghostunnel ships with a `Makefile.dist` that will cross-compile for
 darwin/amd64, linux/amd64, windows/386 and windows/amd64 when asked to build
