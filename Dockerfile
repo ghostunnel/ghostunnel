@@ -3,7 +3,7 @@
 # To run ghostunnel from the image (for example):
 #     docker run --rm ghostunnel/ghostunnel --version
 
-FROM gcr.io/distroless/base
+FROM debian:buster-slim
 
 ARG TARGETPLATFORM
 
