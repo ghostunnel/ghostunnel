@@ -27,6 +27,11 @@ deploy:
     skip_cleanup: true
     on:
       tags: true
+#  - provider: script
+#    script:
+#      - make docker-build
+#    on:
+#      tags: true
 
 before_install:
   - sudo apt-get update
@@ -40,12 +45,12 @@ install:
   - CGO_ENABLED=0 go build -o ghostunnel-${TRAVIS_TAG}-linux-amd64-without-pkcs11 .
   - CGO_ENABLED=1 go build -tags nopkcs11 -o ghostunnel-${TRAVIS_TAG}-linux-amd64-without-pkcs11-but-with-cgo .
   - CGO_ENABLED=1 go build -o ghostunnel-${TRAVIS_TAG}-linux-amd64-with-pkcs11 .
-  # Build Docker container
-  - make docker-build
-  # Make sure Docker image runs
-  - docker run --rm ghostunnel/ghostunnel --version
   # Cross-compile dist binaries
   - GO_VERSION=${TRAVIS_GO_VERSION} VERSION=${TRAVIS_TAG} make -f Makefile.dist dist
+  # Build Docker container
+  - docker build -t ghostunnel/ghostunnel --build-arg ARCH=amd64 --build-arg VERSION=${TRAVIS_TAG} .
+  # Make sure Docker image runs
+  - docker run --rm ghostunnel/ghostunnel --version
 
 script:
   # Run tests inside Docker (guarantees that we have proper PKCS11 test setup)

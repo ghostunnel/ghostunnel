@@ -6,23 +6,12 @@
 # To run ghostunnel from the image (for example):
 #     docker run --rm ghostunnel/ghostunnel --version
 
-FROM golang:1.14.7-alpine as build
+FROM debian:buster-slim
 
-# Dependencies
-RUN apk add --no-cache --update gcc musl-dev libtool make git
+ARG ARCH
+ARG VERSION
 
-# Copy source
-COPY . /go/src/github.com/ghostunnel/ghostunnel
-
-# Build
-RUN cd /go/src/github.com/ghostunnel/ghostunnel && \
-    GO111MODULE=on make clean ghostunnel && \
-    cp ghostunnel /usr/bin/ghostunnel
-
-# Create a multi-stage build with the binary
-FROM alpine
-
-RUN apk add --no-cache --update libtool curl
-COPY --from=build /usr/bin/ghostunnel /usr/bin/ghostunnel
+COPY dist/ghostunnel-${VERSION}-linux-${ARCH}-with-pkcs11 /usr/bin/ghostunnel
+RUN chmod +x /usr/bin/ghostunnel
 
 ENTRYPOINT ["/usr/bin/ghostunnel"]
