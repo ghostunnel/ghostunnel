@@ -16,13 +16,13 @@ deploy:
     api_key:
       secure: 'rxcM8Ttmo0zTd2i+NBgG6YIDwtRwNCL28vPvAQ4GZ/SS7+8/fZn1RF8ZI2wWbZB2SqQveAiPmO66ZPXcGDsf/ynOHVvppn7IwJRSJoh2Z+QNu5i97JqQEtcM3DY5DZKO+scYqeCvINmLXmwSLHYDij/Nnu0hBXeobPizBDhqnN7AD0FZq2zbbCxZFPrAwUsB1G6wZTKWRFl4lX7baKDqyICc6OgGzb3m127SgrseW2zR6vBfHbc3Ep1hoIqjTf0vVXyDhCpDaIXAkZP43Jp1FxBwryrhEtPzx/46KWvPJLRwZc5gnRRrXX0HqrhlD577OxE/8VnjI+32mRTTNjSD8aOBraZ1Q71U5uLXLMoL1LD3qAfYv5sJaUKdbGtDkfGGwQ4X70A97gqmQI5gpYWU1LUksHwVJMwUqO2cPWciQikOTXQrDUT3qnuauZ432IP7izNhYmFWYwOEoQOzUA8pF1dl2jvUURY9dgQ2AHcJfCYV9C5TnBQ/2nO4Xbc96eo/Ky5OIX+lsfHx4bJmqvT6N+o/b9TJQYg3o4t0rqGB95Zt8/SbapvKlIU5I8SKGyuEpnKN4yUGAQRg8heuAPJ8mz3bmGriT9oC3q577vAqaCm2JcmvHCVx9OME0B04vLzxjYJXPHAi9CRmhUOZ8haHby3BkI3KYjnAaasUBot7oPI='
     file:
-      - dist/ghostunnel-${TRAVIS_TAG}-linux-amd64-with-pkcs11
-      - dist/ghostunnel-${TRAVIS_TAG}-linux-arm64-with-pkcs11
-      - dist/ghostunnel-${TRAVIS_TAG}-darwin-amd64-with-pkcs11
-      - dist/ghostunnel-${TRAVIS_TAG}-windows-386-with-pkcs11.exe
-      - dist/ghostunnel-${TRAVIS_TAG}-windows-amd64-with-pkcs11.exe
+      - dist/ghostunnel-${TRAVIS_BRANCH}-linux-amd64-with-pkcs11
+      - dist/ghostunnel-${TRAVIS_BRANCH}-linux-arm64-with-pkcs11
+      - dist/ghostunnel-${TRAVIS_BRANCH}-darwin-amd64-with-pkcs11
+      - dist/ghostunnel-${TRAVIS_BRANCH}-windows-386-with-pkcs11.exe
+      - dist/ghostunnel-${TRAVIS_BRANCH}-windows-amd64-with-pkcs11.exe
       - dist/sha256sums.txt
-      - dist/ghostunnel-${TRAVIS_TAG}.man
+      - dist/ghostunnel-${TRAVIS_BRANCH}.man
     draft: true
     skip_cleanup: true
     on:
@@ -48,18 +48,21 @@ before_install:
 install:
   # Compile with CGO on/off for testing
   - export GO111MODULE=on
-  - CGO_ENABLED=0 go build -o ghostunnel-${TRAVIS_TAG}-linux-amd64-without-pkcs11 .
-  - CGO_ENABLED=1 go build -tags nopkcs11 -o ghostunnel-${TRAVIS_TAG}-linux-amd64-without-pkcs11-but-with-cgo .
-  - CGO_ENABLED=1 go build -o ghostunnel-${TRAVIS_TAG}-linux-amd64-with-pkcs11 .
+  - CGO_ENABLED=0 go build -o ghostunnel-${TRAVIS_BRANCH}-linux-amd64-without-pkcs11 .
+  - CGO_ENABLED=1 go build -tags nopkcs11 -o ghostunnel-${TRAVIS_BRANCH}-linux-amd64-without-pkcs11-but-with-cgo .
+  - CGO_ENABLED=1 go build -o ghostunnel-${TRAVIS_BRANCH}-linux-amd64-with-pkcs11 .
   # Cross-compile dist binaries
-  - GO_VERSION=${TRAVIS_GO_VERSION} VERSION=${TRAVIS_TAG} make -f Makefile.dist dist
+  - GO_VERSION=${TRAVIS_GO_VERSION} VERSION=${TRAVIS_BRANCH} make -f Makefile.dist dist
   # Build Docker container
   - mkdir -p dist/linux/{arm64,amd64}
-  - cp dist/ghostunnel-${TRAVIS_TAG}-linux-amd64-with-pkcs11 dist/linux/amd64/ghostunnel
-  - cp dist/ghostunnel-${TRAVIS_TAG}-linux-arm64-with-pkcs11 dist/linux/arm64/ghostunnel
-  - docker buildx build -t ghostunnel/ghostunnel --platform linux/amd64,linux/arm64 .
+  - cp dist/ghostunnel-${TRAVIS_BRANCH}-linux-amd64-with-pkcs11 dist/linux/amd64/ghostunnel
+  - cp dist/ghostunnel-${TRAVIS_BRANCH}-linux-arm64-with-pkcs11 dist/linux/arm64/ghostunnel
+  - docker build -t cablespaghetti/ghostunnel:${TRAVIS_BRANCH} --build-arg TARGETPLATFORM="linux/amd64" .
   # Make sure Docker image runs
-  - docker run --rm ghostunnel/ghostunnel --version
+  - docker run --rm cablespaghetti/ghostunnel:${TRAVIS_BRANCH} --version
+  # Build and push multiarch manifest list
+  - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+  - docker buildx build --push -t cablespaghetti/ghostunnel:${TRAVIS_BRANCH} --platform linux/amd64,linux/arm64 .
 
 script:
   # Run tests inside Docker (guarantees that we have proper PKCS11 test setup)
