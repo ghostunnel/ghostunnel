@@ -8,10 +8,8 @@
 
 FROM debian:buster-slim
 
-ARG ARCH
-ARG VERSION
+ARG TARGETPLATFORM
 
-COPY dist/ghostunnel-${VERSION}-linux-${ARCH}-with-pkcs11 /usr/bin/ghostunnel
-RUN chmod +x /usr/bin/ghostunnel
+COPY dist/${TARGETPLATFORM}/ghostunnel /usr/bin/ghostunnel
 
 ENTRYPOINT ["/usr/bin/ghostunnel"]
