@@ -5,7 +5,7 @@
 
 # Work out which binary in dist/ to use
 FROM debian:buster-slim as build
-ARG TARGETPLATFORM=linux/amd64
+ARG TARGETPLATFORM
 ARG VERSION
 ADD dist/ dist/
 RUN ARCH=$(echo ${TARGETPLATFORM} | cut -d'/' -f2) && \
