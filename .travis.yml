@@ -27,12 +27,12 @@ deploy:
     on:
       tags: true
   - provider: script
-    script: echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin && docker buildx build --push -t cablespaghetti/ghostunnel:${TRAVIS_TAG} --platform linux/amd64,linux/arm64 --build-arg VERSION=${TRAVIS_TAG} -f Dockerfile-multiarch .
+    script: echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin && docker buildx build --push -t ghostunnel/ghostunnel:${TRAVIS_TAG} --platform linux/amd64,linux/arm64 --build-arg VERSION=${TRAVIS_TAG} -f Dockerfile-multiarch .
     skip_cleanup: true
     on:
       tags: true
   - provider: script
-    script: echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin && docker buildx build --push -t cablespaghetti/ghostunnel:latest --platform linux/amd64,linux/arm64 --build-arg VERSION=${TRAVIS_BRANCH} -f Dockerfile-multiarch .
+    script: echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin && docker buildx build --push -t ghostunnel/ghostunnel:latest --platform linux/amd64,linux/arm64 --build-arg VERSION=${TRAVIS_BRANCH} -f Dockerfile-multiarch .
     skip_cleanup: true
     on:
       branch: master
@@ -58,9 +58,9 @@ install:
   # Cross-compile dist binaries
   - GO_VERSION=${TRAVIS_GO_VERSION} VERSION=${TRAVIS_BRANCH} make -f Makefile.dist dist
   # Build Docker container
-  - docker build -t cablespaghetti/ghostunnel:${TRAVIS_BRANCH} --build-arg VERSION=${TRAVIS_BRANCH} --build-arg TARGETPLATFORM=linux/amd64 -f Dockerfile-multiarch .
+  - docker build -t ghostunnel/ghostunnel:${TRAVIS_BRANCH} --build-arg VERSION=${TRAVIS_BRANCH} --build-arg TARGETPLATFORM=linux/amd64 -f Dockerfile-multiarch .
   # Make sure Docker image runs
-  - docker run --rm cablespaghetti/ghostunnel:${TRAVIS_BRANCH} --version
+  - docker run --rm ghostunnel/ghostunnel:${TRAVIS_BRANCH} --version
 
 script:
   # Run tests inside Docker (guarantees that we have proper PKCS11 test setup)
