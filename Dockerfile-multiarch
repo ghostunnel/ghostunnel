@@ -1,0 +1,24 @@
+# Dockerfile for ghostunnel/ghostunnel, used for multi-arch release builds.
+#
+# To run ghostunnel from the image (for example):
+#     docker run --rm ghostunnel/ghostunnel --version
+
+# Work out which binary in dist/ to use
+FROM debian:buster-slim as build
+
+ARG TARGETPLATFORM=linux/amd64
+ARG VERSION
+
+# Copy dist
+ADD dist/ dist/
+
+# Build
+RUN ARCH=$(echo ${TARGETPLATFORM} | cut -d'/' -f2) && \
+    cp dist/ghostunnel-${VERSION}-linux-${ARCH}-with-pkcs11 /usr/bin/ghostunnel
+
+# Create a multi-stage build with the binary
+FROM debian:buster-slim
+
+COPY --from=build /usr/bin/ghostunnel /usr/bin/ghostunnel
+
+ENTRYPOINT ["/usr/bin/ghostunnel"]

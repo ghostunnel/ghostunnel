@@ -53,6 +53,11 @@ softhsm-import:
 		--import test-keys/server-pkcs8.pem
 .PHONY: softhsm-import
 
+# Build Docker image
+docker-build:
+	docker build -t ghostunnel/ghostunnel .
+.PHONY: docker-build
+
 # Run unit and integration tests in Docker container
 docker-test:
 	docker build --build-arg GO_VERSION=${GO_VERSION} -t ghostunnel/ghostunnel-test -f Dockerfile-test .
