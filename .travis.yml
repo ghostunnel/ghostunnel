@@ -2,7 +2,6 @@
 
 language: go
 
-sudo: required
 dist: focal
 
 services:
@@ -24,19 +23,14 @@ deploy:
       - dist/sha256sums.txt
       - dist/ghostunnel-${TRAVIS_TAG}.man
     draft: true
-    skip_cleanup: true
     on:
       tags: true
   - provider: script
-    script:
-     - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-     - docker buildx build --push -t cablespaghetti/ghostunnel:${TRAVIS_TAG} --platform linux/amd64,linux/arm64 --build-arg VERSION=${TRAVIS_TAG} -f Dockerfile-multiarch .
+    script: echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin && docker buildx build --push -t cablespaghetti/ghostunnel:${TRAVIS_TAG} --platform linux/amd64,linux/arm64 --build-arg VERSION=${TRAVIS_TAG} -f Dockerfile-multiarch .
     on:
       tags: true
   - provider: script
-    script:
-     - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-     - docker buildx build --push -t cablespaghetti/ghostunnel:latest --platform linux/amd64,linux/arm64 --build-arg VERSION=${TRAVIS_BRANCH} -f Dockerfile-multiarch .
+    script: echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin && docker buildx build --push -t cablespaghetti/ghostunnel:latest --platform linux/amd64,linux/arm64 --build-arg VERSION=${TRAVIS_BRANCH} -f Dockerfile-multiarch .
     on:
       branch: master
 
