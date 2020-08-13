@@ -5,18 +5,13 @@
 
 # Work out which binary in dist/ to use
 FROM debian:buster-slim as build
-
 ARG TARGETPLATFORM=linux/amd64
 ARG VERSION
-
-# Copy dist
 ADD dist/ dist/
-
-# Build
 RUN ARCH=$(echo ${TARGETPLATFORM} | cut -d'/' -f2) && \
     cp dist/ghostunnel-${VERSION}-linux-${ARCH}-with-pkcs11 /usr/bin/ghostunnel
 
-# Create a multi-stage build with the binary
+# Create the actual image using a multi-stage build
 FROM debian:buster-slim
 
 COPY --from=build /usr/bin/ghostunnel /usr/bin/ghostunnel
