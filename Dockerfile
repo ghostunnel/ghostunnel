@@ -1,5 +1,4 @@
-# Dockerfile for ghostunnel/ghostunnel, useful as an easy way to build locally.
-# Dockerfile-multiarch is used for releases on Docker Hub.
+# Dockerfile for ghostunnel/ghostunnel, useful as a basis for other images.
 #
 # To build this image:
 #     docker build -t ghostunnel/ghostunnel .
