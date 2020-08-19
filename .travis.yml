@@ -2,8 +2,7 @@
 
 language: go
 
-sudo: required
-dist: trusty
+dist: focal
 
 services:
   - docker
@@ -27,25 +26,41 @@ deploy:
     skip_cleanup: true
     on:
       tags: true
+  - provider: script
+    script: echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin && docker buildx build --push -t ghostunnel/ghostunnel:${TRAVIS_TAG} --platform linux/amd64,linux/arm64,linux/arm/v7 .
+    skip_cleanup: true
+    on:
+      tags: true
+  - provider: script
+    script: echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin && docker buildx build --push -t ghostunnel/ghostunnel:latest --platform linux/amd64,linux/arm64,linux/arm/v7 .
+    skip_cleanup: true
+    on:
+      branch: master
 
 before_install:
   - sudo apt-get update
-  - sudo apt-get -y -o Dpkg::Options::="--force-confnew" install docker-ce
+  - sudo apt-get -y -o Dpkg::Options::="--force-confnew" install docker.io
+  - mkdir -vp ~/.docker/cli-plugins/
+  - curl --silent -L "https://github.com/docker/buildx/releases/download/v0.4.1/buildx-v0.4.1.linux-amd64" > ~/.docker/cli-plugins/docker-buildx
+  - chmod a+x ~/.docker/cli-plugins/docker-buildx
+  - docker buildx version
+  - docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+  - docker buildx create --use
   - go get github.com/mattn/goveralls
   - go get github.com/karalabe/xgo
 
 install:
   # Compile with CGO on/off for testing
   - export GO111MODULE=on
-  - CGO_ENABLED=0 go build -o ghostunnel-${TRAVIS_TAG}-linux-amd64-without-pkcs11 .
-  - CGO_ENABLED=1 go build -tags nopkcs11 -o ghostunnel-${TRAVIS_TAG}-linux-amd64-without-pkcs11-but-with-cgo .
-  - CGO_ENABLED=1 go build -o ghostunnel-${TRAVIS_TAG}-linux-amd64-with-pkcs11 .
+  - CGO_ENABLED=0 go build -o ghostunnel-${TRAVIS_BRANCH}-linux-amd64-without-pkcs11 .
+  - CGO_ENABLED=1 go build -tags nopkcs11 -o ghostunnel-${TRAVIS_BRANCH}-linux-amd64-without-pkcs11-but-with-cgo .
+  - CGO_ENABLED=1 go build -o ghostunnel-${TRAVIS_BRANCH}-linux-amd64-with-pkcs11 .
   # Build Docker container
   - make docker-build
   # Make sure Docker image runs
   - docker run --rm ghostunnel/ghostunnel --version
   # Cross-compile dist binaries
-  - GO_VERSION=${TRAVIS_GO_VERSION} VERSION=${TRAVIS_TAG} make -f Makefile.dist dist
+  - GO_VERSION=${TRAVIS_GO_VERSION} VERSION=${TRAVIS_BRANCH} make -f Makefile.dist dist
 
 script:
   # Run tests inside Docker (guarantees that we have proper PKCS11 test setup)
