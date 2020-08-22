@@ -16,3 +16,4 @@ ghostunnel-*
 __pycache__
 dist/
 .idea
+bazel-*

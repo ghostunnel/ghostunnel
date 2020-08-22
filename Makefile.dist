@@ -2,7 +2,7 @@
 MKFILE_PATH := $(lastword $(MAKEFILE_LIST))
 CURRENT_DIR := $(patsubst %/,%,$(dir $(realpath $(MKFILE_PATH))))
 
-GO_VERSION ?= 1.14.7
+GO_VERSION ?= 1.15.0
 XGO_BASE_IMAGE ?= cssx/xgo-${GO_VERSION}
 
 # Current system information
@@ -13,6 +13,9 @@ GOARCH ?= $(shell go env GOARCH)
 XC_OS ?= darwin linux windows
 XC_ARCH ?= 386 amd64 arm64
 XC_EXCLUDE ?= darwin/386 linux/386 darwin/arm64 windows/arm64
+
+# New versions of Go target macOS 10.10 minimum
+DARWIN_API_LEVEL = 10.10
 
 # External linkers for Windows (to get a static exe)
 WINDOWS_EXTLD_amd64 = x86_64-w64-mingw32-gcc
@@ -37,6 +40,10 @@ define make-xc-target
 		@xgo -go ${GO_VERSION} -image ${XGO_BASE_IMAGE} -targets '${1}-${WINDOWS_API_LEVEL}/${2}' \
 			-ldflags '${LD_FLAGS} -w -extldflags "-static" -extld ${WINDOWS_EXTLD_${2}}' .
 		@mv ghostunnel-${1}-${WINDOWS_API_LEVEL}-${2}.exe dist/ghostunnel-${VERSION}-${1}-${2}-with-pkcs11.exe
+  else ifeq (${1},darwin)
+		@printf "%s%20s %s\n" "-->" "${1}/${2}:" "${PROJECT}"
+		@xgo -go ${GO_VERSION} -image ${XGO_BASE_IMAGE} -ldflags "${LD_FLAGS}" -targets '${1}-${DARWIN_API_LEVEL}/${2}' .
+		@mv ghostunnel-${1}*-${2} dist/ghostunnel-${VERSION}-${1}-${2}-with-pkcs11
   else
 		@printf "%s%20s %s\n" "-->" "${1}/${2}:" "${PROJECT}"
 		@xgo -go ${GO_VERSION} -image ${XGO_BASE_IMAGE} -ldflags "${LD_FLAGS}" -targets '${1}/${2}' .
