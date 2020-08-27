@@ -59,7 +59,7 @@ Getting Started
 To get started and play around with the implementation, you will need to
 generate some test certificates. If you want to bootstrap a full PKI, one
 good way to get started is to use a package like
-[square/certstrap](https://github.com/ghostunnel/certstrap). If you only need
+[square/certstrap](https://github.com/square/certstrap). If you only need
 some test certificates for playing around with the tunnel, you can find
 some pre-generated ones in the `test-keys` directory (alongside instructions
 on how to generate new ones with OpenSSL).
