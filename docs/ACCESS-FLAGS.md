@@ -28,7 +28,7 @@ comparison on the CN field.
 
 * `--allow-ou`
 
-Allow clients with given organizational unit (CN) field in the subject. Can be
+Allow clients with given organizational unit (OU) field in the subject. Can be
 repeated to allow multiple clients with different OUs to connect. Performs an
 exact string comparison on the OU field.
 
