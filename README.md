@@ -167,6 +167,20 @@ Verify that clients can connect with their client certificate:
 Now we have a TLS proxy running for our backend service. We terminate TLS in
 ghostunnel and forward the connections to the insecure backend.
 
+Server mode supports connecting to the backend using another TCP proxy. The server
+respects `ALL_PROXY` environment variables. The variable can be provided to
+connect to the backend server using `socks5` proxy.
+
+    ALL_PROXY=socks5://proxy.url:1080 ghosttunnel server \
+        --listen localhost:8443 \
+        --target localhost:8080 \
+        --keystore test-keys/server-keystore.p12 \
+        --cacert test-keys/cacert.pem \
+        --allow-cn client
+
+This will connect to the target `localhost:8080` using `socks5` proxy running
+on `proxy.url:1080`.
+
 ### Client mode
 
 This is an example for how to launch ghostunnel in client mode, listening on
