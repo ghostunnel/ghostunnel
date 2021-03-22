@@ -41,6 +41,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	metrics "github.com/rcrowley/go-metrics"
 	sqmetrics "github.com/square/go-sq-metrics"
+	netproxy "golang.org/x/net/proxy"
 	kingpin "gopkg.in/alecthomas/kingpin.v2"
 
 	prometheusmetrics "github.com/deathowl/go-metrics-prometheus"
@@ -662,7 +663,10 @@ func serverBackendDialer() (func() (net.Conn, error), error) {
 	}
 
 	return func() (net.Conn, error) {
-		return net.DialTimeout(backendNet, backendAddr, *timeoutDuration)
+		proxyDialer := netproxy.FromEnvironmentUsing(&net.Dialer{
+			Timeout: *timeoutDuration,
+		})
+		return proxyDialer.Dial(backendNet, backendAddr)
 	}, nil
 }
 
