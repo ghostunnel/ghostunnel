@@ -552,10 +552,8 @@ func clientListen(context *Context) error {
 		return err
 	}
 
-	// If this is a UNIX socket, make sure we cleanup files on close.
-	if ul, ok := listener.(*net.UnixListener); ok {
-		ul.SetUnlinkOnClose(true)
-	}
+	// If this is a UNIX socket, and we're listen()ing, default Go net
+	// behavior cleans up filesystem artifact automatically at close() .
 
 	p := proxy.New(
 		listener,

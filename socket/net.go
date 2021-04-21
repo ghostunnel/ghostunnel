@@ -87,7 +87,8 @@ func ParseHTTPAddress(input string) (https bool, address string) {
 // opened socket will be bound with SO_REUSEPORT.
 //
 // For 'unix' sockets, the address must be a path. The socket file
-// will be set to unlink on close automatically.
+// will be set to unlink on close automatically because it's Listen()ed
+// on, and thus owned by this process.
 //
 // For 'launchd' sockets, the address must be the name of the socket
 // from the plist file. Only one socket maybe configured in the
@@ -108,7 +109,6 @@ func Open(network, address string) (net.Listener, error) {
 		if err != nil {
 			return nil, err
 		}
-		listener.(*net.UnixListener).SetUnlinkOnClose(true)
 		return listener, nil
 	default:
 		return reuseport.NewReusablePortListener(network, address)
