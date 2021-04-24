@@ -1,0 +1,43 @@
+---
+name: Test 
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    name: Unit tests
+    strategy:
+      matrix:
+        version: [1.16.x]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Set up toolchain
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.version }}
+        id: go
+      - name: Check out code
+        uses: actions/checkout@v2
+      - name: Build binary
+        run: make ghostunnel
+      - name: Unit tests (local)
+        run: make unit
+      
+  integration:
+    name: Integration tests
+    strategy:
+      matrix:
+        version: [1.16]
+        os: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+      - name: Integration tests (container)
+        run: GO_VERSION=${{ matrix.version }} make docker-test
+    
