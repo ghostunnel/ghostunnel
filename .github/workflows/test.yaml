@@ -40,6 +40,13 @@ jobs:
         uses: actions/checkout@v2
       - name: Run tests 
         run: GO_VERSION=${{ matrix.version }} make docker-test
+      - name: Codecov upload
+        uses: codecov/codecov-action@v1
+        with:
+          files: ./coverage-merged.out
+          flags: linux
+          fail_ci_if_error: true
+          verbose: true
     
   integration-darwin:
     name: Integration tests (Darwin)
@@ -64,3 +71,10 @@ jobs:
         uses: actions/checkout@v2
       - name: Run tests
         run: make test 
+      - name: Codecov upload
+        uses: codecov/codecov-action@v1
+        with:
+          files: ./coverage-merged.out
+          flags: darwin
+          fail_ci_if_error: true
+          verbose: true
