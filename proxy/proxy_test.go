@@ -128,10 +128,10 @@ func TestProxyProtocolSuccess(t *testing.T) {
 	assert.Equal(t, header.Version, uint8(2))
 	assert.Equal(t, header.Command, proxyproto.ProtocolVersionAndCommand(proxyproto.PROXY))
 	assert.Equal(t, header.TransportProtocol, proxyproto.AddressFamilyAndProtocol(proxyproto.TCPv4))
-	assert.Equal(t, header.SourceAddress, net.ParseIP("127.0.0.1").To4())
-	assert.Equal(t, header.DestinationAddress, net.ParseIP("127.0.0.1").To4())
-	assert.Equal(t, header.SourcePort, uint16(src.LocalAddr().(*net.TCPAddr).Port))
-	assert.Equal(t, header.DestinationPort, uint16(incoming.Addr().(*net.TCPAddr).Port))
+	assert.Equal(t, header.SourceAddr.(*net.TCPAddr).IP, net.ParseIP("127.0.0.1").To4())
+	assert.Equal(t, header.DestinationAddr.(*net.TCPAddr).IP, net.ParseIP("127.0.0.1").To4())
+	assert.Equal(t, header.SourceAddr.(*net.TCPAddr).Port, src.LocalAddr().(*net.TCPAddr).Port)
+	assert.Equal(t, header.DestinationAddr.(*net.TCPAddr).Port, incoming.Addr().(*net.TCPAddr).Port)
 
 	src.Write([]byte("A"))
 

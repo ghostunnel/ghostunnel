@@ -82,17 +82,12 @@ type Proxy struct {
 }
 
 func proxyProtoHeader(c net.Conn) *proxyproto.Header {
-	sAddr := c.RemoteAddr().(*net.TCPAddr)
-	dAddr := c.LocalAddr().(*net.TCPAddr)
-
 	return &proxyproto.Header{
-		Version:            2,
-		Command:            proxyproto.PROXY,
-		TransportProtocol:  proxyproto.TCPv4,
-		SourceAddress:      sAddr.IP,
-		DestinationAddress: dAddr.IP,
-		SourcePort:         uint16(sAddr.Port),
-		DestinationPort:    uint16(dAddr.Port),
+		Version:           2,
+		Command:           proxyproto.PROXY,
+		TransportProtocol: proxyproto.TCPv4,
+		SourceAddr:        c.RemoteAddr(),
+		DestinationAddr:   c.LocalAddr(),
 	}
 }
 
