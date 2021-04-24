@@ -10,7 +10,8 @@ import time
 import random
 
 
-def send_data(i, p):
+def send_data(i):
+    p = SocketPair(TcpClient(13001), TlsServer("server{0}".format(i), 'root', 13002))
     counter = 0
     while counter < 100:
         r = random.random()
@@ -55,9 +56,7 @@ if __name__ == "__main__":
         # servers should be able to communicate all at the same time.
         procs = []
         for n in range(1, n_clients):
-            pair = SocketPair(TcpClient(13001), TlsServer(
-                "server{0}".format(n), 'root', 13002))
-            proc = Process(target=send_data, args=(n, pair,))
+            proc = Process(target=send_data, args=(n,))
             proc.start()
             procs.append(proc)
         for proc in procs:
