@@ -17,7 +17,7 @@ import http.client
 
 class UnixHTTPConnection(http.client.HTTPConnection):
     def __init__(self, socket_path):
-        super().__init__(self, 'localhost')
+        super().__init__(host='localhost', port=0)
         self.host = 'localhost'
         self.path = socket_path
 
