@@ -92,8 +92,6 @@ jobs:
         with:
           name: ghostunnel-${{ matrix.target.os }}-${{ matrix.target.arch }}
           path: dist
-      - name: Show files 
-        run: ls -R
       - name: Upload artifact to release
         uses: actions/upload-release-asset@v1
         env:

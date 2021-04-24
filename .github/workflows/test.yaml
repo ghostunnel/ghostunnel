@@ -58,6 +58,8 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: '3.x'
+      - name: Install gocovmerge
+        run: go get -v github.com/wadey/gocovmerge
       - name: Check out code
         uses: actions/checkout@v2
       - name: Run tests
