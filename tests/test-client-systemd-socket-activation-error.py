@@ -11,10 +11,6 @@ import sys
 if __name__ == "__main__":
     ghostunnel = None
 
-    if not find_executable('systemd-socket-activate'):
-        print_ok('skipping systemd socket activation test, no systemd-socket-activate binary found')
-        sys.exit(0)
-
     try:
         # create certs
         root = RootCert('root')
@@ -27,19 +23,11 @@ if __name__ == "__main__":
                 '--target={0}:{1}'.format(LOCALHOST, STATUS_PORT),
                 '--keystore=client.p12',
                 '--status=systemd:status',
-                '--cacert=root.crt'],
-                prefix=[
-                'systemd-socket-activate',
-                '--listen={0}:13001'.format(LOCALHOST),
-                '--listen={0}:{1}'.format(LOCALHOST, STATUS_PORT),
-                '--fdname=client:status',
-                '-E=GHOSTUNNEL_INTEGRATION_TEST',
-                '-E=GHOSTUNNEL_INTEGRATION_ARGS',
-                ])
+                '--cacert=root.crt'])
 
-        # Connect on status port to trigger socket activation
-        # so it will spin up the ghostunnel instance
-        TcpClient(STATUS_PORT).connect(20)
+        ghostunnel.wait(timeout=10)
+        if ghostunnel.returncode == 0:
+            raise Exception('Should fail on invalid socket')
 
         print_ok("OK")
     finally:
