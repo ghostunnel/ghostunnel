@@ -340,6 +340,7 @@ func clientValidateFlags() error {
 func main() {
 	err := run(os.Args[1:])
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %s\n", err)
 		exitFunc(1)
 	}
 	exitFunc(0)
