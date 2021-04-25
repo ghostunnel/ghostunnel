@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"log"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -14,16 +15,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type testLogger struct {
-	t *testing.T
-}
-
-func newTestLogger(t *testing.T) *testLogger {
-	return &testLogger{t: t}
-}
-
-func (l *testLogger) Printf(format string, args ...interface{}) {
-	l.t.Logf(format, args...)
+func TestSPIFFELogger(t *testing.T) {
+	logger := spiffeLogger{log: log.Default()}
+	logger.Errorf("test")
+	logger.Warnf("test")
+	logger.Infof("test")
+	logger.Debugf("test")
 }
 
 func TestWorkloadAPITLSConfigSource(t *testing.T) {
@@ -42,7 +39,7 @@ func TestWorkloadAPITLSConfigSource(t *testing.T) {
 	})
 	defer workloadAPI.Stop()
 
-	log := newTestLogger(t)
+	log := log.Default()
 
 	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), log)
 	require.NoError(t, err)

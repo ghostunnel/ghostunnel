@@ -245,6 +245,9 @@ func TestCipherSuitePreference(t *testing.T) {
 	conf, err := buildConfig("XYZ")
 	assert.NotNil(t, err, "should not be able to build TLS config with invalid cipher suite option")
 
+	_, err = buildServerConfig("XYZ")
+	assert.NotNil(t, err, "should not be able to build TLS config with invalid cipher suite option")
+
 	conf, err = buildConfig("")
 	assert.NotNil(t, err, "should not be able to build TLS config wihout cipher suite selection")
 

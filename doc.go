@@ -116,11 +116,10 @@ sending client certificates, use \fB--disable-authentication\fR.
 {{end}}\
 `
 
-func generateManPage(c *kingpin.ParseContext) (err error) {
+func generateManPage(c *kingpin.ParseContext) error {
 	app.Writer(os.Stdout)
-	if err := app.UsageForContextWithTemplate(c, 2, manPageTemplate); err != nil {
-		return err
-	}
+	err := app.UsageForContextWithTemplate(c, 2, manPageTemplate)
+	panicOnError(err)
 	exitFunc(0)
-	return
+	return err
 }

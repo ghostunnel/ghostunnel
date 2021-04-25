@@ -20,17 +20,18 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"log"
 
 	"github.com/spiffe/go-spiffe/spiffe"
 )
 
 type spiffeTLSConfigSource struct {
 	peer *spiffe.TLSPeer
-	log  Logger
+	log  *log.Logger
 }
 
 type spiffeLogger struct {
-	log Logger
+	log *log.Logger
 }
 
 func (l spiffeLogger) Debugf(format string, args ...interface{}) {
@@ -49,10 +50,10 @@ func (l spiffeLogger) Errorf(format string, args ...interface{}) {
 	l.log.Printf("(spiffe) [ERROR]: "+format, args...)
 }
 
-func TLSConfigSourceFromWorkloadAPI(addr string, log Logger) (TLSConfigSource, error) {
+func TLSConfigSourceFromWorkloadAPI(addr string, logger *log.Logger) (TLSConfigSource, error) {
 	peer, err := spiffe.NewTLSPeer(
 		spiffe.WithWorkloadAPIAddr(addr),
-		spiffe.WithLogger(spiffeLogger{log: log}),
+		spiffe.WithLogger(spiffeLogger{log: logger}),
 	)
 	if err != nil {
 		return nil, err
@@ -60,7 +61,7 @@ func TLSConfigSourceFromWorkloadAPI(addr string, log Logger) (TLSConfigSource, e
 	// TODO: provide a way to close the peer on graceful shutdown
 	return &spiffeTLSConfigSource{
 		peer: peer,
-		log:  log,
+		log:  logger,
 	}, nil
 }
 
