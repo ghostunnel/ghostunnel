@@ -29,6 +29,31 @@ if __name__ == "__main__":
         if ghostunnel.returncode == 0:
             raise Exception('Should fail on invalid socket')
 
+        if not find_executable('systemd-socket-activate'):
+            print_ok('skipping systemd socket activation test, no systemd-socket-activate binary found')
+            sys.exit(0)
+
+        # start ghostunnel
+        ghostunnel = run_ghostunnel([
+                'client',
+                '--listen=systemd:client',
+                '--target={0}:{1}'.format(LOCALHOST, STATUS_PORT),
+                '--keystore=client.p12',
+                '--status=systemd:status',
+                '--cacert=root.crt'],
+                prefix=[
+                'systemd-socket-activate',
+                '--listen={0}:13001'.format(LOCALHOST),
+                '--listen={0}:{1}'.format(LOCALHOST, STATUS_PORT),
+                # wrong fdname provided to test error checking
+                '--fdname=server:status',
+                '-E=GHOSTUNNEL_INTEGRATION_TEST',
+                '-E=GHOSTUNNEL_INTEGRATION_ARGS',
+                ])
+
+        if ghostunnel.returncode == 0:
+            raise Exception('Should fail on invalid socket')
+
         print_ok("OK")
     finally:
         terminate(ghostunnel)
