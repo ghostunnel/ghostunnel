@@ -162,7 +162,7 @@ type Dialer interface {
 }
 
 // Global logger instance
-var logger = log.New(os.Stderr, "", log.LstdFlags|log.Lmicroseconds)
+var logger = log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
 
 func initLogger(syslog bool, flags []string) (err error) {
 	// If user has indicated request for syslog, override default stderr
@@ -340,6 +340,7 @@ func clientValidateFlags() error {
 func main() {
 	err := run(os.Args[1:])
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %s\n", err)
 		exitFunc(1)
 	}
 	exitFunc(0)
