@@ -253,11 +253,11 @@ func TestCipherSuitePreference(t *testing.T) {
 
 	conf, err = buildConfig("CHACHA,AES")
 	assert.Nil(t, err, "should be able to build TLS config")
-	assert.True(t, conf.CipherSuites[0] == tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305, "expecting ChaCha20")
+	assert.True(t, conf.CipherSuites[0] == tls.TLS_CHACHA20_POLY1305_SHA256, "expecting TLS 1.3 ChaCha20")
 
 	conf, err = buildConfig("AES,CHACHA")
 	assert.Nil(t, err, "should be able to build TLS config")
-	assert.True(t, conf.CipherSuites[0] == tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, "expecting AES")
+	assert.True(t, conf.CipherSuites[0] == tls.TLS_AES_128_GCM_SHA256, "expecting TLS 1.3 AES")
 
 	conf, err = buildConfig("AES,CHACHA,UNSAFE-AZURE")
 	assert.NotNil(t, err, "should not be able to build TLS config with unsafe cipher suite without flag")
