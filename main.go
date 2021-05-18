@@ -54,11 +54,11 @@ var (
 
 // Optional flags (enabled conditionally based on build)
 var (
-	keychainIdentity     *string
-	keychainRequireToken *bool
-	pkcs11Module         *string
-	pkcs11TokenLabel     *string
-	pkcs11PIN            *string
+	keychainIdentity     *string //nolint:golint,unused
+	keychainRequireToken *bool   //nolint:golint,unused
+	pkcs11Module         *string //nolint:golint,unused
+	pkcs11TokenLabel     *string //nolint:golint,unused
+	pkcs11PIN            *string //nolint:golint,unused
 )
 
 // Main flags (always supported)
