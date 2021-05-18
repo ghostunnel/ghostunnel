@@ -54,10 +54,11 @@ var (
 
 // Optional flags (enabled conditionally based on build)
 var (
-	keychainIdentity *string
-	pkcs11Module     *string
-	pkcs11TokenLabel *string
-	pkcs11PIN        *string
+	keychainIdentity     *string //nolint:golint,unused
+	keychainRequireToken *bool   //nolint:golint,unused
+	pkcs11Module         *string //nolint:golint,unused
+	pkcs11TokenLabel     *string //nolint:golint,unused
+	pkcs11PIN            *string //nolint:golint,unused
 )
 
 // Main flags (always supported)
@@ -126,6 +127,9 @@ func init() {
 	// Optional keychain identity flag, if compiled for a supported platform
 	if certloader.SupportsKeychain() {
 		keychainIdentity = app.Flag("keychain-identity", "Use local keychain identity with given common name (instead of keystore file).").PlaceHolder("CN").String()
+		if runtime.GOOS == "darwin" {
+			keychainRequireToken = app.Flag("keychain-require-token", "Require keychain identity to be from a physical token.").Bool()
+		}
 	}
 
 	// Optional PKCS#11 flags, if compiled with CGO enabled

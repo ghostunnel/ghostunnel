@@ -1,5 +1,7 @@
 module github.com/ghostunnel/ghostunnel
 
+replace github.com/github/certstore => ./certstore
+
 require (
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
@@ -7,9 +9,7 @@ require (
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/cyberdelia/go-metrics-graphite v0.0.0-20161219230853-39f87cc3b432
 	github.com/deathowl/go-metrics-prometheus v0.0.0-20200518174047-74482eab5bfb
-	github.com/fatih/color v1.10.0 // indirect
 	github.com/github/certstore v0.1.0
-	github.com/google/uuid v1.2.0 // indirect
 	github.com/hashicorp/go-syslog v1.0.0
 	github.com/huandu/xstrings v1.3.2 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
@@ -34,4 +34,4 @@ require (
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 )
 
-go 1.13
+go 1.16

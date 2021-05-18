@@ -1,4 +1,4 @@
-// +build certstore
+// +build darwin windows
 
 /*-
  * Copyright 2018 Square Inc.
@@ -34,6 +34,8 @@ type certstoreCertificate struct {
 	commonName string
 	// Root CA bundle path
 	caBundlePath string
+	// Require use of hardware token?
+	requireToken bool
 	// Cached *tls.Certificate
 	cachedCertificate unsafe.Pointer
 	// Cached *x509.CertPool
@@ -48,7 +50,7 @@ func SupportsKeychain() bool {
 }
 
 // CertificateFromKeychainIdentity creates a reloadable certificate from a system keychain identity.
-func CertificateFromKeychainIdentity(commonName string, caBundlePath string) (Certificate, error) {
+func CertificateFromKeychainIdentity(commonName string, caBundlePath string, requireToken bool) (Certificate, error) {
 	c := certstoreCertificate{
 		commonName:   commonName,
 		caBundlePath: caBundlePath,
@@ -67,7 +69,12 @@ func (c *certstoreCertificate) Reload() error {
 		return err
 	}
 
-	identities, err := store.Identities()
+	flags := 0
+	if c.requireToken {
+		flags |= certstore.RequireToken
+	}
+
+	identities, err := store.Identities(flags)
 	if err != nil {
 		return err
 	}
