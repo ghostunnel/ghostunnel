@@ -31,7 +31,7 @@ func ImportDeleteHelper(t *testing.T, i *fakeca.Identity) {
 		}
 
 		// Look for our imported identity
-		idents, err := store.Identities()
+		idents, err := store.Identities(0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -64,7 +64,7 @@ func ImportDeleteHelper(t *testing.T, i *fakeca.Identity) {
 		}
 
 		// Look for our deleted identity
-		idents, err = store.Identities()
+		idents, err = store.Identities(0)
 		if err != nil {
 			t.Fatal(err)
 		}

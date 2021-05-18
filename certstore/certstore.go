@@ -12,6 +12,11 @@ var (
 	ErrUnsupportedHash = errors.New("unsupported hash algorithm")
 )
 
+const (
+	// Require a hardware token when fetching identities (Darwin only).
+	RequireToken = 1
+)
+
 // Open opens the system's certificate store.
 func Open() (Store, error) {
 	return openStore()
@@ -20,7 +25,7 @@ func Open() (Store, error) {
 // Store represents the system's certificate store.
 type Store interface {
 	// Identities gets a list of identities from the store.
-	Identities() ([]Identity, error)
+	Identities(flags int) ([]Identity, error)
 
 	// Import imports a PKCS#12 (PFX) blob containing a certificate and private
 	// key.

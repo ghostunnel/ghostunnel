@@ -42,12 +42,16 @@ func openStore() (macStore, error) {
 }
 
 // Identities implements the Store interface.
-func (s macStore) Identities() ([]Identity, error) {
-	query := mapToCFDictionary(map[C.CFTypeRef]C.CFTypeRef{
+func (s macStore) Identities(flags int) ([]Identity, error) {
+	rawQuery := map[C.CFTypeRef]C.CFTypeRef{
 		C.CFTypeRef(C.kSecClass):      C.CFTypeRef(C.kSecClassIdentity),
 		C.CFTypeRef(C.kSecReturnRef):  C.CFTypeRef(C.kCFBooleanTrue),
 		C.CFTypeRef(C.kSecMatchLimit): C.CFTypeRef(C.kSecMatchLimitAll),
-	})
+	}
+	if flags & RequireToken {
+		rawQuery[C.CFTypeRef(C.kSecAttrAccessGroup)] = C.CFTypeRef(C.kSecAttrAccessGroupToken)
+	}
+	query := mapToCFDictionary(rawQuery)
 	if query == nilCFDictionaryRef {
 		return nil, errors.New("error creating CFDictionary")
 	}

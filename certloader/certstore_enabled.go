@@ -67,7 +67,12 @@ func (c *certstoreCertificate) Reload() error {
 		return err
 	}
 
-	identities, err := store.Identities()
+	flags := 0
+	if *keychainRequireToken() {
+		flags |= certstore.RequireToken
+	}
+
+	identities, err := store.Identities(flags)
 	if err != nil {
 		return err
 	}
