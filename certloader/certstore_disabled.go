@@ -28,6 +28,6 @@ func SupportsKeychain() bool {
 }
 
 // CertificateFromKeychainIdentity creates a reloadable certificate from a system keychain identity.
-func CertificateFromKeychainIdentity(commonName string, caBundlePath string) (Certificate, error) {
+func CertificateFromKeychainIdentity(commonName string, caBundlePath string, requireToken bool) (Certificate, error) {
 	return nil, errors.New("not supported")
 }

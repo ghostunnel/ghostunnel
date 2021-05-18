@@ -89,7 +89,7 @@ func openStore() (*winStore, error) {
 }
 
 // Identities implements the Store interface.
-func (s *winStore) Identities(flags int) ([]Identity, error) {
+func (s *winStore) Identities(unusedFlags int) ([]Identity, error) {
 	var (
 		err    error
 		idents = []Identity{}

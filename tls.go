@@ -62,7 +62,7 @@ func buildCertificate(keystorePath, certPath, keyPath, keystorePass, caBundlePat
 		}
 	}
 	if hasKeychainIdentity() {
-		return certloader.CertificateFromKeychainIdentity(*keychainIdentity, caBundlePath)
+		return certloader.CertificateFromKeychainIdentity(*keychainIdentity, caBundlePath, *keychainRequireToken)
 	}
 	if keyPath != "" && certPath != "" {
 		return certloader.CertificateFromPEMFiles(certPath, keyPath, caBundlePath)

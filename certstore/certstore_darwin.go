@@ -48,7 +48,7 @@ func (s macStore) Identities(flags int) ([]Identity, error) {
 		C.CFTypeRef(C.kSecReturnRef):  C.CFTypeRef(C.kCFBooleanTrue),
 		C.CFTypeRef(C.kSecMatchLimit): C.CFTypeRef(C.kSecMatchLimitAll),
 	}
-	if flags & RequireToken {
+	if (flags & RequireToken) == 1 {
 		rawQuery[C.CFTypeRef(C.kSecAttrAccessGroup)] = C.CFTypeRef(C.kSecAttrAccessGroupToken)
 	}
 	query := mapToCFDictionary(rawQuery)
