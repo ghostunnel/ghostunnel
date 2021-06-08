@@ -364,16 +364,17 @@ func (wpk *winPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.Signer
 	}
 
 	if wpk.capiProv != 0 {
-		return wpk.capiSignHash(opts.HashFunc(), digest)
+		return wpk.capiSignHash(opts, digest)
 	} else if wpk.cngHandle != 0 {
-		return wpk.cngSignHash(opts.HashFunc(), digest)
+		return wpk.cngSignHash(opts, digest)
 	} else {
 		return nil, errors.New("bad private key")
 	}
 }
 
 // cngSignHash signs a digest using the CNG APIs.
-func (wpk *winPrivateKey) cngSignHash(hash crypto.Hash, digest []byte) ([]byte, error) {
+func (wpk *winPrivateKey) cngSignHash(opts crypto.SignerOpts, digest []byte) ([]byte, error) {
+	hash := opts.HashFunc()
 	if len(digest) != hash.Size() {
 		return nil, errors.New("bad digest for hash")
 	}
@@ -391,21 +392,35 @@ func (wpk *winPrivateKey) cngSignHash(hash crypto.Hash, digest []byte) ([]byte, 
 
 	// setup pkcs1v1.5 padding for RSA
 	if _, isRSA := wpk.publicKey.(*rsa.PublicKey); isRSA {
-		flags |= C.BCRYPT_PAD_PKCS1
-		padInfo := C.BCRYPT_PKCS1_PADDING_INFO{}
-		padPtr = unsafe.Pointer(&padInfo)
-
+		var algId C.LPCWSTR
 		switch hash {
 		case crypto.SHA1:
-			padInfo.pszAlgId = BCRYPT_SHA1_ALGORITHM
+			algId = BCRYPT_SHA1_ALGORITHM
 		case crypto.SHA256:
-			padInfo.pszAlgId = BCRYPT_SHA256_ALGORITHM
+			algId = BCRYPT_SHA256_ALGORITHM
 		case crypto.SHA384:
-			padInfo.pszAlgId = BCRYPT_SHA384_ALGORITHM
+			algId = BCRYPT_SHA384_ALGORITHM
 		case crypto.SHA512:
-			padInfo.pszAlgId = BCRYPT_SHA512_ALGORITHM
+			algId = BCRYPT_SHA512_ALGORITHM
 		default:
 			return nil, ErrUnsupportedHash
+		}
+
+		if pssOpts, ok := opts.(*rsa.PSSOptions); ok {
+			saltLen := pssOpts.SaltLength
+			if saltLen == rsa.PSSSaltLengthEqualsHash {
+				saltLen = len(digest)
+			}
+			padPtr = unsafe.Pointer(&C.BCRYPT_PSS_PADDING_INFO{
+				pszAlgId: algId,
+				cbSalt:   C.ULONG(saltLen),
+			})
+			flags |= C.BCRYPT_PAD_PSS
+		} else {
+			padPtr = unsafe.Pointer(&C.BCRYPT_PKCS1_PADDING_INFO{
+				pszAlgId: algId,
+			})
+			flags |= C.BCRYPT_PAD_PKCS1
 		}
 	}
 
@@ -446,7 +461,8 @@ func (wpk *winPrivateKey) cngSignHash(hash crypto.Hash, digest []byte) ([]byte, 
 }
 
 // capiSignHash signs a digest using the CryptoAPI APIs.
-func (wpk *winPrivateKey) capiSignHash(hash crypto.Hash, digest []byte) ([]byte, error) {
+func (wpk *winPrivateKey) capiSignHash(opts crypto.SignerOpts, digest []byte) ([]byte, error) {
+	hash := opts.HashFunc()
 	if len(digest) != hash.Size() {
 		return nil, errors.New("bad digest for hash")
 	}
@@ -666,7 +682,7 @@ func checkStatus(s C.SECURITY_STATUS) error {
 }
 
 func (ss securityStatus) Error() string {
-	return fmt.Sprintf("SECURITY_STATUS %d", int(ss))
+	return fmt.Sprintf("SECURITY_STATUS 0x%08X", uint64(ss))
 }
 
 func stringToUTF16(s string) C.LPCWSTR {
