@@ -57,7 +57,7 @@ func signWithMyIdentity(cn, msg string) ([]byte, error) {
 			return nil, errr
 		}
 
-		if crt.Subject.CommonName == "Ben Toews" {
+		if crt.Subject.CommonName == cn {
 			me = ident
 		}
 	}
