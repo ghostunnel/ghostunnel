@@ -40,6 +40,9 @@ allows short-lived certificates to be used with ghostunnel, new certificates
 will get picked up transparently. And on platforms with `SO_REUSEPORT` support,
 restarts can be done with minimal downtime.
 
+**[ACME Support](#acme-support)**: In server mode, Ghostunnel can optionally
+obtain and automatically renew a public TLS certificate from Let's Encrypt.
+
 **[Monitoring and metrics](#metrics--profiling)**: Ghostunnel has a built-in
 status feature that can be used to collect metrics and monitor a running
 instance. Metrics can be fed into Graphite (or other systems) to see number of
@@ -48,7 +51,7 @@ other info.
 
 **[Emphasis on security](BUG-BOUNTY.md)**: We have put some thought into making ghostunnel
 secure by default and prevent accidental misconfiguration. For example,  we
-always negotiate TLS v1.2 and only use safe cipher suites. Ghostunnel also
+always negotiate TLS v1.2 (or greater) and only use safe cipher suites. Ghostunnel also
 supports PKCS#11 which makes it possible to use Hardware Security Modules
 (HSMs) to protect private keys, and we have a bug bounty that
 pays rewards for security findings. 
@@ -68,21 +71,14 @@ on how to generate new ones with OpenSSL).
 
 Ghostunnel is available through [GitHub releases][rel] and through [Docker Hub][hub].
 
-Binaries can be built from source as follows (cross-compile requires Docker and [xgo][xgo]):
-
     # Compile for local architecture
     make ghostunnel
 
-    # Cross-compile release binaries
-    make -f Makefile.dist dist
-
 Note that ghostunnel requires Go 1.12 or later to build, and CGO is required for
-PKCS#11 support.  See also [CROSS-COMPILE](docs/CROSS-COMPILE.md) for
-instructions on how to cross-compile a custom build with CGO enabled.
+PKCS#11 support.
 
 [rel]: https://github.com/ghostunnel/ghostunnel/releases
 [hub]: https://hub.docker.com/r/ghostunnel/ghostunnel
-[xgo]: https://github.com/karalabe/xgo
 
 ### Develop
 
@@ -287,6 +283,20 @@ be reloaded. It is assumed that the private key in the HSM remains the same.
 This means the updated/reissued certificate much match the private key that
 was loaded from the HSM previously, everything else works the same.
 
+### ACME Support
+
+To have Ghostunnel automatically obtain and renew a public TLS certificate via ACME
+from Let's Encrypt, use the `--auto-acme-cert=` flag
+(e.g. - `--auto-acme-cert=myservice.example.com`).  You must also specify an
+email address so you will get notices from Let's Encrypt about potentially
+important certificate lifecycle events. Specify the email address with the
+`--auto-acme-email=` flag.
+
+ACME is only supported in server mode. Additionally, Ghostunnel must either be
+listening to a public interface on tcp/443, or somehow have a public tcp/443
+listening interface forwarded to it (e.g. - systemd socket, iptables, etc.). Public
+DNS records must exist for a valid public DNS FQDN that resolves to the public
+listening interface IP.
 ### Metrics & Profiling
 
 Ghostunnel has a notion of "status port", a TCP port (or UNIX socket) that can

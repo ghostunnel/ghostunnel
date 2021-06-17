@@ -70,6 +70,12 @@ and key from separate PEM files (instead of a combined one).
 Ghostunnel also supports loading identities from the macOS keychain and having
 private keys backed by PKCS#11 modules, see the documentation on GitHub for
 examples.
+
+In server mode, Ghostunnel supports automatically obtaining and renewing a
+public TLS certificate from Let's Encrypt. This requires either Ghostunnel
+to listen on tcp/443 on a public interface, or somehow a public tcp/443
+interface needs to be forwarded to Ghostunnel's server listening port
+(e.g. - systemd socket, iptables, etc.).
 .SH "EXAMPLE: SERVER MODE"
 Start a ghostunnel in server mode to proxy connections from localhost:8443
 to localhost:8080, while only allowing connections from client certificates
