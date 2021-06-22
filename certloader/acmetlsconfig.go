@@ -13,7 +13,7 @@ func TLSConfigSourceFromACME(domain, email string, useTestCA bool) (TLSConfigSou
 	certmagic.DefaultACME.DisableHTTPChallenge = true
 	certmagic.DefaultACME.Email = email
 
-	if useTestCA == true {
+	if useTestCA {
 		certmagic.DefaultACME.CA = certmagic.LetsEncryptStagingCA
 	}
 
