@@ -49,7 +49,8 @@ if __name__ == "__main__":
                                       '--key=server.key',
                                       '--auto-acme-cert=www.example.com',
                                       '--auto-acme-email=admin@example.com',
-                                      '--auto-acme-testca'])
+                                      '--auto-acme-testca=https://acme-staging-v02.api.letsencrypt.org/directory',
+                                      '--auto-acme-agree-to-tos'])
         assert_not_zero(ghostunnel5)
 
         ghostunnel6 = run_ghostunnel(['server',
@@ -58,7 +59,8 @@ if __name__ == "__main__":
                                       '--use-workload-api',
                                       '--auto-acme-cert=www.example.com',
                                       '--auto-acme-email=admin@example.com',
-                                      '--auto-acme-testca'])
+                                      '--auto-acme-testca=https://acme-staging-v02.api.letsencrypt.org/directory',
+                                      '--auto-acme-agree-to-tos'])
         assert_not_zero(ghostunnel6)
 
     finally:

@@ -72,10 +72,12 @@ private keys backed by PKCS#11 modules, see the documentation on GitHub for
 examples.
 
 In server mode, Ghostunnel supports automatically obtaining and renewing a
-public TLS certificate from Let's Encrypt. This requires either Ghostunnel
+public TLS certificate using the ACME protocol. This requires either Ghostunnel
 to listen on tcp/443 on a public interface, or somehow a public tcp/443
 interface needs to be forwarded to Ghostunnel's server listening port
-(e.g. - systemd socket, iptables, etc.).
+(e.g. - systemd socket, iptables, etc.). The URL to the ACME CA can be specified
+using the \fB--auto-acme-ca=\fR flag. If not specified, Ghostunnel defaults
+to using Let's Encrypt.
 .SH "EXAMPLE: SERVER MODE"
 Start a ghostunnel in server mode to proxy connections from localhost:8443
 to localhost:8080, while only allowing connections from client certificates

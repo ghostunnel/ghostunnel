@@ -104,8 +104,26 @@ if __name__ == "__main__":
         ghostunnel = run_ghostunnel(['server',
                                      '--listen={0}:13001'.format(LOCALHOST),
                                      '--target={0}:13002'.format(LOCALHOST),
-                                     '--auto-acme-testca',
+                                     '--auto-acme-testca=https://acme-staging-v02.api.letsencrypt.org/directory',
                                      '--auto-acme-cert=example.com',
+                                     '--auto-acme-agree-to-tos',
+                                     '--disable-authentication'])
+
+        # wait for ghostunnel to exit and make sure error code is not zero
+        ret = ghostunnel.wait(timeout=20)
+        if ret == 0:
+            raise Exception(
+                'ghostunnel terminated with zero, though flags were invalid')
+        else:
+            print_ok("OK (terminated)")
+
+        # start ghostunnel with ACME requested but without agree-to-tos
+        ghostunnel = run_ghostunnel(['server',
+                                     '--listen={0}:13001'.format(LOCALHOST),
+                                     '--target={0}:13002'.format(LOCALHOST),
+                                     '--auto-acme-testca=https://acme-staging-v02.api.letsencrypt.org/directory',
+                                     '--auto-acme-cert=example.com',
+                                     '--auto-acme-email=admin@example.com',
                                      '--disable-authentication'])
 
         # wait for ghostunnel to exit and make sure error code is not zero

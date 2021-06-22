@@ -79,7 +79,9 @@ var (
 	serverDisableAuth       = serverCommand.Flag("disable-authentication", "Disable client authentication, no client certificate will be required.").Default("false").Bool()
 	serverAutoACMEFQDN      = serverCommand.Flag("auto-acme-cert", "Automatically obtain a certificate via ACME for the specified FQDN").PlaceHolder("www.example.com").String()
 	serverAutoACMEEmail     = serverCommand.Flag("auto-acme-email", "Email address associated with all ACME requests").PlaceHolder("admin@#example.com").String()
-	serverAutoACMEUseTestCA = serverCommand.Flag("auto-acme-testca", "Use the ACME CA's Test/Staging environemnt.").Hidden().Default("false").Bool()
+	serverAutoACMEAgreedTOS = serverCommand.Flag("auto-acme-agree-to-tos", "Agree to the Terms of Service of the ACME CA").Default("false").Bool()
+	serverAutoACMEProdCA    = serverCommand.Flag("auto-acme-ca", "Specify the URL to the ACME CA. Defaults to Let's Encrypt if not specified.").PlaceHolder("https://some-acme-ca.example.com/").String()
+	serverAutoACMETestCA    = serverCommand.Flag("auto-acme-testca", "Specify the URL to the ACME CA's Test/Staging environemnt. If set, all requests will go to this CA and --auto-acme-ca will be ignored.").PlaceHolder("https://testing.some-acme-ca.example.com/").String()
 
 	clientCommand       = app.Command("client", "Client mode (plain TCP/UNIX listener -> TLS target).")
 	clientListenAddress = clientCommand.Flag("listen", "Address and port to listen on (can be HOST:PORT, unix:PATH, systemd:NAME or launchd:NAME).").PlaceHolder("ADDR").Required().String()
@@ -300,9 +302,15 @@ func serverValidateFlags() error {
 	if !*serverUnsafeTarget && !consideredSafe(*serverForwardAddress) {
 		return errors.New("--target must be unix:PATH or localhost:PORT (unless --unsafe-target is set)")
 	}
-	if *serverAutoACMEFQDN != "" && *serverAutoACMEEmail == "" {
-		return errors.New("--auto-cert-acme was specified but no email address was provided with --auto-acme-email")
+	if *serverAutoACMEFQDN != "" {
+		if *serverAutoACMEEmail == "" {
+			return errors.New("--auto-cert-acme was specified but no email address was provided with --auto-acme-email")
+		}
+		if !*serverAutoACMEAgreedTOS {
+			return errors.New("--auto-acme-agree-to-tos was not specified and is required if --auto-acme-cert is specified")
+		}
 	}
+
 	if err := validateCipherSuites(); err != nil {
 		return err
 	}
@@ -781,7 +789,14 @@ func getTLSConfigSource() (certloader.TLSConfigSource, error) {
 	}
 
 	if *serverAutoACMEFQDN != "" {
-		source, err := certloader.TLSConfigSourceFromACME(*serverAutoACMEFQDN, *serverAutoACMEEmail, *serverAutoACMEUseTestCA)
+		acmeConfig := certloader.ACMEConfig{
+			FQDN:      *serverAutoACMEFQDN,
+			Email:     *serverAutoACMEEmail,
+			TOSAgreed: *serverAutoACMEAgreedTOS,
+			ProdCAURL: *serverAutoACMEProdCA,
+			TestCAURL: *serverAutoACMETestCA,
+		}
+		source, err := certloader.TLSConfigSourceFromACME(&acmeConfig)
 		if err != nil {
 			logger.Printf("error: Unable to load or obtain ACME cert: %s\n", err)
 			return nil, err

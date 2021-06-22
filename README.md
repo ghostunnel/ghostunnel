@@ -41,7 +41,7 @@ will get picked up transparently. And on platforms with `SO_REUSEPORT` support,
 restarts can be done with minimal downtime.
 
 **[ACME Support](#acme-support)**: In server mode, Ghostunnel can optionally
-obtain and automatically renew a public TLS certificate from Let's Encrypt.
+obtain and automatically renew a public TLS certificate via the ACME protocol.
 
 **[Monitoring and metrics](#metrics--profiling)**: Ghostunnel has a built-in
 status feature that can be used to collect metrics and monitor a running
@@ -285,12 +285,19 @@ was loaded from the HSM previously, everything else works the same.
 
 ### ACME Support
 
-To have Ghostunnel automatically obtain and renew a public TLS certificate via ACME
-from Let's Encrypt, use the `--auto-acme-cert=` flag
-(e.g. - `--auto-acme-cert=myservice.example.com`).  You must also specify an
-email address so you will get notices from Let's Encrypt about potentially
-important certificate lifecycle events. Specify the email address with the
-`--auto-acme-email=` flag.
+To have Ghostunnel automatically obtain and renew a public TLS certificate via ACME,
+use the `--auto-acme-cert=` flag (e.g. - `--auto-acme-cert=myservice.example.com`).
+You must also specify an email address so you will get notices from the CA about
+potentially important certificate lifecycle events. Specify the email address with
+the `--auto-acme-email=` flag. To use this feature, you must also specify the
+`--auto-acme-agree-to-tos` flag to indicate your explicit agreement with the CA's
+Terms of Service.
+
+Ghostunnel defaults to using Let's Encrypt, but you can specify a different ACME
+CA URL using the `--auto-acme-ca=` flag. If you wish to test Ghostunnel's ACME
+features against a non-production ACME CA, use the `--auto-acme-testca=` flag.
+If `--auto-acme-testca` is specified, all ACME interaction will be with the
+specified test CA URL and the `--auto-acme-ca=` flag will be ignored.
 
 ACME is only supported in server mode. Additionally, Ghostunnel must either be
 listening to a public interface on tcp/443, or somehow have a public tcp/443
