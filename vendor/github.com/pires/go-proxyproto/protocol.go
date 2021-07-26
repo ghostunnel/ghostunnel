@@ -13,9 +13,10 @@ import (
 // If the connection is using the protocol, the RemoteAddr() will return
 // the correct client address.
 type Listener struct {
-	Listener       net.Listener
-	Policy         PolicyFunc
-	ValidateHeader Validator
+	Listener          net.Listener
+	Policy            PolicyFunc
+	ValidateHeader    Validator
+	ReadHeaderTimeout time.Duration
 }
 
 // Conn is used to wrap and underlying connection which
@@ -50,6 +51,10 @@ func (p *Listener) Accept() (net.Conn, error) {
 	conn, err := p.Listener.Accept()
 	if err != nil {
 		return nil, err
+	}
+
+	if d := p.ReadHeaderTimeout; d != 0 {
+		conn.SetReadDeadline(time.Now().Add(d))
 	}
 
 	proxyHeaderPolicy := USE

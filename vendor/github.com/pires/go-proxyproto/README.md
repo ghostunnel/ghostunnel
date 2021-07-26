@@ -119,6 +119,38 @@ func main() {
 }
 ```
 
+### HTTP Server
+```go
+package main
+
+import (
+	"net"
+	"net/http"
+	"time"
+
+	"github.com/pires/go-proxyproto"
+)
+
+func main() {
+	server := http.Server{
+		Addr: ":8080",
+	}
+
+	ln, err := net.Listen("tcp", server.Addr)
+	if err != nil {
+		panic(err)
+	}
+
+	proxyListener := &proxyproto.Listener{
+		Listener:          ln,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+	defer proxyListener.Close()
+
+	server.Serve(proxyListener)
+}
+```
+
 ## Special notes
 
 ### AWS

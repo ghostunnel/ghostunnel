@@ -18,7 +18,7 @@ require (
 	github.com/miekg/pkcs11 v1.0.3 // indirect
 	github.com/mitchellh/copystructure v1.1.2 // indirect
 	github.com/mwitkow/go-http-dialer v0.0.0-20161116154839-378f744fb2b8
-	github.com/pires/go-proxyproto v0.5.0
+	github.com/pires/go-proxyproto v0.6.0
 	github.com/prometheus/client_golang v1.10.0
 	github.com/prometheus/common v0.21.0 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475
