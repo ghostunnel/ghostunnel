@@ -65,18 +65,23 @@ var (
 var (
 	app = kingpin.New("ghostunnel", "A simple SSL/TLS proxy with mutual authentication for securing non-TLS services.")
 
-	serverCommand        = app.Command("server", "Server mode (TLS listener -> plain TCP/UNIX target).")
-	serverListenAddress  = serverCommand.Flag("listen", "Address and port to listen on (can be HOST:PORT, unix:PATH, systemd:NAME or launchd:NAME).").PlaceHolder("ADDR").Required().String()
-	serverForwardAddress = serverCommand.Flag("target", "Address to forward connections to (can be HOST:PORT or unix:PATH).").PlaceHolder("ADDR").Required().String()
-	serverProxyProtocol  = serverCommand.Flag("proxy-protocol", "Enable PROXY protocol v2 to signal connection info to backend").Bool()
-	serverUnsafeTarget   = serverCommand.Flag("unsafe-target", "If set, does not limit target to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
-	serverAllowAll       = serverCommand.Flag("allow-all", "Allow all clients, do not check client cert subject.").Bool()
-	serverAllowedCNs     = serverCommand.Flag("allow-cn", "Allow clients with given common name (can be repeated).").PlaceHolder("CN").Strings()
-	serverAllowedOUs     = serverCommand.Flag("allow-ou", "Allow clients with given organizational unit name (can be repeated).").PlaceHolder("OU").Strings()
-	serverAllowedDNSs    = serverCommand.Flag("allow-dns", "Allow clients with given DNS subject alternative name (can be repeated).").PlaceHolder("DNS").Strings()
-	serverAllowedIPs     = serverCommand.Flag("allow-ip", "").Hidden().PlaceHolder("SAN").IPList()
-	serverAllowedURIs    = serverCommand.Flag("allow-uri", "Allow clients with given URI subject alternative name (can be repeated).").PlaceHolder("URI").Strings()
-	serverDisableAuth    = serverCommand.Flag("disable-authentication", "Disable client authentication, no client certificate will be required.").Default("false").Bool()
+	serverCommand           = app.Command("server", "Server mode (TLS listener -> plain TCP/UNIX target).")
+	serverListenAddress     = serverCommand.Flag("listen", "Address and port to listen on (can be HOST:PORT, unix:PATH, systemd:NAME or launchd:NAME).").PlaceHolder("ADDR").Required().String()
+	serverForwardAddress    = serverCommand.Flag("target", "Address to forward connections to (can be HOST:PORT or unix:PATH).").PlaceHolder("ADDR").Required().String()
+	serverProxyProtocol     = serverCommand.Flag("proxy-protocol", "Enable PROXY protocol v2 to signal connection info to backend").Bool()
+	serverUnsafeTarget      = serverCommand.Flag("unsafe-target", "If set, does not limit target to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
+	serverAllowAll          = serverCommand.Flag("allow-all", "Allow all clients, do not check client cert subject.").Bool()
+	serverAllowedCNs        = serverCommand.Flag("allow-cn", "Allow clients with given common name (can be repeated).").PlaceHolder("CN").Strings()
+	serverAllowedOUs        = serverCommand.Flag("allow-ou", "Allow clients with given organizational unit name (can be repeated).").PlaceHolder("OU").Strings()
+	serverAllowedDNSs       = serverCommand.Flag("allow-dns", "Allow clients with given DNS subject alternative name (can be repeated).").PlaceHolder("DNS").Strings()
+	serverAllowedIPs        = serverCommand.Flag("allow-ip", "").Hidden().PlaceHolder("SAN").IPList()
+	serverAllowedURIs       = serverCommand.Flag("allow-uri", "Allow clients with given URI subject alternative name (can be repeated).").PlaceHolder("URI").Strings()
+	serverDisableAuth       = serverCommand.Flag("disable-authentication", "Disable client authentication, no client certificate will be required.").Default("false").Bool()
+	serverAutoACMEFQDN      = serverCommand.Flag("auto-acme-cert", "Automatically obtain a certificate via ACME for the specified FQDN").PlaceHolder("www.example.com").String()
+	serverAutoACMEEmail     = serverCommand.Flag("auto-acme-email", "Email address associated with all ACME requests").PlaceHolder("admin@#example.com").String()
+	serverAutoACMEAgreedTOS = serverCommand.Flag("auto-acme-agree-to-tos", "Agree to the Terms of Service of the ACME CA").Default("false").Bool()
+	serverAutoACMEProdCA    = serverCommand.Flag("auto-acme-ca", "Specify the URL to the ACME CA. Defaults to Let's Encrypt if not specified.").PlaceHolder("https://some-acme-ca.example.com/").String()
+	serverAutoACMETestCA    = serverCommand.Flag("auto-acme-testca", "Specify the URL to the ACME CA's Test/Staging environemnt. If set, all requests will go to this CA and --auto-acme-ca will be ignored.").PlaceHolder("https://testing.some-acme-ca.example.com/").String()
 
 	clientCommand       = app.Command("client", "Client mode (plain TCP/UNIX listener -> TLS target).")
 	clientListenAddress = clientCommand.Flag("listen", "Address and port to listen on (can be HOST:PORT, unix:PATH, systemd:NAME or launchd:NAME).").PlaceHolder("ADDR").Required().String()
@@ -272,13 +277,15 @@ func serverValidateFlags() error {
 		(*certPath != "" && hasPKCS11()),
 		// SPIFFE Workload API
 		*useWorkloadAPI,
+		// Auto via ACME
+		*serverAutoACMEFQDN != "",
 	})
 
 	if hasValidCredentials == 0 {
-		return errors.New("at least one of --keystore, --cert/--key or --keychain-identity (if supported) flags is required")
+		return errors.New("at least one of --keystore, --cert/--key, --auto-acme-cert, or --keychain-identity (if supported) flags is required")
 	}
 	if hasValidCredentials > 1 {
-		return errors.New("--keystore, --cert/--key and --keychain-identity flags are mutually exclusive")
+		return errors.New("--keystore, --cert/--key, --auto-acme-cert, and --keychain-identity flags are mutually exclusive")
 	}
 	if (*keyPath != "" && *certPath == "") || (*certPath != "" && *keyPath == "" && !hasPKCS11()) {
 		return errors.New("--cert/--key must be set together, unless using PKCS11 for private key")
@@ -295,6 +302,15 @@ func serverValidateFlags() error {
 	if !*serverUnsafeTarget && !consideredSafe(*serverForwardAddress) {
 		return errors.New("--target must be unix:PATH or localhost:PORT (unless --unsafe-target is set)")
 	}
+	if *serverAutoACMEFQDN != "" {
+		if *serverAutoACMEEmail == "" {
+			return errors.New("--auto-cert-acme was specified but no email address was provided with --auto-acme-email")
+		}
+		if !*serverAutoACMEAgreedTOS {
+			return errors.New("--auto-acme-agree-to-tos was not specified and is required if --auto-acme-cert is specified")
+		}
+	}
+
 	if err := validateCipherSuites(); err != nil {
 		return err
 	}
@@ -403,15 +419,17 @@ func run(args []string) error {
 	}
 	metrics := sqmetrics.NewMetrics(*metricsURL, *metricsPrefix, client, *metricsInterval, metrics.DefaultRegistry, logger)
 
-	tlsConfigSource, err := getTLSConfigSource()
-	if err != nil {
-		return err
-	}
-
 	switch command {
 	case serverCommand.FullCommand():
 		if err := serverValidateFlags(); err != nil {
 			logger.Printf("error: %s\n", err)
+			return err
+		}
+
+		// Duplicating this call to getTLSConfigSource() in all switch cases
+		// because we need to complete the validation of the command flags first.
+		tlsConfigSource, err := getTLSConfigSource()
+		if err != nil {
 			return err
 		}
 
@@ -442,6 +460,13 @@ func run(args []string) error {
 	case clientCommand.FullCommand():
 		if err := clientValidateFlags(); err != nil {
 			logger.Printf("error: %s\n", err)
+			return err
+		}
+
+		// Duplicating this call to getTLSConfigSource() in all switch cases
+		// because we need to complete the validation of the command flags first.
+		tlsConfigSource, err := getTLSConfigSource()
+		if err != nil {
 			return err
 		}
 
@@ -758,6 +783,22 @@ func getTLSConfigSource() (certloader.TLSConfigSource, error) {
 		source, err := certloader.TLSConfigSourceFromWorkloadAPI(*useWorkloadAPIAddr, logger)
 		if err != nil {
 			logger.Printf("error: unable to create workload API TLS source: %s\n", err)
+			return nil, err
+		}
+		return source, nil
+	}
+
+	if *serverAutoACMEFQDN != "" {
+		acmeConfig := certloader.ACMEConfig{
+			FQDN:      *serverAutoACMEFQDN,
+			Email:     *serverAutoACMEEmail,
+			TOSAgreed: *serverAutoACMEAgreedTOS,
+			ProdCAURL: *serverAutoACMEProdCA,
+			TestCAURL: *serverAutoACMETestCA,
+		}
+		source, err := certloader.TLSConfigSourceFromACME(&acmeConfig)
+		if err != nil {
+			logger.Printf("error: Unable to load or obtain ACME cert: %s\n", err)
 			return nil, err
 		}
 		return source, nil

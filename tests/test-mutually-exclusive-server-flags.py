@@ -41,8 +41,32 @@ if __name__ == "__main__":
                                       '--key=server.crt',
                                       '--cacert=root.crt'])
         assert_not_zero(ghostunnel4)
+
+        ghostunnel5 = run_ghostunnel(['server',
+                                      '--listen={0}:13001'.format(LOCALHOST),
+                                      '--target={0}:13002'.format(LOCALHOST),
+                                      '--cert=server.crt',
+                                      '--key=server.key',
+                                      '--auto-acme-cert=www.example.com',
+                                      '--auto-acme-email=admin@example.com',
+                                      '--auto-acme-testca=https://acme-staging-v02.api.letsencrypt.org/directory',
+                                      '--auto-acme-agree-to-tos'])
+        assert_not_zero(ghostunnel5)
+
+        ghostunnel6 = run_ghostunnel(['server',
+                                      '--listen={0}:13001'.format(LOCALHOST),
+                                      '--target={0}:13002'.format(LOCALHOST),
+                                      '--use-workload-api',
+                                      '--auto-acme-cert=www.example.com',
+                                      '--auto-acme-email=admin@example.com',
+                                      '--auto-acme-testca=https://acme-staging-v02.api.letsencrypt.org/directory',
+                                      '--auto-acme-agree-to-tos'])
+        assert_not_zero(ghostunnel6)
+
     finally:
         terminate(ghostunnel1)
         terminate(ghostunnel2)
         terminate(ghostunnel3)
         terminate(ghostunnel4)
+        terminate(ghostunnel5)
+        terminate(ghostunnel6)
