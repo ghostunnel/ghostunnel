@@ -55,6 +55,7 @@ var (
 // Optional flags (enabled conditionally based on build)
 var (
 	keychainIdentity     *string //nolint:golint,unused
+	keychainIssuer       *string //nolint:golint,unused
 	keychainRequireToken *bool   //nolint:golint,unused
 	pkcs11Module         *string //nolint:golint,unused
 	pkcs11TokenLabel     *string //nolint:golint,unused
@@ -131,9 +132,10 @@ var (
 func init() {
 	// Optional keychain identity flag, if compiled for a supported platform
 	if certloader.SupportsKeychain() {
-		keychainIdentity = app.Flag("keychain-identity", "Use local keychain identity with given common name (instead of keystore file).").PlaceHolder("CN").String()
+		keychainIdentity = app.Flag("keychain-identity", "Use local keychain identity with given serial/common name (instead of keystore file).").PlaceHolder("CN").String()
+		keychainIssuer = app.Flag("keychain-issuer", "Use local keychain identity with given issuer name (instead of keystore file).").PlaceHolder("CN").String()
 		if runtime.GOOS == "darwin" {
-			keychainRequireToken = app.Flag("keychain-require-token", "Require keychain identity to be from a physical token.").Bool()
+			keychainRequireToken = app.Flag("keychain-require-token", "Require keychain identity to be from a physical token (sets 'access group' to 'token').").Bool()
 		}
 	}
 
@@ -174,7 +176,7 @@ type Dialer interface {
 var logger = log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
 
 func initLogger(syslog bool, flags []string) (err error) {
-	// If user has indicated request for syslog, override default stderr
+	// If user has indicated request for syslog, override default stdout
 	// logger with a syslog one instead. This can fail, e.g. in containers
 	// that don't have syslog available.
 	for _, flag := range flags {
@@ -282,10 +284,10 @@ func serverValidateFlags() error {
 	})
 
 	if hasValidCredentials == 0 {
-		return errors.New("at least one of --keystore, --cert/--key, --auto-acme-cert, or --keychain-identity (if supported) flags is required")
+		return errors.New("at least one of --keystore, --cert/--key, --auto-acme-cert, or --keychain-identity/issuer (if supported) flags is required")
 	}
 	if hasValidCredentials > 1 {
-		return errors.New("--keystore, --cert/--key, --auto-acme-cert, and --keychain-identity flags are mutually exclusive")
+		return errors.New("--keystore, --cert/--key, --auto-acme-cert, and --keychain-identity/issuer flags are mutually exclusive")
 	}
 	if (*keyPath != "" && *certPath == "") || (*certPath != "" && *keyPath == "" && !hasPKCS11()) {
 		return errors.New("--cert/--key must be set together, unless using PKCS11 for private key")
@@ -336,10 +338,10 @@ func clientValidateFlags() error {
 	})
 
 	if hasValidCredentials == 0 {
-		return errors.New("at least one of --keystore, --cert/--key, --keychain-identity (if supported) or --disable-authentication flags is required")
+		return errors.New("at least one of --keystore, --cert/--key, --keychain-identity/issuer (if supported) or --disable-authentication flags is required")
 	}
 	if hasValidCredentials > 1 {
-		return errors.New("--keystore, --cert/--key, --keychain-identity and --disable-authentication flags are mutually exclusive")
+		return errors.New("--keystore, --cert/--key, --keychain-identity/issuer and --disable-authentication flags are mutually exclusive")
 	}
 	if (*keyPath != "" && *certPath == "") || (*certPath != "" && *keyPath == "" && !hasPKCS11()) {
 		return errors.New("--cert/--key must be set together, unless using PKCS11 for private key")

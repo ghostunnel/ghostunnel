@@ -30,8 +30,10 @@ import (
 )
 
 type certstoreCertificate struct {
-	// Common name of keychain identity
-	commonName string
+	// Common name or serial number of keychain identity
+	commonNameOrSerial string
+	// Issuer name of keychain identity
+	issuerName string
 	// Root CA bundle path
 	caBundlePath string
 	// Require use of hardware token?
@@ -43,17 +45,20 @@ type certstoreCertificate struct {
 }
 
 // SupportsKeychain returns true or false, depending on whether the
-// binary was built with Certstore/Keychain support or not (requires CGO, recent
-// Darwin to build).
+// binary was built with Certstore/Keychain support or not (requires CGO,
+// recent Darwin to build).
 func SupportsKeychain() bool {
 	return true
 }
 
 // CertificateFromKeychainIdentity creates a reloadable certificate from a system keychain identity.
-func CertificateFromKeychainIdentity(commonName string, caBundlePath string, requireToken bool) (Certificate, error) {
+func CertificateFromKeychainIdentity(
+	commonNameOrSerial string, issuerName string, caBundlePath string, requireToken bool,
+) (Certificate, error) {
 	c := certstoreCertificate{
-		commonName:   commonName,
-		caBundlePath: caBundlePath,
+		commonNameOrSerial: commonNameOrSerial,
+		issuerName:         issuerName,
+		caBundlePath:       caBundlePath,
 	}
 	err := c.Reload()
 	if err != nil {
@@ -79,8 +84,8 @@ func (c *certstoreCertificate) Reload() error {
 		return err
 	}
 
-	// filter any certificates with the matching name, as the keychain allows
-	// multiple certificates with the same name
+	// Filter any certificates with the matching serial/name/issuer,
+	// as the keychain allows multiple certificates with the same name.
 	var candidates []certstore.Identity
 	for _, identity := range identities {
 		chain, err := identity.CertificateChain()
@@ -88,13 +93,26 @@ func (c *certstoreCertificate) Reload() error {
 			continue
 		}
 
-		if chain[0].Subject.CommonName == c.commonName {
+		bothFiltersPresent := c.commonNameOrSerial != "" && c.issuerName != ""
+		issuerNameMatches := chain[0].Issuer.CommonName == c.issuerName
+
+		commonNameOrSerialMatches :=
+			chain[0].SerialNumber.String() == c.commonNameOrSerial ||
+				chain[0].Subject.CommonName == c.commonNameOrSerial
+
+		if (bothFiltersPresent && commonNameOrSerialMatches && issuerNameMatches) ||
+			(!bothFiltersPresent && (commonNameOrSerialMatches || issuerNameMatches)) {
+			// If both a serial/name and an issuer was specified, we want to
+			// filter on both of them to support e.g. a case where there's two
+			// certs with the same name but from different issuers. If only one
+			// of serial/name or issuer was specified we'll take the certs that
+			// match whatever we have.
 			candidates = append(candidates, identity)
 		}
 	}
 
 	if len(candidates) == 0 {
-		return fmt.Errorf("unable to find identity with common name '%s' in keychain", c.commonName)
+		return fmt.Errorf("unable to find identity in keychain, check requested name/issuer")
 	}
 
 	// sort the candidates by descending NotAfter
@@ -117,11 +135,11 @@ func (c *certstoreCertificate) Reload() error {
 	chosenIdentity := candidates[0]
 	chain, err := chosenIdentity.CertificateChain()
 	if err != nil {
-		return fmt.Errorf("unable to find identity with common name '%s' in keychain", c.commonName)
+		return fmt.Errorf("unable to read identity from keychain: %w", err)
 	}
 	signer, err := chosenIdentity.Signer()
 	if err != nil {
-		return fmt.Errorf("unable to find identity with common name '%s' in keychain", c.commonName)
+		return fmt.Errorf("unable to read identity from keychain: %w", err)
 	}
 
 	certAndKey := &tls.Certificate{
