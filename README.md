@@ -15,12 +15,10 @@ a TCP domain/port or a UNIX domain socket. Ghostunnel in client mode accepts
 (insecure) connections through a TCP or UNIX domain socket and proxies them to
 a TLS-secured service. In other words, ghostunnel is a replacement for stunnel.
 
-**Supported platforms**: Ghostunnel is developed primarily for Linux on x86-64
-platforms, although it should run on any UNIX system that exposes `SO_REUSEPORT`,
-including Darwin (macOS), FreeBSD, OpenBSD and NetBSD. Ghostunnel also supports
-running on Windows, though with a reduced feature set. We recommend running on
-x86-64 to benefit from constant-time implementations of cryptographic algorithms
-that are not available on other platforms.
+**Supported platforms**: Ghostunnel is developed primarily for Linux and Darwin
+(macOS), although it should run on any UNIX system that exposes `SO_REUSEPORT`,
+including FreeBSD, OpenBSD and NetBSD. Ghostunnel also supports running on
+Windows, though with a reduced feature set. 
 
 See `ghostunnel --help`, `ghostunnel server --help` and `ghostunnel client --help`.
 
@@ -49,12 +47,12 @@ instance. Metrics can be fed into Graphite (or other systems) to see number of
 open connections, rate of new connections, connection lifetimes, timeouts, and
 other info.
 
-**[Emphasis on security](BUG-BOUNTY.md)**: We have put some thought into making ghostunnel
-secure by default and prevent accidental misconfiguration. For example,  we
-always negotiate TLS v1.2 (or greater) and only use safe cipher suites. Ghostunnel also
-supports PKCS#11 which makes it possible to use Hardware Security Modules
-(HSMs) to protect private keys, and we have a bug bounty that
-pays rewards for security findings. 
+**[Emphasis on security](BUG-BOUNTY.md)**: We have put some thought into making
+ghostunnel secure by default and prevent accidental misconfiguration. For example, 
+we always negotiate TLS v1.2 (or greater) and only use safe cipher suites. Ghostunnel
+also supports PKCS#11 which makes it possible to use Hardware Security Modules (HSMs)
+to protect private keys, and Square has a bug bounty that pays rewards for security
+findings. 
 
 Getting Started
 ===============
@@ -74,7 +72,7 @@ Ghostunnel is available through [GitHub releases][rel] and through [Docker Hub][
     # Compile for local architecture
     make ghostunnel
 
-Note that ghostunnel requires Go 1.12 or later to build, and CGO is required for
+Note that ghostunnel requires Go 1.16 or later to build, and CGO is required for
 PKCS#11 support.
 
 [rel]: https://github.com/ghostunnel/ghostunnel/releases
@@ -347,22 +345,31 @@ this option.
 
 ### MacOS Keychain Support (experimental)
 
-If ghostunnel has been compiled with build tag `certstore` (off by default,
-requires macOS 10.12+) a new flag will be available that allows for loading
-certificates from the macOS keychain. This is useful if you have identities
-stored in your local keychain that you want to use with ghostunnel, e.g. if you
-want your private key(s) to be backed by the SEP on newer Touch ID MacBooks.
-Certificates from the keychain can be loaded by selecting them based on the
-Common Name (CN) of the subject.
+Ghostunnel supports loading certificates from the macOS keychain. This is useful
+if you have identities stored in your local keychain that you want to use with
+ghostunnel, e.g. if you want your private key(s) to be backed by the SEP on newer
+Touch ID MacBooks. Certificates from the keychain can be loaded by selecting them
+based on the serial number, Common Name (CN) of the subject, or Common Name (CN)
+of the issuer.
 
-For example, if you have an identity with CN 'example' in your login keychain:
+For example, to load an identity based on subject name login keychain:
 
     ghostunnel client \
-        --keychain-identity example \
+        --keychain-identity <common-name-or-serial> \
         --listen unix:/path/to/unix/socket \
         --target example.com:443 \
         --cacert test-keys/cacert.pem
 
-The command above launches a ghostunnel instance that uses the certificate and
-private key with Common Name 'example' from your login keychain to proxy plaintext
-connections from a given UNIX socket to example.com:443.
+Or, if you'd like to load an identity by filtering on issuer name:
+
+    ghostunnel client \
+        --keychain-issuer <issuer-common-name> \
+        --listen unix:/path/to/unix/socket \
+        --target example.com:443 \
+        --cacert test-keys/cacert.pem
+
+Both commands above launch a ghostunnel instance that uses the certificate and
+private key for the selected keychain identity to proxy plaintext connections from
+a given UNIX socket to example.com:443. Note that combing both the identity and
+issuer flags in one command will cause ghostunnel to select certificates where both
+attributes match (matching with AND on both subject name/issuer).
