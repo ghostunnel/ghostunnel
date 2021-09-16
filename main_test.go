@@ -202,14 +202,21 @@ func TestServerFlagValidation(t *testing.T) {
 	err = serverValidateFlags()
 	assert.NotNil(t, err, "--keystore and --keychain-identity can't be set at the same time")
 
+	keychainIdentity = nil
+	keychainIssuer = &test
+	err = serverValidateFlags()
+	assert.NotNil(t, err, "--keystore and --keychain-issuer can't be set at the same time")
+
 	*keystorePath = ""
 	*certPath = "file"
 	*keyPath = "file"
+	keychainIdentity = &test
 	err = serverValidateFlags()
-	assert.NotNil(t, err, "--cert and --keychain-identity can't be set at the same time")
+	assert.NotNil(t, err, "--cert and --keychain-identity/issuer can't be set at the same time")
 	*certPath = ""
 	*keyPath = ""
 	keychainIdentity = nil
+	keychainIssuer = nil
 
 	*keystorePath = "test"
 	*serverDisableAuth = true

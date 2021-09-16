@@ -62,7 +62,7 @@ func buildCertificate(keystorePath, certPath, keyPath, keystorePass, caBundlePat
 		}
 	}
 	if hasKeychainIdentity() {
-		return certloader.CertificateFromKeychainIdentity(*keychainIdentity, caBundlePath, *keychainRequireToken)
+		return certloader.CertificateFromKeychainIdentity(*keychainIdentity, *keychainIssuer, caBundlePath, *keychainRequireToken)
 	}
 	if keyPath != "" && certPath != "" {
 		return certloader.CertificateFromPEMFiles(certPath, keyPath, caBundlePath)
@@ -82,7 +82,7 @@ func hasPKCS11() bool {
 }
 
 func hasKeychainIdentity() bool {
-	return keychainIdentity != nil && *keychainIdentity != ""
+	return (keychainIdentity != nil && *keychainIdentity != "") || (keychainIssuer != nil && *keychainIssuer != "")
 }
 
 // buildConfig builds a generic tls.Config
