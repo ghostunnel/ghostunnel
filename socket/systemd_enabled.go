@@ -1,4 +1,4 @@
-// +build linux
+//go:build linux
 
 /*-
  * Copyright 2019 Square Inc.
