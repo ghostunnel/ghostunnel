@@ -59,6 +59,7 @@ func CertificateFromKeychainIdentity(
 		commonNameOrSerial: commonNameOrSerial,
 		issuerName:         issuerName,
 		caBundlePath:       caBundlePath,
+		requireToken:       requireToken,
 	}
 	err := c.Reload()
 	if err != nil {
