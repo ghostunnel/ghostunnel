@@ -90,6 +90,6 @@ func (context *Context) reload() {
 	if err := context.tlsConfigSource.Reload(); err != nil {
 		logger.Printf("error reloading TLS configuration: %s", err)
 	}
-	logger.Printf("reloading complete")
+	logger.Printf("reloading TLS configuration complete")
 	context.status.Listening()
 }

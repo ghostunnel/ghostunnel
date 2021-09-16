@@ -103,6 +103,12 @@ func (c *pkcs11Certificate) Reload() error {
 	return nil
 }
 
+// GetIdentifier returns an identifier for the certificate for logging.
+func (c *pkcs11Certificate) GetIdentifier() string {
+	cert, _ := c.GetCertificate(nil)
+	return cert.Leaf.Subject.String()
+}
+
 // GetCertificate retrieves the actual underlying tls.Certificate.
 func (c *pkcs11Certificate) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 	return (*tls.Certificate)(atomic.LoadPointer(&c.cachedCertificate)), nil

@@ -29,6 +29,9 @@ type Certificate interface {
 	// state is kept.
 	Reload() error
 
+	// GetIdentifier returns an identifier for the certificate for logging.
+	GetIdentifier() string
+
 	// GetCertificate returns the current underlying certificate.
 	// Can be used for tls.Config's GetCertificate callback.
 	GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error)

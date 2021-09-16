@@ -3,20 +3,30 @@ package certloader
 import (
 	"crypto/tls"
 	"errors"
+	"log"
 )
 
-func TLSConfigSourceFromCertificate(cert Certificate) TLSConfigSource {
+func TLSConfigSourceFromCertificate(cert Certificate, logger *log.Logger) TLSConfigSource {
 	return &certTLSConfigSource{
-		cert: cert,
+		cert:   cert,
+		logger: logger,
 	}
 }
 
 type certTLSConfigSource struct {
-	cert Certificate
+	cert   Certificate
+	logger *log.Logger
 }
 
 func (c *certTLSConfigSource) Reload() error {
-	return c.cert.Reload()
+	err := c.cert.Reload()
+	if err != nil {
+		id := c.cert.GetIdentifier()
+		if id != "" {
+			c.logger.Printf("loaded certificate: %s", id)
+		}
+	}
+	return err
 }
 
 func (c *certTLSConfigSource) CanServe() bool {
