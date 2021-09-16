@@ -72,7 +72,7 @@ Ghostunnel is available through [GitHub releases][rel] and through [Docker Hub][
     # Compile for local architecture
     make ghostunnel
 
-Note that ghostunnel requires Go 1.16 or later to build, and CGO is required for
+Note that ghostunnel requires Go 1.17 or later to build, and CGO is required for
 PKCS#11 support.
 
 [rel]: https://github.com/ghostunnel/ghostunnel/releases
