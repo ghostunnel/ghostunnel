@@ -35,6 +35,9 @@ func TestNoCertificate(t *testing.T) {
 	cert, err := NoCertificate(cabundle.Name())
 	assert.Nil(t, err, "should read valid bundle")
 
+	id := cert.GetIdentifier()
+	assert.Equal(t, id, "", "no cert should have empty id")
+
 	c, err := cert.GetCertificate(nil)
 	assert.Nil(t, err, "should not error on GetCertificate")
 	assert.NotNil(t, c, "should have non-nil server cert")

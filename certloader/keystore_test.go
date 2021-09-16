@@ -85,6 +85,9 @@ func TestCertificateFromPEMFilesValid(t *testing.T) {
 	cert, err := CertificateFromPEMFiles(file.Name(), file.Name(), file.Name())
 	assert.Nil(t, err, "should read PEM file with certificate & private key")
 
+	id := cert.GetIdentifier()
+	assert.Equal(t, id, "CN=server", "cert should not have empty id")
+
 	c0, err := cert.GetCertificate(nil)
 	assert.Nil(t, err, "should have a valid tls.Certificate on GetCertificate call")
 

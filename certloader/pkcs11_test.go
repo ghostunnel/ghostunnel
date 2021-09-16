@@ -20,6 +20,8 @@ package certloader
 
 import (
 	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"testing"
 	"unsafe"
 
@@ -32,10 +34,19 @@ func TestInvalidPKCS11Module(t *testing.T) {
 }
 
 func TestGetCachedCertificatePKCS11(t *testing.T) {
-	tlscert := &tls.Certificate{}
+	tlscert := &tls.Certificate{
+		Leaf: &x509.Certificate{
+			Subject: pkix.Name{
+				CommonName: "test",
+			},
+		},
+	}
 	p11cert := &pkcs11Certificate{
 		cachedCertificate: unsafe.Pointer(tlscert),
 	}
+
+	id := p11cert.GetIdentifier()
+	assert.Equal(t, id, "CN=test", "cert should not have empty id")
 
 	c, err := p11cert.GetCertificate(nil)
 	assert.Nil(t, err, "should be able to read certificate")
