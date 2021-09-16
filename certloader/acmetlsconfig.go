@@ -71,7 +71,7 @@ func TLSConfigSourceFromACME(acme *ACMEConfig) (TLSConfigSource, error) {
 
 	magicConfig := certmagic.NewDefault()
 
-	// Force an iniial synchronous load of the certificate on startup. If no certificate
+	// Force an initial synchronous load of the certificate on startup. If no certificate
 	// yet exists, certmagic will attempt to obtain one from the ACME provider. If a valid
 	// cert has already been obtained, it will be loaded from local cache.
 	err := magicConfig.ManageSync([]string{acme.FQDN})

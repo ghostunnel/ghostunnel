@@ -35,19 +35,19 @@ type spiffeLogger struct {
 }
 
 func (l spiffeLogger) Debugf(format string, args ...interface{}) {
-	l.log.Printf("(spiffe) [DEBUG]: "+format, args...)
+	l.log.Printf("spiffe/debug: "+format, args...)
 }
 
 func (l spiffeLogger) Infof(format string, args ...interface{}) {
-	l.log.Printf("(spiffe) [INFO]: "+format, args...)
+	l.log.Printf("spiffe/info: "+format, args...)
 }
 
 func (l spiffeLogger) Warnf(format string, args ...interface{}) {
-	l.log.Printf("(spiffe) [WARN]: "+format, args...)
+	l.log.Printf("spiffe/warn: "+format, args...)
 }
 
 func (l spiffeLogger) Errorf(format string, args ...interface{}) {
-	l.log.Printf("(spiffe) [ERROR]: "+format, args...)
+	l.log.Printf("spiffe/error: "+format, args...)
 }
 
 func TLSConfigSourceFromWorkloadAPI(addr string, logger *log.Logger) (TLSConfigSource, error) {
@@ -92,7 +92,7 @@ func (s *spiffeTLSConfigSource) newConfig(base *tls.Config) (*spiffeTLSConfig, e
 	if err := s.peer.WaitUntilReady(context.TODO()); err != nil {
 		return nil, err
 	}
-	s.log.Printf("received SPIFFE Workload API update.")
+	s.log.Printf("received SPIFFE Workload API update")
 
 	return &spiffeTLSConfig{
 		base: base,

@@ -53,6 +53,11 @@ func (c *trustBundle) Reload() error {
 	return nil
 }
 
+// GetIdentifier returns an identifier for the certificate for logging.
+func (c *trustBundle) GetIdentifier() string {
+	return ""
+}
+
 // GetCertificate retrieves the actual underlying tls.Certificate.
 func (c *trustBundle) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 	return new(tls.Certificate), nil

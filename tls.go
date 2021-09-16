@@ -55,6 +55,7 @@ var cipherSuites = map[string][]uint16{
 // Build reloadable certificate
 func buildCertificate(keystorePath, certPath, keyPath, keystorePass, caBundlePath string) (certloader.Certificate, error) {
 	if hasPKCS11() {
+		logger.Printf("using PKCS#11 module as certificate source")
 		if keystorePath != "" {
 			return buildCertificateFromPKCS11(keystorePath, caBundlePath)
 		} else {
@@ -62,14 +63,18 @@ func buildCertificate(keystorePath, certPath, keyPath, keystorePass, caBundlePat
 		}
 	}
 	if hasKeychainIdentity() {
+		logger.Printf("using operating system keychain as certificate source")
 		return certloader.CertificateFromKeychainIdentity(*keychainIdentity, *keychainIssuer, caBundlePath, *keychainRequireToken)
 	}
 	if keyPath != "" && certPath != "" {
+		logger.Printf("using cert/key files on disk as certificate source")
 		return certloader.CertificateFromPEMFiles(certPath, keyPath, caBundlePath)
 	}
 	if keystorePath != "" {
+		logger.Printf("using keystore file on disk as certificate source")
 		return certloader.CertificateFromKeystore(keystorePath, keystorePass, caBundlePath)
 	}
+	logger.Printf("no cert source configured -- running without certificate")
 	return certloader.NoCertificate(caBundlePath)
 }
 

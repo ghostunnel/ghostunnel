@@ -105,6 +105,12 @@ func (c *keystoreCertificate) Reload() error {
 	return nil
 }
 
+// GetIdentifier returns an identifier for the certificate for logging.
+func (c *keystoreCertificate) GetIdentifier() string {
+	cert, _ := c.GetCertificate(nil)
+	return cert.Leaf.Subject.String()
+}
+
 // GetCertificate retrieves the actual underlying tls.Certificate.
 func (c *keystoreCertificate) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 	return (*tls.Certificate)(atomic.LoadPointer(&c.cachedCertificate)), nil

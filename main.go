@@ -782,6 +782,7 @@ func proxyLoggerFlags(flags []string) int {
 
 func getTLSConfigSource() (certloader.TLSConfigSource, error) {
 	if *useWorkloadAPI {
+		logger.Printf("using SPIFFE Workload API as certificate source")
 		source, err := certloader.TLSConfigSourceFromWorkloadAPI(*useWorkloadAPIAddr, logger)
 		if err != nil {
 			logger.Printf("error: unable to create workload API TLS source: %s\n", err)
@@ -791,6 +792,7 @@ func getTLSConfigSource() (certloader.TLSConfigSource, error) {
 	}
 
 	if *serverAutoACMEFQDN != "" {
+		logger.Printf("using ACME server as certificate source")
 		acmeConfig := certloader.ACMEConfig{
 			FQDN:      *serverAutoACMEFQDN,
 			Email:     *serverAutoACMEEmail,
@@ -811,7 +813,7 @@ func getTLSConfigSource() (certloader.TLSConfigSource, error) {
 		logger.Printf("error: unable to load certificates: %s\n", err)
 		return nil, err
 	}
-	return certloader.TLSConfigSourceFromCertificate(cert), nil
+	return certloader.TLSConfigSourceFromCertificate(cert, logger), nil
 }
 
 func mustGetServerConfig(source certloader.TLSConfigSource, config *tls.Config) certloader.TLSServerConfig {
