@@ -473,9 +473,11 @@ func run(args []string) error {
 		}
 
 		network, address, host, err := socket.ParseAddress(*clientForwardAddress)
-		if err != nil {
-			logger.Printf("error: invalid target address: %s\n", err)
-			return err
+		if *clientConnectProxy == nil {
+			if err != nil {
+				logger.Printf("error: invalid target address: %s\n", err)
+				return err
+			}
 		}
 		logger.Printf("using target address %s", *clientForwardAddress)
 
