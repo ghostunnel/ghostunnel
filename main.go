@@ -87,16 +87,18 @@ var (
 	clientCommand       = app.Command("client", "Client mode (plain TCP/UNIX listener -> TLS target).")
 	clientListenAddress = clientCommand.Flag("listen", "Address and port to listen on (can be HOST:PORT, unix:PATH, systemd:NAME or launchd:NAME).").PlaceHolder("ADDR").Required().String()
 	// Note: can't use .TCP() for clientForwardAddress because we need to set the original string in tls.Config.ServerName.
-	clientForwardAddress = clientCommand.Flag("target", "Address to forward connections to (must be HOST:PORT).").PlaceHolder("ADDR").Required().String()
-	clientUnsafeListen   = clientCommand.Flag("unsafe-listen", "If set, does not limit listen to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
-	clientServerName     = clientCommand.Flag("override-server-name", "If set, overrides the server name used for hostname verification.").PlaceHolder("NAME").String()
-	clientConnectProxy   = clientCommand.Flag("connect-proxy", "If set, connect to target over given HTTP CONNECT proxy. Must be HTTP/HTTPS URL.").PlaceHolder("URL").URL()
-	clientAllowedCNs     = clientCommand.Flag("verify-cn", "Allow servers with given common name (can be repeated).").PlaceHolder("CN").Strings()
-	clientAllowedOUs     = clientCommand.Flag("verify-ou", "Allow servers with given organizational unit name (can be repeated).").PlaceHolder("OU").Strings()
-	clientAllowedDNSs    = clientCommand.Flag("verify-dns", "Allow servers with given DNS subject alternative name (can be repeated).").PlaceHolder("DNS").Strings()
-	clientAllowedIPs     = clientCommand.Flag("verify-ip", "").Hidden().PlaceHolder("SAN").IPList()
-	clientAllowedURIs    = clientCommand.Flag("verify-uri", "Allow servers with given URI subject alternative name (can be repeated).").PlaceHolder("URI").Strings()
-	clientDisableAuth    = clientCommand.Flag("disable-authentication", "Disable client authentication, no certificate will be provided to the server.").Default("false").Bool()
+	clientForwardAddress  = clientCommand.Flag("target", "Address to forward connections to (must be HOST:PORT).").PlaceHolder("ADDR").Required().String()
+	clientUnsafeListen    = clientCommand.Flag("unsafe-listen", "If set, does not limit listen to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
+	clientServerName      = clientCommand.Flag("override-server-name", "If set, overrides the server name used for hostname verification.").PlaceHolder("NAME").String()
+	clientConnectProxy    = clientCommand.Flag("connect-proxy", "If set, connect to target over given HTTP CONNECT proxy. Must be HTTP/HTTPS URL.").PlaceHolder("URL").URL()
+	clientConnectCertPath = clientCommand.Flag("proxy-cert", "Path to certificate (PEM with certificate chain).").PlaceHolder("PATH").Envar("PROXY_CERT_PATH").String()
+	clientConnectKeyPath  = clientCommand.Flag("proxy-key", "Path to certificate private key (PEM with private key).").PlaceHolder("PATH").Envar("PROXY_KEY_PATH").String()
+	clientAllowedCNs      = clientCommand.Flag("verify-cn", "Allow servers with given common name (can be repeated).").PlaceHolder("CN").Strings()
+	clientAllowedOUs      = clientCommand.Flag("verify-ou", "Allow servers with given organizational unit name (can be repeated).").PlaceHolder("OU").Strings()
+	clientAllowedDNSs     = clientCommand.Flag("verify-dns", "Allow servers with given DNS subject alternative name (can be repeated).").PlaceHolder("DNS").Strings()
+	clientAllowedIPs      = clientCommand.Flag("verify-ip", "").Hidden().PlaceHolder("SAN").IPList()
+	clientAllowedURIs     = clientCommand.Flag("verify-uri", "Allow servers with given URI subject alternative name (can be repeated).").PlaceHolder("URI").Strings()
+	clientDisableAuth     = clientCommand.Flag("disable-authentication", "Disable client authentication, no certificate will be provided to the server.").Default("false").Bool()
 
 	// TLS options
 	keystorePath            = app.Flag("keystore", "Path to keystore (combined PEM with cert/key, or PKCS12 keystore).").PlaceHolder("PATH").Envar("KEYSTORE_PATH").String()
@@ -345,6 +347,9 @@ func clientValidateFlags() error {
 	}
 	if (*keyPath != "" && *certPath == "") || (*certPath != "" && *keyPath == "" && !hasPKCS11()) {
 		return errors.New("--cert/--key must be set together, unless using PKCS11 for private key")
+	}
+	if (*clientConnectKeyPath != "") && (*clientConnectCertPath == "") {
+		return errors.New("--proxy-cert/--proxy-key must be set together")
 	}
 	if !*clientUnsafeListen && !consideredSafe(*clientListenAddress) {
 		return fmt.Errorf("--listen must be unix:PATH, localhost:PORT, systemd:NAME or launchd:NAME (unless --unsafe-listen is set)")
@@ -737,6 +742,13 @@ func clientBackendDialer(tlsConfigSource certloader.TLSConfigSource, network, ad
 		proxyConfig, err := buildClientConfig(*enabledCipherSuites)
 		if err != nil {
 			return nil, err
+		}
+		if *clientConnectCertPath != "" {
+			clientCert, err := tls.LoadX509KeyPair(*clientConnectCertPath, *clientConnectKeyPath)
+			if err != nil {
+				return nil, err
+			}
+			proxyConfig.Certificates = []tls.Certificate{clientCert}
 		}
 		config.ClientAuth = tls.NoClientCert
 
