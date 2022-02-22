@@ -370,6 +370,6 @@ Or, if you'd like to load an identity by filtering on issuer name:
 
 Both commands above launch a ghostunnel instance that uses the certificate and
 private key for the selected keychain identity to proxy plaintext connections from
-a given UNIX socket to example.com:443. Note that combing both the identity and
+a given UNIX socket to example.com:443. Note that combining both the identity and
 issuer flags in one command will cause ghostunnel to select certificates where both
 attributes match (matching with AND on both subject name/issuer).
