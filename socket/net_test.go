@@ -23,7 +23,7 @@ import (
 )
 
 func TestParseAddress(t *testing.T) {
-	network, address, host, _ := ParseAddress("unix:/tmp/foo")
+	network, address, host, _ := ParseAddress("unix:/tmp/foo", false)
 	if network != "unix" {
 		t.Errorf("unexpected network: %s", network)
 	}
@@ -34,7 +34,7 @@ func TestParseAddress(t *testing.T) {
 		t.Errorf("unexpected host: %s", host)
 	}
 
-	network, address, host, _ = ParseAddress("localhost:8080")
+	network, address, host, _ = ParseAddress("localhost:8080", false)
 	if network != "tcp" {
 		t.Errorf("unexpected network: %s", network)
 	}
@@ -45,7 +45,7 @@ func TestParseAddress(t *testing.T) {
 		t.Errorf("unexpected host: %s", host)
 	}
 
-	network, address, host, _ = ParseAddress("launchd:listener")
+	network, address, host, _ = ParseAddress("launchd:listener", false)
 	if network != "launchd" {
 		t.Errorf("unexpected network: %s", network)
 	}
@@ -56,7 +56,7 @@ func TestParseAddress(t *testing.T) {
 		t.Errorf("unexpected host: %s", host)
 	}
 
-	network, address, host, _ = ParseAddress("systemd:test")
+	network, address, host, _ = ParseAddress("systemd:test", false)
 	if network != "systemd" {
 		t.Errorf("unexpected network: %s", network)
 	}
@@ -67,16 +67,16 @@ func TestParseAddress(t *testing.T) {
 		t.Errorf("unexpected host: %s", host)
 	}
 
-	_, _, _, err := ParseAddress("localhost")
+	_, _, _, err := ParseAddress("localhost", false)
 	assert.NotNil(t, err, "was able to parse invalid host/port")
 
-	_, _, _, err = ParseAddress("256.256.256.256:99999")
+	_, _, _, err = ParseAddress("256.256.256.256:99999", false)
 	assert.NotNil(t, err, "was able to parse invalid host/port")
 
-	_, _, _, err = ParseAddress("launchdfoobar")
+	_, _, _, err = ParseAddress("launchdfoobar", false)
 	assert.NotNil(t, err, "was able to parse invalid host/port")
 
-	_, _, _, err = ParseAddress("systemdfoobar")
+	_, _, _, err = ParseAddress("systemdfoobar", false)
 	assert.NotNil(t, err, "was able to parse invalid host/port")
 }
 
