@@ -5,14 +5,19 @@ import http.server
 import threading
 import select
 
+# We deliberately use an unresolvable address in this test
+# to verify that Ghostunnel accepts unknown targets when
+# a connect proxy is used (a target may not be known
+# internally, only externally to the proxy).
+FAKE_TARGET = "qKOjftPTxW"
 
 class FakeConnectProxyHandler(http.server.BaseHTTPRequestHandler):
     def do_CONNECT(self):
         try:
             host, port = self.path.split(':')
-            if host != '127.0.0.1':
+            if host != FAKE_TARGET:
                 raise Exception(
-                    'proxy target must be localhost, but was: ' + self.path)
+                    'proxy target must be fake target, but was: ' + self.path)
             print_ok("got proxy request, with proxy target: " + self.path)
             socket = TcpClient(int(port))
             socket.connect(attempts=5)
@@ -50,7 +55,7 @@ if __name__ == "__main__":
     try:
         # create certs
         root = RootCert('root')
-        root.create_signed_cert('server')
+        root.create_signed_cert('server', san='DNS:{}'.format(FAKE_TARGET))
         root.create_signed_cert('client')
 
         httpd = http.server.HTTPServer(
@@ -61,7 +66,7 @@ if __name__ == "__main__":
         # start ghostunnel
         ghostunnel = run_ghostunnel(['client',
                                      '--listen={0}:13001'.format(LOCALHOST),
-                                     '--target={0}:13002'.format(LOCALHOST),
+                                     '--target={0}:13002'.format(FAKE_TARGET),
                                      '--keystore=client.p12',
                                      '--cacert=root.crt',
                                      '--connect-proxy=http://{0}:13080'.format(LOCALHOST),

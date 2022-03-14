@@ -28,7 +28,7 @@ import (
 // a TCP socket, "unix:PATH" for a UNIX socket, and "systemd:NAME" or
 // "launchd:NAME" for a socket provided by launchd/systemd for socket
 // activation.
-func ParseAddress(input string) (network, address, host string, err error) {
+func ParseAddress(input string, skipResolve bool) (network, address, host string, err error) {
 	if strings.HasPrefix(input, "launchd:") {
 		network = "launchd"
 		address = input[8:]
@@ -52,10 +52,12 @@ func ParseAddress(input string) (network, address, host string, err error) {
 		return
 	}
 
-	// Make sure target address resolves
-	_, err = net.ResolveTCPAddr("tcp", input)
-	if err != nil {
-		return
+	if !skipResolve {
+		// Make sure target address resolves, unless requested otherwise.
+		_, err = net.ResolveTCPAddr("tcp", input)
+		if err != nil {
+			return
+		}
 	}
 
 	network, address = "tcp", input
@@ -117,7 +119,7 @@ func Open(network, address string) (net.Listener, error) {
 
 // ParseAndOpen combines the functionality of the ParseAddress and Open methods.
 func ParseAndOpen(address string) (net.Listener, error) {
-	net, addr, _, err := ParseAddress(address)
+	net, addr, _, err := ParseAddress(address, false)
 	if err != nil {
 		return nil, err
 	}

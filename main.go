@@ -472,12 +472,15 @@ func run(args []string) error {
 			return err
 		}
 
-		network, address, host, err := socket.ParseAddress(*clientForwardAddress)
-		if *clientConnectProxy == nil {
-			if err != nil {
-				logger.Printf("error: invalid target address: %s\n", err)
-				return err
-			}
+		// Note: A target address given on the command line may not be resolvable
+		// on our side if the connection is forwarded through a CONNECT proxy. Hence,
+		// we ignore "no such host" errors when a proxy is set and trust that the
+		// proxy will be able to find the target for us.
+		skipResolve := *clientConnectProxy != nil
+		network, address, host, err := socket.ParseAddress(*clientForwardAddress, skipResolve)
+		if err != nil {
+			logger.Printf("error: invalid target address: %s\n", err)
+			return err
 		}
 		logger.Printf("using target address %s", *clientForwardAddress)
 
@@ -651,7 +654,7 @@ func (context *Context) serveStatus() error {
 
 	https, addr := socket.ParseHTTPAddress(*statusAddress)
 
-	network, address, _, err := socket.ParseAddress(addr)
+	network, address, _, err := socket.ParseAddress(addr, false)
 	if err != nil {
 		return err
 	}
@@ -690,7 +693,7 @@ func (context *Context) serveStatus() error {
 
 // Get backend dialer function in server mode (connecting to a unix socket or tcp port)
 func serverBackendDialer() (func() (net.Conn, error), error) {
-	backendNet, backendAddr, _, err := socket.ParseAddress(*serverForwardAddress)
+	backendNet, backendAddr, _, err := socket.ParseAddress(*serverForwardAddress, false)
 	if err != nil {
 		return nil, err
 	}
