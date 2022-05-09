@@ -121,9 +121,10 @@ var (
 	metricsInterval = app.Flag("metrics-interval", "Collect (and post/send) metrics every specified interval.").Default("30s").Duration()
 
 	// Status & logging
-	statusAddress = app.Flag("status", "Enable serving /_status and /_metrics on given HOST:PORT (or unix:SOCKET).").PlaceHolder("ADDR").String()
-	enableProf    = app.Flag("enable-pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
-	quiet         = app.Flag("quiet", "Silence log messages (can be all, conns, conn-errs, handshake-errs; repeat flag for more than one)").Default("").Enums("", "all", "conns", "handshake-errs", "conn-errs")
+	statusAddress       = app.Flag("status", "Enable serving /_status and /_metrics on given HOST:PORT (or unix:SOCKET).").PlaceHolder("ADDR").String()
+	statusTargetAddress = app.Flag("status-target", "Enable specifying an HTTP target address for checking downstream healthchecks. Defaults to a TCP healthcheck.").Default("").String()
+	enableProf          = app.Flag("enable-pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
+	quiet               = app.Flag("quiet", "Silence log messages (can be all, conns, conn-errs, handshake-errs; repeat flag for more than one)").Default("").Enums("", "all", "conns", "handshake-errs", "conn-errs")
 
 	// Man page /help
 	helpMan = app.Flag("help-custom-man", "Generate a man page.").Hidden().PreAction(generateManPage).Bool()
@@ -442,7 +443,7 @@ func run(args []string) error {
 		}
 		logger.Printf("using target address %s", *serverForwardAddress)
 
-		status := newStatusHandler(dial)
+		status := newStatusHandler(dial, *statusTargetAddress)
 		context := &Context{
 			status:          status,
 			shutdownTimeout: *shutdownTimeout,
@@ -490,7 +491,10 @@ func run(args []string) error {
 			return err
 		}
 
-		status := newStatusHandler(dial)
+		// NOTE: We don't provide a statusTargetAddress here because this the client
+		// /_status endpoint and therefore, its target will be a ghostunnel in server
+		// mode and therefore, should be a (default) TCP check.
+		status := newStatusHandler(dial, "")
 		context := &Context{
 			status:          status,
 			shutdownTimeout: *shutdownTimeout,
