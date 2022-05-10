@@ -287,6 +287,11 @@ func TestClientFlagValidation(t *testing.T) {
 	*keystorePath = ""
 	err = clientValidateFlags()
 	assert.NotNil(t, err, "one of --keystore or --disable-authentication is required")
+
+	*clientDisableAuth = true
+	*statusTargetAddress = "127.0.0.1:8000"
+	err = clientValidateFlags()
+	assert.NotNil(t, err, "--status-target should not be set in client mode")
 }
 
 func TestAllowsLocalhost(t *testing.T) {
