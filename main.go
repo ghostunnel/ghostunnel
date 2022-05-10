@@ -356,6 +356,9 @@ func clientValidateFlags() error {
 	if err := validateCipherSuites(); err != nil {
 		return err
 	}
+	if *statusTargetAddress != "" {
+		return fmt.Errorf("--status-target should not be set in client mode")
+	}
 
 	return nil
 }
