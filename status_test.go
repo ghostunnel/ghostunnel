@@ -31,8 +31,6 @@ import (
 	"time"
 )
 
-var dummyTargetAddress = "/dummy_target_address"
-
 // Mock net.Conn for testing
 type fakeConn struct {
 	io.ReadWriteCloser
@@ -69,7 +67,7 @@ func dummyDialError() (net.Conn, error) {
 }
 
 func TestStatusHandlerNew(t *testing.T) {
-	handler := newStatusHandler(dummyDial, dummyTargetAddress)
+	handler := newStatusHandler(dummyDial, "")
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, nil)
 
@@ -82,8 +80,8 @@ func TestStatusHandlerNew(t *testing.T) {
 	}
 }
 
-func TestStatusHandlerListening(t *testing.T) {
-	handler := newStatusHandler(dummyDial, dummyTargetAddress)
+func TestStatusHandlerListeningTCP(t *testing.T) {
+	handler := newStatusHandler(dummyDial, "")
 	response := httptest.NewRecorder()
 	handler.Listening()
 	handler.ServeHTTP(response, nil)
@@ -98,7 +96,7 @@ func TestStatusHandlerListening(t *testing.T) {
 }
 
 func TestStatusHandlerListeningBackendDown(t *testing.T) {
-	handler := newStatusHandler(dummyDialError, dummyTargetAddress)
+	handler := newStatusHandler(dummyDialError, "")
 	response := httptest.NewRecorder()
 	handler.Listening()
 	handler.ServeHTTP(response, nil)
@@ -109,7 +107,7 @@ func TestStatusHandlerListeningBackendDown(t *testing.T) {
 }
 
 func TestStatusHandlerReloading(t *testing.T) {
-	handler := newStatusHandler(dummyDial, dummyTargetAddress)
+	handler := newStatusHandler(dummyDial, "")
 	response := httptest.NewRecorder()
 	handler.Listening()
 	handler.Reloading()
@@ -120,7 +118,7 @@ func TestStatusHandlerReloading(t *testing.T) {
 	}
 }
 
-func TestStatusTarget2XX(t *testing.T) {
+func TestStatusTargetHTTP2XX(t *testing.T) {
 	// Create a stub status target that returns a 200 status code.
 	statusTarget := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
@@ -133,7 +131,7 @@ func TestStatusTarget2XX(t *testing.T) {
 		return net.Dial("tcp", fmt.Sprintf("%s:%s", u.Hostname(), u.Port()))
 	}, statusTarget.URL)
 
-	req := httptest.NewRequest(http.MethodGet, dummyTargetAddress, nil)
+	req := httptest.NewRequest(http.MethodGet, "/not-empty", nil)
 	handler.Listening() // NOTE: required for non-503 backend response code.
 	handler.ServeHTTP(response, req)
 	res := response.Result()
@@ -149,7 +147,7 @@ func TestStatusTarget2XX(t *testing.T) {
 	}
 }
 
-func TestStatusTargetNon2XX(t *testing.T) {
+func TestStatusTargetHTTPNon2XX(t *testing.T) {
 	// Create a stub status target that returns a 200 status code.
 	statusTarget := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(503)
@@ -162,7 +160,7 @@ func TestStatusTargetNon2XX(t *testing.T) {
 		return net.Dial("tcp", fmt.Sprintf("%s:%s", u.Hostname(), u.Port()))
 	}, statusTarget.URL)
 
-	req := httptest.NewRequest(http.MethodGet, dummyTargetAddress, nil)
+	req := httptest.NewRequest(http.MethodGet, "/not-empty", nil)
 	handler.Listening() // NOTE: required for non-503 backend response code.
 	handler.ServeHTTP(response, req)
 	res := response.Result()
