@@ -119,38 +119,25 @@ func TestStatusHandlerReloading(t *testing.T) {
 }
 
 func TestStatusTargetHTTP2XX(t *testing.T) {
-	// Create a stub status target that returns a 200 status code.
-	statusTarget := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(200)
-	}))
-	defer statusTarget.Close()
+	statusResp, statusRespCode := statusTargetWithResponseStatusCode(200)
 
-	response := httptest.NewRecorder()
-	handler := newStatusHandler(func() (net.Conn, error) {
-		u, _ := url.Parse(statusTarget.URL) // NOTE: I tried using statusTarget.Config.Addr instead, but it wasn't set.
-		return net.Dial("tcp", fmt.Sprintf("%s:%s", u.Hostname(), u.Port()))
-	}, statusTarget.URL)
-
-	req := httptest.NewRequest(http.MethodGet, "/not-empty", nil)
-	handler.Listening() // NOTE: required for non-503 backend response code.
-	handler.ServeHTTP(response, req)
-	res := response.Result()
-	defer res.Body.Close()
-
-	data, _ := ioutil.ReadAll(res.Body)
-
-	statusResp := statusResponse{}
-	_ = json.Unmarshal(data, &statusResp)
-
-	if !statusResp.Ok || statusResp.BackendStatus != "ok" || res.StatusCode != 200 {
+	if !statusResp.Ok || statusResp.BackendStatus != "ok" || statusRespCode != 200 {
 		t.Error("status should return 200 when status backend returns 200")
 	}
 }
 
 func TestStatusTargetHTTPNon2XX(t *testing.T) {
-	// Create a stub status target that returns a 200 status code.
+	statusResp, statusRespCode := statusTargetWithResponseStatusCode(503)
+
+	if statusResp.Ok || statusResp.BackendStatus == "ok" || statusRespCode != 503 {
+		t.Error("status should return 503 when status backend returns something other than 200")
+	}
+}
+
+// statusTargetWithResponseStatusCode creates a stub status target that returns the status code specified by "code".
+func statusTargetWithResponseStatusCode(code int) (statusResponse, int) {
 	statusTarget := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(503)
+		w.WriteHeader(code)
 	}))
 	defer statusTarget.Close()
 
@@ -171,7 +158,5 @@ func TestStatusTargetHTTPNon2XX(t *testing.T) {
 	statusResp := statusResponse{}
 	_ = json.Unmarshal(data, &statusResp)
 
-	if statusResp.Ok || statusResp.BackendStatus == "ok" || res.StatusCode != 503 {
-		t.Error("status should return 503 when status backend returns something other than 200")
-	}
+	return statusResp, res.StatusCode
 }
