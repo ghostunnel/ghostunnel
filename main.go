@@ -122,7 +122,7 @@ var (
 
 	// Status & logging
 	statusAddress       = app.Flag("status", "Enable serving /_status and /_metrics on given HOST:PORT (or unix:SOCKET).").PlaceHolder("ADDR").String()
-	statusTargetAddress = app.Flag("status-target", "Enable specifying an HTTP target address for checking downstream healthchecks. Defaults to a TCP healthcheck.").Default("").String()
+	statusTargetAddress = app.Flag("status-target-http", "Enable specifying an HTTP target address for checking downstream healthchecks. Defaults to a TCP healthcheck if this flag is not passed.").Default("").String()
 	enableProf          = app.Flag("enable-pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
 	quiet               = app.Flag("quiet", "Silence log messages (can be all, conns, conn-errs, handshake-errs; repeat flag for more than one)").Default("").Enums("", "all", "conns", "handshake-errs", "conn-errs")
 
@@ -211,6 +211,9 @@ func validateFlags(app *kingpin.Application) error {
 	}
 	if *metricsURL != "" && !strings.HasPrefix(*metricsURL, "http://") && !strings.HasPrefix(*metricsURL, "https://") {
 		return fmt.Errorf("--metrics-url should start with http:// or https://")
+	}
+	if *statusTargetAddress != "" && !strings.HasPrefix(*statusTargetAddress, "http://") && !strings.HasPrefix(*statusTargetAddress, "https://") {
+		return fmt.Errorf("--status-target-http should start with http:// or https://")
 	}
 	if *timeoutDuration == 0 {
 		return fmt.Errorf("--connect-timeout duration must not be zero")
