@@ -130,6 +130,12 @@ func TestFlagValidation(t *testing.T) {
 	assert.NotNil(t, err, "invalid --metrics-url should be rejected")
 	*metricsURL = ""
 
+	*enableProf = false
+	*statusTargetAddress = "127.0.0.1:8000"
+	err = validateFlags(nil)
+	assert.NotNil(t, err, "--status-target-http should start with http:// or https://")
+	*statusTargetAddress = ""
+
 	*timeoutDuration = 0
 	err = validateFlags(nil)
 	assert.NotNil(t, err, "invalid --connect-timeout should be rejected")
