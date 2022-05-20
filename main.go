@@ -97,6 +97,10 @@ var (
 	clientAllowedIPs     = clientCommand.Flag("verify-ip", "").Hidden().PlaceHolder("SAN").IPList()
 	clientAllowedURIs    = clientCommand.Flag("verify-uri", "Allow servers with given URI subject alternative name (can be repeated).").PlaceHolder("URI").Strings()
 	clientDisableAuth    = clientCommand.Flag("disable-authentication", "Disable client authentication, no certificate will be provided to the server.").Default("false").Bool()
+	// Non-upstream flags
+	clientConnectCertPath = clientCommand.Flag("proxy-cert", "Path to certificate (PEM with certificate chain).").PlaceHolder("PATH").Envar("PROXY_CERT_PATH").String()
+	clientConnectKeyPath  = clientCommand.Flag("proxy-key", "Path to certificate private key (PEM with private key).").PlaceHolder("PATH").Envar("PROXY_KEY_PATH").String()
+	clientTcpOnly         = clientCommand.Flag("tcp-only", "Create TCP Listener, leave TLS in tact.").Default("false").Bool()
 
 	// TLS options
 	keystorePath            = app.Flag("keystore", "Path to keystore (combined PEM with cert/key, or PKCS12 keystore).").PlaceHolder("PATH").Envar("KEYSTORE_PATH").String()
@@ -345,6 +349,9 @@ func clientValidateFlags() error {
 	}
 	if (*keyPath != "" && *certPath == "") || (*certPath != "" && *keyPath == "" && !hasPKCS11()) {
 		return errors.New("--cert/--key must be set together, unless using PKCS11 for private key")
+	}
+	if (*clientConnectKeyPath != "") && (*clientConnectCertPath == "") {
+		return errors.New("--proxy-cert/--proxy-key must be set together")
 	}
 	if !*clientUnsafeListen && !consideredSafe(*clientListenAddress) {
 		return fmt.Errorf("--listen must be unix:PATH, localhost:PORT, systemd:NAME or launchd:NAME (unless --unsafe-listen is set)")
@@ -743,6 +750,13 @@ func clientBackendDialer(tlsConfigSource certloader.TLSConfigSource, network, ad
 		if err != nil {
 			return nil, err
 		}
+		if *clientConnectCertPath != "" {
+			clientCert, err := tls.LoadX509KeyPair(*clientConnectCertPath, *clientConnectKeyPath)
+			if err != nil {
+				return nil, err
+			}
+			proxyConfig.Certificates = []tls.Certificate{clientCert}
+		}
 		config.ClientAuth = tls.NoClientCert
 
 		// Read CA bundle for passing to proxy library
@@ -760,7 +774,10 @@ func clientBackendDialer(tlsConfigSource certloader.TLSConfigSource, network, ad
 	}
 
 	clientConfig := mustGetClientConfig(tlsConfigSource, config)
-	d := certloader.DialerWithCertificate(clientConfig, *timeoutDuration, dialer)
+	var d = certloader.DialerWithCertificate(clientConfig, *timeoutDuration, dialer)
+	if *clientTcpOnly {
+		d = dialer
+	}
 	return func() (net.Conn, error) { return d.Dial(network, address) }, nil
 }
 
