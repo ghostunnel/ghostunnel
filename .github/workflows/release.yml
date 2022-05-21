@@ -10,7 +10,7 @@ jobs:
     name: Build (Unix)
     strategy:
       matrix:
-        version: [1.17.x]
+        version: [1.18.x]
         target: 
           - { os: 'darwin', platform: 'macos-latest', arch: 'amd64' }
           - { os: 'linux', platform: 'ubuntu-latest', arch: 'amd64' }
@@ -35,7 +35,7 @@ jobs:
     name: Build (Windows)
     strategy:
       matrix:
-        version: [1.17.x]
+        version: [1.18.x]
         target: 
           - { os: 'windows', platform: 'windows-latest', arch: 'amd64' }
     runs-on: ${{ matrix.target.platform }}
