@@ -42,11 +42,12 @@ github.com/deathowl/go-metrics-prometheus
 # github.com/fatih/color v1.13.0
 ## explicit; go 1.13
 github.com/fatih/color
-# github.com/github/certstore v0.2.0 => ./certstore
+# github.com/github/fakeca v0.2.0
 ## explicit; go 1.12
-github.com/github/certstore
-# github.com/gogo/protobuf v1.2.1
-## explicit
+github.com/github/fakeca
+# github.com/github/smimesign v0.2.0
+## explicit; go 1.12
+github.com/github/smimesign/fakeca
 # github.com/golang/protobuf v1.5.2
 ## explicit; go 1.9
 github.com/golang/protobuf/jsonpb
@@ -337,4 +338,3 @@ gopkg.in/square/go-jose.v2/jwt
 # gopkg.in/yaml.v3 v3.0.0-20220512140231-539c8e751b99
 ## explicit
 gopkg.in/yaml.v3
-# github.com/github/certstore => ./certstore
