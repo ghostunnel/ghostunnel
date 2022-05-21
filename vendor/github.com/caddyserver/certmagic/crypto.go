@@ -15,6 +15,7 @@
 package certmagic
 
 import (
+	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
@@ -26,8 +27,10 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"hash/fnv"
+	"io/fs"
 	"sort"
 	"strings"
 
@@ -36,8 +39,10 @@ import (
 	"golang.org/x/net/idna"
 )
 
-// encodePrivateKey marshals a EC or RSA private key into a PEM-encoded array of bytes.
-func encodePrivateKey(key crypto.PrivateKey) ([]byte, error) {
+// PEMEncodePrivateKey marshals a private key into a PEM-encoded block.
+// The private key must be one of *ecdsa.PrivateKey, *rsa.PrivateKey, or
+// *ed25519.PrivateKey.
+func PEMEncodePrivateKey(key crypto.PrivateKey) ([]byte, error) {
 	var pemType string
 	var keyBytes []byte
 	switch key := key.(type) {
@@ -65,12 +70,18 @@ func encodePrivateKey(key crypto.PrivateKey) ([]byte, error) {
 	return pem.EncodeToMemory(&pemKey), nil
 }
 
-// decodePrivateKey loads a PEM-encoded ECC/RSA private key from an array of bytes.
+// PEMDecodePrivateKey loads a PEM-encoded ECC/RSA private key from an array of bytes.
 // Borrowed from Go standard library, to handle various private key and PEM block types.
-// https://github.com/golang/go/blob/693748e9fa385f1e2c3b91ca9acbb6c0ad2d133d/src/crypto/tls/tls.go#L291-L308
-// https://github.com/golang/go/blob/693748e9fa385f1e2c3b91ca9acbb6c0ad2d133d/src/crypto/tls/tls.go#L238)
-func decodePrivateKey(keyPEMBytes []byte) (crypto.Signer, error) {
+func PEMDecodePrivateKey(keyPEMBytes []byte) (crypto.Signer, error) {
+	// Modified from original:
+	// https://github.com/golang/go/blob/693748e9fa385f1e2c3b91ca9acbb6c0ad2d133d/src/crypto/tls/tls.go#L291-L308
+	// https://github.com/golang/go/blob/693748e9fa385f1e2c3b91ca9acbb6c0ad2d133d/src/crypto/tls/tls.go#L238
+
 	keyBlockDER, _ := pem.Decode(keyPEMBytes)
+
+	if keyBlockDER == nil {
+		return nil, fmt.Errorf("failed to decode PEM block containing private key")
+	}
 
 	if keyBlockDER.Type != "PRIVATE KEY" && !strings.HasSuffix(keyBlockDER.Type, " PRIVATE KEY") {
 		return nil, fmt.Errorf("unknown PEM header %q", keyBlockDER.Type)
@@ -132,7 +143,7 @@ func fastHash(input []byte) string {
 // saveCertResource saves the certificate resource to disk. This
 // includes the certificate file itself, the private key, and the
 // metadata file.
-func (cfg *Config) saveCertResource(issuer Issuer, cert CertificateResource) error {
+func (cfg *Config) saveCertResource(ctx context.Context, issuer Issuer, cert CertificateResource) error {
 	metaBytes, err := json.MarshalIndent(cert, "", "\t")
 	if err != nil {
 		return fmt.Errorf("encoding certificate metadata: %v", err)
@@ -143,12 +154,12 @@ func (cfg *Config) saveCertResource(issuer Issuer, cert CertificateResource) err
 
 	all := []keyValue{
 		{
-			key:   StorageKeys.SiteCert(issuerKey, certKey),
-			value: cert.CertificatePEM,
-		},
-		{
 			key:   StorageKeys.SitePrivateKey(issuerKey, certKey),
 			value: cert.PrivateKeyPEM,
+		},
+		{
+			key:   StorageKeys.SiteCert(issuerKey, certKey),
+			value: cert.CertificatePEM,
 		},
 		{
 			key:   StorageKeys.SiteMeta(issuerKey, certKey),
@@ -156,19 +167,19 @@ func (cfg *Config) saveCertResource(issuer Issuer, cert CertificateResource) err
 		},
 	}
 
-	return storeTx(cfg.Storage, all)
+	return storeTx(ctx, cfg.Storage, all)
 }
 
 // loadCertResourceAnyIssuer loads and returns the certificate resource from any
 // of the configured issuers. If multiple are found (e.g. if there are 3 issuers
 // configured, and all 3 have a resource matching certNamesKey), then the newest
 // (latest NotBefore date) resource will be chosen.
-func (cfg *Config) loadCertResourceAnyIssuer(certNamesKey string) (CertificateResource, error) {
+func (cfg *Config) loadCertResourceAnyIssuer(ctx context.Context, certNamesKey string) (CertificateResource, error) {
 	// we can save some extra decoding steps if there's only one issuer, since
 	// we don't need to compare potentially multiple available resources to
 	// select the best one, when there's only one choice anyway
 	if len(cfg.Issuers) == 1 {
-		return cfg.loadCertResource(cfg.Issuers[0], certNamesKey)
+		return cfg.loadCertResource(ctx, cfg.Issuers[0], certNamesKey)
 	}
 
 	type decodedCertResource struct {
@@ -182,9 +193,9 @@ func (cfg *Config) loadCertResourceAnyIssuer(certNamesKey string) (CertificateRe
 	// load and decode all certificate resources found with the
 	// configured issuers so we can sort by newest
 	for _, issuer := range cfg.Issuers {
-		certRes, err := cfg.loadCertResource(issuer, certNamesKey)
+		certRes, err := cfg.loadCertResource(ctx, issuer, certNamesKey)
 		if err != nil {
-			if _, ok := err.(ErrNotExist); ok {
+			if errors.Is(err, fs.ErrNotExist) {
 				// not a problem, but we need to remember the error
 				// in case we end up not finding any cert resources
 				// since we'll need an error to return in that case
@@ -228,7 +239,7 @@ func (cfg *Config) loadCertResourceAnyIssuer(certNamesKey string) (CertificateRe
 }
 
 // loadCertResource loads a certificate resource from the given issuer's storage location.
-func (cfg *Config) loadCertResource(issuer Issuer, certNamesKey string) (CertificateResource, error) {
+func (cfg *Config) loadCertResource(ctx context.Context, issuer Issuer, certNamesKey string) (CertificateResource, error) {
 	certRes := CertificateResource{issuerKey: issuer.IssuerKey()}
 
 	normalizedName, err := idna.ToASCII(certNamesKey)
@@ -236,17 +247,17 @@ func (cfg *Config) loadCertResource(issuer Issuer, certNamesKey string) (Certifi
 		return CertificateResource{}, fmt.Errorf("converting '%s' to ASCII: %v", certNamesKey, err)
 	}
 
-	certBytes, err := cfg.Storage.Load(StorageKeys.SiteCert(certRes.issuerKey, normalizedName))
-	if err != nil {
-		return CertificateResource{}, err
-	}
-	certRes.CertificatePEM = certBytes
-	keyBytes, err := cfg.Storage.Load(StorageKeys.SitePrivateKey(certRes.issuerKey, normalizedName))
+	keyBytes, err := cfg.Storage.Load(ctx, StorageKeys.SitePrivateKey(certRes.issuerKey, normalizedName))
 	if err != nil {
 		return CertificateResource{}, err
 	}
 	certRes.PrivateKeyPEM = keyBytes
-	metaBytes, err := cfg.Storage.Load(StorageKeys.SiteMeta(certRes.issuerKey, normalizedName))
+	certBytes, err := cfg.Storage.Load(ctx, StorageKeys.SiteCert(certRes.issuerKey, normalizedName))
+	if err != nil {
+		return CertificateResource{}, err
+	}
+	certRes.CertificatePEM = certBytes
+	metaBytes, err := cfg.Storage.Load(ctx, StorageKeys.SiteMeta(certRes.issuerKey, normalizedName))
 	if err != nil {
 		return CertificateResource{}, err
 	}
