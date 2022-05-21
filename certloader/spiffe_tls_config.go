@@ -19,55 +19,34 @@ package certloader
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"log"
 
-	"github.com/spiffe/go-spiffe/spiffe"
+	spiffeConfig "github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
+	spiffeApi "github.com/spiffe/go-spiffe/v2/workloadapi"
 )
 
 type spiffeTLSConfigSource struct {
-	peer *spiffe.TLSPeer
-	log  *log.Logger
-}
-
-type spiffeLogger struct {
-	log *log.Logger
-}
-
-func (l spiffeLogger) Debugf(format string, args ...interface{}) {
-	l.log.Printf("spiffe/debug: "+format, args...)
-}
-
-func (l spiffeLogger) Infof(format string, args ...interface{}) {
-	l.log.Printf("spiffe/info: "+format, args...)
-}
-
-func (l spiffeLogger) Warnf(format string, args ...interface{}) {
-	l.log.Printf("spiffe/warn: "+format, args...)
-}
-
-func (l spiffeLogger) Errorf(format string, args ...interface{}) {
-	l.log.Printf("spiffe/error: "+format, args...)
+	client *spiffeApi.Client
+	logger *log.Logger
 }
 
 func TLSConfigSourceFromWorkloadAPI(addr string, logger *log.Logger) (TLSConfigSource, error) {
-	peer, err := spiffe.NewTLSPeer(
-		spiffe.WithWorkloadAPIAddr(addr),
-		spiffe.WithLogger(spiffeLogger{log: logger}),
+	client, err := spiffeApi.New(
+		context.Background(),
+		spiffeApi.WithAddr(addr),
+		spiffeApi.WithLogger(spiffeLogger{log: logger}),
 	)
 	if err != nil {
 		return nil, err
 	}
-	// TODO: provide a way to close the peer on graceful shutdown
 	return &spiffeTLSConfigSource{
-		peer: peer,
-		log:  logger,
+		client: client,
+		logger: logger,
 	}, nil
 }
 
 func (s *spiffeTLSConfigSource) Reload() error {
-	// The config returned by the workload TLSConfig maintains itself. Nothing
-	// to do here.
+	// The config returned by the workload API maintains itself. Nothing to do here.
 	return nil
 }
 
@@ -84,25 +63,24 @@ func (s *spiffeTLSConfigSource) GetServerConfig(base *tls.Config) (TLSServerConf
 }
 
 func (s *spiffeTLSConfigSource) Close() error {
-	return s.peer.Close()
+	return s.client.Close()
 }
 
 func (s *spiffeTLSConfigSource) newConfig(base *tls.Config) (*spiffeTLSConfig, error) {
-	s.log.Printf("waiting for initial SPIFFE Workload API update...")
-	if err := s.peer.WaitUntilReady(context.TODO()); err != nil {
+	source, err := spiffeApi.NewX509Source(context.Background(), spiffeApi.WithClient(s.client))
+	if err != nil {
 		return nil, err
 	}
-	s.log.Printf("received SPIFFE Workload API update")
 
 	return &spiffeTLSConfig{
-		base: base,
-		peer: s.peer,
+		base:   base,
+		source: source,
 	}, nil
 }
 
 type spiffeTLSConfig struct {
-	base *tls.Config
-	peer *spiffe.TLSPeer
+	base   *tls.Config
+	source *spiffeApi.X509Source
 }
 
 func (c *spiffeTLSConfig) GetClientConfig() *tls.Config {
@@ -115,8 +93,8 @@ func (c *spiffeTLSConfig) GetClientConfig() *tls.Config {
 	// callback provided by the SPIFFE library will perform SPIFFE
 	// authentication against the raw certificates.
 	config.InsecureSkipVerify = true
-	config.VerifyPeerCertificate = c.chainVerifyPeerCertificate(config.VerifyPeerCertificate)
-	config.GetClientCertificate = spiffe.AdaptGetClientCertificate(c.peer)
+	config.VerifyPeerCertificate = spiffeConfig.WrapVerifyPeerCertificate(config.VerifyPeerCertificate, c.source, spiffeConfig.AuthorizeAny())
+	config.GetClientCertificate = spiffeConfig.GetClientCertificate(c.source)
 	return config
 }
 
@@ -131,37 +109,7 @@ func (c *spiffeTLSConfig) GetServerConfig() *tls.Config {
 	// callback provided by the SPIFFE library will perform SPIFFE
 	// authentication against the raw certificates.
 	config.InsecureSkipVerify = true
-	config.VerifyPeerCertificate = c.chainVerifyPeerCertificate(config.VerifyPeerCertificate)
-	config.GetCertificate = spiffe.AdaptGetCertificate(c.peer)
+	config.VerifyPeerCertificate = spiffeConfig.WrapVerifyPeerCertificate(config.VerifyPeerCertificate, c.source, spiffeConfig.AuthorizeAny())
+	config.GetCertificate = spiffeConfig.GetCertificate(c.source)
 	return config
-}
-
-func (c *spiffeTLSConfig) chainVerifyPeerCertificate(orig func([][]byte, [][]*x509.Certificate) error) func([][]byte, [][]*x509.Certificate) error {
-	return func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
-		var certs []*x509.Certificate
-		for _, rawCert := range rawCerts {
-			cert, err := x509.ParseCertificate(rawCert)
-			if err != nil {
-				return err
-			}
-			certs = append(certs, cert)
-		}
-
-		// Grab the current set of roots.
-		roots, err := c.peer.GetRoots()
-		if err != nil {
-			return err
-		}
-
-		// Verify the certificate chain. Allow the remote peer to have any SPIFFE ID as
-		// the authorization check will happen via `orig`.
-		verifiedChains, err := spiffe.VerifyPeerCertificate(certs, roots, spiffe.ExpectAnyPeer())
-		if err != nil {
-			return err
-		}
-		if orig != nil {
-			return orig(rawCerts, verifiedChains)
-		}
-		return nil
-	}
 }
