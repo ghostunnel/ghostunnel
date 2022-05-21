@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"crypto/tls"
@@ -109,7 +110,7 @@ func caBundle(caPath string) (*x509.CertPool, error) {
 	return bundle, nil
 }
 
-func VerifyChain(certs []*x509.Certificate, ocspStaple []byte, dnsName, caPath string) SimpleVerification {
+func VerifyChain(certs []*x509.Certificate, ocspStaple []byte, expectedName, caPath string) SimpleVerification {
 	result := SimpleVerification{
 		Chains:         [][]simpleVerifyCert{},
 		OCSPWasStapled: ocspStaple != nil,
@@ -130,8 +131,17 @@ func VerifyChain(certs []*x509.Certificate, ocspStaple []byte, dnsName, caPath s
 		result.Error = fmt.Sprintf("%s", err)
 		return result
 	}
+	// expectedName could be a hostname or could be a SPIFFE ID (spiffe://...)
+	// x509 package doesn't support verifying SPIFFE IDs. When we're expecting a SPIFFE ID, we tell
+	// Certificate.Verify below to skip name matching, and then we perform our own matching later
+	// on.
+	spiffeIDExpected := strings.HasPrefix(strings.ToLower(expectedName), "spiffe://")
+	var expectedDNSName string
+	if !spiffeIDExpected {
+		expectedDNSName = expectedName
+	}
 	opts := x509.VerifyOptions{
-		DNSName:       dnsName,
+		DNSName:       expectedDNSName,
 		Roots:         roots,
 		Intermediates: intermediates,
 	}
@@ -140,6 +150,16 @@ func VerifyChain(certs []*x509.Certificate, ocspStaple []byte, dnsName, caPath s
 	if err != nil {
 		result.Error = fmt.Sprintf("%s", err)
 		return result
+	}
+
+	if spiffeIDExpected {
+		// The Verify method above didn't actually verify that the certificate matches the expected
+		// SPIFFE ID. We thus perform this check explicitly here.
+		err = verifyCertificateSPIFFEIDMatch(certs[0], expectedName)
+		if err != nil {
+			result.Error = fmt.Sprintf("%s", err)
+			return result
+		}
 	}
 
 	for _, chain := range chains {
@@ -242,4 +262,57 @@ func printOCSPStatus(out io.Writer, result SimpleVerification) {
 
 		fmt.Fprintf(out, "\n\n")
 	}
+}
+
+func verifyCertificateSPIFFEIDMatch(cert *x509.Certificate, expectedSPIFFEID string) error {
+	// Based on https://github.com/spiffe/spiffe/blob/main/standards/X509-SVID.md
+	uris := cert.URIs
+	if len(uris) == 0 {
+		return fmt.Errorf("x509: cannot validate certificate for %s, because it contains no URI SANs", expectedSPIFFEID)
+	} else if len(uris) > 1 {
+		return fmt.Errorf("x509: cannot validate certificate for %s, because it contains %d URIs SANs instead of exactly 1", expectedSPIFFEID, len(uris))
+	}
+
+	uri := uris[0]
+	actualSPIFFEID := uri.String()
+	err := verifySPIFFEIDMatch(expectedSPIFFEID, actualSPIFFEID)
+	if err != nil {
+		return fmt.Errorf("x509: certificate is valid for %s, not %s: %s", actualSPIFFEID, expectedSPIFFEID, err)
+	}
+
+	// Matched
+	return nil
+}
+
+func verifySPIFFEIDMatch(expected string, actual string) error {
+	// Based on https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE-ID.md
+	// SPIFFE ID format: spiffe://trust-domain-name/path
+	// * scheme and authority of the URI are case-insensitive
+	// * path of the URI is case-sensitive
+	//
+	// However, as per Trust Domain and Path sections, authority is not supposed to include userinfo
+	// and authority's host is supposed to be lower-case and no %-escaped characters. Similarly, no
+	// %-escaped stuff in the path.
+	//
+	// Thus, all we need to do is verify that:
+	// 1. both IDs start with "spiffe://" (case-insensitive)
+	// 2. both IDs equal (case-sensitive) after the "spiffe://"
+
+	// Verify both have "spiffe" as the scheme (case-insensitive)
+	if !strings.HasPrefix(strings.ToLower(expected), "spiffe://") {
+		return fmt.Errorf("Expected scheme is not \"spiffe\"")
+	}
+	if !strings.HasPrefix(strings.ToLower(actual), "spiffe://") {
+		return fmt.Errorf("Actual scheme is not \"spiffe\"")
+	}
+
+	// Verify that everything after the scheme equals in a case-sensitive way
+	expectedRemainder := expected[len("spiffe://"):]
+	actualRemainder := actual[len("spiffe://"):]
+	if expectedRemainder != actualRemainder {
+		return fmt.Errorf("Trust domain and/or path do not match")
+	}
+
+	// They match
+	return nil
 }

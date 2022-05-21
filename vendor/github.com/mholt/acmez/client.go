@@ -134,16 +134,23 @@ func (c *Client) ObtainCertificateUsingCSR(ctx context.Context, account acme.Acc
 		// for some errors, we can retry with different challenge types
 		var problem acme.Problem
 		if errors.As(err, &problem) {
-			authz := problem.Resource.(acme.Authorization)
+			authz, haveAuthz := problem.Resource.(acme.Authorization)
 			if c.Logger != nil {
-				c.Logger.Error("validating authorization",
-					zap.String("identifier", authz.IdentifierValue()),
-					zap.Error(err),
+				l := c.Logger
+				if haveAuthz {
+					l = l.With(zap.String("identifier", authz.IdentifierValue()))
+				}
+				l.Error("validating authorization",
+					zap.Object("problem", problem),
 					zap.String("order", order.Location),
 					zap.Int("attempt", attempt),
 					zap.Int("max_attempts", maxAttempts))
 			}
-			err = fmt.Errorf("solving challenge: %s: %w", authz.IdentifierValue(), err)
+			errStr := "solving challenge"
+			if haveAuthz {
+				errStr += ": " + authz.IdentifierValue()
+			}
+			err = fmt.Errorf("%s: %w", errStr, err)
 			if errors.As(err, &retryableErr{}) {
 				continue
 			}
@@ -505,26 +512,36 @@ func (c *Client) pollAuthorization(ctx context.Context, account acme.Account, au
 				c.Logger.Error("challenge failed",
 					zap.String("identifier", authz.IdentifierValue()),
 					zap.String("challenge_type", authz.currentChallenge.Type),
-					zap.Int("status_code", problem.Status),
-					zap.String("problem_type", problem.Type),
-					zap.String("error", problem.Detail))
+					zap.Object("problem", problem))
 			}
 
 			failedChallengeTypes.rememberFailedChallenge(authz)
 
-			switch problem.Type {
-			case acme.ProblemTypeConnection,
-				acme.ProblemTypeDNS,
-				acme.ProblemTypeServerInternal,
-				acme.ProblemTypeUnauthorized,
-				acme.ProblemTypeTLS:
-				// this error might be recoverable with another challenge type
-				return retryableErr{err}
+			if c.countAvailableChallenges(authz) > 0 {
+				switch problem.Type {
+				case acme.ProblemTypeConnection,
+					acme.ProblemTypeDNS,
+					acme.ProblemTypeServerInternal,
+					acme.ProblemTypeUnauthorized,
+					acme.ProblemTypeTLS:
+					// this error might be recoverable with another challenge type
+					return retryableErr{err}
+				}
 			}
 		}
 		return fmt.Errorf("[%s] %w", authz.Authorization.IdentifierValue(), err)
 	}
 	return nil
+}
+
+func (c *Client) countAvailableChallenges(authz *authzState) int {
+	count := 0
+	for _, remainingChal := range authz.remainingChallenges {
+		if _, ok := c.ChallengeSolvers[remainingChal.Type]; ok {
+			count++
+		}
+	}
+	return count
 }
 
 func (c *Client) enabledChallengeTypes() []string {

@@ -76,6 +76,15 @@ func checkOCSP(chain []*x509.Certificate, ocspStaple []byte) (status *ocsp.Respo
 		return nil, skippedRevocationCheck
 	}
 
+	// Skip if there are no OCSP servers in the chain.
+	numServers := 0
+	for _, cert := range chain[1:] {
+		numServers += len(cert.OCSPServer)
+	}
+	if numServers == 0 {
+		return nil, skippedRevocationCheck
+	}
+
 	retries := maxOCSPValidationRetries
 	if len(ocspStaple) > 0 {
 		// Don't retry if stapled

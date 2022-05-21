@@ -32,6 +32,7 @@ import (
 	"github.com/libdns/libdns"
 	"github.com/mholt/acmez"
 	"github.com/mholt/acmez/acme"
+	"github.com/miekg/dns"
 )
 
 // httpSolver solves the HTTP challenge. It must be
@@ -45,9 +46,9 @@ import (
 // can access the keyAuth material is by loading it
 // from storage, which is done by distributedSolver.
 type httpSolver struct {
-	closed      int32 // accessed atomically
-	acmeManager *ACMEManager
-	address     string
+	closed     int32 // accessed atomically
+	acmeIssuer *ACMEIssuer
+	address    string
 }
 
 // Present starts an HTTP server if none is already listening on s.address.
@@ -71,13 +72,13 @@ func (s *httpSolver) Present(ctx context.Context, _ acme.Challenge) error {
 
 	// successfully bound socket, so save listener and start key auth HTTP server
 	si.listener = ln
-	go s.serve(si)
+	go s.serve(ctx, si)
 
 	return nil
 }
 
 // serve is an HTTP server that serves only HTTP challenge responses.
-func (s *httpSolver) serve(si *solverInfo) {
+func (s *httpSolver) serve(ctx context.Context, si *solverInfo) {
 	defer func() {
 		if err := recover(); err != nil {
 			buf := make([]byte, stackTraceBufferSize)
@@ -86,7 +87,10 @@ func (s *httpSolver) serve(si *solverInfo) {
 		}
 	}()
 	defer close(si.done)
-	httpServer := &http.Server{Handler: s.acmeManager.HTTPChallengeHandler(http.NewServeMux())}
+	httpServer := &http.Server{
+		Handler:     s.acmeIssuer.HTTPChallengeHandler(http.NewServeMux()),
+		BaseContext: func(listener net.Listener) context.Context { return ctx },
+	}
 	httpServer.SetKeepAlivesEnabled(false)
 	err := httpServer.Serve(si.listener)
 	if err != nil && atomic.LoadInt32(&s.closed) != 1 {
@@ -131,10 +135,12 @@ func (s *tlsALPNSolver) Present(ctx context.Context, chal acme.Challenge) error 
 	if err != nil {
 		return err
 	}
+
+	key := challengeKey(chal)
 	activeChallengesMu.Lock()
-	chalData := activeChallenges[chal.Identifier.Value]
+	chalData := activeChallenges[key]
 	chalData.data = cert
-	activeChallenges[chal.Identifier.Value] = chalData
+	activeChallenges[key] = chalData
 	activeChallengesMu.Unlock()
 
 	// the rest of this function increments the
@@ -215,10 +221,6 @@ func (*tlsALPNSolver) handleConn(conn net.Conn) {
 // CleanUp removes the challenge certificate from the cache, and if
 // it is the last one to finish, stops the TLS server.
 func (s *tlsALPNSolver) CleanUp(ctx context.Context, chal acme.Challenge) error {
-	s.config.certCache.mu.Lock()
-	delete(s.config.certCache.cache, tlsALPNCertKeyName(chal.Identifier.Value))
-	s.config.certCache.mu.Unlock()
-
 	solversMu.Lock()
 	defer solversMu.Unlock()
 	si := getSolverInfo(s.address)
@@ -236,14 +238,6 @@ func (s *tlsALPNSolver) CleanUp(ctx context.Context, chal acme.Challenge) error 
 	return nil
 }
 
-// tlsALPNCertKeyName returns the key to use when caching a cert
-// for use with the TLS-ALPN ACME challenge. It is simply to help
-// avoid conflicts (although at time of writing, there shouldn't
-// be, since the cert cache is keyed by hash of certificate chain).
-func tlsALPNCertKeyName(sniName string) string {
-	return sniName + ":acme-tls-alpn"
-}
-
 // DNS01Solver is a type that makes libdns providers usable
 // as ACME dns-01 challenge solvers.
 // See https://github.com/libdns/libdns
@@ -255,11 +249,22 @@ type DNS01Solver struct {
 	// The TTL for the temporary challenge records.
 	TTL time.Duration
 
-	// Maximum time to wait for temporary record to appear.
+	// How long to wait before starting propagation checks.
+	// Default: 0 (no wait).
+	PropagationDelay time.Duration
+
+	// Maximum time to wait for temporary DNS record to appear.
+	// Set to -1 to disable propagation checks.
+	// Default: 2 minutes.
 	PropagationTimeout time.Duration
 
 	// Preferred DNS resolver(s) to use when doing DNS lookups.
 	Resolvers []string
+
+	// Override the domain to set the TXT record on. This is
+	// to delegate the challenge to a different domain. Note
+	// that the solver doesn't follow CNAME/NS record.
+	OverrideDomain string
 
 	txtRecords   map[string]dnsPresentMemory // keyed by domain name
 	txtRecordsMu sync.Mutex
@@ -268,6 +273,9 @@ type DNS01Solver struct {
 // Present creates the DNS TXT record for the given ACME challenge.
 func (s *DNS01Solver) Present(ctx context.Context, challenge acme.Challenge) error {
 	dnsName := challenge.DNS01TXTRecordName()
+	if s.OverrideDomain != "" {
+		dnsName = s.OverrideDomain
+	}
 	keyAuth := challenge.DNS01KeyAuthorization()
 
 	// multiple identifiers can have the same ACME challenge
@@ -312,15 +320,36 @@ func (s *DNS01Solver) Present(ctx context.Context, challenge acme.Challenge) err
 // authoritative lookups, i.e. until it has propagated, or until
 // timeout, whichever is first.
 func (s *DNS01Solver) Wait(ctx context.Context, challenge acme.Challenge) error {
+	// if configured to, pause before doing propagation checks
+	// (even if they are disabled, the wait might be desirable on its own)
+	if s.PropagationDelay > 0 {
+		select {
+		case <-time.After(s.PropagationDelay):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
+	// skip propagation checks if configured to do so
+	if s.PropagationTimeout == -1 {
+		return nil
+	}
+
+	// prepare for the checks by determining what to look for
 	dnsName := challenge.DNS01TXTRecordName()
+	if s.OverrideDomain != "" {
+		dnsName = s.OverrideDomain
+	}
 	keyAuth := challenge.DNS01KeyAuthorization()
 
+	// timings
 	timeout := s.PropagationTimeout
 	if timeout == 0 {
 		timeout = 2 * time.Minute
 	}
 	const interval = 2 * time.Second
 
+	// how we'll do the checks
 	resolvers := recursiveNameservers(s.Resolvers)
 
 	var err error
@@ -471,14 +500,14 @@ type distributedSolver struct {
 
 // Present invokes the underlying solver's Present method
 // and also stores domain, token, and keyAuth to the storage
-// backing the certificate cache of dhs.acmeManager.
+// backing the certificate cache of dhs.acmeIssuer.
 func (dhs distributedSolver) Present(ctx context.Context, chal acme.Challenge) error {
 	infoBytes, err := json.Marshal(chal)
 	if err != nil {
 		return err
 	}
 
-	err = dhs.storage.Store(dhs.challengeTokensKey(chal.Identifier.Value), infoBytes)
+	err = dhs.storage.Store(ctx, dhs.challengeTokensKey(challengeKey(chal)), infoBytes)
 	if err != nil {
 		return err
 	}
@@ -501,7 +530,7 @@ func (dhs distributedSolver) Wait(ctx context.Context, challenge acme.Challenge)
 // CleanUp invokes the underlying solver's CleanUp method
 // and also cleans up any assets saved to storage.
 func (dhs distributedSolver) CleanUp(ctx context.Context, chal acme.Challenge) error {
-	err := dhs.storage.Delete(dhs.challengeTokensKey(chal.Identifier.Value))
+	err := dhs.storage.Delete(ctx, dhs.challengeTokensKey(challengeKey(chal)))
 	if err != nil {
 		return err
 	}
@@ -648,6 +677,18 @@ type Challenge struct {
 	data interface{}
 }
 
+// challengeKey returns the map key for a given challenge; it is the identifier
+// unless it is an IP address using the TLS-ALPN challenge.
+func challengeKey(chal acme.Challenge) string {
+	if chal.Type == acme.ChallengeTypeTLSALPN01 && chal.Identifier.Type == "ip" {
+		reversed, err := dns.ReverseAddr(chal.Identifier.Value)
+		if err == nil {
+			return reversed[:len(reversed)-1] // strip off '.'
+		}
+	}
+	return chal.Identifier.Value
+}
+
 // solverWrapper should be used to wrap all challenge solvers so that
 // we can add the challenge info to memory; this makes challenges globally
 // solvable by a single HTTP or TLS server even if multiple servers with
@@ -656,7 +697,7 @@ type solverWrapper struct{ acmez.Solver }
 
 func (sw solverWrapper) Present(ctx context.Context, chal acme.Challenge) error {
 	activeChallengesMu.Lock()
-	activeChallenges[chal.Identifier.Value] = Challenge{Challenge: chal}
+	activeChallenges[challengeKey(chal)] = Challenge{Challenge: chal}
 	activeChallengesMu.Unlock()
 	return sw.Solver.Present(ctx, chal)
 }
@@ -670,7 +711,7 @@ func (sw solverWrapper) Wait(ctx context.Context, chal acme.Challenge) error {
 
 func (sw solverWrapper) CleanUp(ctx context.Context, chal acme.Challenge) error {
 	activeChallengesMu.Lock()
-	delete(activeChallenges, chal.Identifier.Value)
+	delete(activeChallenges, challengeKey(chal))
 	activeChallengesMu.Unlock()
 	return sw.Solver.CleanUp(ctx, chal)
 }

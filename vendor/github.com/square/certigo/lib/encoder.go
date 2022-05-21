@@ -161,6 +161,7 @@ var algoName = [...]string{
 	x509.ECDSAWithSHA256: "ECDSA-SHA256",
 	x509.ECDSAWithSHA384: "ECDSA-SHA384",
 	x509.ECDSAWithSHA512: "ECDSA-SHA512",
+	x509.PureEd25519:     "ED25519",
 }
 
 type basicConstraints struct {
