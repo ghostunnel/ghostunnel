@@ -26,7 +26,7 @@ import (
 	"sync/atomic"
 	"unsafe"
 
-	"github.com/github/certstore"
+	"github.com/ghostunnel/ghostunnel/certstore"
 )
 
 type certstoreCertificate struct {
