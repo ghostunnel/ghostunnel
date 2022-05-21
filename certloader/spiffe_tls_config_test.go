@@ -11,7 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spiffe/go-spiffe/spiffetest"
+	spiffetest "github.com/ghostunnel/ghostunnel/certloader/internal/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,19 +26,17 @@ func TestSPIFFELogger(t *testing.T) {
 }
 
 func TestWorkloadAPITLSConfigSource(t *testing.T) {
-	ca := spiffetest.NewCA(t)
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := spiffetest.NewCA(t, td)
 
-	cert, key := ca.CreateX509SVID("spiffe://domain.test/workload")
+	svid := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/foo"))
 
-	workloadAPI := spiffetest.NewWorkloadAPI(t, &spiffetest.X509SVIDResponse{
-		Bundle: ca.Roots(),
-		SVIDs: []spiffetest.X509SVID{
-			{
-				CertChain: cert,
-				Key:       key,
-			},
-		},
-	})
+	workloadAPI := spiffetest.New(t)
+	workloadAPI.SetX509SVIDResponse(
+		&spiffetest.X509SVIDResponse{
+			Bundle: ca.X509Bundle(),
+			SVIDs:  []*x509svid.SVID{svid},
+		})
 	defer workloadAPI.Stop()
 
 	log := log.Default()

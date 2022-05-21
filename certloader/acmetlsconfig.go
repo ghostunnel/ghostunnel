@@ -1,6 +1,7 @@
 package certloader
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 
@@ -74,7 +75,7 @@ func TLSConfigSourceFromACME(acme *ACMEConfig) (TLSConfigSource, error) {
 	// Force an initial synchronous load of the certificate on startup. If no certificate
 	// yet exists, certmagic will attempt to obtain one from the ACME provider. If a valid
 	// cert has already been obtained, it will be loaded from local cache.
-	err := magicConfig.ManageSync([]string{acme.FQDN})
+	err := magicConfig.ManageSync(context.Background(), []string{acme.FQDN})
 	if err != nil {
 		return nil, err
 	}
