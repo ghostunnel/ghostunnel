@@ -658,7 +658,8 @@ func (c errCode) Error() string {
 	if cmsg == nil {
 		return fmt.Sprintf("Error %X", int(c))
 	}
-	defer C.LocalFree(C.HLOCAL(cmsg))
+	// https://github.com/golang/go/issues/51726#issuecomment-1069615452
+	defer C.LocalFree(C.HLOCAL(unsafe.Pointer(cmsg)))
 
 	gomsg := C.GoString(cmsg)
 
