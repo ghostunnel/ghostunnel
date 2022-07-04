@@ -21,7 +21,7 @@ require (
 	github.com/prometheus/client_golang v1.12.2
 	github.com/prometheus/common v0.34.0 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475
-	github.com/spiffe/go-spiffe/v2 v2.1.0
+	github.com/spiffe/go-spiffe/v2 v2.1.1
 	github.com/square/certigo v1.15.1
 	github.com/square/go-sq-metrics v0.0.0-20170531223841-ae72f332d0d9
 	github.com/stretchr/testify v1.7.1
@@ -33,7 +33,6 @@ require (
 
 require (
 	github.com/Microsoft/go-winio v0.5.2
-	github.com/github/fakeca v0.2.0
 	github.com/github/smimesign v0.2.0
 	github.com/pkg/errors v0.9.1
 	google.golang.org/protobuf v1.28.0

@@ -93,8 +93,6 @@ github.com/envoyproxy/protoc-gen-validate v0.1.0/go.mod h1:iSmxcyjqTsJpI2R4NaDN7
 github.com/fatih/color v1.13.0 h1:8LOYc1KYPPmyKMuN8QV2DNRWNbLo6LZ0iLs8+mlH53w=
 github.com/fatih/color v1.13.0/go.mod h1:kLAiJbzzSOZDVNGyDpeOxJ47H46qBXwg5ILebYFFOfk=
 github.com/ghodss/yaml v1.0.0/go.mod h1:4dBDuWmgqj2HViK6kFavaiC9ZROes6MMH2rRYeMEF04=
-github.com/github/fakeca v0.2.0 h1:xtBwXN7dmDPK8U5z0KHW1jupDVTDSINxrKRAc5//XFY=
-github.com/github/fakeca v0.2.0/go.mod h1:XhVUBgZ9+o0O6XzVXOl4H5qNxkV/MImtB3FuI/Zcti0=
 github.com/github/smimesign v0.2.0 h1:Hho4YcX5N1I9XNqhq0fNx0Sts8MhLonHd+HRXVGNjvk=
 github.com/github/smimesign v0.2.0/go.mod h1:iZiiwNT4HbtGRVqCQu7uJPEZCuEE5sfSSttcnePkDl4=
 github.com/go-gl/glfw v0.0.0-20190409004039-e6da0acd62b1/go.mod h1:vR7hzQXu2zJy9AVAgeJqvqgH9Q5CA+iKCZ2gyEVpxRU=
@@ -282,8 +280,8 @@ github.com/sirupsen/logrus v1.2.0/go.mod h1:LxeOpSwHxABJmUn/MG1IvRgCAasNZTLOkJPx
 github.com/sirupsen/logrus v1.4.2/go.mod h1:tLMulIdttU9McNUspp0xgXVQah82FyeX6MwdIuYE2rE=
 github.com/sirupsen/logrus v1.6.0/go.mod h1:7uNnSEd1DgxDLC74fIahvMZmmYsHGZGEOFrfsX/uA88=
 github.com/sirupsen/logrus v1.7.0/go.mod h1:yWOB1SBYBC5VeMP7gHvWumXLIWorT60ONWic61uBYv0=
-github.com/spiffe/go-spiffe/v2 v2.1.0 h1:IZRlWhyFpPbJOiK8K+MwEFPU/QCdaW4Zf5bmIKBd3XM=
-github.com/spiffe/go-spiffe/v2 v2.1.0/go.mod h1:5qg6rpqlwIub0JAiF1UK9IMD6BpPTmvG6yfSgDBs5lg=
+github.com/spiffe/go-spiffe/v2 v2.1.1 h1:RT9kM8MZLZIsPTH+HKQEP5yaAk3yd/VBzlINaRjXs8k=
+github.com/spiffe/go-spiffe/v2 v2.1.1/go.mod h1:5qg6rpqlwIub0JAiF1UK9IMD6BpPTmvG6yfSgDBs5lg=
 github.com/square/certigo v1.15.1 h1:12BIGz6udWxxPCJY+AXqJdfIFWKQtvK01d4K6ysSu6g=
 github.com/square/certigo v1.15.1/go.mod h1:1vLtoPAeOk5d3cEFqKRmm8bzxl6xnOhXPum9G1YfS0A=
 github.com/square/go-sq-metrics v0.0.0-20170531223841-ae72f332d0d9 h1:EjCIkN8CnRBciDeOM2c+5uBd+ek5r90N6r6zWwLUXgo=
