@@ -2,12 +2,12 @@ SPIFFE Workload API Support
 ===================
 
 Ghostunnel has support for the [SPIFFE](https://spiffe.io)
-[Workload API](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE_Workload_API.md).
+[Workload API](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Workload_API.md).
 Using the Workload API, Ghostunnel maintains up-to-date, frequently rotated
 client/server identities (i.e. X.509 certificates and private keys) and trusted
 X.509 roots. When utilizing the Workload API, ghosttunnel expects peers to
 present SPIFFE
-[X509-SVIDs](https://github.com/spiffe/spiffe/blob/master/standards/X509-SVID.md)
+[X509-SVIDs](https://github.com/spiffe/spiffe/blob/main/standards/X509-SVID.md)
 and verifies them using SPIFFE authentication.
 
 To enable workload API support, use the `--use-workload-api` flag. By default,
@@ -15,16 +15,24 @@ the location of the SPIFFE Workload API socket is picked up from the
 `SPIFFE_ENDPOINT_SOCKET` environment variable. The `--workload-api-addr` flag
 can be used to explicitly set the address, like so:
 
+UNIX: 
 ```
 $ ghostunnel server \
     --use-workload-api-addr /run/spire/sockets/agent.sock \
     ... other server options ...
 ```
 
+Windows:
+```
+$ ghostunnel server \
+    --use-workload-api-addr npipe:spire-agent\\public\\api \
+    ... other server options ...
+```
+
 Authorization
 -------------------
 
-The identity of the peer, i.e. the [SPIFFE ID](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE-ID.md), is embedded as a URI SAN on the
+The identity of the peer, i.e. the [SPIFFE ID](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE-ID.md), is embedded as a URI SAN on the
 X509-SVID. Accordingly, the existing `--verify-uri` and `--allow-uri`
 flags can be used to authorize the peer:
 
