@@ -17,10 +17,14 @@
 package auth
 
 import (
+	"context"
 	"crypto/x509"
 	"errors"
+	"fmt"
+	"github.com/open-policy-agent/opa/rego"
 	"net"
 	"net/url"
+	"time"
 
 	"github.com/ghostunnel/ghostunnel/wildcard"
 )
@@ -56,6 +60,10 @@ type ACL struct {
 	// has a valid certificate with at least one of these URI SANs, we grant
 	// access.
 	AllowedURIs []wildcard.Matcher
+	// AllowOPAQuery defines a rego precompiled query, ready to be verified against the client certificate.
+	// This is exclusive with all other options
+	AllowOPAQuery *rego.PreparedEvalQuery
+
 	// Logger is used to log authorization decisions.
 	Logger Logger
 }
@@ -101,6 +109,22 @@ func (a ACL) VerifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*
 		return nil
 	}
 
+	// Check against OPA
+	if a.AllowOPAQuery != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		input := map[string]interface{}{
+			"certificate": cert,
+		}
+		results, err := a.AllowOPAQuery.Eval(ctx, rego.EvalInput(input))
+		if err != nil {
+			return fmt.Errorf("unauthorized: policy returned error: %w", err)
+		}
+		if results.Allowed() {
+			return nil
+		}
+	}
+
 	return errors.New("unauthorized: invalid principal, or principal not allowed")
 }
 
@@ -116,7 +140,7 @@ func (a ACL) VerifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*
 
 	// If the ACL is empty, only hostname verification is performed. The hostname
 	// verification happens in crypto/tls itself, so we can skip our checks here.
-	if len(a.AllowedCNs) == 0 && len(a.AllowedOUs) == 0 && len(a.AllowedDNSs) == 0 && len(a.AllowedURIs) == 0 && len(a.AllowedIPs) == 0 {
+	if len(a.AllowedCNs) == 0 && len(a.AllowedOUs) == 0 && len(a.AllowedDNSs) == 0 && len(a.AllowedURIs) == 0 && len(a.AllowedIPs) == 0 && a.AllowOPAQuery == nil {
 		return nil
 	}
 
@@ -145,6 +169,22 @@ func (a ACL) VerifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*
 	// Check URI SANs against --verify-uri-san flag(s).
 	if intersectsURI(a.AllowedURIs, cert.URIs) {
 		return nil
+	}
+
+	// Check against OPA
+	if a.AllowOPAQuery != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		input := map[string]interface{}{
+			"certificate": cert,
+		}
+		results, err := a.AllowOPAQuery.Eval(ctx, rego.EvalInput(input))
+		if err != nil {
+			return fmt.Errorf("unauthorized: policy returned error: %w", err)
+		}
+		if results.Allowed() {
+			return nil
+		}
 	}
 
 	return errors.New("unauthorized: invalid principal, or principal not allowed")

@@ -172,6 +172,49 @@ func TestServerFlagValidation(t *testing.T) {
 	err = serverValidateFlags()
 	assert.NotNil(t, err, "--allow-all and --allow-ip-san are mutually exclusive")
 
+	// OPA flags
+	*serverAllowedIPs = nil
+	*serverAllowPolicy = "policy"
+	err = serverValidateFlags()
+	assert.NotNil(t, err, "--allow-all and --allow-policy are mutually exclusive")
+
+	*serverAllowPolicy = ""
+	*serverAllowQuery = "query"
+	err = serverValidateFlags()
+	assert.NotNil(t, err, "--allow-all and --allow-query are mutually exclusive")
+
+	*serverAllowAll = false
+	*serverAllowPolicy = "policy"
+	*serverAllowQuery = ""
+	err = serverValidateFlags()
+	assert.NotNil(t, err, "--allow-policy needs --allow-query")
+
+	*serverAllowPolicy = ""
+	*serverAllowQuery = "query"
+	err = serverValidateFlags()
+	assert.NotNil(t, err, "--allow-query needs --allow-policy")
+
+	*serverAllowPolicy = "policy"
+	*serverAllowQuery = "query"
+	*serverAllowedCNs = []string{"test"}
+	err = serverValidateFlags()
+	assert.NotNil(t, err, "--allow-policy and --allow-cn are mutually exclusive")
+
+	*serverAllowedCNs = nil
+	*serverAllowedOUs = []string{"test"}
+	err = serverValidateFlags()
+	assert.NotNil(t, err, "--allow-policy and --allow-ou are mutually exclusive")
+
+	*serverAllowedOUs = nil
+	*serverAllowedDNSs = []string{"test"}
+	err = serverValidateFlags()
+	assert.NotNil(t, err, "--allow-policy and --allow-dns-san are mutually exclusive")
+
+	*serverAllowedDNSs = nil
+	*serverAllowedIPs = []net.IP{net.IPv4(0, 0, 0, 0)}
+	err = serverValidateFlags()
+	assert.NotNil(t, err, "--allow-policy and --allow-ip-san are mutually exclusive")
+
 	*serverAllowedIPs = nil
 	*serverAllowAll = true
 	*serverDisableAuth = true

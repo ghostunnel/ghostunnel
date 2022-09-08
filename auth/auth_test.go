@@ -17,8 +17,10 @@
 package auth
 
 import (
+	"context"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"github.com/open-policy-agent/opa/rego"
 	"net"
 	"net/url"
 	"testing"
@@ -118,6 +120,130 @@ func TestAuthorizeRejectURI(t *testing.T) {
 	assert.NotNil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "should reject cert w/o matching URI")
 }
 
+func TestAuthorizeOPARejectCommonName(t *testing.T) {
+	module := `package policy
+	import input
+	default allow := false
+	allow = true {
+		input.certificate.Subject.CommonName == "gopher NOT"
+	}
+	`
+	allowQuery, _ := rego.New(
+		rego.Query("data.policy.allow"),
+		rego.Module("test.rego", module),
+	).PrepareForEval(context.Background())
+
+	testACL := ACL{
+		AllowOPAQuery: &allowQuery,
+	}
+	assert.NotNil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "Rego policy on different CN should be rejected")
+}
+
+func TestAuthorizeOPAAcceptCommonName(t *testing.T) {
+	module := `package policy
+	import input
+	default allow := false
+	allow = true {
+		input.certificate.Subject.CommonName == "gopher"
+	}
+	`
+	allowQuery, _ := rego.New(
+		rego.Query("data.policy.allow"),
+		rego.Module("test.rego", module),
+	).PrepareForEval(context.Background())
+
+	testACL := ACL{
+		AllowOPAQuery: &allowQuery,
+	}
+	assert.Nil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "Rego policy validates CN should pass")
+}
+
+func TestAuthorizeOPAAcceptDNSn(t *testing.T) {
+	module := `package policy
+	import input
+	default allow := false
+
+	allow = true {
+		input.certificate.DNSNames[_] == "circle"
+	}
+	`
+
+	allowQuery, _ := rego.New(
+		rego.Query("data.policy.allow"),
+		rego.Module("test.rego", module),
+	).PrepareForEval(context.Background())
+
+	testACL := ACL{
+		AllowOPAQuery: &allowQuery,
+	}
+	assert.Nil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "Rego policy validates testing DNS names")
+}
+
+func TestAuthorizeOPAAcceptURIs(t *testing.T) {
+	module := `package policy
+	import input
+	default allow := false
+
+	allow {
+		input.certificate.URIs[_].Scheme == "scheme"
+		input.certificate.URIs[_].Host == "valid"
+		input.certificate.URIs[_].Path == "/path"
+	}
+	`
+
+	allowQuery, _ := rego.New(
+		rego.Query("data.policy.allow"),
+		rego.Module("test.rego", module),
+	).PrepareForEval(context.Background())
+
+	testACL := ACL{
+		AllowOPAQuery: &allowQuery,
+	}
+	assert.Nil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "Rego policy validates testing URIs")
+}
+
+func TestAuthorizeOPAAcceptOneOU(t *testing.T) {
+	module := `package policy
+	import input
+	default allow := false
+
+	allow {
+		input.certificate.Subject.OrganizationalUnit[_] == "triangle"
+	}
+	`
+
+	allowQuery, _ := rego.New(
+		rego.Query("data.policy.allow"),
+		rego.Module("test.rego", module),
+	).PrepareForEval(context.Background())
+
+	testACL := ACL{
+		AllowOPAQuery: &allowQuery,
+	}
+	assert.Nil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "Rego policy validates one OU")
+}
+
+func TestAuthorizeOPARejectAllOU(t *testing.T) {
+	module := `package policy
+	import input
+	default allow := false
+
+	allow {
+		input.certificate.Subject.OrganizationalUnit[_] == "no existing OU"
+	}
+	`
+
+	allowQuery, _ := rego.New(
+		rego.Query("data.policy.allow"),
+		rego.Module("test.rego", module),
+	).PrepareForEval(context.Background())
+
+	testACL := ACL{
+		AllowOPAQuery: &allowQuery,
+	}
+	assert.NotNil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "Rego policy rejects none OU")
+}
+
 func TestVerifyAllowEmpty(t *testing.T) {
 	testACL := ACL{}
 
@@ -211,4 +337,128 @@ func TestVerifyNoVerifiedChains(t *testing.T) {
 	testACL := ACL{}
 
 	assert.NotNil(t, testACL.VerifyPeerCertificateClient(nil, nil), "should reject if no verified chains")
+}
+
+func TestVerifyOPARejectCommonName(t *testing.T) {
+	module := `package policy
+	import input
+	default allow := false
+	allow = true {
+		input.certificate.Subject.CommonName == "gopher NOT"
+	}
+	`
+	allowQuery, _ := rego.New(
+		rego.Query("data.policy.allow"),
+		rego.Module("test.rego", module),
+	).PrepareForEval(context.Background())
+
+	testACL := ACL{
+		AllowOPAQuery: &allowQuery,
+	}
+	assert.NotNil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "Rego policy on different CN should be rejected")
+}
+
+func TestVerifyOPAAcceptCommonName(t *testing.T) {
+	module := `package policy
+	import input
+	default allow := false
+	allow = true {
+		input.certificate.Subject.CommonName == "gopher"
+	}
+	`
+	allowQuery, _ := rego.New(
+		rego.Query("data.policy.allow"),
+		rego.Module("test.rego", module),
+	).PrepareForEval(context.Background())
+
+	testACL := ACL{
+		AllowOPAQuery: &allowQuery,
+	}
+	assert.Nil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "Rego policy validates CN should pass")
+}
+
+func TestVerifyOPAAcceptDNSn(t *testing.T) {
+	module := `package policy
+	import input
+	default allow := false
+
+	allow = true {
+		input.certificate.DNSNames[_] == "circle"
+	}
+	`
+
+	allowQuery, _ := rego.New(
+		rego.Query("data.policy.allow"),
+		rego.Module("test.rego", module),
+	).PrepareForEval(context.Background())
+
+	testACL := ACL{
+		AllowOPAQuery: &allowQuery,
+	}
+	assert.Nil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "Rego policy validates testing DNS names")
+}
+
+func TestVerifyOPAAcceptURIs(t *testing.T) {
+	module := `package policy
+	import input
+	default allow := false
+
+	allow {
+		input.certificate.URIs[_].Scheme == "scheme"
+		input.certificate.URIs[_].Host == "valid"
+		input.certificate.URIs[_].Path == "/path"
+	}
+	`
+
+	allowQuery, _ := rego.New(
+		rego.Query("data.policy.allow"),
+		rego.Module("test.rego", module),
+	).PrepareForEval(context.Background())
+
+	testACL := ACL{
+		AllowOPAQuery: &allowQuery,
+	}
+	assert.Nil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "Rego policy validates testing URIs")
+}
+
+func TestVerifyOPAAcceptOneOU(t *testing.T) {
+	module := `package policy
+	import input
+	default allow := false
+
+	allow {
+		input.certificate.Subject.OrganizationalUnit[_] == "triangle"
+	}
+	`
+
+	allowQuery, _ := rego.New(
+		rego.Query("data.policy.allow"),
+		rego.Module("test.rego", module),
+	).PrepareForEval(context.Background())
+
+	testACL := ACL{
+		AllowOPAQuery: &allowQuery,
+	}
+	assert.Nil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "Rego policy validates one OU")
+}
+
+func TestVerifyOPARejectAllOU(t *testing.T) {
+	module := `package policy
+	import input
+	default allow := false
+
+	allow {
+		input.certificate.Subject.OrganizationalUnit[_] == "no existing OU"
+	}
+	`
+
+	allowQuery, _ := rego.New(
+		rego.Query("data.policy.allow"),
+		rego.Module("test.rego", module),
+	).PrepareForEval(context.Background())
+
+	testACL := ACL{
+		AllowOPAQuery: &allowQuery,
+	}
+	assert.NotNil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "Rego policy rejects none OU")
 }
