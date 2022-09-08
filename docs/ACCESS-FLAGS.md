@@ -120,3 +120,53 @@ but the backend doesn't require mutual authentication.
 
 [tls]: https://golang.org/pkg/crypto/tls
 [wildcard]: https://godoc.org/github.com/ghostunnel/ghostunnel/wildcard
+
+### Open Policy Agent
+
+< ! > this feature is considered experimental and is subject to future breaking changes < ! >
+
+Ghostunnel has support for local OPA policies, both in server and client mode.
+
+Use of OPA is mutually exclusive with any other `allow` (or `verify`) flags.
+
+To use it in server mode, call ghostunnel by passing `--allow-policy=policy_file.rego --allow-query=query_string_to_verify`.
+
+For client mode respectively, use the flags `--verify-policy` and `--verify-query` instead.
+
+Inside your policy, you can access the reflected x509 peer certificate using `input.certificate`.
+
+For example, here is a policy verifying that at least one URI SAN in the certificate is `scheme://valid/path`,
+and that the certificate common name is `gopher`:
+
+```rego
+package policy
+	import input
+	default allow := false
+
+	allow {
+		input.certificate.Subject.CommonName == "gopher"
+		input.certificate.URIs[_].Scheme == "scheme"
+		input.certificate.URIs[_].Host == "valid"
+		input.certificate.URIs[_].Path == "/path"
+	}
+```
+
+... with the corresponding query: `data.policy.allow`
+
+See [golang x509 Certificate struct](https://pkg.go.dev/crypto/x509#Certificate) 
+for more about other properties, and the 
+[Rego documentation](https://www.openpolicyagent.org/docs/latest/policy-language/)
+for more about the policy language.
+
+#### Caveats
+
+* bouncing off ghostunnel with `SIGUSR1` will NOT reload the OPA policy
+* there is no mechanism to load a policy from a remote OPA server - the policy
+file has to be local, or be retrieved and stored locally out of band by a different
+process
+* we currently rely on `results.Allowed()` for validation - this means we will return true only if:
+  * the result set only has one element
+  * there is only one expression in the result set's only element
+  * that expression has the value `true`
+  * there are no bindings
+* policy evaluation has a fixed timeout of 1s, that is currently not configurable

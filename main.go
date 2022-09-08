@@ -17,6 +17,7 @@
 package main
 
 import (
+	gocontext "context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -45,6 +46,8 @@ import (
 
 	prometheusmetrics "github.com/deathowl/go-metrics-prometheus"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/open-policy-agent/opa/rego"
 )
 
 var (
@@ -78,6 +81,8 @@ var (
 	serverAllowedDNSs         = serverCommand.Flag("allow-dns", "Allow clients with given DNS subject alternative name (can be repeated).").PlaceHolder("DNS").Strings()
 	serverAllowedIPs          = serverCommand.Flag("allow-ip", "").Hidden().PlaceHolder("SAN").IPList()
 	serverAllowedURIs         = serverCommand.Flag("allow-uri", "Allow clients with given URI subject alternative name (can be repeated).").PlaceHolder("URI").Strings()
+	serverAllowPolicy         = serverCommand.Flag("allow-policy", "Allow passing the location of an OPA rego file").String()
+	serverAllowQuery          = serverCommand.Flag("allow-query", "Allow defining a query to validate against the client certificate and the rego policy.").String()
 	serverDisableAuth         = serverCommand.Flag("disable-authentication", "Disable client authentication, no client certificate will be required.").Default("false").Bool()
 	serverAutoACMEFQDN        = serverCommand.Flag("auto-acme-cert", "Automatically obtain a certificate via ACME for the specified FQDN").PlaceHolder("www.example.com").String()
 	serverAutoACMEEmail       = serverCommand.Flag("auto-acme-email", "Email address associated with all ACME requests").PlaceHolder("admin@#example.com").String()
@@ -97,6 +102,8 @@ var (
 	clientAllowedDNSs    = clientCommand.Flag("verify-dns", "Allow servers with given DNS subject alternative name (can be repeated).").PlaceHolder("DNS").Strings()
 	clientAllowedIPs     = clientCommand.Flag("verify-ip", "").Hidden().PlaceHolder("SAN").IPList()
 	clientAllowedURIs    = clientCommand.Flag("verify-uri", "Allow servers with given URI subject alternative name (can be repeated).").PlaceHolder("URI").Strings()
+	clientAllowPolicy    = clientCommand.Flag("verify-policy", "Allow passing the location of an OPA rego file").String()
+	clientAllowQuery     = clientCommand.Flag("verify-query", "Allow defining a query to validate against the client certificate and the rego policy.").String()
 	clientDisableAuth    = clientCommand.Flag("disable-authentication", "Disable client authentication, no certificate will be provided to the server.").Default("false").Bool()
 
 	// TLS options
@@ -271,6 +278,8 @@ func serverValidateFlags() error {
 		len(*serverAllowedDNSs) > 0 ||
 		len(*serverAllowedIPs) > 0 ||
 		len(*serverAllowedURIs) > 0
+	hasOPAFlags := len(*serverAllowPolicy) > 0 ||
+		len(*serverAllowQuery) > 0
 
 	hasValidCredentials := validateCredentials([]bool{
 		// Standard keystore
@@ -296,13 +305,13 @@ func serverValidateFlags() error {
 	if (*keyPath != "" && *certPath == "") || (*certPath != "" && *keyPath == "" && !hasPKCS11()) {
 		return errors.New("--cert/--key must be set together, unless using PKCS11 for private key")
 	}
-	if !(*serverDisableAuth) && !(*serverAllowAll) && !hasAccessFlags {
-		return errors.New("at least one access control flag (--allow-{all,cn,ou,dns-san,ip-san,uri-san} or --disable-authentication) is required")
+	if !(*serverDisableAuth) && !(*serverAllowAll) && !hasAccessFlags && !hasOPAFlags {
+		return errors.New("at least one access control flag (--allow-{all,cn,ou,dns-san,ip-san,uri-san}, or OPA flags, or --disable-authentication) is required")
 	}
-	if !(*serverDisableAuth) && *serverAllowAll && hasAccessFlags {
+	if !(*serverDisableAuth) && *serverAllowAll && (hasAccessFlags || hasOPAFlags) {
 		return errors.New("--allow-all is mutually exclusive with other access control flags")
 	}
-	if *serverDisableAuth && (*serverAllowAll || hasAccessFlags) {
+	if *serverDisableAuth && (*serverAllowAll || hasAccessFlags || hasOPAFlags) {
 		return errors.New("--disable-authentication is mutually exclusive with other access control flags")
 	}
 	if !*serverUnsafeTarget && !consideredSafe(*serverForwardAddress) {
@@ -315,6 +324,13 @@ func serverValidateFlags() error {
 		if !*serverAutoACMEAgreedTOS {
 			return errors.New("--auto-acme-agree-to-tos was not specified and is required if --auto-acme-cert is specified")
 		}
+	}
+
+	if hasOPAFlags && (*serverAllowPolicy == "" || *serverAllowQuery == "") {
+		return errors.New("--allow-policy and --allow-query have to be used together")
+	}
+	if hasOPAFlags && hasAccessFlags {
+		return errors.New("--allow-policy and --allow-query are mutually exclusive with other access control flags")
 	}
 
 	if err := validateCipherSuites(); err != nil {
@@ -536,14 +552,30 @@ func serverListen(context *Context) error {
 		return err
 	}
 
+	// Compile the rego policy
+	var allowQuery *rego.PreparedEvalQuery
+	if len(*serverAllowPolicy) > 0 &&
+		len(*serverAllowQuery) > 0 {
+		aQuery, err := rego.New(
+			rego.Query(*serverAllowQuery),
+			rego.Load([]string{*serverAllowPolicy}, nil),
+		).PrepareForEval(gocontext.Background())
+		if err != nil {
+			logger.Printf("Invalid rego policy or query: %s", err)
+			return err
+		}
+		allowQuery = &aQuery
+	}
+
 	serverACL := auth.ACL{
-		AllowAll:    *serverAllowAll,
-		AllowedCNs:  *serverAllowedCNs,
-		AllowedOUs:  *serverAllowedOUs,
-		AllowedDNSs: *serverAllowedDNSs,
-		AllowedIPs:  *serverAllowedIPs,
-		AllowedURIs: allowedURIs,
-		Logger:      logger,
+		AllowAll:      *serverAllowAll,
+		AllowedCNs:    *serverAllowedCNs,
+		AllowedOUs:    *serverAllowedOUs,
+		AllowedDNSs:   *serverAllowedDNSs,
+		AllowedIPs:    *serverAllowedIPs,
+		AllowOPAQuery: allowQuery,
+		AllowedURIs:   allowedURIs,
+		Logger:        logger,
 	}
 
 	if *serverDisableAuth {
@@ -729,13 +761,29 @@ func clientBackendDialer(tlsConfigSource certloader.TLSConfigSource, network, ad
 		return nil, err
 	}
 
+	// Compile the rego policy
+	var allowQuery *rego.PreparedEvalQuery
+	if len(*clientAllowPolicy) > 0 &&
+		len(*clientAllowQuery) > 0 {
+		aQuery, err := rego.New(
+			rego.Query(*clientAllowQuery),
+			rego.Load([]string{*clientAllowPolicy}, nil),
+		).PrepareForEval(gocontext.Background())
+		if err != nil {
+			logger.Printf("Invalid rego policy or query: %s", err)
+			return nil, err
+		}
+		allowQuery = &aQuery
+	}
+
 	clientACL := auth.ACL{
-		AllowedCNs:  *clientAllowedCNs,
-		AllowedOUs:  *clientAllowedOUs,
-		AllowedDNSs: *clientAllowedDNSs,
-		AllowedIPs:  *clientAllowedIPs,
-		AllowedURIs: allowedURIs,
-		Logger:      logger,
+		AllowedCNs:    *clientAllowedCNs,
+		AllowedOUs:    *clientAllowedOUs,
+		AllowedDNSs:   *clientAllowedDNSs,
+		AllowedIPs:    *clientAllowedIPs,
+		AllowedURIs:   allowedURIs,
+		AllowOPAQuery: allowQuery,
+		Logger:        logger,
 	}
 
 	config.VerifyPeerCertificate = clientACL.VerifyPeerCertificateClient

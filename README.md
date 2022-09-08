@@ -27,9 +27,8 @@ Features
 
 **[Access control](#access-control-flags)**: Ghostunnel enforces mutual
 authentication by requiring a valid client certificate for all connections. We
-also support access control via checks on the subject (or subject alternative
-names) of a client certificate. This is useful for restricting access to
-services that don't have native access control.
+also support access control via checks on the client certificate. This is useful 
+for restricting access to services that don't have native access control.
 
 **[Certificate hotswapping](#certificate-hotswapping)**: Ghostunnel can reload
 certificates at runtime without dropping existing connections. Certificate
@@ -238,6 +237,8 @@ server modes.  All checks are made against the certificate of the client or
 server. Multiple flags are treated as a logical disjunction (OR), meaning
 clients can connect as long as any of the flags matches. Ghostunnel is
 compatible with [SPIFFE][spiffe] [X.509 SVIDs][svid].
+
+Ghostunnel also has experimental support for [Open Policy Agent](https://www.openpolicyagent.org/) policies.
 
 See [ACCESS-FLAGS](docs/ACCESS-FLAGS.md) for details.
 
