@@ -29,11 +29,6 @@ import (
 	"github.com/ghostunnel/ghostunnel/wildcard"
 )
 
-// Logger is used by this package to log messages
-type Logger interface {
-	Printf(format string, v ...interface{})
-}
-
 // ACL represents an access control list for mutually-authenticated TLS connections.
 // These options are disjunctive, if at least one attribute matches access will be granted.
 type ACL struct {
@@ -41,31 +36,39 @@ type ACL struct {
 	// all other options are ignored as all principals with valid certificates
 	// will be allowed no matter the subject.
 	AllowAll bool
+
 	// AllowCNs lists common names that should be allowed access. If a principal
 	// has a valid certificate with at least one of these CNs, we grant access.
 	AllowedCNs []string
+
 	// AllowOUs lists organizational units that should be allowed access. If a
 	// principal has a valid certificate with at least one of these OUs, we grant
 	// access.
 	AllowedOUs []string
+
 	// AllowDNSs lists DNS SANs that should be allowed access. If a principal
 	// has a valid certificate with at least one of these DNS SANs, we grant
 	// access.
 	AllowedDNSs []string
+
 	// AllowIPs lists IP SANs that should be allowed access. If a principal
 	// has a valid certificate with at least one of these IP SANs, we grant
 	// access.
 	AllowedIPs []net.IP
+
 	// AllowURIs lists URI SANs that should be allowed access. If a principal
 	// has a valid certificate with at least one of these URI SANs, we grant
 	// access.
 	AllowedURIs []wildcard.Matcher
-	// AllowOPAQuery defines a rego precompiled query, ready to be verified against the client certificate.
-	// This is exclusive with all other options
+
+	// AllowOPAQuery defines a rego precompiled query, ready to be verified
+	// against the client certificate. This is exclusive with all other
+	// options.
 	AllowOPAQuery *rego.PreparedEvalQuery
 
-	// Logger is used to log authorization decisions.
-	Logger Logger
+	// OPAQueryTimeout sets the timeout for AllowOPAQuery. It has no effect
+	// if AllowOPAQuery is nil.
+	OPAQueryTimeout time.Duration
 }
 
 // VerifyPeerCertificateServer is an implementation of VerifyPeerCertificate
@@ -111,7 +114,7 @@ func (a ACL) VerifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*
 
 	// Check against OPA
 	if a.AllowOPAQuery != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), a.OPAQueryTimeout)
 		defer cancel()
 		input := map[string]interface{}{
 			"certificate": cert,
@@ -173,7 +176,7 @@ func (a ACL) VerifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*
 
 	// Check against OPA
 	if a.AllowOPAQuery != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), a.OPAQueryTimeout)
 		defer cancel()
 		input := map[string]interface{}{
 			"certificate": cert,
