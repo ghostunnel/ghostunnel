@@ -28,10 +28,18 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"log"
 	"net"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
+
+	zx509 "github.com/zmap/zcrypto/x509"
+
+	"github.com/zmap/zlint/v3"
+	"github.com/zmap/zlint/v3/lint"
 )
 
 var keyUsages = []x509.KeyUsage{
@@ -201,11 +209,21 @@ type simpleCertificate struct {
 	AltIPAddresses        []net.IP            `json:"ip_addresses,omitempty"`
 	URINames              []string            `json:"uri_names,omitempty"`
 	EmailAddresses        []string            `json:"email_addresses,omitempty"`
-	Warnings              []string            `json:"warnings,omitempty"`
+	SCTList               []*simpleSCT        `json:"sct_list,omitempty"`
+	Warnings              []string            `json:"lints,omitempty"`
 	PEM                   string              `json:"pem,omitempty"`
 
 	// Internal fields for text display. Set - to skip serialize.
 	Width int `json:"-"`
+}
+
+type simpleSCT struct {
+	Version            uint64       `json:"version"`
+	LogOperator        string       `json:"log_operator,omitempty"`
+	LogURL             string       `json:"log_url,omitempty"`
+	LogID              []byte       `json:"log_id"`
+	Timestamp          time.Time    `json:"timestamp"`
+	SignatureAlgorithm simpleSigAlg `json:"signature_algorithm"`
 }
 
 type simplePKIXName struct {
@@ -240,6 +258,7 @@ func createSimpleCertificate(name string, cert *x509.Certificate) simpleCertific
 		AltDNSNames:           cert.DNSNames,
 		AltIPAddresses:        cert.IPAddresses,
 		EmailAddresses:        cert.EmailAddresses,
+		SCTList:               parseSCTList(cert),
 		PEM:                   string(pem.EncodeToMemory(EncodeX509ToPEM(cert, nil))),
 	}
 
@@ -247,7 +266,7 @@ func createSimpleCertificate(name string, cert *x509.Certificate) simpleCertific
 		out.URINames = append(out.URINames, uri.String())
 	}
 
-	out.Warnings = certWarnings(cert, out.URINames)
+	out.Warnings = certLints(cert, out.URINames)
 
 	if cert.BasicConstraintsValid {
 		out.BasicConstraints = &basicConstraints{
@@ -363,79 +382,48 @@ func algString(algo x509.SignatureAlgorithm) string {
 
 // decodeKey returns the algorithm and key size for a public key.
 func decodeKey(publicKey interface{}) (string, int) {
-	switch publicKey.(type) {
+	switch pk := publicKey.(type) {
 	case *dsa.PublicKey:
-		return "DSA", publicKey.(*dsa.PublicKey).P.BitLen()
+		return "DSA", pk.P.BitLen()
 	case *ecdsa.PublicKey:
-		return "ECDSA", publicKey.(*ecdsa.PublicKey).Curve.Params().BitSize
+		return "ECDSA", pk.Curve.Params().BitSize
 	case *rsa.PublicKey:
-		return "RSA", publicKey.(*rsa.PublicKey).N.BitLen()
+		return "RSA", pk.N.BitLen()
 	default:
 		return "", 0
 	}
 }
 
-// certWarnings prints a list of warnings to show common mistakes in certs.
-func certWarnings(cert *x509.Certificate, uriNames []string) (warnings []string) {
-	if cert.SerialNumber.Sign() != 1 {
-		warnings = append(warnings, "Serial number in cert appears to be zero/negative")
+var lintRegistryOnce sync.Once
+var lintRegistry lint.Registry
+
+// certLints prints a list of lints to show common mistakes in certs.
+func certLints(cert *x509.Certificate, uriNames []string) (lints []string) {
+	parsed, err := zx509.ParseCertificate(cert.Raw)
+	if err != nil {
+		lints = append(lints, fmt.Sprintf("Failed to parse certificate: %v", err))
+		return
 	}
 
-	if cert.SerialNumber.BitLen() > 160 {
-		warnings = append(warnings, "Serial number too long; should be 20 bytes or less")
-	}
+	lintRegistryOnce.Do(func() {
+		registry, err := lint.GlobalRegistry().Filter(lint.FilterOptions{
+			IncludeSources: []lint.LintSource{lint.RFC5280, lint.Community},
+		})
+		if err != nil {
+			log.Fatalf("Failed to filter lint registry: %v", err)
+		}
+		lintRegistry = registry
+	})
 
-	if cert.KeyUsage&x509.KeyUsageCertSign != 0 && !cert.IsCA {
-		warnings = append(warnings, "Key usage 'cert sign' is set, but is not a CA cert")
-	}
-
-	if cert.KeyUsage&x509.KeyUsageCertSign == 0 && cert.IsCA {
-		warnings = append(warnings, "Certificate is a CA cert, but key usage 'cert sign' missing")
-	}
-
-	if cert.Version < 2 {
-		warnings = append(warnings, fmt.Sprintf("Certificate is not in X509v3 format (version is %d)", cert.Version+1))
-	}
-
-	if len(cert.DNSNames) == 0 && len(cert.IPAddresses) == 0 && len(uriNames) == 0 && !cert.IsCA {
-		warnings = append(warnings, fmt.Sprintf("Certificate doesn't have any valid DNS/URI names or IP addresses set"))
-	}
-
-	if len(cert.UnhandledCriticalExtensions) > 0 {
-		warnings = append(warnings, "Certificate has unhandled critical extensions")
-	}
-
-	warnings = append(warnings, algWarnings(cert)...)
-
-	return
-}
-
-// algWarnings checks key sizes, signature algorithms.
-func algWarnings(cert *x509.Certificate) (warnings []string) {
-	alg, size := decodeKey(cert.PublicKey)
-	if (alg == "RSA" || alg == "DSA") && size < 2048 {
-		warnings = append(warnings, fmt.Sprintf("Size of %s key should be at least 2048 bits", alg))
-	}
-	if alg == "ECDSA" && size < 224 {
-		warnings = append(warnings, fmt.Sprintf("Size of %s key should be at least 224 bits", alg))
-	}
-
-	for _, alg := range badSignatureAlgorithms {
-		if cert.SignatureAlgorithm == alg {
-			warnings = append(warnings, fmt.Sprintf("Signed with %s, which is an outdated signature algorithm", algString(alg)))
+	zLints := zlint.LintCertificateEx(parsed, lintRegistry)
+	for lintName, lintResult := range zLints.Results {
+		if lintResult.Status >= lint.Warn {
+			lint := lintRegistry.ByName(lintName)
+			lints = append(lints, fmt.Sprintf("%s: [%s] %s", strings.ToUpper(lintResult.Status.String()),
+				lint.Source, lint.Description))
 		}
 	}
-
-	if alg == "RSA" {
-		key := cert.PublicKey.(*rsa.PublicKey)
-		if key.E < 3 {
-			warnings = append(warnings, "Public key exponent in RSA key is less than 3")
-		}
-		if key.N.Sign() != 1 {
-			warnings = append(warnings, "Public key modulus in RSA key appears to be zero/negative")
-		}
-	}
-
+	sort.Strings(lints)
 	return
 }
 

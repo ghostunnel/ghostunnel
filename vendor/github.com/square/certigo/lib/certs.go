@@ -28,7 +28,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -36,7 +35,7 @@ import (
 
 	"github.com/square/certigo/jceks"
 	"github.com/square/certigo/pkcs7"
-	"golang.org/x/crypto/pkcs12"
+	"software.sslmate.com/src/go-pkcs12"
 )
 
 const (
@@ -211,7 +210,7 @@ func readCertsFromStream(reader io.Reader, filename string, format string, passw
 		}
 		return nil
 	case "DER":
-		data, err := ioutil.ReadAll(reader)
+		data, err := io.ReadAll(reader)
 		if err != nil {
 			return fmt.Errorf("unable to read input: %s\n", err)
 		}
@@ -237,7 +236,7 @@ func readCertsFromStream(reader io.Reader, filename string, format string, passw
 		}
 		return fmt.Errorf("unable to parse certificates from DER data\n* X.509 parser gave: %s\n* PKCS7 parser gave: %s\n", err0, err1)
 	case "PKCS12":
-		data, err := ioutil.ReadAll(reader)
+		data, err := io.ReadAll(reader)
 		if err != nil {
 			return fmt.Errorf("unable to read input: %s\n", err)
 		}

@@ -20,6 +20,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -167,7 +168,7 @@ func VerifyChain(certs []*x509.Certificate, ocspStaple []byte, expectedName, caP
 		if err == nil {
 			result.OCSPStatus = status
 		}
-		if err != nil && err != skippedRevocationCheck {
+		if err != nil && !errors.Is(err, errSkippedRevocationCheck) {
 			result.OCSPError = err.Error()
 		}
 
