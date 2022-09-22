@@ -51,6 +51,11 @@ with `spiffe://ghostunnel/client1` or `spiffe://ghostunnel/client2` URI SANs (as
 well as other values). See documentation for the [wildcard][wildcard] package
 for more information.
 
+* `--allow-policy` and `--allow-query`
+
+Allow clients where a Rego policy evaluates to `true` with the given query.
+For more information, see the Open Policy Agent section below.
+
 * `--disable-authentication`
 
 Disables client authentication entirely, no client certificate will be required
@@ -112,6 +117,11 @@ for more information.
 
 [wildcard]: https://godoc.org/github.com/ghostunnel/ghostunnel/wildcard
 
+* `--verify-policy` and `--verify-query`
+
+Verify that a Rego policy evaluates to `true` with the given query.
+For more information, see the Open Policy Agent section below.
+
 * `--disable-authentication`
 
 Disable client authentication, no certificate will be provided to the server.
@@ -123,50 +133,62 @@ but the backend doesn't require mutual authentication.
 
 ### Open Policy Agent
 
-< ! > this feature is considered experimental and is subject to future breaking changes < ! >
+<span style="color:red">Note: This feature is considered experimental and is
+subject to future breaking changes.</span>
 
-Ghostunnel has support for local OPA policies, both in server and client mode.
+Ghostunnel has support for Open Policy Agent (OPA), both in server and client
+mode. The policy file must be present on disk for Ghostunnel to use it and the
+use of OPA is mutually exclusive with any other `allow` (or `verify`) flags.
 
-Use of OPA is mutually exclusive with any other `allow` (or `verify`) flags.
+To use it in server mode, specify the `--allow-policy` and `--allow-query` flags.
 
-To use it in server mode, call ghostunnel by passing `--allow-policy=policy_file.rego --allow-query=query_string_to_verify`.
-
-For client mode respectively, use the flags `--verify-policy` and `--verify-query` instead.
-
-Inside your policy, you can access the reflected x509 peer certificate using `input.certificate`.
-
-For example, here is a policy verifying that at least one URI SAN in the certificate is `scheme://valid/path`,
-and that the certificate common name is `gopher`:
-
-```rego
-package policy
-	import input
-	default allow := false
-
-	allow {
-		input.certificate.Subject.CommonName == "gopher"
-		input.certificate.URIs[_].Scheme == "scheme"
-		input.certificate.URIs[_].Host == "valid"
-		input.certificate.URIs[_].Path == "/path"
-	}
+Example:
+```
+ghostunnel server [...] --allow-policy=policy.rego --allow-query=data.policy.allow
 ```
 
-... with the corresponding query: `data.policy.allow`
+To use it in client mode, specify the `--verify-policy` and `--verify-query` flags.
 
-See [golang x509 Certificate struct](https://pkg.go.dev/crypto/x509#Certificate) 
-for more about other properties, and the 
-[Rego documentation](https://www.openpolicyagent.org/docs/latest/policy-language/)
+Example:
+```
+ghostunnel server [...] --verify-policy=policy.rego --allow-query=data.policy.allow
+```
+
+Inside your policy, you can access the reflected X.509 peer certificate using
+`input.certificate`. For example, the policy below verifies that at least one
+URI SAN in the certificate is `scheme://valid/path`, and that the certificate
+common name is `gopher`.
+
+Example:
+```rego
+package policy
+
+import input
+default allow := false
+
+allow {
+	input.certificate.Subject.CommonName == "gopher"
+	input.certificate.URIs[_].Scheme == "scheme"
+	input.certificate.URIs[_].Host == "valid"
+	input.certificate.URIs[_].Path == "/path"
+}
+```
+
+The corresponding query for this policy is `data.policy.allow`, because we
+want to determine the outcome of the policy by looking at `allow`.
+
+See the documentation about [Golang's x509.Certificate
+struct](https://pkg.go.dev/crypto/x509#Certificate) for more about other
+properties you can match on, and the [Rego
+documentation](https://www.openpolicyagent.org/docs/latest/policy-language/)
 for more about the policy language.
 
 #### Caveats
 
-* bouncing off ghostunnel with `SIGUSR1` will NOT reload the OPA policy
-* there is no mechanism to load a policy from a remote OPA server - the policy
-file has to be local, or be retrieved and stored locally out of band by a different
-process
-* we currently rely on `results.Allowed()` for validation - this means we will return true only if:
-  * the result set only has one element
-  * there is only one expression in the result set's only element
-  * that expression has the value `true`
-  * there are no bindings
-* policy evaluation has a fixed timeout of 1s, that is currently not configurable
+* Reloading certs in Ghostunnel with `SIGUSR1` will NOT reload the OPA policy.
+* There is no mechanism to load a policy from a remote OPA server. The policy
+  file has to be local, or be retrieved and stored locally out of band by a
+  different process.
+* By standard OPA convention, we consider a policy to be "allowed" if the query
+  is exactly one result with exactly one element that has the value `true`.
+* Policy evaluation timeout is the same as the connection timeout. 
