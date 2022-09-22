@@ -21,7 +21,6 @@ import (
 	"bytes"
 	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
 	"text/template"
 	"time"
@@ -125,8 +124,21 @@ URI Names:
 Email Addresses:
 	{{wrapWith .Width "\n\t" (join ", " .EmailAddresses)}}
 {{- end}}
+{{- range .SCTList}}
+Signed Certificate Timestamp:
+	Version: {{.Version | sctVersion}}
+{{- if .LogOperator}}
+	Log Operator: {{.LogOperator}}
+{{- end}}
+{{- if .LogURL}}
+	Log URL: {{.LogURL}}
+{{- end}}
+	Log ID: {{wrapWith 48 "\n\t        " (.LogID | hexify)}}
+	Timestamp: {{.Timestamp | formatTime}}
+	Signature: {{.SignatureAlgorithm | highlightAlgorithm}}
+{{- end}}
 {{- if .Warnings}}
-Warnings:
+Lints:
 {{- range .Warnings}}
 	{{. | redify}}
 {{- end}}
@@ -153,36 +165,8 @@ URI Names:
 Email Addresses:
 	{{wrapWith .Width "\n\t" (join ", " .EmailAddresses)}}{{end}}
 {{- if .Warnings}}
-Warnings:{{range .Warnings}}
+Lints:{{range .Warnings}}
 	{{. | redify}}{{end}}{{end}}`
-
-type certWithName struct {
-	name string
-	file string
-	cert *x509.Certificate
-}
-
-func (c certWithName) MarshalJSON() ([]byte, error) {
-	out := createSimpleCertificate(c.name, c.cert)
-	return json.Marshal(out)
-}
-
-func createSimpleCertificateFromX509(block *pem.Block) (simpleCertificate, error) {
-	raw, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return simpleCertificate{}, fmt.Errorf("error reading cert: %s", err)
-	}
-
-	cert := certWithName{cert: raw}
-	if val, ok := block.Headers[nameHeader]; ok {
-		cert.name = val
-	}
-	if val, ok := block.Headers[fileHeader]; ok {
-		cert.file = val
-	}
-
-	return createSimpleCertificate(cert.name, cert.cert), nil
-}
 
 // EncodeX509ToJSON encodes an X.509 certificate into a JSON string.
 func EncodeX509ToJSON(cert *x509.Certificate) []byte {
@@ -227,6 +211,8 @@ func displayCert(cert simpleCertificate, verbose bool) []byte {
 		"oidShort":           oidShort,
 		"printShortName":     PrintShortName,
 		"printCommonName":    PrintCommonName,
+		"formatTime":         formatTime,
+		"sctVersion":         sctVersion,
 	}
 	for k, v := range extras {
 		funcMap[k] = v
@@ -289,6 +275,10 @@ func highlightAlgorithm(sigAlg simpleSigAlg) string {
 // timeString formats a time in UTC with minute precision, in the given color.
 func timeString(t time.Time, c *color.Color) string {
 	return c.SprintfFunc()(t.Format("2006-01-02 15:04 MST"))
+}
+
+func formatTime(t time.Time) string {
+	return t.Format("2006-01-02 15:04 MST")
 }
 
 // certStart takes a given start time for the validity of
@@ -362,4 +352,13 @@ func PrintShortName(name pkix.Name) (out string) {
 	}
 
 	return
+}
+
+func sctVersion(v uint64) string {
+	switch v {
+	case 0:
+		return "0 (v1)"
+	default:
+		return red.SprintFunc()("%d (unknown)", v)
+	}
 }

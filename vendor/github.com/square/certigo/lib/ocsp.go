@@ -22,9 +22,8 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/fatih/color"
@@ -32,7 +31,7 @@ import (
 )
 
 var (
-	skippedRevocationCheck = errors.New("skipped revocation check")
+	errSkippedRevocationCheck = errors.New("skipped revocation check")
 
 	revocationStatusColor = map[int]*color.Color{
 		ocsp.Good:    green,
@@ -71,18 +70,14 @@ const (
 )
 
 func checkOCSP(chain []*x509.Certificate, ocspStaple []byte) (status *ocsp.Response, err error) {
-	if len(chain) <= 1 {
+	if len(chain) < 2 {
 		// Nothing to check here
-		return nil, skippedRevocationCheck
+		return nil, errSkippedRevocationCheck
 	}
 
-	// Skip if there are no OCSP servers in the chain.
-	numServers := 0
-	for _, cert := range chain[1:] {
-		numServers += len(cert.OCSPServer)
-	}
-	if numServers == 0 {
-		return nil, skippedRevocationCheck
+	leaf, issuer := chain[0], chain[1]
+	if len(leaf.OCSPServer) == 0 {
+		return nil, errSkippedRevocationCheck
 	}
 
 	retries := maxOCSPValidationRetries
@@ -91,11 +86,10 @@ func checkOCSP(chain []*x509.Certificate, ocspStaple []byte) (status *ocsp.Respo
 		retries = 1
 	}
 
-	var issuer *x509.Certificate
 	for i := 0; i < retries; i++ {
 		encoded := ocspStaple
 		if len(encoded) == 0 {
-			encoded, _, err = fetchOCSP(chain)
+			encoded, err = fetchOCSP(leaf, issuer)
 			if err != nil {
 				return nil, err
 			}
@@ -110,64 +104,61 @@ func checkOCSP(chain []*x509.Certificate, ocspStaple []byte) (status *ocsp.Respo
 	return status, err
 }
 
-func fetchOCSP(chain []*x509.Certificate) ([]byte, *x509.Certificate, error) {
+func fetchOCSP(cert, issuer *x509.Certificate) ([]byte, error) {
+	encoded, err := ocsp.CreateRequest(cert, issuer, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failure building request: %s", err)
+	}
+
+	// Try all the OCSP servers listed in the certificate
 	var lastError error
-	for _, issuer := range chain[1:] {
-		encoded, err := ocsp.CreateRequest(chain[0], issuer, nil)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failure building request: %s", err)
-		}
-
-		// Try all the OCSP servers listed in the certificate
-		for _, server := range issuer.OCSPServer {
-			// We try both GET and POST requests, because some servers are janky.
-			reqs := []*http.Request{}
-			if len(encoded) < 255 {
-				// GET only supported for requests with small payloads, so we can stash
-				// them in the path. RFC says 255 bytes encoded, but doesn't mention if that
-				// refers to the DER-encoded payload before or after base64 is applied. We
-				// just assume it's the former and try both GET and POST in case one fails.
-				req, err := buildOCSPwithGET(server, encoded)
-				if err != nil {
-					lastError = err
-					continue
-				}
-				reqs = append(reqs, req)
-			}
-
-			// POST should always be supported, but some servers don't like it
-			req, err := buildOCSPwithPOST(server, encoded)
+	for _, server := range cert.OCSPServer {
+		// We try both GET and POST requests, because some servers are janky.
+		reqs := []*http.Request{}
+		if len(encoded) < 255 {
+			// GET only supported for requests with small payloads, so we can stash
+			// them in the path. RFC says 255 bytes encoded, but doesn't mention if that
+			// refers to the DER-encoded payload before or after base64 is applied. We
+			// just assume it's the former and try both GET and POST in case one fails.
+			req, err := buildOCSPwithGET(server, encoded)
 			if err != nil {
 				lastError = err
 				continue
 			}
 			reqs = append(reqs, req)
+		}
 
-			for _, req := range reqs {
-				resp, err := ocspHttpClient.Do(req)
-				if err != nil {
-					lastError = err
-					continue
-				}
+		// POST should always be supported, but some servers don't like it
+		req, err := buildOCSPwithPOST(server, encoded)
+		if err != nil {
+			lastError = err
+			continue
+		}
+		reqs = append(reqs, req)
 
-				if resp.StatusCode != http.StatusOK {
-					lastError = fmt.Errorf("unexpected status code, got: %s", resp.Status)
-					continue
-				}
-
-				body, err := ioutil.ReadAll(resp.Body)
-				defer resp.Body.Close()
-				if err != nil {
-					lastError = err
-					continue
-				}
-
-				return body, issuer, nil
+		for _, req := range reqs {
+			resp, err := ocspHttpClient.Do(req)
+			if err != nil {
+				lastError = err
+				continue
 			}
+
+			if resp.StatusCode != http.StatusOK {
+				lastError = fmt.Errorf("unexpected status code, got: %s", resp.Status)
+				continue
+			}
+
+			body, err := io.ReadAll(resp.Body)
+			defer resp.Body.Close()
+			if err != nil {
+				lastError = err
+				continue
+			}
+			return body, nil
 		}
 	}
 
-	return nil, nil, lastError
+	return nil, lastError
 }
 
 func buildOCSPwithPOST(server string, encoded []byte) (*http.Request, error) {
@@ -184,11 +175,11 @@ func buildOCSPwithPOST(server string, encoded []byte) (*http.Request, error) {
 }
 
 func buildOCSPwithGET(server string, encoded []byte) (*http.Request, error) {
-	if !strings.HasSuffix(server, "/") {
-		server = server + "/"
-	}
+	// https://datatracker.ietf.org/doc/html/rfc6960#appendix-A.1
+	// GET {url}/{url-encoding of base-64 encoding of the DER encoding of the OCSPRequest}
+	url := fmt.Sprintf("%s/%s", server, base64.StdEncoding.EncodeToString(encoded))
 
-	req, err := http.NewRequest("GET", server+base64.StdEncoding.EncodeToString(encoded), nil)
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
