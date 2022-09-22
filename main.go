@@ -81,11 +81,11 @@ var (
 	serverAllowedDNSs         = serverCommand.Flag("allow-dns", "Allow clients with given DNS subject alternative name (can be repeated).").PlaceHolder("DNS").Strings()
 	serverAllowedIPs          = serverCommand.Flag("allow-ip", "").Hidden().PlaceHolder("SAN").IPList()
 	serverAllowedURIs         = serverCommand.Flag("allow-uri", "Allow clients with given URI subject alternative name (can be repeated).").PlaceHolder("URI").Strings()
-	serverAllowPolicy         = serverCommand.Flag("allow-policy", "Allow passing the location of an OPA rego file").String()
-	serverAllowQuery          = serverCommand.Flag("allow-query", "Allow defining a query to validate against the client certificate and the rego policy.").String()
+	serverAllowPolicy         = serverCommand.Flag("allow-policy", "Allow passing the location of an OPA rego file").PlaceHolder("POLICY").String()
+	serverAllowQuery          = serverCommand.Flag("allow-query", "Allow defining a query to validate against the client certificate and the rego policy.").PlaceHolder("QUERY").String()
 	serverDisableAuth         = serverCommand.Flag("disable-authentication", "Disable client authentication, no client certificate will be required.").Default("false").Bool()
-	serverAutoACMEFQDN        = serverCommand.Flag("auto-acme-cert", "Automatically obtain a certificate via ACME for the specified FQDN").PlaceHolder("www.example.com").String()
-	serverAutoACMEEmail       = serverCommand.Flag("auto-acme-email", "Email address associated with all ACME requests").PlaceHolder("admin@#example.com").String()
+	serverAutoACMEFQDN        = serverCommand.Flag("auto-acme-cert", "Automatically obtain a certificate via ACME for the specified FQDN").PlaceHolder("FQDN").String()
+	serverAutoACMEEmail       = serverCommand.Flag("auto-acme-email", "Email address associated with all ACME requests").PlaceHolder("EMAIL").String()
 	serverAutoACMEAgreedTOS   = serverCommand.Flag("auto-acme-agree-to-tos", "Agree to the Terms of Service of the ACME CA").Default("false").Bool()
 	serverAutoACMEProdCA      = serverCommand.Flag("auto-acme-ca", "Specify the URL to the ACME CA. Defaults to Let's Encrypt if not specified.").PlaceHolder("https://some-acme-ca.example.com/").String()
 	serverAutoACMETestCA      = serverCommand.Flag("auto-acme-testca", "Specify the URL to the ACME CA's Test/Staging environemnt. If set, all requests will go to this CA and --auto-acme-ca will be ignored.").PlaceHolder("https://testing.some-acme-ca.example.com/").String()
@@ -102,8 +102,8 @@ var (
 	clientAllowedDNSs    = clientCommand.Flag("verify-dns", "Allow servers with given DNS subject alternative name (can be repeated).").PlaceHolder("DNS").Strings()
 	clientAllowedIPs     = clientCommand.Flag("verify-ip", "").Hidden().PlaceHolder("SAN").IPList()
 	clientAllowedURIs    = clientCommand.Flag("verify-uri", "Allow servers with given URI subject alternative name (can be repeated).").PlaceHolder("URI").Strings()
-	clientAllowPolicy    = clientCommand.Flag("verify-policy", "Allow passing the location of an OPA rego file").String()
-	clientAllowQuery     = clientCommand.Flag("verify-query", "Allow defining a query to validate against the client certificate and the rego policy.").String()
+	clientAllowPolicy    = clientCommand.Flag("verify-policy", "Allow passing the location of an OPA rego file").PlaceHolder("POLICY").String()
+	clientAllowQuery     = clientCommand.Flag("verify-query", "Allow defining a query to validate against the client certificate and the rego policy.").PlaceHolder("QUERY").String()
 	clientDisableAuth    = clientCommand.Flag("disable-authentication", "Disable client authentication, no certificate will be provided to the server.").Default("false").Bool()
 
 	// TLS options
@@ -568,14 +568,14 @@ func serverListen(context *Context) error {
 	}
 
 	serverACL := auth.ACL{
-		AllowAll:      *serverAllowAll,
-		AllowedCNs:    *serverAllowedCNs,
-		AllowedOUs:    *serverAllowedOUs,
-		AllowedDNSs:   *serverAllowedDNSs,
-		AllowedIPs:    *serverAllowedIPs,
-		AllowOPAQuery: allowQuery,
-		AllowedURIs:   allowedURIs,
-		Logger:        logger,
+		AllowAll:        *serverAllowAll,
+		AllowedCNs:      *serverAllowedCNs,
+		AllowedOUs:      *serverAllowedOUs,
+		AllowedDNSs:     *serverAllowedDNSs,
+		AllowedIPs:      *serverAllowedIPs,
+		AllowOPAQuery:   allowQuery,
+		AllowedURIs:     allowedURIs,
+		OPAQueryTimeout: *timeoutDuration,
 	}
 
 	if *serverDisableAuth {
@@ -777,13 +777,13 @@ func clientBackendDialer(tlsConfigSource certloader.TLSConfigSource, network, ad
 	}
 
 	clientACL := auth.ACL{
-		AllowedCNs:    *clientAllowedCNs,
-		AllowedOUs:    *clientAllowedOUs,
-		AllowedDNSs:   *clientAllowedDNSs,
-		AllowedIPs:    *clientAllowedIPs,
-		AllowedURIs:   allowedURIs,
-		AllowOPAQuery: allowQuery,
-		Logger:        logger,
+		AllowedCNs:      *clientAllowedCNs,
+		AllowedOUs:      *clientAllowedOUs,
+		AllowedDNSs:     *clientAllowedDNSs,
+		AllowedIPs:      *clientAllowedIPs,
+		AllowedURIs:     allowedURIs,
+		AllowOPAQuery:   allowQuery,
+		OPAQueryTimeout: *timeoutDuration,
 	}
 
 	config.VerifyPeerCertificate = clientACL.VerifyPeerCertificateClient
