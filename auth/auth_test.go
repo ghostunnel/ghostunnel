@@ -20,12 +20,13 @@ import (
 	"context"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"github.com/open-policy-agent/opa/rego"
 	"net"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/ghostunnel/ghostunnel/wildcard"
+	"github.com/open-policy-agent/opa/rego"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -135,6 +136,7 @@ func TestAuthorizeOPARejectCommonName(t *testing.T) {
 
 	testACL := ACL{
 		AllowOPAQuery: &allowQuery,
+		OPAQueryTimeout: 10*time.Second,
 	}
 	assert.NotNil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "Rego policy on different CN should be rejected")
 }
@@ -154,6 +156,7 @@ func TestAuthorizeOPAAcceptCommonName(t *testing.T) {
 
 	testACL := ACL{
 		AllowOPAQuery: &allowQuery,
+		OPAQueryTimeout: 10*time.Second,
 	}
 	assert.Nil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "Rego policy validates CN should pass")
 }
@@ -175,6 +178,7 @@ func TestAuthorizeOPAAcceptDNSn(t *testing.T) {
 
 	testACL := ACL{
 		AllowOPAQuery: &allowQuery,
+		OPAQueryTimeout: 10*time.Second,
 	}
 	assert.Nil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "Rego policy validates testing DNS names")
 }
@@ -198,6 +202,7 @@ func TestAuthorizeOPAAcceptURIs(t *testing.T) {
 
 	testACL := ACL{
 		AllowOPAQuery: &allowQuery,
+		OPAQueryTimeout: 10*time.Second,
 	}
 	assert.Nil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "Rego policy validates testing URIs")
 }
@@ -219,6 +224,7 @@ func TestAuthorizeOPAAcceptOneOU(t *testing.T) {
 
 	testACL := ACL{
 		AllowOPAQuery: &allowQuery,
+		OPAQueryTimeout: 10*time.Second,
 	}
 	assert.Nil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "Rego policy validates one OU")
 }
@@ -240,6 +246,7 @@ func TestAuthorizeOPARejectAllOU(t *testing.T) {
 
 	testACL := ACL{
 		AllowOPAQuery: &allowQuery,
+		OPAQueryTimeout: 10*time.Second,
 	}
 	assert.NotNil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "Rego policy rejects none OU")
 }
@@ -354,6 +361,7 @@ func TestVerifyOPARejectCommonName(t *testing.T) {
 
 	testACL := ACL{
 		AllowOPAQuery: &allowQuery,
+		OPAQueryTimeout: 10*time.Second,
 	}
 	assert.NotNil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "Rego policy on different CN should be rejected")
 }
@@ -373,6 +381,7 @@ func TestVerifyOPAAcceptCommonName(t *testing.T) {
 
 	testACL := ACL{
 		AllowOPAQuery: &allowQuery,
+		OPAQueryTimeout: 10*time.Second,
 	}
 	assert.Nil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "Rego policy validates CN should pass")
 }
@@ -394,6 +403,7 @@ func TestVerifyOPAAcceptDNSn(t *testing.T) {
 
 	testACL := ACL{
 		AllowOPAQuery: &allowQuery,
+		OPAQueryTimeout: 10*time.Second,
 	}
 	assert.Nil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "Rego policy validates testing DNS names")
 }
@@ -417,6 +427,7 @@ func TestVerifyOPAAcceptURIs(t *testing.T) {
 
 	testACL := ACL{
 		AllowOPAQuery: &allowQuery,
+		OPAQueryTimeout: 10*time.Second,
 	}
 	assert.Nil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "Rego policy validates testing URIs")
 }
@@ -438,6 +449,7 @@ func TestVerifyOPAAcceptOneOU(t *testing.T) {
 
 	testACL := ACL{
 		AllowOPAQuery: &allowQuery,
+		OPAQueryTimeout: 10*time.Second,
 	}
 	assert.Nil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "Rego policy validates one OU")
 }
@@ -459,6 +471,7 @@ func TestVerifyOPARejectAllOU(t *testing.T) {
 
 	testACL := ACL{
 		AllowOPAQuery: &allowQuery,
+		OPAQueryTimeout: 10*time.Second,
 	}
 	assert.NotNil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "Rego policy rejects none OU")
 }
