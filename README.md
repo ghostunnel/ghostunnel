@@ -71,7 +71,7 @@ Ghostunnel is available through [GitHub releases][rel] and through [Docker Hub][
     # Compile for local architecture
     make ghostunnel
 
-Note that ghostunnel requires Go 1.18 or later to build, and CGO is required for
+Note that ghostunnel requires Go 1.19 or later to build, and CGO is required for
 PKCS#11 support.
 
 [rel]: https://github.com/ghostunnel/ghostunnel/releases
@@ -89,7 +89,7 @@ To run tests:
     make test
 
     # Option 2: run unit & integration tests in a Docker container
-    GO_VERSION=1.18 make docker-test
+    GO_VERSION=1.19 make docker-test
 
     # Open coverage information in browser
     go tool cover -html coverage-merged.out
