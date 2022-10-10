@@ -146,6 +146,7 @@ func (s *statusHandler) checkBackendStatus() error {
 		if err != nil {
 			return err
 		}
+		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("target returned status: %d", resp.StatusCode)
