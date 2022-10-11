@@ -28,18 +28,21 @@ import (
 )
 
 type statusDialer struct {
-	c net.Conn
+	dial func() (net.Conn, error)
 }
 
 func (sd statusDialer) Dial(network, addr string) (net.Conn, error) {
-	return sd.c, nil
+	return sd.dial()
 }
 
 type statusHandler struct {
 	// Mutex for locking
 	mu *sync.Mutex
-	// Backend dialer to check if target is up and running
+	// Backend dialer and HTTP client to check if target is up and running
+	// - dialer is used for raw TCP status checks
+	// - client is used for HTTP status checks if a targetAdress is supplied
 	dial          func() (net.Conn, error)
+	client        *http.Client
 	targetAddress string
 	// Current status
 	listening bool
@@ -60,7 +63,12 @@ type statusResponse struct {
 }
 
 func newStatusHandler(dial func() (net.Conn, error), targetAddress string) *statusHandler {
-	status := &statusHandler{&sync.Mutex{}, dial, targetAddress, false, false}
+	client := http.Client{
+		Transport: &http.Transport{
+			Dial: statusDialer{dial}.Dial,
+		},
+	}
+	status := &statusHandler{&sync.Mutex{}, dial, &client, targetAddress, false, false}
 	return status
 }
 
@@ -129,20 +137,10 @@ func (s *statusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *statusHandler) checkBackendStatus() error {
-	conn, err := s.dial()
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-
+	// If a targetAddress was supplied attempt a HTTP status check.
+	// Otherwise, fallback to a raw TCP status check.
 	if s.targetAddress != "" {
-		client := http.Client{
-			Transport: &http.Transport{
-				Dial: statusDialer{conn}.Dial,
-			},
-		}
-
-		resp, err := client.Get(s.targetAddress)
+		resp, err := s.client.Get(s.targetAddress)
 		if err != nil {
 			return err
 		}
@@ -151,6 +149,12 @@ func (s *statusHandler) checkBackendStatus() error {
 		if resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("target returned status: %d", resp.StatusCode)
 		}
+	} else {
+		conn, err := s.dial()
+		if err != nil {
+			return err
+		}
+		conn.Close()
 	}
 
 	return nil
