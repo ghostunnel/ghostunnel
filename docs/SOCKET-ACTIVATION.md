@@ -8,7 +8,7 @@ flags, and can be used by passing an address of the form `systemd:<name>` or
 your systemd/launchd configuration.
 
 launchd
-=======
+-------
 
 A launchd plist to launch ghostunnel in server mode on :8081,
 listening for status connections on :8082, and forwarding connections to :8083
@@ -73,7 +73,7 @@ would open two sockets (IPv4 and IPv6) for the given key (like `Listener`) and
 pass them to ghostunnel which is not currently supported.
 
 systemd
-=======
+-------
 
 A systemd unit for a `ghostunnel.socket` for listening on `*:8443` could look like this:
 
