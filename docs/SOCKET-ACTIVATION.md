@@ -75,7 +75,8 @@ pass them to ghostunnel which is not currently supported.
 systemd
 -------
 
-A systemd unit for a `ghostunnel.socket` for listening on `*:8443` could look like this:
+A systemd unit for a `ghostunnel.socket` for listening on `*:8443` could look
+like this:
 
 ```
 [Unit]
@@ -90,7 +91,8 @@ ListenStream=0.0.0.0:8443
 WantedBy=sockets.target
 ```
 
-With a corresponding `ghostunel.service` like so:
+With a corresponding `ghostunel.service` to forward to `localhost:8080` could
+look like this:
 
 ```
 [Unit]
@@ -100,10 +102,12 @@ Requires=ghostunnel.socket
 
 [Service]
 Type=simple
-ExecStart=/etc/cron/bin/ghostunnel server --listen=systemd:ghostunnel --target=localhost:8080 --cert=/etc/lego/certificates/router.staub.dev.crt --key=/etc/lego/certificates/router.staub.dev.key --disable-authentication
+ExecStart=/etc/cron/bin/ghostunnel server --listen=systemd:ghostunnel --target=localhost:8080 --keystore=/etc/ghostunnel/server-keystore.p12 --cacert /etc/ghostunnel/cacert.pem --allow-cn client
 
 [Install]
 WantedBy=default.target
 ```
 
-Note that the `FileDescriptorName` in `ghostunnel.socket` matches the name passed to `--listen`.
+Note that the `FileDescriptorName` in `ghostunnel.socket` matches the name passed to 
+`--listen`. If multiple sockets are needed, e.g. for a status port, the name can be
+used to distinguish the listening and status sockets. 
