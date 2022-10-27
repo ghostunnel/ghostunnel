@@ -7,7 +7,10 @@ flags, and can be used by passing an address of the form `systemd:<name>` or
 `launchd:<name>`, where `<name>` should be the name of the socket as defined in
 your systemd/launchd configuration.
 
-For example, a launchd plist to launch ghostunnel in server mode on :8081,
+launchd
+-------
+
+A launchd plist to launch ghostunnel in server mode on :8081,
 listening for status connections on :8082, and forwarding connections to :8083
 could look like this:
 
@@ -68,3 +71,43 @@ Note that in the launchd case *both* `SockType` and `SockFamily` need to be
 defined for each socket. If for example the family were to be left out, launchd
 would open two sockets (IPv4 and IPv6) for the given key (like `Listener`) and
 pass them to ghostunnel which is not currently supported.
+
+systemd
+-------
+
+A systemd unit for a `ghostunnel.socket` for listening on `*:8443` could look
+like this:
+
+```
+[Unit]
+Description=Ghostunnel Socket
+PartOf=ghostunnel.service
+
+[Socket]
+FileDescriptorName=ghostunnel
+ListenStream=0.0.0.0:8443
+
+[Install]
+WantedBy=sockets.target
+```
+
+With a corresponding `ghostunel.service` to forward to `localhost:8080` could
+look like this:
+
+```
+[Unit]
+Description=Ghostunnel
+After=network.target ghostunnel.socket
+Requires=ghostunnel.socket
+
+[Service]
+Type=simple
+ExecStart=/etc/cron/bin/ghostunnel server --listen=systemd:ghostunnel --target=localhost:8080 --keystore=/etc/ghostunnel/server-keystore.p12 --cacert /etc/ghostunnel/cacert.pem --allow-cn client
+
+[Install]
+WantedBy=default.target
+```
+
+Note that the `FileDescriptorName` in `ghostunnel.socket` matches the name passed to 
+`--listen`. If multiple sockets are needed, e.g. for a status port, the name can be
+used to distinguish the listening and status sockets. 
