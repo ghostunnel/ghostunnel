@@ -7,10 +7,13 @@ Test to check --allow-policy flag behavior.
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, \
     TlsClient, print_ok, run_ghostunnel, terminate
 
-import os
+from tempfile import mkstemp, mkdtemp
+import time
 import signal
+import shutil
 import ssl
 import socket
+import os
 
 if __name__ == "__main__":
     ghostunnel = None
@@ -29,12 +32,15 @@ if __name__ == "__main__":
 
         # start ghostunnel
         dir_path = os.path.dirname(os.path.realpath(__file__))
+        tmp_dir = mkdtemp()
+        shutil.copyfile(dir_path + '/test-server-allow-opa.rego', tmp_dir + '/policy.rego')
+
         ghostunnel = run_ghostunnel(['server',
                                      '--listen={0}:13001'.format(LOCALHOST),
                                      '--target={0}:13002'.format(LOCALHOST),
                                      '--keystore=server.p12',
                                      '--cacert=root.crt',
-                                     '--allow-policy=' + dir_path + '/test-server-allow-opa.rego',
+                                     '--allow-policy=' + tmp_dir + '/policy.rego',
                                      '--allow-query=data.policy.allow',
                                      '--status={0}:{1}'.format(LOCALHOST,
                                                                STATUS_PORT)])
@@ -51,6 +57,18 @@ if __name__ == "__main__":
             raise Exception('failed to reject client2')
         except (ssl.SSLError, socket.timeout):
             print_ok("client2 correctly rejected")
+
+        # Change policy and reload
+        shutil.copyfile(dir_path + '/test-allow-all.rego', tmp_dir + '/policy.rego')
+        ghostunnel.send_signal(signal.SIGUSR1)
+        time.sleep(5) # todo: figure out better way to do this
+        print_ok("reloaded policy")
+
+        # Should work with client2 now
+        pair1 = SocketPair(
+            TlsClient('client2', 'root', 13001), TcpServer(13002))
+        pair1.validate_can_send_from_client("toto", "pair2 works")
+        pair1.validate_can_send_from_server
 
         print_ok("OK")
     finally:

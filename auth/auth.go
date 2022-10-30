@@ -21,12 +21,13 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"github.com/open-policy-agent/opa/rego"
 	"net"
 	"net/url"
 	"time"
 
+	"github.com/ghostunnel/ghostunnel/policy"
 	"github.com/ghostunnel/ghostunnel/wildcard"
+	"github.com/open-policy-agent/opa/rego"
 )
 
 // ACL represents an access control list for mutually-authenticated TLS connections.
@@ -64,7 +65,7 @@ type ACL struct {
 	// AllowOPAQuery defines a rego precompiled query, ready to be verified
 	// against the client certificate. This is exclusive with all other
 	// options.
-	AllowOPAQuery *rego.PreparedEvalQuery
+	AllowOPAQuery policy.Policy
 
 	// OPAQueryTimeout sets the timeout for AllowOPAQuery. It has no effect
 	// if AllowOPAQuery is nil.
