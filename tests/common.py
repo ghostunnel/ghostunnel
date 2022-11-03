@@ -71,6 +71,23 @@ def terminate(ghostunnel):
     except BaseException:
         pass
 
+def status_info():
+    """Fetch info from status port"""
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    try:
+        return json.loads(urllib.request.urlopen(
+            "https://{0}:{1}/_status".format(
+                LOCALHOST, STATUS_PORT),
+            context=ctx).read())
+    except urllib.error.HTTPError as e:
+        # Ignore 503 if it occurs
+        # We just want the JSON in the response for testing
+        return json.loads(e.read().decode())
+    except Exception as e:
+        print('unable to fetch status:', e)
+
 def dump_goroutines():
     """Attempt to dump goroutines via status port/pprof"""
     ctx = ssl.create_default_context()

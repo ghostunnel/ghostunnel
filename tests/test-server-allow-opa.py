@@ -5,7 +5,7 @@ Test to check --allow-policy flag behavior.
 """
 
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, \
-    TlsClient, print_ok, run_ghostunnel, terminate
+    TlsClient, print_ok, run_ghostunnel, terminate, status_info
 
 from tempfile import mkstemp, mkdtemp
 import time
@@ -61,7 +61,10 @@ if __name__ == "__main__":
         # Change policy and reload
         shutil.copyfile(dir_path + '/test-allow-all.rego', tmp_dir + '/policy.rego')
         ghostunnel.send_signal(signal.SIGUSR1)
-        time.sleep(5) # todo: figure out better way to do this
+
+        # wait until reload complete
+        while 'last_reload' not in status_info():
+            os.sleep(1)
         print_ok("reloaded policy")
 
         # Should work with client2 now
