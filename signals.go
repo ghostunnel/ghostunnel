@@ -90,6 +90,11 @@ func (context *Context) reload() {
 	if err := context.tlsConfigSource.Reload(); err != nil {
 		logger.Printf("error reloading TLS configuration: %s", err)
 	}
-	logger.Printf("reloading TLS configuration complete")
+	if context.regoPolicy != nil {
+		if err := context.regoPolicy.Reload(); err != nil {
+			logger.Printf("error reloading OPA policy: %s", err)
+		}
+	}
+	logger.Printf("reloading configuration complete")
 	context.status.Listening()
 }

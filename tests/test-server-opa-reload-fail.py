@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Test to check --allow-policy flag behavior.
+Test to check OPA policy reloading failure.
 """
 
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, \
@@ -15,7 +15,7 @@ import ssl
 import socket
 import os
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     ghostunnel = None
     try:
         # create certs
@@ -48,7 +48,7 @@ if __name__ == "__main__":
         # create connections with client
         pair1 = SocketPair(
             TlsClient('client1', 'root', 13001), TcpServer(13002))
-        pair1.validate_can_send_from_client("toto", "pair1 works")
+        pair1.validate_can_send_from_client('toto', 'pair1 works')
         pair1.validate_can_send_from_server
 
         try:
@@ -56,23 +56,29 @@ if __name__ == "__main__":
                 TlsClient('client2', 'root', 13001), TcpServer(13002))
             raise Exception('failed to reject client2')
         except (ssl.SSLError, socket.timeout):
-            print_ok("client2 correctly rejected")
+            print_ok('client2 correctly rejected')
 
-        # Change policy and reload
-        shutil.copyfile(dir_path + '/test-allow-all.rego', tmp_dir + '/policy.rego')
+        # make policy invalid and reload
+        os.remove(tmp_dir + '/policy.rego')
         ghostunnel.send_signal(signal.SIGUSR1)
 
         # wait until reload complete
         while 'last_reload' not in status_info():
             os.sleep(1)
-        print_ok("reloaded policy")
 
-        # Should work with client2 now
+        # old policy remains in effect
         pair1 = SocketPair(
-            TlsClient('client2', 'root', 13001), TcpServer(13002))
-        pair1.validate_can_send_from_client("toto", "pair2 works")
+            TlsClient('client1', 'root', 13001), TcpServer(13002))
+        pair1.validate_can_send_from_client('toto', 'pair1 works')
         pair1.validate_can_send_from_server
 
-        print_ok("OK")
+        try:
+            pair2 = SocketPair(
+                TlsClient('client2', 'root', 13001), TcpServer(13002))
+            raise Exception('failed to reject client2')
+        except (ssl.SSLError, socket.timeout):
+            print_ok('client2 correctly rejected')
+
+        print_ok('OK')
     finally:
         terminate(ghostunnel)

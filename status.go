@@ -47,6 +47,8 @@ type statusHandler struct {
 	// Current status
 	listening bool
 	reloading bool
+	// Last time we reloaded
+	lastReload time.Time
 }
 
 type statusResponse struct {
@@ -56,6 +58,7 @@ type statusResponse struct {
 	BackendStatus string    `json:"backend_status"`
 	BackendError  string    `json:"backend_error,omitempty"`
 	Time          time.Time `json:"time"`
+	LastReload    time.Time `json:"last_reload,omitempty"`
 	Hostname      string    `json:"hostname,omitempty"`
 	Message       string    `json:"message"`
 	Revision      string    `json:"revision"`
@@ -68,7 +71,7 @@ func newStatusHandler(dial func() (net.Conn, error), targetAddress string) *stat
 			Dial: statusDialer{dial}.Dial,
 		},
 	}
-	status := &statusHandler{&sync.Mutex{}, dial, &client, targetAddress, false, false}
+	status := &statusHandler{&sync.Mutex{}, dial, &client, targetAddress, false, false, time.Time{}}
 	return status
 }
 
@@ -82,12 +85,14 @@ func (s *statusHandler) Listening() {
 func (s *statusHandler) Reloading() {
 	s.mu.Lock()
 	s.reloading = true
+	s.lastReload = time.Now()
 	s.mu.Unlock()
 }
 
 func (s *statusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	resp := statusResponse{
 		Time: time.Now(),
+		LastReload: s.lastReload,
 	}
 
 	resp.Revision = version

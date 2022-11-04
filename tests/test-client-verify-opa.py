@@ -5,8 +5,12 @@ Tests that verify-policy flag works correctly on the client.
 """
 
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, \
-    TlsServer, print_ok, run_ghostunnel, terminate
+    TlsServer, print_ok, run_ghostunnel, terminate, status_info
 
+from tempfile import mkstemp, mkdtemp
+import time
+import signal
+import shutil
 import ssl
 import os
 
@@ -28,11 +32,14 @@ if __name__ == "__main__":
 
         # start ghostunnel
         dir_path = os.path.dirname(os.path.realpath(__file__))
+        tmp_dir = mkdtemp()
+        shutil.copyfile(dir_path + '/test-client-verify-opa.rego', tmp_dir + '/policy.rego')
+
         ghostunnel = run_ghostunnel(['client',
                                      '--listen={0}:13001'.format(LOCALHOST),
                                      '--target=localhost:13002',
                                      '--keystore=client.p12',
-                                     '--verify-policy=' + dir_path + '/test-client-verify-opa.rego',
+                                     '--verify-policy=' + tmp_dir + '/policy.rego',
                                      '--verify-query=data.policy.allow',
                                      '--cacert=root.crt',
                                      '--status={0}:{1}'.format(LOCALHOST,
@@ -55,6 +62,25 @@ if __name__ == "__main__":
             raise Exception('failed to reject other_server')
         except ssl.SSLError:
             print_ok("other_server correctly rejected")
+
+        # Change policy and reload
+        shutil.copyfile(dir_path + '/test-allow-all.rego', tmp_dir + '/policy.rego')
+        ghostunnel.send_signal(signal.SIGUSR1)
+
+        # wait until reload complete
+        while 'last_reload' not in status_info():
+            os.sleep(1)
+        print_ok("reloaded policy")
+
+        # Should work with server2 now
+        pair = SocketPair(TcpClient(13001), TlsServer(
+            'server2', 'root', 13002))
+        pair.validate_can_send_from_client(
+            "hello world", "2: client -> server")
+        pair.validate_can_send_from_server(
+            "hello world", "2: server -> client")
+        pair.validate_closing_client_closes_server(
+            "2: client closed -> server closed")
 
         print_ok("OK")
     finally:

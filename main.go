@@ -17,7 +17,6 @@
 package main
 
 import (
-	gocontext "context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -31,12 +30,14 @@ import (
 	"strings"
 	"time"
 
-	graphite "github.com/cyberdelia/go-metrics-graphite"
 	"github.com/ghostunnel/ghostunnel/auth"
 	"github.com/ghostunnel/ghostunnel/certloader"
+	"github.com/ghostunnel/ghostunnel/policy"
 	"github.com/ghostunnel/ghostunnel/proxy"
 	"github.com/ghostunnel/ghostunnel/socket"
 	"github.com/ghostunnel/ghostunnel/wildcard"
+
+	graphite "github.com/cyberdelia/go-metrics-graphite"
 	gsyslog "github.com/hashicorp/go-syslog"
 	http_dialer "github.com/mwitkow/go-http-dialer"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -46,8 +47,6 @@ import (
 
 	prometheusmetrics "github.com/deathowl/go-metrics-prometheus"
 	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/open-policy-agent/opa/rego"
 )
 
 var (
@@ -173,6 +172,7 @@ type Context struct {
 	dial            func() (net.Conn, error)
 	metrics         *sqmetrics.SquareMetrics
 	tlsConfigSource certloader.TLSConfigSource
+	regoPolicy      policy.Policy
 }
 
 // Dialer is an interface for dialers (either net.Dialer, or http_dialer.HttpTunnel)
@@ -504,7 +504,7 @@ func run(args []string) error {
 		}
 		logger.Printf("using target address %s", *clientForwardAddress)
 
-		dial, err := clientBackendDialer(tlsConfigSource, network, address, host)
+		dial, policy, err := clientBackendDialer(tlsConfigSource, network, address, host)
 		if err != nil {
 			logger.Printf("error: unable to build dialer: %s\n", err)
 			return err
@@ -520,6 +520,7 @@ func run(args []string) error {
 			dial:            dial,
 			metrics:         metrics,
 			tlsConfigSource: tlsConfigSource,
+			regoPolicy:      policy,
 		}
 		go context.reloadHandler(*timedReload)
 
@@ -553,18 +554,15 @@ func serverListen(context *Context) error {
 	}
 
 	// Compile the rego policy
-	var allowQuery *rego.PreparedEvalQuery
-	if len(*serverAllowPolicy) > 0 &&
-		len(*serverAllowQuery) > 0 {
-		aQuery, err := rego.New(
-			rego.Query(*serverAllowQuery),
-			rego.Load([]string{*serverAllowPolicy}, nil),
-		).PrepareForEval(gocontext.Background())
+	var regoPolicy policy.Policy
+	if len(*serverAllowPolicy) > 0 && len(*serverAllowQuery) > 0 {
+		regoPolicy, err = policy.LoadFromFile(*serverAllowPolicy, *serverAllowQuery)
 		if err != nil {
 			logger.Printf("Invalid rego policy or query: %s", err)
 			return err
 		}
-		allowQuery = &aQuery
+
+		context.regoPolicy = regoPolicy
 	}
 
 	serverACL := auth.ACL{
@@ -573,7 +571,7 @@ func serverListen(context *Context) error {
 		AllowedOUs:      *serverAllowedOUs,
 		AllowedDNSs:     *serverAllowedDNSs,
 		AllowedIPs:      *serverAllowedIPs,
-		AllowOPAQuery:   allowQuery,
+		AllowOPAQuery:   regoPolicy,
 		AllowedURIs:     allowedURIs,
 		OPAQueryTimeout: *timeoutDuration,
 	}
@@ -743,10 +741,10 @@ func serverBackendDialer() (func() (net.Conn, error), error) {
 }
 
 // Get backend dialer function in client mode (connecting to a TLS port)
-func clientBackendDialer(tlsConfigSource certloader.TLSConfigSource, network, address, host string) (func() (net.Conn, error), error) {
+func clientBackendDialer(tlsConfigSource certloader.TLSConfigSource, network, address, host string) (func() (net.Conn, error), policy.Policy, error) {
 	config, err := buildClientConfig(*enabledCipherSuites)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if *clientServerName == "" {
@@ -758,22 +756,17 @@ func clientBackendDialer(tlsConfigSource certloader.TLSConfigSource, network, ad
 	allowedURIs, err := wildcard.CompileList(*clientAllowedURIs)
 	if err != nil {
 		logger.Printf("invalid URI pattern in --verify-uri flag (%s)", err)
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Compile the rego policy
-	var allowQuery *rego.PreparedEvalQuery
-	if len(*clientAllowPolicy) > 0 &&
-		len(*clientAllowQuery) > 0 {
-		aQuery, err := rego.New(
-			rego.Query(*clientAllowQuery),
-			rego.Load([]string{*clientAllowPolicy}, nil),
-		).PrepareForEval(gocontext.Background())
+	var regoPolicy policy.Policy
+	if len(*clientAllowPolicy) > 0 && len(*clientAllowQuery) > 0 {
+		regoPolicy, err = policy.LoadFromFile(*clientAllowPolicy, *clientAllowQuery)
 		if err != nil {
 			logger.Printf("Invalid rego policy or query: %s", err)
-			return nil, err
+			return nil, nil, err
 		}
-		allowQuery = &aQuery
 	}
 
 	clientACL := auth.ACL{
@@ -782,7 +775,7 @@ func clientBackendDialer(tlsConfigSource certloader.TLSConfigSource, network, ad
 		AllowedDNSs:     *clientAllowedDNSs,
 		AllowedIPs:      *clientAllowedIPs,
 		AllowedURIs:     allowedURIs,
-		AllowOPAQuery:   allowQuery,
+		AllowOPAQuery:   regoPolicy,
 		OPAQueryTimeout: *timeoutDuration,
 	}
 
@@ -796,7 +789,7 @@ func clientBackendDialer(tlsConfigSource certloader.TLSConfigSource, network, ad
 		// Use HTTP CONNECT proxy to connect to target.
 		proxyConfig, err := buildClientConfig(*enabledCipherSuites)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		config.ClientAuth = tls.NoClientCert
 
@@ -804,7 +797,7 @@ func clientBackendDialer(tlsConfigSource certloader.TLSConfigSource, network, ad
 		ca, err := certloader.LoadTrustStore(*caBundlePath)
 		if err != nil {
 			logger.Printf("error: unable to build TLS config: %s\n", err)
-			return nil, err
+			return nil, nil, err
 		}
 		config.RootCAs = ca
 
@@ -816,7 +809,7 @@ func clientBackendDialer(tlsConfigSource certloader.TLSConfigSource, network, ad
 
 	clientConfig := mustGetClientConfig(tlsConfigSource, config)
 	d := certloader.DialerWithCertificate(clientConfig, *timeoutDuration, dialer)
-	return func() (net.Conn, error) { return d.Dial(network, address) }, nil
+	return func() (net.Conn, error) { return d.Dial(network, address) }, regoPolicy, nil
 }
 
 func proxyLoggerFlags(flags []string) int {
