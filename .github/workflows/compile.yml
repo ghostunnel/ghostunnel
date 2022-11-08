@@ -1,0 +1,59 @@
+---
+name: Compile
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build-unix:
+    name: Build (Unix)
+    strategy:
+      matrix:
+        version: [1.19.x]
+        target: 
+          - { os: 'linux', platform: 'ubuntu-latest', arch: 'amd64' }
+          - { os: 'darwin', platform: 'macos-latest', arch: 'amd64' }
+          - { os: 'darwin', platform: 'macos-latest', arch: 'arm64' }
+    runs-on: ${{ matrix.target.platform }}
+    steps:
+      - name: Set up toolchain
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.version }}
+        id: go
+      - name: Check out code
+        uses: actions/checkout@v2
+      - name: Build binary
+        run: CGO_ENABLED=1 GOARCH=${{ matrix.target.arch }} make ghostunnel
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: ghostunnel-${{ matrix.target.os }}-${{ matrix.target.arch }}
+          path: ghostunnel 
+
+  build-windows:
+    name: Build (Windows)
+    strategy:
+      matrix:
+        version: [1.19.x]
+        target: 
+          - { os: 'windows', platform: 'windows-latest', arch: 'amd64' }
+    runs-on: ${{ matrix.target.platform }}
+    steps:
+      - name: Set up toolchain
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.version }}
+        id: go
+      - name: Check out code
+        uses: actions/checkout@v2
+      - name: Build binary
+        run: make ghostunnel
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: ghostunnel-${{ matrix.target.os }}-${{ matrix.target.arch }}
+          path: ghostunnel 
