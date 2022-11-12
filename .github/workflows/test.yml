@@ -70,7 +70,7 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v2
       - name: Run tests
-        run: make test 
+        run: make test
       - name: Codecov upload
         uses: codecov/codecov-action@v1
         with:

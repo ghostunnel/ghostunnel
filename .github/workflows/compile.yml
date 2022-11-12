@@ -1,9 +1,11 @@
 ---
-name: Release
+name: Compile
 
 on:
   push:
-    tags: [ "*" ]
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
 
 jobs:
   build-linux:
@@ -87,52 +89,3 @@ jobs:
         with:
           name: ghostunnel-windows-amd64
           path: ghostunnel 
-
-  release:
-    name: Create release
-    runs-on: ubuntu-latest
-    needs: [ build-unix, build-windows ]
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: Create release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: "Release Build (Draft)"
-          body: "Release Build (from ${{ github.ref }}/${{ github.sha }})"
-          draft: true
-          prerelease: true
-
-  add-assets:
-    name: Add assets
-    runs-on: ubuntu-latest
-    needs: [ build-unix, build-windows, release ]
-    strategy:
-      matrix:
-        target: 
-        - { os: 'linux', arch: 'amd64' }
-        - { os: 'darwin', arch: 'amd64' }
-        - { os: 'darwin', arch: 'arm64' }
-        - { os: 'darwin', arch: 'universal' }
-        - { os: 'windows', arch: 'amd64' }
-    steps:
-      - uses: actions/checkout@v2
-      - name: Download artifact
-        uses: actions/download-artifact@v2
-        with:
-          name: ghostunnel-${{ matrix.target.os }}-${{ matrix.target.arch }}
-          path: dist
-      - name: Upload artifact to release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.release.outputs.upload_url }}
-          asset_path: ./dist/ghostunnel
-          asset_name: ghostunnel-${{ matrix.target.os }}-${{ matrix.target.arch }}
-          asset_content_type: application/octet-stream
