@@ -241,7 +241,8 @@ clients can connect as long as any of the flags matches. Ghostunnel is
 compatible with [SPIFFE][spiffe] [X.509 SVIDs][svid].
 
 Ghostunnel also has experimental support for [Open Policy
-Agent](https://www.openpolicyagent.org/) (OPA) policies.
+Agent](https://www.openpolicyagent.org/) (OPA) policies. Policies can be
+reloaded at runtime much like certificates.
 
 See [ACCESS-FLAGS](docs/ACCESS-FLAGS.md) for details.
 
