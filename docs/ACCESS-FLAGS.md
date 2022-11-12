@@ -139,6 +139,8 @@ subject to future breaking changes.</span>
 Ghostunnel has support for Open Policy Agent (OPA), both in server and client
 mode. The policy file must be present on disk for Ghostunnel to use it and the
 use of OPA is mutually exclusive with any other `allow` (or `verify`) flags.
+Policy files can be reloaded at runtime much like certificates, with the
+`--timed-reload` flag or via `SIGUSR1` on the latest development branch.
 
 To use it in server mode, specify the `--allow-policy` and `--allow-query` flags.
 
@@ -185,10 +187,11 @@ for more about the policy language.
 
 #### Caveats
 
-* Reloading certs in Ghostunnel with `SIGUSR1` will NOT reload the OPA policy.
 * There is no mechanism to load a policy from a remote OPA server. The policy
   file has to be local, or be retrieved and stored locally out of band by a
   different process.
 * By standard OPA convention, we consider a policy to be "allowed" if the query
   is exactly one result with exactly one element that has the value `true`.
-* Policy evaluation timeout is the same as the connection timeout. 
+* Policy evaluation timeout is the same as the connection timeout. If a policy
+  takes more time to execute than the specified connection timeout, the connection
+  will fail.
