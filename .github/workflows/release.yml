@@ -21,12 +21,14 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v2
       - name: Build binary
-        run: CGO_ENABLED=1 GOARCH=amd64 make ghostunnel
+        run: |
+          CGO_ENABLED=1 GOARCH=amd64 make ghostunnel
+          mv ghostunnel ghostunnel-linux-amd64
       - name: Upload artifact
         uses: actions/upload-artifact@v2
         with:
           name: ghostunnel-linux-amd64
-          path: ghostunnel 
+          path: ghostunnel-linux-amd64
 
   build-darwin:
     name: Build (MacOS)
@@ -81,12 +83,14 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v2
       - name: Build binary
-        run: make ghostunnel
+        run: |
+          make ghostunnel
+          mv ghostunnel ghostunnel-windows-amd64
       - name: Upload artifact
         uses: actions/upload-artifact@v2
         with:
           name: ghostunnel-windows-amd64
-          path: ghostunnel 
+          path: ghostunnel-windows-amd64
 
   release:
     name: Create release
