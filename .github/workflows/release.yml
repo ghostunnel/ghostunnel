@@ -91,7 +91,7 @@ jobs:
   release:
     name: Create release
     runs-on: ubuntu-latest
-    needs: [ build-unix, build-windows ]
+    needs: [ build-linux, build-darwin, build-windows ]
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
@@ -111,7 +111,7 @@ jobs:
   add-assets:
     name: Add assets
     runs-on: ubuntu-latest
-    needs: [ build-unix, build-windows, release ]
+    needs: [ build-linux, build-darwin, build-windows, release ]
     strategy:
       matrix:
         target: 
