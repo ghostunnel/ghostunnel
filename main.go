@@ -351,13 +351,11 @@ func clientValidateFlags() error {
 		(*certPath != "" && *keyPath != ""),
 		// A certificate, with the key in a PKCS#11 module
 		(*certPath != "" && hasPKCS11()),
-		// SPIFFE Workload API
-		*useWorkloadAPI,
 		// No credentials needed if auth is disabled
 		*clientDisableAuth,
 	})
 
-	if hasValidCredentials == 0 {
+	if hasValidCredentials == 0 && !*useWorkloadAPI {
 		return errors.New("at least one of --keystore, --cert/--key, --keychain-identity/issuer (if supported) or --disable-authentication flags is required")
 	}
 	if hasValidCredentials > 1 {
@@ -577,7 +575,7 @@ func serverListen(context *Context) error {
 	}
 
 	if *serverDisableAuth {
-		config.ClientAuth = tls.NoClientCert
+		config.ClientAuth = tls.RequestClientCert
 	} else {
 		config.VerifyPeerCertificate = serverACL.VerifyPeerCertificateServer
 	}

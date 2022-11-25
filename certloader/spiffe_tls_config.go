@@ -110,7 +110,12 @@ func (c *spiffeTLSConfig) GetClientConfig() *tls.Config {
 
 func (c *spiffeTLSConfig) GetServerConfig() *tls.Config {
 	config := c.base.Clone()
-	config.ClientAuth = tls.RequireAnyClientCert
+
+	// Only set client requirement if not disabled in base.
+	if config.ClientAuth == tls.RequireAndVerifyClientCert {
+		config.ClientAuth = tls.RequireAnyClientCert
+	}
+
 	// Go TLS stack will do hostname validation with is not a part of SPIFFE
 	// authentication. Unfortunately there is no way to just skip hostname
 	// validation without having to turn off all verification. This is still
