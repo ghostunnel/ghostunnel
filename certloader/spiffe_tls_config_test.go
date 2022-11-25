@@ -25,6 +25,36 @@ func TestSPIFFELogger(t *testing.T) {
 	logger.Debugf("test")
 }
 
+func TestWorkloadAPIClientDisableAuth(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := spiffetest.NewCA(t, td)
+
+	svid := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/foo"))
+
+	workloadAPI := spiffetest.New(t)
+	workloadAPI.SetX509SVIDResponse(
+		&spiffetest.X509SVIDResponse{
+			Bundle: ca.X509Bundle(),
+			SVIDs:  []*x509svid.SVID{svid},
+		})
+	defer workloadAPI.Stop()
+
+	log := log.Default()
+
+	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), false, log)
+	require.NoError(t, err)
+	defer source.(*spiffeTLSConfigSource).Close()
+
+	var clientVerifyCallCount int32
+	clientBase := &tls.Config{
+		VerifyPeerCertificate: countVerifyPeerCertificate(&clientVerifyCallCount),
+	}
+	clientConfig, err := source.GetClientConfig(clientBase)
+	require.NoError(t, err)
+	tlsConfig := clientConfig.GetClientConfig()
+	require.Nil(t, tlsConfig.GetCertificate)
+}
+
 func TestWorkloadAPITLSConfigSource(t *testing.T) {
 	td := spiffeid.RequireTrustDomainFromString("example.org")
 	ca := spiffetest.NewCA(t, td)
@@ -41,7 +71,7 @@ func TestWorkloadAPITLSConfigSource(t *testing.T) {
 
 	log := log.Default()
 
-	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), log)
+	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), false, log)
 	require.NoError(t, err)
 	defer source.(*spiffeTLSConfigSource).Close()
 

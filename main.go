@@ -836,7 +836,7 @@ func proxyLoggerFlags(flags []string) int {
 func getTLSConfigSource() (certloader.TLSConfigSource, error) {
 	if *useWorkloadAPI {
 		logger.Printf("using SPIFFE Workload API as certificate source")
-		source, err := certloader.TLSConfigSourceFromWorkloadAPI(*useWorkloadAPIAddr, logger)
+		source, err := certloader.TLSConfigSourceFromWorkloadAPI(*useWorkloadAPIAddr, *clientDisableAuth, logger)
 		if err != nil {
 			logger.Printf("error: unable to create workload API TLS source: %s\n", err)
 			return nil, err
