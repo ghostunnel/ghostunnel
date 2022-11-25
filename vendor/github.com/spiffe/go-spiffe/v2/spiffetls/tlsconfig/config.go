@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 
 	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 )
 
@@ -167,12 +168,24 @@ func GetClientCertificate(svid x509svid.Source, opts ...Option) func(*tls.Certif
 	}
 }
 
+// ParseAndVerify parses and verifies an X509-SVID chain using the X.509
+// bundle source. It returns the SPIFFE ID of the X509-SVID and one or more
+// chains back to a root in the bundle.
+// If no certificate is given, validation is skipped.
+func ParseAndVerify(rawCerts [][]byte, bundleSource x509bundle.Source) (spiffeid.ID, [][]*x509.Certificate, error) {
+	if rawCerts == nil {
+		return spiffeid.ID{}, nil, nil
+	}
+
+	return x509svid.ParseAndVerify(rawCerts, bundleSource)
+}
+
 // VerifyPeerCertificate returns a VerifyPeerCertificate callback for
 // tls.Config. It uses the given bundle source and authorizer to verify and
 // authorize X509-SVIDs provided by peers during the TLS handshake.
 func VerifyPeerCertificate(bundle x509bundle.Source, authorizer Authorizer, opts ...Option) func([][]byte, [][]*x509.Certificate) error {
 	return func(raw [][]byte, _ [][]*x509.Certificate) error {
-		id, certs, err := x509svid.ParseAndVerify(raw, bundle)
+		id, certs, err := ParseAndVerify(raw, bundle)
 		if err != nil {
 			return err
 		}

@@ -351,13 +351,11 @@ func clientValidateFlags() error {
 		(*certPath != "" && *keyPath != ""),
 		// A certificate, with the key in a PKCS#11 module
 		(*certPath != "" && hasPKCS11()),
-		// SPIFFE Workload API
-		*useWorkloadAPI,
 		// No credentials needed if auth is disabled
 		*clientDisableAuth,
 	})
 
-	if hasValidCredentials == 0 {
+	if hasValidCredentials == 0 && !*useWorkloadAPI {
 		return errors.New("at least one of --keystore, --cert/--key, --keychain-identity/issuer (if supported) or --disable-authentication flags is required")
 	}
 	if hasValidCredentials > 1 {
@@ -836,7 +834,7 @@ func proxyLoggerFlags(flags []string) int {
 func getTLSConfigSource() (certloader.TLSConfigSource, error) {
 	if *useWorkloadAPI {
 		logger.Printf("using SPIFFE Workload API as certificate source")
-		source, err := certloader.TLSConfigSourceFromWorkloadAPI(*useWorkloadAPIAddr, logger)
+		source, err := certloader.TLSConfigSourceFromWorkloadAPI(*useWorkloadAPIAddr, *clientDisableAuth, logger)
 		if err != nil {
 			logger.Printf("error: unable to create workload API TLS source: %s\n", err)
 			return nil, err
