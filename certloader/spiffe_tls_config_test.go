@@ -41,7 +41,7 @@ func TestWorkloadAPIClientDisableAuth(t *testing.T) {
 
 	log := log.Default()
 
-	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), false, log)
+	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), true, log)
 	require.NoError(t, err)
 	defer source.(*spiffeTLSConfigSource).Close()
 
@@ -52,7 +52,7 @@ func TestWorkloadAPIClientDisableAuth(t *testing.T) {
 	clientConfig, err := source.GetClientConfig(clientBase)
 	require.NoError(t, err)
 	tlsConfig := clientConfig.GetClientConfig()
-	require.Nil(t, tlsConfig.GetCertificate)
+	require.Nil(t, tlsConfig.GetClientCertificate)
 }
 
 func TestWorkloadAPITLSConfigSource(t *testing.T) {
