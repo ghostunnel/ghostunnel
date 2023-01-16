@@ -41,7 +41,7 @@ jobs:
       - name: Run tests 
         run: GO_VERSION=${{ matrix.version }} make docker-test
       - name: Codecov upload
-        uses: codecov/codecov-action@v1
+        uses: codecov/codecov-action@v3
         with:
           files: ./coverage-merged.out
           flags: linux
@@ -72,7 +72,7 @@ jobs:
       - name: Run tests
         run: make test
       - name: Codecov upload
-        uses: codecov/codecov-action@v1
+        uses: codecov/codecov-action@v3
         with:
           files: ./coverage-merged.out
           flags: darwin
