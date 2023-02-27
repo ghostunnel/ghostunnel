@@ -85,12 +85,12 @@ jobs:
       - name: Build binary
         run: |
           make ghostunnel
-          mv ghostunnel ghostunnel-windows-amd64
+          mv ghostunnel ghostunnel-windows-amd64.exe
       - name: Upload artifact
         uses: actions/upload-artifact@v2
         with:
-          name: ghostunnel-windows-amd64
-          path: ghostunnel-windows-amd64
+          name: ghostunnel-windows-amd64.exe
+          path: ghostunnel-windows-amd64.exe
 
   release:
     name: Create release
