@@ -13,6 +13,10 @@ jobs:
         version: [1.19.x]
     runs-on: ubuntu-latest
     steps:
+      - name: Set up cross toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
       - name: Set up toolchain
         uses: actions/setup-go@v2
         with:
@@ -24,11 +28,19 @@ jobs:
         run: |
           CGO_ENABLED=1 GOARCH=amd64 make ghostunnel
           mv ghostunnel ghostunnel-linux-amd64
+          make clean
+          CGO_ENABLED=1 GOARCH=arm64 CC=aarch64-linux-gnu-gcc make ghostunnel
+          mv ghostunnel ghostunnel-linux-arm64
       - name: Upload artifact
         uses: actions/upload-artifact@v2
         with:
           name: ghostunnel-linux-amd64
           path: ghostunnel-linux-amd64
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: ghostunnel-linux-arm64
+          path: ghostunnel-linux-arm64
 
   build-darwin:
     name: Build (MacOS)
@@ -118,8 +130,9 @@ jobs:
     needs: [ build-linux, build-darwin, build-windows, release ]
     strategy:
       matrix:
-        target: 
+        target:
         - { os: 'linux', arch: 'amd64' }
+        - { os: 'linux', arch: 'arm64' }
         - { os: 'darwin', arch: 'amd64' }
         - { os: 'darwin', arch: 'arm64' }
         - { os: 'darwin', arch: 'universal' }
