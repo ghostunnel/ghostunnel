@@ -35,16 +35,6 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-// UnmarshalRouteConfig processes resources received in an RDS response,
-// validates them, and transforms them into a native struct which contains only
-// fields we are interested in. The provided hostname determines the route
-// configuration resources of interest.
-func UnmarshalRouteConfig(opts *UnmarshalOptions) (map[string]RouteConfigUpdateErrTuple, UpdateMetadata, error) {
-	update := make(map[string]RouteConfigUpdateErrTuple)
-	md, err := processAllResources(opts, update)
-	return update, md, err
-}
-
 func unmarshalRouteConfigResource(r *anypb.Any, logger *grpclog.PrefixLogger) (string, RouteConfigUpdate, error) {
 	r, err := unwrapResource(r)
 	if err != nil {
@@ -93,7 +83,7 @@ func generateRDSUpdateFromRouteConfiguration(rc *v3routepb.RouteConfiguration, l
 		var err error
 		csps, err = processClusterSpecifierPlugins(rc.ClusterSpecifierPlugins)
 		if err != nil {
-			return RouteConfigUpdate{}, fmt.Errorf("received route is invalid %v", err)
+			return RouteConfigUpdate{}, fmt.Errorf("received route is invalid: %v", err)
 		}
 	}
 	// cspNames represents all the cluster specifiers referenced by Route
@@ -361,8 +351,22 @@ func routesProtoToSlice(routes []*v3routepb.Route, csps map[string]clusterspecif
 					return nil, nil, fmt.Errorf("route %+v, action %+v, has no valid cluster in WeightedCluster action", r, a)
 				}
 			case *v3routepb.RouteAction_ClusterSpecifierPlugin:
+				// gRFC A28 was updated to say the following:
+				//
+				// The route’s action field must be route, and its
+				// cluster_specifier:
+				// - Can be Cluster
+				// - Can be Weighted_clusters
+				//   - The sum of weights must add up to the total_weight.
+				// - Can be unset or an unsupported field. The route containing
+				//   this action will be ignored.
+				//
+				// This means that if this env var is not set, we should treat
+				// it as if it we didn't know about the cluster_specifier_plugin
+				// at all.
 				if !envconfig.XDSRLS {
-					return nil, nil, fmt.Errorf("route %+v, has an unknown ClusterSpecifier: %+v", r, a)
+					logger.Infof("route %+v contains route_action with unsupported field: cluster_specifier_plugin, the route will be ignored", r)
+					continue
 				}
 				if _, ok := csps[a.ClusterSpecifierPlugin]; !ok {
 					// "When processing RouteActions, if any action includes a

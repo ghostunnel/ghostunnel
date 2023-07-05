@@ -105,7 +105,7 @@ type priorityBalancer struct {
 }
 
 func (b *priorityBalancer) UpdateClientConnState(s balancer.ClientConnState) error {
-	b.logger.Infof("Received update from resolver, balancer config: %+v", pretty.ToJSON(s.BalancerConfig))
+	b.logger.Debugf("Received an update with balancer config: %+v", pretty.ToJSON(s.BalancerConfig))
 	newConfig, ok := s.BalancerConfig.(*LBConfig)
 	if !ok {
 		return fmt.Errorf("unexpected balancer config with type: %T", s.BalancerConfig)
@@ -127,7 +127,7 @@ func (b *priorityBalancer) UpdateClientConnState(s balancer.ClientConnState) err
 			// This is a new child, add it to the children list. But note that
 			// the balancer isn't built, because this child can be a low
 			// priority. If necessary, it will be built when syncing priorities.
-			cb := newChildBalancer(name, b, bb)
+			cb := newChildBalancer(name, b, bb.Name(), b.cc)
 			cb.updateConfig(newSubConfig, resolver.State{
 				Addresses:     addressesSplit[name],
 				ServiceConfig: s.ResolverState.ServiceConfig,
@@ -141,9 +141,9 @@ func (b *priorityBalancer) UpdateClientConnState(s balancer.ClientConnState) err
 
 		// The balancing policy name is changed, close the old child. But don't
 		// rebuild, rebuild will happen when syncing priorities.
-		if currentChild.bb.Name() != bb.Name() {
+		if currentChild.balancerName != bb.Name() {
 			currentChild.stop()
-			currentChild.updateBuilder(bb)
+			currentChild.updateBalancerName(bb.Name())
 		}
 
 		// Update config and address, but note that this doesn't send the
@@ -155,10 +155,11 @@ func (b *priorityBalancer) UpdateClientConnState(s balancer.ClientConnState) err
 			Attributes:    s.ResolverState.Attributes,
 		})
 	}
-	// Remove child from children if it's not in new config.
+	// Cleanup resources used by children removed from the config.
 	for name, oldChild := range b.children {
 		if _, ok := newConfig.Children[name]; !ok {
 			oldChild.stop()
+			delete(b.children, name)
 		}
 	}
 
