@@ -12,7 +12,7 @@ FROM golang:${GO_VERSION}
 
 # Install build dependencies
 RUN apt-get update && \
-    apt-get install -y build-essential python3-minimal netcat softhsm2 rsyslog git python3-distutils </dev/null && \
+    apt-get install -y build-essential python3-minimal netcat-traditional softhsm2 rsyslog git python3-distutils </dev/null && \
     mkdir -p /etc/softhsm /var/lib/softhsm/tokens /go/src/github.com/ghostunnel/ghostunnel && \
     go install github.com/wadey/gocovmerge@latest && \
     go install golang.org/x/tools/cmd/cover@latest
