@@ -97,6 +97,7 @@ var (
 	clientServerName     = clientCommand.Flag("override-server-name", "If set, overrides the server name used for hostname verification.").PlaceHolder("NAME").String()
 	clientConnectProxy   = clientCommand.Flag("connect-proxy", "If set, connect to target over given HTTP CONNECT proxy. Must be HTTP/HTTPS URL.").PlaceHolder("URL").URL()
 	clientAllowedCNs     = clientCommand.Flag("verify-cn", "Allow servers with given common name (can be repeated).").PlaceHolder("CN").Strings()
+	clientTlsAlpn        = clientCommand.Flag("tls-alpn", "Application-Layer Protocol to advertise to the server (can be repeated, in the order of preference).").PlaceHolder("PROTOCOL").Strings()
 	clientAllowedOUs     = clientCommand.Flag("verify-ou", "Allow servers with given organizational unit name (can be repeated).").PlaceHolder("OU").Strings()
 	clientAllowedDNSs    = clientCommand.Flag("verify-dns", "Allow servers with given DNS subject alternative name (can be repeated).").PlaceHolder("DNS").Strings()
 	clientAllowedIPs     = clientCommand.Flag("verify-ip", "").Hidden().PlaceHolder("SAN").IPList()
@@ -751,6 +752,19 @@ func clientBackendDialer(tlsConfigSource certloader.TLSConfigSource, network, ad
 		config.ServerName = host
 	} else {
 		config.ServerName = *clientServerName
+	}
+
+	if len(*clientTlsAlpn) > 0 {
+		config.NextProtos = *clientTlsAlpn
+	}
+
+	if os.Getenv("SSLKEYLOGFILE") != "" {
+		f, err := os.OpenFile(os.Getenv("SSLKEYLOGFILE"),
+			os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+		if err != nil {
+			panic(err)
+		}
+		config.KeyLogWriter = f
 	}
 
 	allowedURIs, err := wildcard.CompileList(*clientAllowedURIs)
