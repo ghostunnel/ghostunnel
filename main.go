@@ -87,7 +87,7 @@ var (
 	serverAutoACMEEmail       = serverCommand.Flag("auto-acme-email", "Email address associated with all ACME requests").PlaceHolder("EMAIL").String()
 	serverAutoACMEAgreedTOS   = serverCommand.Flag("auto-acme-agree-to-tos", "Agree to the Terms of Service of the ACME CA").Default("false").Bool()
 	serverAutoACMEProdCA      = serverCommand.Flag("auto-acme-ca", "Specify the URL to the ACME CA. Defaults to Let's Encrypt if not specified.").PlaceHolder("https://some-acme-ca.example.com/").String()
-	serverAutoACMETestCA      = serverCommand.Flag("auto-acme-testca", "Specify the URL to the ACME CA's Test/Staging environemnt. If set, all requests will go to this CA and --auto-acme-ca will be ignored.").PlaceHolder("https://testing.some-acme-ca.example.com/").String()
+	serverAutoACMETestCA      = serverCommand.Flag("auto-acme-testca", "Specify the URL to the ACME CA's Test/Staging environment. If set, all requests will go to this CA and --auto-acme-ca will be ignored.").PlaceHolder("https://testing.some-acme-ca.example.com/").String()
 
 	clientCommand       = app.Command("client", "Client mode (plain TCP/UNIX listener -> TLS target).")
 	clientListenAddress = clientCommand.Flag("listen", "Address and port to listen on (can be HOST:PORT, unix:PATH, systemd:NAME or launchd:NAME).").PlaceHolder("ADDR").Required().String()
