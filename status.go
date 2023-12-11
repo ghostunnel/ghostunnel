@@ -98,7 +98,7 @@ func (s *statusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	resp.Revision = version
 	resp.Compiler = runtime.Version()
 
-	// Defaults. Will be overriden if checks fail.
+	// Defaults. Will be overridden if checks fail.
 	resp.BackendOk = true
 	resp.BackendStatus = "ok"
 
