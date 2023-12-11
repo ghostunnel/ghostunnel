@@ -44,7 +44,6 @@ func (t *Transfer) tsigProvider() TsigProvider {
 //	dnscon := &dns.Conn{Conn:con}
 //	transfer = &dns.Transfer{Conn: dnscon}
 //	channel, err := transfer.In(message, master)
-//
 func (t *Transfer) In(q *Msg, a string) (env chan *Envelope, err error) {
 	switch q.Question[0].Qtype {
 	case TypeAXFR, TypeIXFR:
@@ -81,8 +80,13 @@ func (t *Transfer) In(q *Msg, a string) (env chan *Envelope, err error) {
 
 func (t *Transfer) inAxfr(q *Msg, c chan *Envelope) {
 	first := true
-	defer t.Close()
-	defer close(c)
+	defer func() {
+		// First close the connection, then the channel. This allows functions blocked on
+		// the channel to assume that the connection is closed and no further operations are
+		// pending when they resume.
+		t.Close()
+		close(c)
+	}()
 	timeout := dnsTimeout
 	if t.ReadTimeout != 0 {
 		timeout = t.ReadTimeout
@@ -132,8 +136,13 @@ func (t *Transfer) inIxfr(q *Msg, c chan *Envelope) {
 	axfr := true
 	n := 0
 	qser := q.Ns[0].(*SOA).Serial
-	defer t.Close()
-	defer close(c)
+	defer func() {
+		// First close the connection, then the channel. This allows functions blocked on
+		// the channel to assume that the connection is closed and no further operations are
+		// pending when they resume.
+		t.Close()
+		close(c)
+	}()
 	timeout := dnsTimeout
 	if t.ReadTimeout != 0 {
 		timeout = t.ReadTimeout
@@ -237,7 +246,7 @@ func (t *Transfer) ReadMsg() (*Msg, error) {
 	}
 	if ts, tp := m.IsTsig(), t.tsigProvider(); ts != nil && tp != nil {
 		// Need to work on the original message p, as that was used to calculate the tsig.
-		err = tsigVerifyProvider(p, tp, t.tsigRequestMAC, t.tsigTimersOnly)
+		err = TsigVerifyWithProvider(p, tp, t.tsigRequestMAC, t.tsigTimersOnly)
 		t.tsigRequestMAC = ts.MAC
 	}
 	return m, err
@@ -247,7 +256,7 @@ func (t *Transfer) ReadMsg() (*Msg, error) {
 func (t *Transfer) WriteMsg(m *Msg) (err error) {
 	var out []byte
 	if ts, tp := m.IsTsig(), t.tsigProvider(); ts != nil && tp != nil {
-		out, t.tsigRequestMAC, err = tsigGenerateProvider(m, tp, t.tsigRequestMAC, t.tsigTimersOnly)
+		out, t.tsigRequestMAC, err = TsigGenerateWithProvider(m, tp, t.tsigRequestMAC, t.tsigTimersOnly)
 	} else {
 		out, err = m.Pack()
 	}

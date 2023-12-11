@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/open-policy-agent/opa/ast"
+	astJSON "github.com/open-policy-agent/opa/ast/json"
 	"github.com/open-policy-agent/opa/format"
 	"github.com/open-policy-agent/opa/internal/file/archive"
 	"github.com/open-policy-agent/opa/internal/merge"
@@ -127,8 +128,9 @@ type Manifest struct {
 
 // WasmResolver maps a wasm module to an entrypoint ref.
 type WasmResolver struct {
-	Entrypoint string `json:"entrypoint,omitempty"`
-	Module     string `json:"module,omitempty"`
+	Entrypoint  string             `json:"entrypoint,omitempty"`
+	Module      string             `json:"module,omitempty"`
+	Annotations []*ast.Annotations `json:"annotations,omitempty"`
 }
 
 // Init initializes the manifest. If you instantiate a manifest
@@ -164,6 +166,10 @@ func (m Manifest) Equal(other Manifest) bool {
 	}
 
 	return m.equalWasmResolversAndRoots(other)
+}
+
+func (m Manifest) Empty() bool {
+	return m.Equal(Manifest{})
 }
 
 // Copy returns a deep copy of the manifest.
@@ -210,12 +216,43 @@ func (m Manifest) equalWasmResolversAndRoots(other Manifest) bool {
 	}
 
 	for i := 0; i < len(m.WasmResolvers); i++ {
-		if m.WasmResolvers[i] != other.WasmResolvers[i] {
+		if !m.WasmResolvers[i].Equal(&other.WasmResolvers[i]) {
 			return false
 		}
 	}
 
 	return m.rootSet().Equal(other.rootSet())
+}
+
+func (wr *WasmResolver) Equal(other *WasmResolver) bool {
+	if wr == nil && other == nil {
+		return true
+	}
+
+	if wr == nil || other == nil {
+		return false
+	}
+
+	if wr.Module != other.Module {
+		return false
+	}
+
+	if wr.Entrypoint != other.Entrypoint {
+		return false
+	}
+
+	annotLen := len(wr.Annotations)
+	if annotLen != len(other.Annotations) {
+		return false
+	}
+
+	for i := 0; i < annotLen; i++ {
+		if wr.Annotations[i].Compare(other.Annotations[i]) != 0 {
+			return false
+		}
+	}
+
+	return true
 }
 
 type stringSet map[string]struct{}
@@ -355,11 +392,14 @@ type Reader struct {
 	verificationConfig    *VerificationConfig
 	skipVerify            bool
 	processAnnotations    bool
+	jsonOptions           *astJSON.Options
+	capabilities          *ast.Capabilities
 	files                 map[string]FileInfo // files in the bundle signature payload
 	sizeLimitBytes        int64
 	etag                  string
 	lazyLoadingMode       bool
 	name                  string
+	persist               bool
 }
 
 // NewReader is deprecated. Use NewCustomReader instead.
@@ -417,6 +457,18 @@ func (r *Reader) WithProcessAnnotations(yes bool) *Reader {
 	return r
 }
 
+// WithCapabilities sets the supported capabilities when loading the files
+func (r *Reader) WithCapabilities(caps *ast.Capabilities) *Reader {
+	r.capabilities = caps
+	return r
+}
+
+// WithJSONOptions sets the JSONOptions to use when parsing policy files
+func (r *Reader) WithJSONOptions(opts *astJSON.Options) *Reader {
+	r.jsonOptions = opts
+	return r
+}
+
 // WithSizeLimitBytes sets the size limit to apply to files in the bundle. If files are larger
 // than this, an error will be returned by the reader.
 func (r *Reader) WithSizeLimitBytes(n int64) *Reader {
@@ -443,6 +495,20 @@ func (r *Reader) WithBundleName(name string) *Reader {
 func (r *Reader) WithLazyLoadingMode(yes bool) *Reader {
 	r.lazyLoadingMode = yes
 	return r
+}
+
+// WithBundlePersistence specifies if the downloaded bundle will eventually be persisted to disk.
+func (r *Reader) WithBundlePersistence(persist bool) *Reader {
+	r.persist = persist
+	return r
+}
+
+func (r *Reader) ParserOptions() ast.ParserOptions {
+	return ast.ParserOptions{
+		ProcessAnnotation: r.processAnnotations,
+		Capabilities:      r.capabilities,
+		JSONOptions:       r.jsonOptions,
+	}
 }
 
 // Read returns a new Bundle loaded from the reader.
@@ -511,7 +577,7 @@ func (r *Reader) Read() (Bundle, error) {
 			}
 
 			r.metrics.Timer(metrics.RegoModuleParse).Start()
-			module, err := ast.ParseModuleWithOpts(fullPath, buf.String(), ast.ParserOptions{ProcessAnnotation: r.processAnnotations})
+			module, err := ast.ParseModuleWithOpts(fullPath, buf.String(), r.ParserOptions())
 			r.metrics.Timer(metrics.RegoModuleParse).Stop()
 			if err != nil {
 				return bundle, err
@@ -545,7 +611,7 @@ func (r *Reader) Read() (Bundle, error) {
 			var value interface{}
 
 			r.metrics.Timer(metrics.RegoDataParse).Start()
-			err := util.NewJSONDecoder(&buf).Decode(&value)
+			err := util.UnmarshalJSON(buf.Bytes(), &value)
 			r.metrics.Timer(metrics.RegoDataParse).Stop()
 
 			if err != nil {
@@ -594,6 +660,10 @@ func (r *Reader) Read() (Bundle, error) {
 
 		if len(bundle.WasmModules) != 0 {
 			return bundle, fmt.Errorf("delta bundle expected to contain only patch file but wasm files found")
+		}
+
+		if r.persist {
+			return bundle, fmt.Errorf("'persist' property is true in config. persisting delta bundle to disk is not supported")
 		}
 	}
 
@@ -835,7 +905,7 @@ func (w *Writer) writePlan(tw *tar.Writer, bundle Bundle) error {
 
 func writeManifest(tw *tar.Writer, bundle Bundle) error {
 
-	if bundle.Manifest.Equal(Manifest{}) {
+	if bundle.Manifest.Empty() {
 		return nil
 	}
 
@@ -912,7 +982,7 @@ func hashBundleFiles(hash SignatureHasher, b *Bundle) ([]FileInfo, error) {
 	// parse the manifest into a JSON structure;
 	// then recursively order the fields of all objects alphabetically and then apply
 	// the hash function to result to compute the hash.
-	if !b.Manifest.Equal(Manifest{}) {
+	if !b.Manifest.Empty() {
 		mbs, err := json.Marshal(b.Manifest)
 		if err != nil {
 			return files, err
@@ -1003,7 +1073,7 @@ func (b *Bundle) GenerateSignature(signingConfig *SigningConfig, keyID string, u
 		b.Signatures.Plugin = signingConfig.Plugin
 	}
 
-	b.Signatures.Signatures = []string{string(token)}
+	b.Signatures.Signatures = []string{token}
 
 	return nil
 }
@@ -1032,10 +1102,14 @@ func (b Bundle) Equal(other Bundle) bool {
 		return false
 	}
 	for i := range b.Modules {
-		if b.Modules[i].URL != other.Modules[i].URL {
+		// To support bundles built from rootless filesystems we ignore a "/" prefix
+		// for URLs and Paths, such that "/file" and "file" are equivalent
+		if strings.TrimPrefix(b.Modules[i].URL, string(filepath.Separator)) !=
+			strings.TrimPrefix(other.Modules[i].URL, string(filepath.Separator)) {
 			return false
 		}
-		if b.Modules[i].Path != other.Modules[i].Path {
+		if strings.TrimPrefix(b.Modules[i].Path, string(filepath.Separator)) !=
+			strings.TrimPrefix(other.Modules[i].Path, string(filepath.Separator)) {
 			return false
 		}
 		if !b.Modules[i].Parsed.Equal(other.Modules[i].Parsed) {
@@ -1204,6 +1278,10 @@ func Merge(bundles []*Bundle) (*Bundle, error) {
 
 	}
 
+	if result.Data == nil {
+		result.Data = map[string]interface{}{}
+	}
+
 	result.Manifest.Roots = &roots
 
 	if err := result.Manifest.validateAndInjectDefaults(result); err != nil {
@@ -1268,7 +1346,7 @@ func getNormalizedPath(path string) []string {
 	// other hand, if the path is empty, filepath.Dir will return '.'.
 	// Note: filepath.Dir can return paths with '\' separators, always use
 	// filepath.ToSlash to keep them normalized.
-	dirpath := strings.TrimLeft(filepath.ToSlash(filepath.Dir(path)), "/.")
+	dirpath := strings.TrimLeft(normalizePath(filepath.Dir(path)), "/.")
 	var key []string
 	if dirpath != "" {
 		key = strings.Split(dirpath, "/")
@@ -1305,7 +1383,9 @@ func modulePathWithPrefix(bundleName string, modulePath string) string {
 		prefix = filepath.Join(parsed.Host, parsed.Path)
 	}
 
-	return filepath.Join(prefix, modulePath)
+	// Note: filepath.Join can return paths with '\' separators, always use
+	// filepath.ToSlash to keep them normalized.
+	return normalizePath(filepath.Join(prefix, modulePath))
 }
 
 // IsStructuredDoc checks if the file name equals a structured file extension ex. ".json"
@@ -1376,4 +1456,8 @@ func readFile(f *Descriptor, sizeLimitBytes int64) (bytes.Buffer, error) {
 	}
 
 	return buf, nil
+}
+
+func normalizePath(p string) string {
+	return filepath.ToSlash(p)
 }

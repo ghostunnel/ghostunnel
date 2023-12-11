@@ -1,7 +1,7 @@
 package cabf_br
 
 /*
- * ZLint Copyright 2021 Regents of the University of Michigan
+ * ZLint Copyright 2023 Regents of the University of Michigan
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy
@@ -26,11 +26,12 @@ import (
 
 type algorithmObjectIdentifierEncoding struct{}
 
-/************************************************
+/*
+***********************************************
 This lint refers to CAB Baseline Requirements (Version 1.7.4) chapter 7.1.3.1, which defines the
 required encodings of AlgorithmObjectIdentifiers inside a SubjectPublicKeyInfo field.
 
-Section 7.1.3.1.2: When encoded, the AlgorithmIdentifier for RSA keys MUST be byte‐for‐byte
+Section 7.1.3.1.1: When encoded, the AlgorithmIdentifier for RSA keys MUST be byte‐for‐byte
 identical with the following hex‐encoded bytes: 300d06092a864886f70d0101010500
 
 Section 7.1.3.1.2: When encoded, the AlgorithmIdentifier for ECDSA keys MUST be
@@ -38,7 +39,8 @@ byte‐for‐byte identical with the following hex‐encoded bytes:
 For P‐256 keys: 301306072a8648ce3d020106082a8648ce3d030107
 For P‐384 keys: 301006072a8648ce3d020106052b81040022
 For P‐521 keys: 301006072a8648ce3d020106052b81040023
-************************************************/
+***********************************************
+*/
 func init() {
 	lint.RegisterLint(&lint.Lint{
 		Name: "e_algorithm_identifier_improper_encoding",

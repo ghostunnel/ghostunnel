@@ -1,5 +1,5 @@
 /*
- * ZLint Copyright 2021 Regents of the University of Michigan
+ * ZLint Copyright 2023 Regents of the University of Michigan
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy
@@ -25,6 +25,7 @@ var (
 	ZeroDate                   = time.Date(0000, time.January, 1, 0, 0, 0, 0, time.UTC)
 	RFC1035Date                = time.Date(1987, time.January, 1, 0, 0, 0, 0, time.UTC)
 	RFC2459Date                = time.Date(1999, time.January, 1, 0, 0, 0, 0, time.UTC)
+	RFC3279Date                = time.Date(2002, time.April, 1, 0, 0, 0, 0, time.UTC)
 	RFC3280Date                = time.Date(2002, time.April, 1, 0, 0, 0, 0, time.UTC)
 	RFC3490Date                = time.Date(2003, time.March, 1, 0, 0, 0, 0, time.UTC)
 	RFC8399Date                = time.Date(2018, time.May, 1, 0, 0, 0, 0, time.UTC)
@@ -32,6 +33,7 @@ var (
 	RFC4630Date                = time.Date(2006, time.August, 1, 0, 0, 0, 0, time.UTC)
 	RFC5280Date                = time.Date(2008, time.May, 1, 0, 0, 0, 0, time.UTC)
 	RFC6818Date                = time.Date(2013, time.January, 1, 0, 0, 0, 0, time.UTC)
+	RFC8813Date                = time.Date(2020, time.August, 1, 0, 0, 0, 0, time.UTC)
 	CABEffectiveDate           = time.Date(2012, time.July, 1, 0, 0, 0, 0, time.UTC)
 	CABReservedIPDate          = time.Date(2016, time.October, 1, 0, 0, 0, 0, time.UTC)
 	CABGivenNameDate           = time.Date(2016, time.September, 7, 0, 0, 0, 0, time.UTC)
@@ -66,8 +68,10 @@ var (
 	CABFBRs_1_6_9_Date                               = time.Date(2020, time.March, 27, 0, 0, 0, 0, time.UTC)
 	CABFBRs_1_7_1_Date                               = time.Date(2020, time.August, 20, 0, 0, 0, 0, time.UTC)
 	AppleReducedLifetimeDate                         = time.Date(2020, time.September, 1, 0, 0, 0, 0, time.UTC)
-	CABFBRs_1_8_0_Date                               = time.Date(2021, time.August, 21, 0, 0, 0, 0, time.UTC)
+	CABFBRs_1_7_9_Date                               = time.Date(2021, time.August, 16, 0, 0, 0, 0, time.UTC)
+	CABFBRs_1_8_0_Date                               = time.Date(2021, time.August, 25, 0, 0, 0, 0, time.UTC)
 	NoReservedDomainLabelsDate                       = time.Date(2021, time.October, 1, 0, 0, 0, 0, time.UTC)
+	CABFBRs_OU_Prohibited_Date                       = time.Date(2022, time.September, 1, 0, 0, 0, 0, time.UTC)
 )
 
 var (
