@@ -13,7 +13,7 @@ import (
 // be read from the wire, if Listener.ReaderHeaderTimeout is not set.
 // It's kept as a global variable so to make it easier to find and override,
 // e.g. go build -ldflags -X "github.com/pires/go-proxyproto.DefaultReadHeaderTimeout=1s"
-var DefaultReadHeaderTimeout = 200 * time.Millisecond
+var DefaultReadHeaderTimeout = 10 * time.Second
 
 // Listener is used to wrap an underlying listener,
 // whose connections may be using the HAProxy Proxy Protocol.
@@ -73,6 +73,10 @@ func (p *Listener) Accept() (net.Conn, error) {
 			// can't decide the policy, we can't accept the connection
 			conn.Close()
 			return nil, err
+		}
+		// Handle a connection as a regular one
+		if proxyHeaderPolicy == SKIP {
+			return conn, nil
 		}
 	}
 
@@ -240,7 +244,9 @@ func (p *Conn) readHeader() error {
 	// run on the connection, as we don't want to override the previous
 	// read deadline the user may have used.
 	if p.readHeaderTimeout > 0 {
-		p.conn.SetReadDeadline(time.Now().Add(p.readHeaderTimeout))
+		if err := p.conn.SetReadDeadline(time.Now().Add(p.readHeaderTimeout)); err != nil {
+			return err
+		}
 	}
 
 	header, err := Read(p.bufReader)
@@ -255,7 +261,9 @@ func (p *Conn) readHeader() error {
 		if t == nil {
 			t = time.Time{}
 		}
-		p.conn.SetReadDeadline(t.(time.Time))
+		if err := p.conn.SetReadDeadline(t.(time.Time)); err != nil {
+			return err
+		}
 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 			err = ErrNoProxyProtocol
 		}

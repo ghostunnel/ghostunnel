@@ -156,22 +156,34 @@ func (c *PrometheusConfig) UpdatePrometheusMetricsOnce() error {
 		case metrics.Gauge:
 			c.gaugeFromNameAndValue(name, float64(metric.Value()))
 		case metrics.GaugeFloat64:
-			c.gaugeFromNameAndValue(name, float64(metric.Value()))
+			c.gaugeFromNameAndValue(name, metric.Value())
 		case metrics.Histogram:
 			samples := metric.Snapshot().Sample().Values()
 			if len(samples) > 0 {
 				lastSample := samples[len(samples)-1]
 				c.gaugeFromNameAndValue(name, float64(lastSample))
 			}
-
 			c.histogramFromNameAndMetric(name, metric, c.histogramBuckets)
 		case metrics.Meter:
-			lastSample := metric.Snapshot().Rate1()
-			c.gaugeFromNameAndValue(name, float64(lastSample))
+			snapshot := metric.Snapshot()
+			c.gaugeFromNameAndValue(name+"_rate1", snapshot.Rate1())
+			c.gaugeFromNameAndValue(name+"_rate5", snapshot.Rate5())
+			c.gaugeFromNameAndValue(name+"_rate15", snapshot.Rate15())
+			c.gaugeFromNameAndValue(name+"_rate_mean", snapshot.RateMean())
+			c.gaugeFromNameAndValue(name+"_count", float64(snapshot.Count()))
 		case metrics.Timer:
-			lastSample := metric.Snapshot().Rate1()
-			c.gaugeFromNameAndValue(name, float64(lastSample))
-
+			snapshot := metric.Snapshot()
+			c.gaugeFromNameAndValue(name+"_rate1", snapshot.Rate1())
+			c.gaugeFromNameAndValue(name+"_rate5", snapshot.Rate5())
+			c.gaugeFromNameAndValue(name+"_rate15", snapshot.Rate15())
+			c.gaugeFromNameAndValue(name+"_rate_mean", snapshot.RateMean())
+			c.gaugeFromNameAndValue(name+"_count", float64(snapshot.Count()))
+			c.gaugeFromNameAndValue(name+"_sum", float64(snapshot.Sum()))
+			c.gaugeFromNameAndValue(name+"_max", float64(snapshot.Max()))
+			c.gaugeFromNameAndValue(name+"_min", float64(snapshot.Min()))
+			c.gaugeFromNameAndValue(name+"_mean", snapshot.Mean())
+			c.gaugeFromNameAndValue(name+"_variance", snapshot.Variance())
+			c.gaugeFromNameAndValue(name+"_std_dev", snapshot.StdDev())
 			c.histogramFromNameAndMetric(name, metric, c.timerBuckets)
 		}
 	})

@@ -10,7 +10,7 @@ package main
 import (
 	"os"
 
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
+	kingpin "github.com/alecthomas/kingpin/v2"
 )
 
 var manPageTemplate = `{{define "FormatFlags"}}\

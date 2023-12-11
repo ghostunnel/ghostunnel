@@ -12,7 +12,7 @@ jobs:
     name: Build (Linux)
     strategy:
       matrix:
-        version: [1.20.x]
+        version: [1.21.x]
     runs-on: ubuntu-latest
     steps:
       - name: Set up cross toolchain
@@ -48,7 +48,7 @@ jobs:
     name: Build (MacOS)
     strategy:
       matrix:
-        version: [1.20.x]
+        version: [1.21.x]
     runs-on: macos-latest
     steps:
       - name: Set up toolchain
@@ -86,7 +86,7 @@ jobs:
     name: Build (Windows)
     strategy:
       matrix:
-        version: [1.20.x]
+        version: [1.21.x]
     runs-on: windows-latest
     steps:
       - name: Set up toolchain

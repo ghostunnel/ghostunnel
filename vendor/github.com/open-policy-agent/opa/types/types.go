@@ -48,6 +48,8 @@ func NewNull() Null {
 	return Null{}
 }
 
+// NamedType represents a type alias with an arbitrary name and description.
+// This is useful for generating documentation for built-in functions.
 type NamedType struct {
 	Name, Descr string
 	Type        Type
@@ -77,6 +79,9 @@ func (n *NamedType) Description(d string) *NamedType {
 	return n
 }
 
+// Named returns the passed type as a named type.
+// Named types are only valid at the top level of built-in functions.
+// Note that nested named types cause panic.
 func Named(name string, t Type) *NamedType {
 	return &NamedType{
 		Type: t,
@@ -209,7 +214,7 @@ func (t *Array) String() string {
 	for _, tpe := range t.static {
 		buf = append(buf, Sprint(tpe))
 	}
-	var repr = prefix
+	repr := prefix
 	if len(buf) > 0 {
 		repr += "<" + strings.Join(buf, ", ") + ">"
 	}
@@ -252,6 +257,10 @@ func NewSet(of Type) *Set {
 	return &Set{
 		of: of,
 	}
+}
+
+func (t *Set) Of() Type {
+	return t.of
 }
 
 // MarshalJSON returns the JSON encoding of t.
@@ -346,7 +355,7 @@ func (t *Object) String() string {
 	for _, p := range t.static {
 		buf = append(buf, fmt.Sprintf("%v: %v", p.Key, Sprint(p.Value)))
 	}
-	var repr = prefix
+	repr := prefix
 	if len(buf) > 0 {
 		repr += "<" + strings.Join(buf, ", ") + ">"
 	}
@@ -403,7 +412,6 @@ func (t *Object) toMap() map[string]interface{} {
 
 // Select returns the type of the named property.
 func (t *Object) Select(name interface{}) Type {
-
 	pos := sort.Search(len(t.static), func(x int) bool {
 		return util.Compare(t.static[x].Key, name) >= 0
 	})
@@ -421,6 +429,77 @@ func (t *Object) Select(name interface{}) Type {
 	return nil
 }
 
+func (t *Object) Merge(other Type) *Object {
+	if otherObj, ok := other.(*Object); ok {
+		return mergeObjects(t, otherObj)
+	}
+
+	var typeK Type
+	var typeV Type
+	dynProps := t.DynamicProperties()
+	if dynProps != nil {
+		typeK = Or(Keys(other), dynProps.Key)
+		typeV = Or(Values(other), dynProps.Value)
+		dynProps = NewDynamicProperty(typeK, typeV)
+	} else {
+		typeK = Keys(other)
+		typeV = Values(other)
+		if typeK != nil && typeV != nil {
+			dynProps = NewDynamicProperty(typeK, typeV)
+		}
+	}
+
+	return NewObject(t.StaticProperties(), dynProps)
+}
+
+func mergeObjects(a, b *Object) *Object {
+	var dynamicProps *DynamicProperty
+	if a.dynamic != nil && b.dynamic != nil {
+		typeK := Or(a.dynamic.Key, b.dynamic.Key)
+		var typeV Type
+		aObj, aIsObj := a.dynamic.Value.(*Object)
+		bObj, bIsObj := b.dynamic.Value.(*Object)
+		if aIsObj && bIsObj {
+			typeV = mergeObjects(aObj, bObj)
+		} else {
+			typeV = Or(a.dynamic.Value, b.dynamic.Value)
+		}
+		dynamicProps = NewDynamicProperty(typeK, typeV)
+	} else if a.dynamic != nil {
+		dynamicProps = a.dynamic
+	} else {
+		dynamicProps = b.dynamic
+	}
+
+	staticPropsMap := make(map[interface{}]Type)
+
+	for _, sp := range a.static {
+		staticPropsMap[sp.Key] = sp.Value
+	}
+
+	for _, sp := range b.static {
+		currV := staticPropsMap[sp.Key]
+		if currV != nil {
+			currVObj, currVIsObj := currV.(*Object)
+			spVObj, spVIsObj := sp.Value.(*Object)
+			if currVIsObj && spVIsObj {
+				staticPropsMap[sp.Key] = mergeObjects(currVObj, spVObj)
+			} else {
+				staticPropsMap[sp.Key] = Or(currV, sp.Value)
+			}
+		} else {
+			staticPropsMap[sp.Key] = sp.Value
+		}
+	}
+
+	staticProps := make([]*StaticProperty, 0, len(staticPropsMap))
+	for k, v := range staticPropsMap {
+		staticProps = append(staticProps, NewStaticProperty(k, v))
+	}
+
+	return NewObject(staticProps, dynamicProps)
+}
+
 // Any represents a dynamic type.
 type Any []Type
 
@@ -430,9 +509,7 @@ var A = NewAny()
 // NewAny returns a new Any type.
 func NewAny(of ...Type) Any {
 	sl := make(Any, len(of))
-	for i := range sl {
-		sl[i] = of[i]
-	}
+	copy(sl, of)
 	sort.Sort(typeSlice(sl))
 	return sl
 }
@@ -442,10 +519,14 @@ func (t Any) Contains(other Type) bool {
 	if _, ok := other.(*Function); ok {
 		return false
 	}
-	for i := range t {
-		if Compare(t[i], other) == 0 {
-			return true
-		}
+	// Note(philipc): We used to do this as a linear search.
+	// Since this is always sorted, we can use a binary search instead.
+	i := sort.Search(len(t), func(i int) bool {
+		return Compare(t[i], other) >= 0
+	})
+	if i < len(t) && Compare(t[i], other) == 0 {
+		// x is present at t[i]
+		return true
 	}
 	return len(t) == 0
 }
@@ -484,24 +565,73 @@ func (t Any) Merge(other Type) Any {
 }
 
 // Union returns a new Any type that is the union of the two Any types.
+// Note(philipc): The two Any slices MUST be sorted before running Union,
+// or else this method will fail to merge the two slices correctly.
 func (t Any) Union(other Any) Any {
-	if len(t) == 0 {
+	lenT := len(t)
+	lenOther := len(other)
+	// Return the more general (blank) Any type if present.
+	if lenT == 0 {
 		return t
 	}
-	if len(other) == 0 {
+	if lenOther == 0 {
 		return other
 	}
-	cpy := make(Any, len(t))
-	for i := range cpy {
-		cpy[i] = t[i]
+	// Prealloc the output list.
+	maxLen := lenT
+	if lenT < lenOther {
+		maxLen = lenOther
 	}
-	for i := range other {
-		if !cpy.Contains(other[i]) {
-			cpy = append(cpy, other[i])
+	merged := make(Any, 0, maxLen)
+	// Note(philipc): Create a merged slice, doing the minimum number of
+	// comparisons along the way. We treat this as a problem of merging two
+	// sorted lists that might have duplicates. This specifically saves us
+	// from cases where one list might be *much* longer than the other.
+	// Algorithm:
+	//   Assume:
+	//   - List A
+	//   - List B
+	//   - List Output
+	//   - Idx_a, Idx_b
+	//   Procedure:
+	//   - While Idx_a < len(A) and Idx_b < len(B)
+	//     - Compare head(A) and head(B)
+	//     - Cases:
+	//       - A < B: Append head(A) to Output, advance Idx_a
+	//       - A == B: Append head(A) to Output, advance Idx_a, Idx_b
+	//       - A > B: Append head(B) to Output, advance Idx_b
+	//   - Return output
+	idxA := 0
+	idxB := 0
+	for idxA < lenT || idxB < lenOther {
+		// Early-exit cases:
+		if idxA == lenT {
+			// Ran out of elements in t. Copy over what's left from other.
+			merged = append(merged, other[idxB:]...)
+			break
+		} else if idxB == lenOther {
+			// Ran out of elements in other. Copy over what's left from t.
+			merged = append(merged, t[idxA:]...)
+			break
+		}
+		// Normal selection of next element to merge:
+		switch Compare(t[idxA], other[idxB]) {
+		// A < B:
+		case -1:
+			merged = append(merged, t[idxA])
+			idxA++
+		// A == B:
+		case 0:
+			merged = append(merged, t[idxA])
+			idxA++
+			idxB++
+		// A > B:
+		case 1:
+			merged = append(merged, other[idxB])
+			idxB++
 		}
 	}
-	sort.Sort(typeSlice(cpy))
-	return cpy
+	return merged
 }
 
 func (t Any) String() string {
@@ -626,7 +756,6 @@ func (t *Function) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON decodes the JSON serialized function declaration.
 func (t *Function) UnmarshalJSON(bs []byte) error {
-
 	tpe, err := Unmarshal(bs)
 	if err != nil {
 		return err
@@ -684,7 +813,7 @@ type FuncArgs struct {
 }
 
 func (a FuncArgs) String() string {
-	var buf []string
+	buf := make([]string, 0, len(a.Args)+1)
 	for i := range a.Args {
 		buf = append(buf, Sprint(a.Args[i]))
 	}
@@ -929,8 +1058,8 @@ func Values(a Type) Type {
 		return Or(tpe, a.dynamic)
 	case *Object:
 		var tpe Type
-		for _, v := range a.static {
-			tpe = Or(tpe, v.Value)
+		for i := range a.static {
+			tpe = Or(tpe, a.static[i].Value)
 		}
 		if a.dynamic != nil {
 			tpe = Or(tpe, a.dynamic.Value)

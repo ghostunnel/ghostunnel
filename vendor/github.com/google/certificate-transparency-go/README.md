@@ -1,19 +1,18 @@
 # Certificate Transparency: Go Code
 
-[![Build Status](https://travis-ci.org/google/certificate-transparency-go.svg?branch=master)](https://travis-ci.org/google/certificate-transparency-go)
 [![Go Report Card](https://goreportcard.com/badge/github.com/google/certificate-transparency-go)](https://goreportcard.com/report/github.com/google/certificate-transparency-go)
 [![GoDoc](https://godoc.org/github.com/google/certificate-transparency-go?status.svg)](https://godoc.org/github.com/google/certificate-transparency-go)
+![CodeQL workflow](https://github.com/google/certificate-transparency-go/actions/workflows/codeql.yml/badge.svg)
 
 This repository holds Go code related to
 [Certificate Transparency](https://www.certificate-transparency.org/) (CT).  The
-repository requires Go version 1.9.
+repository requires Go version 1.20.
 
  - [Repository Structure](#repository-structure)
  - [Trillian CT Personality](#trillian-ct-personality)
  - [Working on the Code](#working-on-the-code)
      - [Running Codebase Checks](#running-codebase-checks)
      - [Rebuilding Generated Code](#rebuilding-generated-code)
-     - [Updating Vendor Code](#updating-vendor-code)
 
 ## Repository Structure
 
@@ -58,9 +57,8 @@ The main parts of the repository are:
  - Other libraries related to CT:
    - `ctutil/` holds utility functions for validating and verifying CT data
      structures.
-   - `loglist/` has a library for reading v1 JSON lists of CT Logs.
-   - `loglist2/` has a library for reading
-     [v2 JSON lists of CT Logs](https://www.certificate-transparency.org/known-logs).
+   - `loglist3/` has a library for reading
+     [v3 JSON lists of CT Logs](https://groups.google.com/a/chromium.org/g/ct-policy/c/IdbrdAcDQto/m/i5KPyzYwBAAJ).
 
 
 ## Trillian CT Personality
@@ -73,15 +71,7 @@ and is [documented separately](trillian/README.md).
 ## Working on the Code
 
 Developers who want to make changes to the codebase need some additional
-dependencies and tools, described in the following sections.  The
-[Travis configuration](.travis.yml) for the codebase is also useful reference
-for the required tools and scripts, as it may be more up-to-date than this
-document.
-
-In order for the `go generate` command to work properly, the code must
-be checked out to the following location:
-`$GOPATH/src/github.com/google/certificate-transparency-go`
-
+dependencies and tools, described in the following sections.
 
 ### Running Codebase Checks
 
@@ -91,10 +81,7 @@ pull requests for review.
 
 ```bash
 # Install golangci-lint
-go get -u github.com/golangci/golangci-lint/cmd/golangci-lint
-cd $GOPATH/src/github.com/golangci/golangci-lint/cmd/golangci-lint
-go install -ldflags "-X 'main.version=$(git describe --tags)' -X 'main.commit=$(git rev-parse --short HEAD)' -X 'main.date=$(date)'"
-cd -
+go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.55.1
 
 # Run code generation, build, test and linters
 ./scripts/presubmit.sh
@@ -119,20 +106,11 @@ Re-generating mock or protobuffer files is only needed if you're changing
 the original files; if you do, you'll need to install the prerequisites:
 
 - tools written in `go` can be installed with a single run of `go install`
-  (courtesy of [`tools.go`](tools.go) and `go.mod`).
-- `protoc` tool: you'll need [version 3.12.4](https://github.com/protocolbuffers/protobuf/releases/tag/v3.12.4) installed, and `PATH` updated to include its `bin/` directory.
+  (courtesy of [`tools.go`](./tools/tools.go) and `go.mod`).
+- `protoc` tool: you'll need [version 3.20.1](https://github.com/protocolbuffers/protobuf/releases/tag/v3.20.1) installed, and `PATH` updated to include its `bin/` directory.
 
 With tools installed, run the following:
 
 ```bash
 go generate -x ./...  # hunts for //go:generate comments and runs them
 ```
-
-### Updating Vendor Code
-
-The codebase includes a couple of external projects under the `vendor/`
-subdirectory, to ensure that builds use a fixed version (typically because the
-upstream repository does not guarantee back-compatibility between the tip
-`master` branch and the current stable release).  See
-[instructions in the Trillian repo](https://github.com/google/trillian#updating-vendor-code)
-for how to update vendored subtrees.
