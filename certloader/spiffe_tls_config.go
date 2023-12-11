@@ -26,11 +26,12 @@ import (
 )
 
 type spiffeTLSConfigSource struct {
-	client *spiffeApi.Client
-	logger *log.Logger
+	client            *spiffeApi.Client
+	clientDisableAuth bool
+	logger            *log.Logger
 }
 
-func TLSConfigSourceFromWorkloadAPI(addr string, logger *log.Logger) (TLSConfigSource, error) {
+func TLSConfigSourceFromWorkloadAPI(addr string, clientDisableAuth bool, logger *log.Logger) (TLSConfigSource, error) {
 	client, err := spiffeApi.New(
 		context.Background(),
 		spiffeApi.WithAddr(addr),
@@ -40,8 +41,9 @@ func TLSConfigSourceFromWorkloadAPI(addr string, logger *log.Logger) (TLSConfigS
 		return nil, err
 	}
 	return &spiffeTLSConfigSource{
-		client: client,
-		logger: logger,
+		client:            client,
+		clientDisableAuth: clientDisableAuth,
+		logger:            logger,
 	}, nil
 }
 
@@ -73,14 +75,16 @@ func (s *spiffeTLSConfigSource) newConfig(base *tls.Config) (*spiffeTLSConfig, e
 	}
 
 	return &spiffeTLSConfig{
-		base:   base,
-		source: source,
+		base:              base,
+		source:            source,
+		clientDisableAuth: s.clientDisableAuth,
 	}, nil
 }
 
 type spiffeTLSConfig struct {
-	base   *tls.Config
-	source *spiffeApi.X509Source
+	base              *tls.Config
+	source            *spiffeApi.X509Source
+	clientDisableAuth bool
 }
 
 func (c *spiffeTLSConfig) GetClientConfig() *tls.Config {
@@ -94,13 +98,24 @@ func (c *spiffeTLSConfig) GetClientConfig() *tls.Config {
 	// authentication against the raw certificates.
 	config.InsecureSkipVerify = true
 	config.VerifyPeerCertificate = spiffeConfig.WrapVerifyPeerCertificate(config.VerifyPeerCertificate, c.source, spiffeConfig.AuthorizeAny())
-	config.GetClientCertificate = spiffeConfig.GetClientCertificate(c.source)
+	if !c.clientDisableAuth {
+		// If auth is disabled on the client side we need to not set
+		// the GetCertificate callback, because if we do it'll cause
+		// the client to block forever if the SPIFFE Workload API
+		// doesn't have a client certificate available for us.
+		config.GetClientCertificate = spiffeConfig.GetClientCertificate(c.source)
+	}
 	return config
 }
 
 func (c *spiffeTLSConfig) GetServerConfig() *tls.Config {
 	config := c.base.Clone()
-	config.ClientAuth = tls.RequireAnyClientCert
+
+	if !c.clientDisableAuth {
+		// Only set client requirement if not disabled in base.
+		config.ClientAuth = tls.RequireAnyClientCert
+	}
+
 	// Go TLS stack will do hostname validation with is not a part of SPIFFE
 	// authentication. Unfortunately there is no way to just skip hostname
 	// validation without having to turn off all verification. This is still
