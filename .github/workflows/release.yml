@@ -124,10 +124,10 @@ jobs:
           draft: true
           prerelease: true
 
-  add-assets:
-    name: Add assets
+  add-assets-linux-darwin:
+    name: Add assets for Linux/Darwin
     runs-on: ubuntu-latest
-    needs: [ build-linux, build-darwin, build-windows, release ]
+    needs: [ build-linux, build-darwin, release ]
     strategy:
       matrix:
         target:
@@ -136,7 +136,6 @@ jobs:
         - { os: 'darwin', arch: 'amd64' }
         - { os: 'darwin', arch: 'arm64' }
         - { os: 'darwin', arch: 'universal' }
-        - { os: 'windows', arch: 'amd64' }
     steps:
       - uses: actions/checkout@v2
       - name: Download artifact
@@ -152,4 +151,29 @@ jobs:
           upload_url: ${{ needs.release.outputs.upload_url }}
           asset_path: ./dist/ghostunnel-${{ matrix.target.os }}-${{ matrix.target.arch }}
           asset_name: ghostunnel-${{ matrix.target.os }}-${{ matrix.target.arch }}
+          asset_content_type: application/octet-stream
+
+  add-assets-windows:
+    name: Add assets for Windows
+    runs-on: ubuntu-latest
+    needs: [ build-windows, release ]
+    strategy:
+      matrix:
+        target:
+        - { os: 'windows', arch: 'amd64' }
+    steps:
+      - uses: actions/checkout@v2
+      - name: Download artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: ghostunnel-${{ matrix.target.os }}-${{ matrix.target.arch }}.exe
+          path: dist
+      - name: Upload artifact to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.release.outputs.upload_url }}
+          asset_path: ./dist/ghostunnel-${{ matrix.target.os }}-${{ matrix.target.arch }}.exe
+          asset_name: ghostunnel-${{ matrix.target.os }}-${{ matrix.target.arch }}.exe
           asset_content_type: application/octet-stream
