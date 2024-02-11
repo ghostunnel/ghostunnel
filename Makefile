@@ -25,7 +25,7 @@ clean:
 
 # Run all tests (unit + integration tests)
 test: unit $(INTEGRATION_TESTS)
-	gocovmerge *.out */*.out | grep -v "interna/test" > coverage-merged.out
+	gocovmerge *.out */*.out | grep -v "internal/test" > coverage-merged.out
 	@echo "PASS"
 .PHONY: test
 
