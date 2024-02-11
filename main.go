@@ -448,7 +448,7 @@ func run(args []string) error {
 
 		// Duplicating this call to getTLSConfigSource() in all switch cases
 		// because we need to complete the validation of the command flags first.
-		tlsConfigSource, err := getTLSConfigSource()
+		tlsConfigSource, err := getTLSConfigSource(*serverDisableAuth)
 		if err != nil {
 			return err
 		}
@@ -485,7 +485,7 @@ func run(args []string) error {
 
 		// Duplicating this call to getTLSConfigSource() in all switch cases
 		// because we need to complete the validation of the command flags first.
-		tlsConfigSource, err := getTLSConfigSource()
+		tlsConfigSource, err := getTLSConfigSource(*clientDisableAuth)
 		if err != nil {
 			return err
 		}
@@ -831,10 +831,10 @@ func proxyLoggerFlags(flags []string) int {
 	return out
 }
 
-func getTLSConfigSource() (certloader.TLSConfigSource, error) {
+func getTLSConfigSource(disableAuth bool) (certloader.TLSConfigSource, error) {
 	if *useWorkloadAPI {
 		logger.Printf("using SPIFFE Workload API as certificate source")
-		source, err := certloader.TLSConfigSourceFromWorkloadAPI(*useWorkloadAPIAddr, *clientDisableAuth, logger)
+		source, err := certloader.TLSConfigSourceFromWorkloadAPI(*useWorkloadAPIAddr, disableAuth, logger)
 		if err != nil {
 			logger.Printf("error: unable to create workload API TLS source: %s\n", err)
 			return nil, err
