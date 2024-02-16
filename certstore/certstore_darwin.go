@@ -175,9 +175,13 @@ func (i *macIdentity) CertificateChain() ([]*x509.Certificate, error) {
 		chain  = make([]*x509.Certificate, 0, int(nchain))
 	)
 
-	for i := C.CFIndex(0); i < nchain; i++ {
+	chainResult := C.SecTrustCopyCertificateChain(trustRef)
+	defer C.CFRelease(C.CFTypeRef(chainResult))
+	n := C.CFArrayGetCount(chainResult)
+	chainCertrefs := make([]C.SecCertificateRef, n)
+	C.CFArrayGetValues(chainResult, C.CFRange{0, n}, (*unsafe.Pointer)(unsafe.Pointer(&chainCertrefs[0])))
+	for _, chainCertref := range chainCertrefs {
 		// TODO: do we need to release these?
-		chainCertref := C.SecTrustGetCertificateAtIndex(trustRef, i)
 		if chainCertref == nilSecCertificateRef {
 			return nil, errors.New("nil certificate in chain")
 		}
