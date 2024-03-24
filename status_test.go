@@ -172,6 +172,14 @@ func TestStatusTargetHTTPNon2XX(t *testing.T) {
 	}
 }
 
+func TestStatusTargetHTTPWithError(t *testing.T) {
+	statusResp, statusRespCode := statusTargetWithResponseStatusCode(-1)
+
+	if statusResp.Ok || statusResp.BackendStatus == "ok" || statusRespCode != 503 {
+		t.Error("status should return 503 when status backend returns something other than 200")
+	}
+}
+
 // statusTargetWithResponseStatusCode creates a stub status target that returns the status code specified by "code".
 func statusTargetWithResponseStatusCode(code int) (statusResponse, int) {
 	statusTarget := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -181,6 +189,9 @@ func statusTargetWithResponseStatusCode(code int) (statusResponse, int) {
 
 	response := httptest.NewRecorder()
 	handler := newStatusHandler(func() (net.Conn, error) {
+		if code < 0 {
+			return nil, errors.New("simulating error when talking to backend")
+		}
 		u, _ := url.Parse(statusTarget.URL) // NOTE: I tried using statusTarget.Config.Addr instead, but it wasn't set.
 		return net.Dial("tcp", fmt.Sprintf("%s:%s", u.Hostname(), u.Port()))
 	}, statusTarget.URL)
