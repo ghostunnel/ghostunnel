@@ -54,4 +54,5 @@ func systemdHandleWatchdog(isHealthy func() bool) error {
 			_, _ = daemon.SdNotify(false, daemon.SdNotifyWatchdog)
 		}
 	}
+	panic("unreachable")
 }

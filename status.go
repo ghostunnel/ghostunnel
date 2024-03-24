@@ -105,11 +105,12 @@ func (s *statusHandler) HandleWatchdog() {
 	// TODO(cs): Figure out a better status check for the watchdog.
 	// We don't want the backend check here, because restarting Ghostunnel
 	// when the backend is down doesn't help much. But not clear what else
-	// we can check that's useful inside the status handler.
+	// we can check that's useful inside the status handler. Right now,
+	// this is good enough to report that we're not frozen.
 	go systemdHandleWatchdog(func() bool { return true })
 }
 
-func (s *statusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *statusHandler) status() statusResponse {
 	resp := statusResponse{
 		Time:       time.Now(),
 		LastReload: s.lastReload,
@@ -132,10 +133,10 @@ func (s *statusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	resp.Ok = s.listening && resp.BackendOk
 	if s.stopping {
 		resp.Message = "stopping"
-	} else if s.listening {
-		resp.Message = "listening"
 	} else if s.reloading {
 		resp.Message = "reloading"
+	} else if s.listening {
+		resp.Message = "listening"
 	} else {
 		resp.Message = "initializing"
 	}
@@ -152,6 +153,11 @@ func (s *statusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		resp.Hostname = hostname
 	}
 
+	return resp
+}
+
+func (s *statusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	resp := s.status()
 	out, err := json.Marshal(resp)
 	panicOnError(err)
 

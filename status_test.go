@@ -118,6 +118,44 @@ func TestStatusHandlerReloading(t *testing.T) {
 	}
 }
 
+func TestStatusHandlerStopping(t *testing.T) {
+	handler := newStatusHandler(dummyDial, "")
+	response := httptest.NewRecorder()
+	handler.Listening()
+	handler.Stopping()
+	handler.ServeHTTP(response, nil)
+
+	if response.Code != 503 {
+		t.Error("status should return 503 when stopping")
+	}
+}
+
+func TestStatusHandlerResponses(t *testing.T) {
+	handler := newStatusHandler(dummyDial, "")
+	resp := handler.status()
+	if resp.Message != "initializing" {
+		t.Error("status should say 'initializing' on startup")
+	}
+
+	handler.Listening()
+	resp = handler.status()
+	if resp.Message != "listening" {
+		t.Error("status should say 'listening' after startup")
+	}
+
+	handler.Reloading()
+	resp = handler.status()
+	if resp.Message != "reloading" {
+		t.Error("status should say 'reloading' when reload initiated")
+	}
+
+	handler.Stopping()
+	resp = handler.status()
+	if resp.Message != "stopping" {
+		t.Error("status should say 'stopping' when shutdown initiated")
+	}
+}
+
 func TestStatusTargetHTTP2XX(t *testing.T) {
 	statusResp, statusRespCode := statusTargetWithResponseStatusCode(200)
 
