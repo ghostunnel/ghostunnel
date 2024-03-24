@@ -49,7 +49,7 @@ func systemdHandleWatchdog(isHealthy func() bool) error {
 	if dur == 0 {
 		return errors.New("found zero duration watchdog timer, ignoring")
 	}
-	for time.Tick(dur / 2) {
+	for range time.Tick(dur / 2) {
 		if isHealthy() {
 			_, _ = daemon.SdNotify(false, daemon.SdNotifyWatchdog)
 		}
