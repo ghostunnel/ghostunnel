@@ -28,6 +28,6 @@ func systemdNotifyReloading() {}
 func systemdNotifyStopping() {}
 
 // systemdHandleWatchdog sends watchdog messages to systemd to keep us alive, if enabled.
-func systemdHandleWatchdog(isHealthy func() bool) error {
+func systemdHandleWatchdog(isHealthy func() bool, shutdown chan bool) error {
 	return nil
 }

@@ -27,6 +27,8 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"runtime"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -64,6 +66,44 @@ func dummyDial() (net.Conn, error) {
 
 func dummyDialError() (net.Conn, error) {
 	return nil, errors.New("fail")
+}
+
+func TestStatusHandleWatchdog(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip()
+		return
+	}
+
+	// Trigger watchdog functionality
+	os.Setenv("WATCHDOG_PID", strconv.Itoa(os.Getpid()))
+	os.Setenv("WATCHDOG_USEC", "1000000")
+
+	// Run watchdog, kill it after one iteration
+	shutdown := make(chan bool, 1)
+	done := make(chan bool, 1)
+	go func() {
+		err := systemdHandleWatchdog(func() bool {
+			// Send shutdown signal to stop handler
+			shutdown <- true
+			return true
+		}, shutdown)
+		if err != nil {
+			t.Error(err)
+		}
+		done <- true
+	}()
+
+	timeout := time.NewTicker(30 * time.Second)
+	defer timeout.Stop()
+
+	select {
+	case <-done:
+		return
+	case <-timeout.C:
+		shutdown <- true
+		t.Error("watchdog handler timed out, did not call health check")
+		return
+	}
 }
 
 func TestStatusHandlerNew(t *testing.T) {

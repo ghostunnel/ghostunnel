@@ -41,7 +41,7 @@ func systemdNotifyStopping() {
 }
 
 // systemdHandleWatchdog sends watchdog messages to systemd to keep us alive, if enabled.
-func systemdHandleWatchdog(isHealthy func() bool) error {
+func systemdHandleWatchdog(isHealthy func() bool, shutdown chan bool) error {
 	dur, err := daemon.SdWatchdogEnabled(false)
 	if err != nil {
 		return err
@@ -49,9 +49,16 @@ func systemdHandleWatchdog(isHealthy func() bool) error {
 	if dur == 0 {
 		return errors.New("found zero duration watchdog timer, ignoring")
 	}
-	for range time.Tick(dur / 2) {
-		if isHealthy() {
-			_, _ = daemon.SdNotify(false, daemon.SdNotifyWatchdog)
+	ticker := time.NewTicker(dur / 2)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			if isHealthy() {
+				_, _ = daemon.SdNotify(false, daemon.SdNotifyWatchdog)
+			}
+		case <-shutdown:
+			return nil
 		}
 	}
 	panic("unreachable")
