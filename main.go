@@ -610,6 +610,7 @@ func serverListen(context *Context) error {
 	go p.Accept()
 
 	context.status.Listening()
+	context.status.HandleWatchdog()
 	context.signalHandler(p)
 	p.Wait()
 
@@ -651,6 +652,7 @@ func clientListen(context *Context) error {
 	go p.Accept()
 
 	context.status.Listening()
+	context.status.HandleWatchdog()
 	context.signalHandler(p)
 	p.Wait()
 
