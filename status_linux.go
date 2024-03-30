@@ -19,7 +19,6 @@
 package main
 
 import (
-	"errors"
 	"time"
 
 	"github.com/coreos/go-systemd/v22/daemon"
@@ -47,7 +46,8 @@ func systemdHandleWatchdog(isHealthy func() bool, shutdown chan bool) error {
 		return err
 	}
 	if dur == 0 {
-		return errors.New("found zero duration watchdog timer, ignoring")
+		// Watchdog not enabled, ignore
+		return nil
 	}
 	ticker := time.NewTicker(dur / 2)
 	defer ticker.Stop()

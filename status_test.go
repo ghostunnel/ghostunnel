@@ -68,6 +68,24 @@ func dummyDialError() (net.Conn, error) {
 	return nil, errors.New("fail")
 }
 
+func TestStatusHandleWatchdogError(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip()
+		return
+	}
+
+	// Trigger watchdog functionality
+	os.Setenv("WATCHDOG_PID", strconv.Itoa(os.Getpid()))
+	os.Setenv("WATCHDOG_USEC", "X")
+	defer os.Unsetenv("WATCHDOG_PID")
+	defer os.Unsetenv("WATCHDOG_USEC")
+
+	err := systemdHandleWatchdog(func() bool { return true }, nil)
+	if err == nil {
+		t.Error("systemdHandleWatchdog did not handle invalid watchdog settings correctly")
+	}
+}
+
 func TestStatusHandleWatchdog(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip()
@@ -77,6 +95,8 @@ func TestStatusHandleWatchdog(t *testing.T) {
 	// Trigger watchdog functionality
 	os.Setenv("WATCHDOG_PID", strconv.Itoa(os.Getpid()))
 	os.Setenv("WATCHDOG_USEC", "1000000")
+	defer os.Unsetenv("WATCHDOG_PID")
+	defer os.Unsetenv("WATCHDOG_USEC")
 
 	// Run watchdog, kill it after one iteration
 	shutdown := make(chan bool, 1)
