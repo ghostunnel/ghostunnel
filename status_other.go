@@ -18,6 +18,9 @@
 
 package main
 
+// systemdNotifyStatus sends a message to systemd to inform that we're ready.
+func systemdNotifyStatus(_ string) {}
+
 // systemdNotifyReady sends a message to systemd to inform that we're ready.
 func systemdNotifyReady() {}
 
