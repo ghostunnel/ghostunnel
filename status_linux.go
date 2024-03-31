@@ -19,10 +19,30 @@
 package main
 
 import (
+	"fmt"
 	"time"
+	"syscall"
+	"unsafe"
 
 	"github.com/coreos/go-systemd/v22/daemon"
 )
+
+const (
+	clock_monotonic_clkid = 1
+)
+
+// getMonotonicUsec gets time via CLOCK_MONOTONIC for reload messages
+func getMonotonicUsec() int64 {
+    var ts syscall.Timespec
+    syscall.Syscall(syscall.SYS_CLOCK_GETTIME, clock_monotonic_clkid, uintptr(unsafe.Pointer(&ts)), 0)
+    return ts.Sec*1e6 + int64(ts.Nsec/1000)
+}
+
+// systemdNotifyStatus sends a message to systemd to inform that we're ready.
+func systemdNotifyStatus(status string) {
+	msg := fmt.Sprintf("STATUS=%s", status)
+	_, _ = daemon.SdNotify(false, msg)
+}
 
 // systemdNotifyReady sends a message to systemd to inform that we're ready.
 func systemdNotifyReady() {
@@ -31,7 +51,8 @@ func systemdNotifyReady() {
 
 // systemdNotifyReloading sends a message to systemd to inform that we're reloading.
 func systemdNotifyReloading() {
-	_, _ = daemon.SdNotify(false, daemon.SdNotifyReloading)
+	msg := fmt.Sprintf("%s\nMONOTONIC_USEC=%d", daemon.SdNotifyReloading, getMonotonicUsec())
+	_, _ = daemon.SdNotify(false, msg)
 }
 
 // systemdNotifyStopping sends a message to systemd to inform that we're stopping.

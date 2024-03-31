@@ -78,6 +78,7 @@ func newStatusHandler(dial func() (net.Conn, error), targetAddress string) *stat
 
 func (s *statusHandler) Listening() {
 	systemdNotifyReady()
+	systemdNotifyStatus("accepting connections")
 	s.mu.Lock()
 	s.listening = true
 	s.reloading = false
@@ -86,6 +87,7 @@ func (s *statusHandler) Listening() {
 
 func (s *statusHandler) Reloading() {
 	systemdNotifyReloading()
+	systemdNotifyStatus("reloading certificates")
 	s.mu.Lock()
 	s.reloading = true
 	s.lastReload = time.Now()
@@ -94,6 +96,7 @@ func (s *statusHandler) Reloading() {
 
 func (s *statusHandler) Stopping() {
 	systemdNotifyStopping()
+	systemdNotifyStatus("draining connections")
 	s.mu.Lock()
 	s.listening = false
 	s.reloading = false
