@@ -47,6 +47,7 @@ type statusHandler struct {
 	// Current status
 	listening bool
 	reloading bool
+	stopping  bool
 	// Last time we reloaded
 	lastReload time.Time
 }
@@ -71,11 +72,13 @@ func newStatusHandler(dial func() (net.Conn, error), targetAddress string) *stat
 			Dial: statusDialer{dial}.Dial,
 		},
 	}
-	status := &statusHandler{&sync.Mutex{}, dial, &client, targetAddress, false, false, time.Time{}}
+	status := &statusHandler{&sync.Mutex{}, dial, &client, targetAddress, false, false, false, time.Time{}}
 	return status
 }
 
 func (s *statusHandler) Listening() {
+	systemdNotifyReady()
+	systemdNotifyStatus("accepting connections")
 	s.mu.Lock()
 	s.listening = true
 	s.reloading = false
@@ -83,15 +86,36 @@ func (s *statusHandler) Listening() {
 }
 
 func (s *statusHandler) Reloading() {
+	systemdNotifyReloading()
+	systemdNotifyStatus("reloading certificates")
 	s.mu.Lock()
 	s.reloading = true
 	s.lastReload = time.Now()
 	s.mu.Unlock()
 }
 
-func (s *statusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *statusHandler) Stopping() {
+	systemdNotifyStopping()
+	systemdNotifyStatus("draining connections")
+	s.mu.Lock()
+	s.listening = false
+	s.reloading = false
+	s.stopping = true
+	s.mu.Unlock()
+}
+
+func (s *statusHandler) HandleWatchdog() {
+	// TODO(cs): Figure out a better status check for the watchdog.
+	// We don't want the backend check here, because restarting Ghostunnel
+	// when the backend is down doesn't help much. But not clear what else
+	// we can check that's useful inside the status handler. Right now,
+	// this is good enough to report that we're not frozen.
+	go systemdHandleWatchdog(func() bool { return true }, nil)
+}
+
+func (s *statusHandler) status() statusResponse {
 	resp := statusResponse{
-		Time: time.Now(),
+		Time:       time.Now(),
 		LastReload: s.lastReload,
 	}
 
@@ -110,12 +134,14 @@ func (s *statusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	s.mu.Lock()
 	resp.Ok = s.listening && resp.BackendOk
-	if !s.listening {
-		resp.Message = "initializing"
+	if s.stopping {
+		resp.Message = "stopping"
 	} else if s.reloading {
 		resp.Message = "reloading"
-	} else {
+	} else if s.listening {
 		resp.Message = "listening"
+	} else {
+		resp.Message = "initializing"
 	}
 	s.mu.Unlock()
 
@@ -130,6 +156,11 @@ func (s *statusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		resp.Hostname = hostname
 	}
 
+	return resp
+}
+
+func (s *statusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	resp := s.status()
 	out, err := json.Marshal(resp)
 	panicOnError(err)
 

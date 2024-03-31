@@ -25,7 +25,7 @@ import (
 
 var (
 	shutdownSignals = []os.Signal{syscall.SIGINT, syscall.SIGTERM}
-	refreshSignals  = []os.Signal{syscall.SIGUSR1}
+	refreshSignals  = []os.Signal{syscall.SIGHUP, syscall.SIGUSR1}
 	syslogFlag      = app.Flag("syslog", "Send logs to syslog instead of stderr.").Bool()
 )
 

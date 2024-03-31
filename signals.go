@@ -51,6 +51,7 @@ func (context *Context) signalHandler(p *proxy.Proxy) {
 		case sig := <-signals:
 			if isShutdownSignal(sig) {
 				logger.Printf("received %s, shutting down", sig.String())
+				context.status.Stopping()
 
 				// Best-effort graceful shutdown of status listener
 				if context.statusHTTP != nil {

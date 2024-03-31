@@ -102,7 +102,7 @@ Requires=ghostunnel.socket
 
 [Service]
 Type=simple
-ExecStart=/etc/cron/bin/ghostunnel server --listen=systemd:ghostunnel --target=localhost:8080 --keystore=/etc/ghostunnel/server-keystore.p12 --cacert /etc/ghostunnel/cacert.pem --allow-cn client
+ExecStart=/usr/bin/ghostunnel server --listen=systemd:ghostunnel --target=localhost:8080 --keystore=/etc/ghostunnel/server-keystore.p12 --cacert /etc/ghostunnel/cacert.pem --allow-cn client
 
 [Install]
 WantedBy=default.target

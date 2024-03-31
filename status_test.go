@@ -27,6 +27,8 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"runtime"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -64,6 +66,64 @@ func dummyDial() (net.Conn, error) {
 
 func dummyDialError() (net.Conn, error) {
 	return nil, errors.New("fail")
+}
+
+func TestStatusHandleWatchdogError(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip()
+		return
+	}
+
+	// Trigger watchdog functionality
+	os.Setenv("WATCHDOG_PID", strconv.Itoa(os.Getpid()))
+	os.Setenv("WATCHDOG_USEC", "X")
+	defer os.Unsetenv("WATCHDOG_PID")
+	defer os.Unsetenv("WATCHDOG_USEC")
+
+	err := systemdHandleWatchdog(func() bool { return true }, nil)
+	if err == nil {
+		t.Error("systemdHandleWatchdog did not handle invalid watchdog settings correctly")
+	}
+}
+
+func TestStatusHandleWatchdog(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip()
+		return
+	}
+
+	// Trigger watchdog functionality
+	os.Setenv("WATCHDOG_PID", strconv.Itoa(os.Getpid()))
+	os.Setenv("WATCHDOG_USEC", "1000000")
+	defer os.Unsetenv("WATCHDOG_PID")
+	defer os.Unsetenv("WATCHDOG_USEC")
+
+	// Run watchdog, kill it after one iteration
+	shutdown := make(chan bool, 1)
+	done := make(chan bool, 1)
+	go func() {
+		err := systemdHandleWatchdog(func() bool {
+			// Send shutdown signal to stop handler
+			shutdown <- true
+			return true
+		}, shutdown)
+		if err != nil {
+			t.Error(err)
+		}
+		done <- true
+	}()
+
+	timeout := time.NewTicker(30 * time.Second)
+	defer timeout.Stop()
+
+	select {
+	case <-done:
+		return
+	case <-timeout.C:
+		shutdown <- true
+		t.Error("watchdog handler timed out, did not call health check")
+		return
+	}
 }
 
 func TestStatusHandlerNew(t *testing.T) {
@@ -118,6 +178,44 @@ func TestStatusHandlerReloading(t *testing.T) {
 	}
 }
 
+func TestStatusHandlerStopping(t *testing.T) {
+	handler := newStatusHandler(dummyDial, "")
+	response := httptest.NewRecorder()
+	handler.Listening()
+	handler.Stopping()
+	handler.ServeHTTP(response, nil)
+
+	if response.Code != 503 {
+		t.Error("status should return 503 when stopping")
+	}
+}
+
+func TestStatusHandlerResponses(t *testing.T) {
+	handler := newStatusHandler(dummyDial, "")
+	resp := handler.status()
+	if resp.Message != "initializing" {
+		t.Error("status should say 'initializing' on startup")
+	}
+
+	handler.Listening()
+	resp = handler.status()
+	if resp.Message != "listening" {
+		t.Error("status should say 'listening' after startup")
+	}
+
+	handler.Reloading()
+	resp = handler.status()
+	if resp.Message != "reloading" {
+		t.Error("status should say 'reloading' when reload initiated")
+	}
+
+	handler.Stopping()
+	resp = handler.status()
+	if resp.Message != "stopping" {
+		t.Error("status should say 'stopping' when shutdown initiated")
+	}
+}
+
 func TestStatusTargetHTTP2XX(t *testing.T) {
 	statusResp, statusRespCode := statusTargetWithResponseStatusCode(200)
 
@@ -134,6 +232,14 @@ func TestStatusTargetHTTPNon2XX(t *testing.T) {
 	}
 }
 
+func TestStatusTargetHTTPWithError(t *testing.T) {
+	statusResp, statusRespCode := statusTargetWithResponseStatusCode(-1)
+
+	if statusResp.Ok || statusResp.BackendStatus == "ok" || statusRespCode != 503 {
+		t.Error("status should return 503 when status backend returns something other than 200")
+	}
+}
+
 // statusTargetWithResponseStatusCode creates a stub status target that returns the status code specified by "code".
 func statusTargetWithResponseStatusCode(code int) (statusResponse, int) {
 	statusTarget := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -143,6 +249,9 @@ func statusTargetWithResponseStatusCode(code int) (statusResponse, int) {
 
 	response := httptest.NewRecorder()
 	handler := newStatusHandler(func() (net.Conn, error) {
+		if code < 0 {
+			return nil, errors.New("simulating error when talking to backend")
+		}
 		u, _ := url.Parse(statusTarget.URL) // NOTE: I tried using statusTarget.Config.Addr instead, but it wasn't set.
 		return net.Dial("tcp", fmt.Sprintf("%s:%s", u.Hostname(), u.Port()))
 	}, statusTarget.URL)

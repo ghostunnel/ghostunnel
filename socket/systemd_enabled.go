@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/coreos/go-systemd/activation"
+	"github.com/coreos/go-systemd/v22/activation"
 )
 
 func systemdSocket(name string) (net.Listener, error) {
