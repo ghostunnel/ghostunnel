@@ -140,7 +140,7 @@ Ghostunnel has support for Open Policy Agent (OPA), both in server and client
 mode. The policy file must be present on disk for Ghostunnel to use it and the
 use of OPA is mutually exclusive with any other `allow` (or `verify`) flags.
 Policy files can be reloaded at runtime much like certificates, with the
-`--timed-reload` flag or via `SIGUSR1` on the latest development branch.
+`--timed-reload` flag or via `SIGHUP` on a recent release.
 
 To use it in server mode, specify the `--allow-policy` and `--allow-query` flags.
 
