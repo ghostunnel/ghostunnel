@@ -43,7 +43,7 @@ jobs:
       - name: Codecov upload
         uses: codecov/codecov-action@v4
         with:
-          files: ./coverage-merged.out
+          files: ./coverage/all.profile
           flags: linux
           fail_ci_if_error: true
           verbose: true
@@ -75,7 +75,7 @@ jobs:
       - name: Codecov upload
         uses: codecov/codecov-action@v4
         with:
-          files: ./coverage-merged.out
+          files: ./coverage/all.profile
           flags: darwin
           fail_ci_if_error: true
           verbose: true

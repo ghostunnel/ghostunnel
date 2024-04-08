@@ -22,6 +22,8 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"path"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -44,8 +46,16 @@ func TestIntegrationMain(t *testing.T) {
 	}()
 
 	if isIntegration != "true" {
+		t.Skip("skipping, not an integration test")
 		return
 	}
+
+	execPath, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	addLandlockTestPaths([]string{path.Join(filepath.Dir(execPath), "coverage")})
 
 	finished := make(chan bool, 1)
 	once := &sync.Once{}
@@ -63,7 +73,7 @@ func TestIntegrationMain(t *testing.T) {
 	}
 
 	var wrappedArgs []string
-	err := json.Unmarshal([]byte(os.Getenv("GHOSTUNNEL_INTEGRATION_ARGS")), &wrappedArgs)
+	err = json.Unmarshal([]byte(os.Getenv("GHOSTUNNEL_INTEGRATION_ARGS")), &wrappedArgs)
 	panicOnError(err)
 
 	go func() {

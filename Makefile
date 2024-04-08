@@ -20,22 +20,24 @@ ghostunnel.test: $(SOURCE_FILES)
 
 # Clean build output
 clean:
-	rm -rf ghostunnel *.out */*.out ghostunnel.test tests/__pycache__
+	rm -rf ghostunnel coverage ghostunnel.test tests/__pycache__
 .PHONY: clean
 
 # Run all tests (unit + integration tests)
 test: unit $(INTEGRATION_TESTS)
-	gocovmerge *.out */*.out | grep -v "internal/test" > coverage-merged.out
+	gocovmerge coverage/*.profile | grep -v "internal/test" > coverage/all.profile
 	@echo "PASS"
 .PHONY: test
 
 # Run unit tests
 unit:
-	go test -v -covermode=count -coverprofile=coverage-unit-test.out ./...
+	@mkdir -p coverage
+	go test -v -covermode=count -coverprofile=coverage/unit-test.profile ./...
 .PHONY: unit
 
 # Run integration tests
 $(INTEGRATION_TESTS): ghostunnel.test
+	@mkdir -p coverage
 	@cd tests && ./runner.py $@
 .PHONY: $(INTEGRATION_TESTS)
 
