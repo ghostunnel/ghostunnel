@@ -11,13 +11,14 @@ require (
 	github.com/go-jose/go-jose/v4 v4.0.1
 	github.com/hashicorp/go-syslog v1.0.0
 	github.com/kavu/go_reuseport v1.5.0
+	github.com/landlock-lsm/go-landlock v0.0.0-20240216195629-efb66220540a
 	github.com/letsencrypt/pkcs11key/v4 v4.0.0
 	github.com/mholt/acmez v1.2.0
 	github.com/mwitkow/go-http-dialer v0.0.0-20161116154839-378f744fb2b8
 	github.com/open-policy-agent/opa v0.59.0
 	github.com/pires/go-proxyproto v0.7.0
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.17.0
+	github.com/prometheus/client_golang v1.19.0
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475
 	github.com/spiffe/go-spiffe/v2 v2.2.0
 	github.com/square/certigo v1.16.1-0.20220921173659-75f2ec06b4a5
@@ -50,11 +51,9 @@ require (
 	github.com/huandu/xstrings v1.4.0 // indirect
 	github.com/imdario/mergo v0.3.16 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.6 // indirect
-	github.com/landlock-lsm/go-landlock v0.0.0-20240216195629-efb66220540a // indirect
 	github.com/libdns/libdns v0.2.1 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0 // indirect
 	github.com/miekg/dns v1.1.57 // indirect
 	github.com/miekg/pkcs11 v1.1.1 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
@@ -62,7 +61,7 @@ require (
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.5.0 // indirect
-	github.com/prometheus/common v0.45.0 // indirect
+	github.com/prometheus/common v0.48.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/tchap/go-patricia/v2 v2.3.1 // indirect
