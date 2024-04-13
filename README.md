@@ -91,10 +91,11 @@ To run tests:
     make test
 
     # Option 2: run unit & integration tests in a Docker container
+    # This also runs PKCS#11 integration tests using SoftHSM in the container
     GO_VERSION=1.22 make docker-test
 
     # Open coverage information in browser
-    go tool cover -html coverage-merged.out
+    go tool cover -html coverage/all.profile
 
 For more information on how to contribute, please see the [CONTRIBUTING](CONTRIBUTING.md) file.
 
