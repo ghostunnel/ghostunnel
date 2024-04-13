@@ -150,6 +150,15 @@ func TestFlagValidation(t *testing.T) {
 	err = validateFlags(nil)
 	assert.NotNil(t, err, "invalid --connect-timeout should be rejected")
 	*timeoutDuration = 10 * time.Second
+
+	isTrue := true
+	somePath := "/tmp/test"
+	useLandlock = &isTrue
+	pkcs11Module = &somePath
+	err = validateFlags(nil)
+	assert.NotNil(t, err, "--use-landlock and --pkcs11-module are incompatible")
+	useLandlock = nil
+	pkcs11Module = nil
 }
 
 func TestServerFlagValidation(t *testing.T) {
