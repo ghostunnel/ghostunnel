@@ -18,12 +18,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
       - name: Set up toolchain
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.version }}
         id: go
       - name: Check out code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Build binary
         run: |
           CGO_ENABLED=1 GOARCH=amd64 make ghostunnel
@@ -50,12 +50,12 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Set up toolchain
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.version }}
         id: go
       - name: Check out code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Build binary
         run: |
           CGO_ENABLED=1 GOARCH=amd64 make ghostunnel
@@ -88,12 +88,12 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Set up toolchain
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.version }}
         id: go
       - name: Check out code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Build binary
         run: |
           make ghostunnel
@@ -111,7 +111,7 @@ jobs:
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Create release
         id: create_release
         uses: actions/create-release@v1
@@ -137,7 +137,7 @@ jobs:
         - { os: 'darwin', arch: 'arm64' }
         - { os: 'darwin', arch: 'universal' }
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Download artifact
         uses: actions/download-artifact@v2
         with:
@@ -162,7 +162,7 @@ jobs:
         target:
         - { os: 'windows', arch: 'amd64' }
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Download artifact
         uses: actions/download-artifact@v2
         with:
