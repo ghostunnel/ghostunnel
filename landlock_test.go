@@ -84,6 +84,8 @@ func TestLandlockRuleFromURLString(t *testing.T) {
 		{"http://127.0.0.1:0/something", false},
 		{"https://127.0.0.1:1000000000/something", false},
 		{"foobar", false},
+		{"!", false},
+		{"", false},
 	}
 	for _, tc := range testCases {
 		rule := ruleFromURLString(tc.url)
