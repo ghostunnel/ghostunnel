@@ -188,10 +188,10 @@ func ruleFromStringAddress(addr string) landlock.Rule {
 		return nil
 	}
 	parts := strings.Split(addr, ":")
-	if len(parts) != 2 {
+	if len(parts) < 2 {
 		return nil
 	}
-	port, err := strconv.ParseUint(parts[1], 10, 16)
+	port, err := strconv.ParseUint(parts[len(parts)-1], 10, 16)
 	if err != nil {
 		return nil
 	}
@@ -222,7 +222,7 @@ func ruleFromURL(u *url.URL) landlock.Rule {
 		if u.Scheme == "http" {
 			return landlock.BindTCP(uint16(80))
 		}
-		if u.Scheme == "http" {
+		if u.Scheme == "https" {
 			return landlock.BindTCP(uint16(443))
 		}
 	}
