@@ -17,12 +17,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Set up Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.version }}
         id: go
       - name: Check out code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Build binary
         run: make ghostunnel
       - name: Run tests
@@ -37,16 +37,17 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Check out code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Run tests 
         run: GO_VERSION=${{ matrix.version }} make docker-test
       - name: Codecov upload
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           files: ./coverage-merged.out
           flags: linux
           fail_ci_if_error: true
           verbose: true
+          token: ${{ secrets.CODECOV_TOKEN }}
     
   integration-darwin:
     name: Integration tests (Darwin)
@@ -57,7 +58,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Set up Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.version }}
         id: go
@@ -68,13 +69,14 @@ jobs:
       - name: Install gocovmerge
         run: go install github.com/wadey/gocovmerge@latest
       - name: Check out code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Run tests
         run: make test
       - name: Codecov upload
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           files: ./coverage-merged.out
           flags: darwin
           fail_ci_if_error: true
           verbose: true
+          token: ${{ secrets.CODECOV_TOKEN }}
