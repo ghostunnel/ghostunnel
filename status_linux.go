@@ -20,8 +20,8 @@ package main
 
 import (
 	"fmt"
-	"time"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"github.com/coreos/go-systemd/v22/daemon"
@@ -33,9 +33,11 @@ const (
 
 // getMonotonicUsec gets time via CLOCK_MONOTONIC for reload messages
 func getMonotonicUsec() int64 {
-    var ts syscall.Timespec
-    syscall.Syscall(syscall.SYS_CLOCK_GETTIME, clock_monotonic_clkid, uintptr(unsafe.Pointer(&ts)), 0)
-    return ts.Sec*1e6 + int64(ts.Nsec/1000)
+	var ts syscall.Timespec
+	syscall.Syscall(syscall.SYS_CLOCK_GETTIME, clock_monotonic_clkid, uintptr(unsafe.Pointer(&ts)), 0)
+	sec, nsec := ts.Unix()
+	// 1s is 1e6µs, 1ns is 1/1000µs
+	return (sec * 1e6) + (nsec / 1000)
 }
 
 // systemdNotifyStatus sends a message to systemd to inform that we're ready.
