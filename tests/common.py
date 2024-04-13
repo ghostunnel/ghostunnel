@@ -1,6 +1,7 @@
 from subprocess import call, Popen
 from tempfile import mkstemp, mkdtemp
 import json
+import platform
 import sys
 import time
 import socket
@@ -20,18 +21,26 @@ def run_ghostunnel(args, stdout=sys.stdout.buffer, stderr=sys.stderr.buffer, pre
     if not any('shutdown-timeout' in f for f in args):
         args.append('--shutdown-timeout=5s')
 
+    # Enable landlock in integration tests, unless we're using PKCS11 modules.
+    # Because PKCS11 modules are arbitrary SO files they can do anything at
+    # runtime, and we can't guarantee that our landlock rules will work for
+    # them.
+    if not any('pkcs11-module' in f for f in args) and platform.system() == "Linux":
+        args.append('--use-landlock')
+
     # Pass args through env var into integration test hook
-    os.environ["SYSTEMD_LOG_TARGET"] = "console"
-    os.environ["SYSTEMD_LOG_LEVEL"] = "debug"
-    os.environ["GHOSTUNNEL_INTEGRATION_TEST"] = "true"
-    os.environ["GHOSTUNNEL_INTEGRATION_ARGS"] = json.dumps(args)
+    env = os.environ.copy()
+    env["SYSTEMD_LOG_TARGET"] = "console"
+    env["SYSTEMD_LOG_LEVEL"] = "debug"
+    env["GHOSTUNNEL_INTEGRATION_TEST"] = "true"
+    env["GHOSTUNNEL_INTEGRATION_ARGS"] = json.dumps(args)
 
     # Run it, hook up stdout/stderr if desired
-    test = os.path.basename(sys.argv[0]).replace('.py', '.out')
+    test = os.path.basename(sys.argv[0]).replace('.py', '.profile')
     cmd = [
         '../ghostunnel.test',
         '-test.run=TestIntegrationMain',
-        '-test.coverprofile=coverage-{0}'.format(test)
+        '-test.coverprofile=../coverage/{0}'.format(test)
     ]
 
     if prefix:
@@ -40,7 +49,7 @@ def run_ghostunnel(args, stdout=sys.stdout.buffer, stderr=sys.stderr.buffer, pre
     # Print cmd for debugging
     print_ok("running:\n {0}\nwith args:\n {1}".format(' \\\n  '.join(cmd), ' \\\n  '.join(args)))
 
-    return Popen(cmd, stdout=stdout, stderr=stderr)
+    return Popen(cmd, stdout=stdout, stderr=stderr, env=env)
 
 def assert_not_zero(ghostunnel):
     ret = ghostunnel.wait(timeout=5)

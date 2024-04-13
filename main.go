@@ -62,12 +62,14 @@ var (
 	pkcs11Module         *string //nolint:golint,unused
 	pkcs11TokenLabel     *string //nolint:golint,unused
 	pkcs11PIN            *string //nolint:golint,unused
+	useLandlock          *bool   //nolint:golint,unused
 )
 
 // Main flags (always supported)
 var (
 	app = kingpin.New("ghostunnel", "A simple SSL/TLS proxy with mutual authentication for securing non-TLS services.")
 
+	// Server flags
 	serverCommand             = app.Command("server", "Server mode (TLS listener -> plain TCP/UNIX target).")
 	serverListenAddress       = serverCommand.Flag("listen", "Address and port to listen on (can be HOST:PORT, unix:PATH, systemd:NAME or launchd:NAME).").PlaceHolder("ADDR").Required().String()
 	serverForwardAddress      = serverCommand.Flag("target", "Address to forward connections to (can be HOST:PORT or unix:PATH).").PlaceHolder("ADDR").Required().String()
@@ -89,6 +91,7 @@ var (
 	serverAutoACMEProdCA      = serverCommand.Flag("auto-acme-ca", "Specify the URL to the ACME CA. Defaults to Let's Encrypt if not specified.").PlaceHolder("https://some-acme-ca.example.com/").String()
 	serverAutoACMETestCA      = serverCommand.Flag("auto-acme-testca", "Specify the URL to the ACME CA's Test/Staging environment. If set, all requests will go to this CA and --auto-acme-ca will be ignored.").PlaceHolder("https://testing.some-acme-ca.example.com/").String()
 
+	// Client flags
 	clientCommand       = app.Command("client", "Client mode (plain TCP/UNIX listener -> TLS target).")
 	clientListenAddress = clientCommand.Flag("listen", "Address and port to listen on (can be HOST:PORT, unix:PATH, systemd:NAME or launchd:NAME).").PlaceHolder("ADDR").Required().String()
 	// Note: can't use .TCP() for clientForwardAddress because we need to set the original string in tls.Config.ServerName.
@@ -113,7 +116,7 @@ var (
 	caBundlePath            = app.Flag("cacert", "Path to CA bundle file (PEM/X509). Uses system trust store by default.").Envar("CACERT_PATH").String()
 	enabledCipherSuites     = app.Flag("cipher-suites", "Set of cipher suites to enable, comma-separated, in order of preference (AES, CHACHA).").Default("AES,CHACHA").String()
 	useWorkloadAPI          = app.Flag("use-workload-api", "If true, certificate and root CAs are retrieved via the SPIFFE Workload API").Bool()
-	useWorkloadAPIAddr      = app.Flag("use-workload-api-addr", "If set, certificates and root CAs are retrieved via the SPIFFE Workload API at the specified address (implies --use-workload-api)").PlaceHolder("ADDR").String()
+	useWorkloadAPIAddr      = app.Flag("use-workload-api-addr", "If set, certificates and root CAs are retrieved via the SPIFFE Workload API at the specified address (implies --use-workload-api)").Envar("SPIFFE_ENDPOINT_SOCKET").PlaceHolder("ADDR").String()
 	allowUnsafeCipherSuites = app.Flag("allow-unsafe-cipher-suites", "Allow cipher suites deemed to be unsafe to be enabled via the cipher-suites flag.").Hidden().Default("false").Bool()
 
 	// Reloading and timeouts
@@ -151,6 +154,10 @@ func init() {
 		pkcs11Module = app.Flag("pkcs11-module", "Path to PKCS11 module (SO) file (optional).").Envar("PKCS11_MODULE").PlaceHolder("PATH").ExistingFile()
 		pkcs11TokenLabel = app.Flag("pkcs11-token-label", "Token label for slot/key in PKCS11 module (optional).").Envar("PKCS11_TOKEN_LABEL").PlaceHolder("LABEL").String()
 		pkcs11PIN = app.Flag("pkcs11-pin", "PIN code for slot/key in PKCS11 module (optional).").Envar("PKCS11_PIN").PlaceHolder("PIN").String()
+	}
+
+	if runtime.GOOS == "linux" {
+		useLandlock = app.Flag("use-landlock", "If true, will use landlock to limit file and socket access on supported kernels.").Bool()
 	}
 
 	// Aliases for flags that were renamed to be backwards-compatible
@@ -224,6 +231,9 @@ func validateFlags(app *kingpin.Application) error {
 	}
 	if *timeoutDuration == 0 {
 		return fmt.Errorf("--connect-timeout duration must not be zero")
+	}
+	if pkcs11Module != nil && *pkcs11Module != "" && useLandlock != nil && *useLandlock {
+		return fmt.Errorf("--use-landlock is not compatible with --pkcs11-module")
 	}
 	return nil
 }
@@ -402,12 +412,22 @@ func run(args []string) error {
 	// Logger
 	err := initLogger(useSyslog(), *quiet)
 	if err != nil {
-		logger.Printf("error initializing logger: %s\n", err)
-		os.Exit(1)
+		return fmt.Errorf("unable to set up logger: %v", err)
 	}
 
 	logger.SetPrefix(fmt.Sprintf("[%d] ", os.Getpid()))
 	logger.Printf("starting ghostunnel in %s mode", command)
+
+	// Landlock
+	if useLandlock != nil && *useLandlock {
+		logger.Printf("setting up landlock rules to limit process privileges")
+
+		// Ignore landlock errors (for now). Landlock is a relatively new feature
+		// and not supported on older kernels (net rules were added in v6.7, Jan
+		// 2024). We may change this in a future version of Ghostunnel as we get
+		// more comfortable with Landlock.
+		_ = setupLandlock(logger)
+	}
 
 	// Metrics
 	if *metricsGraphite != nil {

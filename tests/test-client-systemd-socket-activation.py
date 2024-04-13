@@ -33,8 +33,8 @@ if __name__ == "__main__":
                 '--listen={0}:13001'.format(LOCALHOST),
                 '--listen={0}:{1}'.format(LOCALHOST, STATUS_PORT),
                 '--fdname=client:status',
-                '-E=GHOSTUNNEL_INTEGRATION_TEST',
-                '-E=GHOSTUNNEL_INTEGRATION_ARGS',
+                '--setenv=GHOSTUNNEL_INTEGRATION_TEST',
+                '--setenv=GHOSTUNNEL_INTEGRATION_ARGS',
                 ])
 
         # Connect on status port to trigger socket activation
