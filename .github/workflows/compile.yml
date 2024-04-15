@@ -34,12 +34,12 @@ jobs:
           CGO_ENABLED=1 GOARCH=arm64 CC=aarch64-linux-gnu-gcc make ghostunnel
           mv ghostunnel ghostunnel-linux-arm64
       - name: Upload artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: ghostunnel-linux-amd64
           path: ghostunnel-linux-amd64
       - name: Upload artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: ghostunnel-linux-arm64
           path: ghostunnel-linux-arm64
@@ -67,17 +67,17 @@ jobs:
           mv ghostunnel ghostunnel-darwin-arm64
           lipo -create -output ghostunnel-darwin-universal ghostunnel-darwin-amd64 ghostunnel-darwin-arm64
       - name: Upload artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: ghostunnel-darwin-amd64
           path: ghostunnel-darwin-amd64
       - name: Upload artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: ghostunnel-darwin-arm64
           path: ghostunnel-darwin-arm64
       - name: Upload artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: ghostunnel-darwin-universal
           path: ghostunnel-darwin-universal
@@ -99,7 +99,7 @@ jobs:
       - name: Build binary
         run: make ghostunnel
       - name: Upload artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: ghostunnel-windows-amd64
           path: ghostunnel
