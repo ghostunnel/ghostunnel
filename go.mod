@@ -1,7 +1,7 @@
 module github.com/ghostunnel/ghostunnel
 
 require (
-	github.com/Microsoft/go-winio v0.6.1
+	github.com/Microsoft/go-winio v0.6.2
 	github.com/alecthomas/kingpin/v2 v2.4.0
 	github.com/caddyserver/certmagic v0.20.0
 	github.com/coreos/go-systemd/v22 v22.5.0
