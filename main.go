@@ -143,6 +143,10 @@ func init() {
 		keychainIssuer = app.Flag("keychain-issuer", "Use local keychain identity with given issuer name (instead of keystore file).").PlaceHolder("CN").String()
 		if runtime.GOOS == "darwin" {
 			keychainRequireToken = app.Flag("keychain-require-token", "Require keychain identity to be from a physical token (sets 'access group' to 'token').").Bool()
+		} else {
+			// The "require token" flag doesn't do anything on Windows/Linux, so we hide it.
+			isFalse := false
+			keychainRequireToken = &isFalse
 		}
 	}
 
