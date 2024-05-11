@@ -18,7 +18,6 @@ package certloader
 
 import (
 	"crypto/tls"
-	"io/ioutil"
 	"os"
 	"runtime"
 	"testing"
@@ -75,7 +74,7 @@ plW93GyQzhwY+Cc1Of2ktdBwOHNn1xWyl3lgjAaW+da1nEhq6Anc
 -----END RSA PRIVATE KEY-----`
 
 func TestCertificateFromPEMFilesValid(t *testing.T) {
-	file, err := ioutil.TempFile("", "ghostunnel-test")
+	file, err := os.CreateTemp("", "ghostunnel-test")
 	assert.Nil(t, err, "temp file error")
 	defer os.Remove(file.Name())
 
@@ -109,7 +108,7 @@ func TestCertificateFromPEMFilesValid(t *testing.T) {
 }
 
 func TestCertificateFromPEMFilesInvalid(t *testing.T) {
-	file, err := ioutil.TempFile("", "ghostunnel-test")
+	file, err := os.CreateTemp("", "ghostunnel-test")
 	assert.Nil(t, err, "temp file error")
 	defer os.Remove(file.Name())
 
@@ -122,11 +121,11 @@ func TestCertificateFromPEMFilesInvalid(t *testing.T) {
 }
 
 func TestCertificateFromPEMFilesTrustStore(t *testing.T) {
-	fileValid, err := ioutil.TempFile("", "ghostunnel-test")
+	fileValid, err := os.CreateTemp("", "ghostunnel-test")
 	assert.Nil(t, err, "temp file error")
 	defer os.Remove(fileValid.Name())
 
-	fileInvalid, err := ioutil.TempFile("", "ghostunnel-test")
+	fileInvalid, err := os.CreateTemp("", "ghostunnel-test")
 	assert.Nil(t, err, "temp file error")
 	defer os.Remove(fileInvalid.Name())
 

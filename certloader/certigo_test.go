@@ -17,7 +17,6 @@
 package certloader
 
 import (
-	"io/ioutil"
 	"os"
 	"runtime"
 	"testing"
@@ -52,7 +51,7 @@ const testCertificateBad = `
 -----END CERTIFICATE-----`
 
 func TestReadPEMValid(t *testing.T) {
-	cert, err := ioutil.TempFile("", "ghostunnel-test")
+	cert, err := os.CreateTemp("", "ghostunnel-test")
 	assert.Nil(t, err, "temp file error")
 	defer os.Remove(cert.Name())
 
@@ -65,7 +64,7 @@ func TestReadPEMValid(t *testing.T) {
 }
 
 func TestReadPEMInvalid(t *testing.T) {
-	cert, err := ioutil.TempFile("", "ghostunnel-test")
+	cert, err := os.CreateTemp("", "ghostunnel-test")
 	assert.Nil(t, err, "temp file error")
 	defer os.Remove(cert.Name())
 
@@ -82,7 +81,7 @@ func TestReadPEMInvalid(t *testing.T) {
 }
 
 func TestReadX509Valid(t *testing.T) {
-	cert, err := ioutil.TempFile("", "ghostunnel-test")
+	cert, err := os.CreateTemp("", "ghostunnel-test")
 	assert.Nil(t, err, "temp file error")
 	defer os.Remove(cert.Name())
 
@@ -95,11 +94,11 @@ func TestReadX509Valid(t *testing.T) {
 }
 
 func TestReadX509Invalid(t *testing.T) {
-	cert0, err := ioutil.TempFile("", "ghostunnel-test")
+	cert0, err := os.CreateTemp("", "ghostunnel-test")
 	assert.Nil(t, err, "temp file error")
 	defer os.Remove(cert0.Name())
 
-	cert1, err := ioutil.TempFile("", "ghostunnel-test")
+	cert1, err := os.CreateTemp("", "ghostunnel-test")
 	assert.Nil(t, err, "temp file error")
 	defer os.Remove(cert1.Name())
 
@@ -133,7 +132,7 @@ func TestLoadTrustStoreSystemRoots(t *testing.T) {
 }
 
 func TestLoadTrustStorePEM(t *testing.T) {
-	cert, err := ioutil.TempFile("", "ghostunnel-test")
+	cert, err := os.CreateTemp("", "ghostunnel-test")
 	assert.Nil(t, err, "temp file error")
 	defer os.Remove(cert.Name())
 
@@ -145,7 +144,7 @@ func TestLoadTrustStorePEM(t *testing.T) {
 }
 
 func TestLoadTrustStoreInvalid(t *testing.T) {
-	cert, err := ioutil.TempFile("", "ghostunnel-test")
+	cert, err := os.CreateTemp("", "ghostunnel-test")
 	assert.Nil(t, err, "temp file error")
 	defer os.Remove(cert.Name())
 
