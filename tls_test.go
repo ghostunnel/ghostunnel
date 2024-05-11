@@ -19,7 +19,6 @@ package main
 import (
 	"crypto/tls"
 	"encoding/base64"
-	"io/ioutil"
 	"os"
 	"runtime"
 	"testing"
@@ -181,16 +180,16 @@ hHV17et3tJKiSuKwz1wSwx7J5hxxPB38+GhfstzSde5LwuAFTfAn
 var testKeystorePassword = "password"
 
 func TestBuildConfig(t *testing.T) {
-	tmpKeystore, err := ioutil.TempFile("", "ghostunnel-test")
+	tmpKeystore, err := os.CreateTemp("", "ghostunnel-test")
 	panicOnError(err)
 
-	tmpKeystoreNoPrivKey, err := ioutil.TempFile("", "ghostunnel-test")
+	tmpKeystoreNoPrivKey, err := os.CreateTemp("", "ghostunnel-test")
 	panicOnError(err)
 
-	tmpKeystoreSeparateCert, err := ioutil.TempFile("", "ghostunnel-test")
+	tmpKeystoreSeparateCert, err := os.CreateTemp("", "ghostunnel-test")
 	panicOnError(err)
 
-	tmpKeystoreSeparateKey, err := ioutil.TempFile("", "ghostunnel-test")
+	tmpKeystoreSeparateKey, err := os.CreateTemp("", "ghostunnel-test")
 	panicOnError(err)
 
 	tmpKeystore.Write(testKeystore)
@@ -270,10 +269,10 @@ func TestCipherSuitePreference(t *testing.T) {
 }
 
 func TestReload(t *testing.T) {
-	tmpKeystore, err := ioutil.TempFile("", "ghostunnel-test")
+	tmpKeystore, err := os.CreateTemp("", "ghostunnel-test")
 	panicOnError(err)
 
-	tmpCaBundle, err := ioutil.TempFile("", "ghostunnel-test")
+	tmpCaBundle, err := os.CreateTemp("", "ghostunnel-test")
 	panicOnError(err)
 
 	tmpCaBundle.WriteString(testCertificate)
@@ -298,7 +297,7 @@ func TestBuildConfigSystemRoots(t *testing.T) {
 		return
 	}
 
-	tmpKeystore, err := ioutil.TempFile("", "ghostunnel-test")
+	tmpKeystore, err := os.CreateTemp("", "ghostunnel-test")
 	panicOnError(err)
 
 	tmpKeystore.Write(testKeystore)

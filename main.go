@@ -20,7 +20,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -201,7 +201,7 @@ func initLogger(syslog bool, flags []string) (err error) {
 	for _, flag := range flags {
 		if flag == "all" {
 			// If --quiet=all if passed, disable all logging
-			logger = log.New(ioutil.Discard, "", 0)
+			logger = log.New(io.Discard, "", 0)
 			return
 		}
 	}

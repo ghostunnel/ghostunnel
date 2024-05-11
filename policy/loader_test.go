@@ -16,7 +16,6 @@ package policy
 
 import (
 	"context"
-	"io/ioutil"
 	"log"
 	"os"
 	"runtime"
@@ -53,7 +52,7 @@ func TestPolicyReloadFail(t *testing.T) {
 		t.Skip()
 	}
 
-	f, err := ioutil.TempFile("", "policy")
+	f, err := os.CreateTemp("", "policy")
 	assert.Nil(t, err, "temp file error")
 	defer os.Remove(f.Name())
 
@@ -80,7 +79,7 @@ func TestPolicyReloading(t *testing.T) {
 		t.Skip()
 	}
 
-	f, err := ioutil.TempFile("", "policy")
+	f, err := os.CreateTemp("", "policy")
 	assert.Nil(t, err, "temp file error")
 	defer os.Remove(f.Name())
 

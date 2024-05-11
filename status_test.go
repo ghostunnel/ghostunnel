@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -262,7 +261,7 @@ func statusTargetWithResponseStatusCode(code int) (statusResponse, int) {
 	res := response.Result()
 	defer res.Body.Close()
 
-	data, _ := ioutil.ReadAll(res.Body)
+	data, _ := io.ReadAll(res.Body)
 
 	statusResp := statusResponse{}
 	_ = json.Unmarshal(data, &statusResp)

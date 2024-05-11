@@ -21,7 +21,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	certigo "github.com/square/certigo/lib"
@@ -87,7 +86,7 @@ func LoadTrustStore(caBundlePath string) (*x509.CertPool, error) {
 		return x509.SystemCertPool()
 	}
 
-	caBundleBytes, err := ioutil.ReadFile(caBundlePath)
+	caBundleBytes, err := os.ReadFile(caBundlePath)
 	if err != nil {
 		return nil, err
 	}
