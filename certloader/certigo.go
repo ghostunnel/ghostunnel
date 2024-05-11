@@ -32,6 +32,7 @@ func readPEM(path, password, format string) ([]*pem.Block, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer file.Close()
 
 	var pemBlocks []*pem.Block
 	err = certigo.ReadAsPEMFromFiles(
@@ -57,6 +58,7 @@ func readX509(path string) ([]*x509.Certificate, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer file.Close()
 
 	errs := []error{}
 	out := []*x509.Certificate{}
