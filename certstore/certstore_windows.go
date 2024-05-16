@@ -358,11 +358,6 @@ func (wpk *winPrivateKey) Public() crypto.PublicKey {
 
 // Sign implements the crypto.Signer interface.
 func (wpk *winPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
-	if _, isPSS := opts.(*rsa.PSSOptions); isPSS {
-		// Windows implementation does not currently support RSA-PSS.
-		return nil, ErrUnsupportedHash
-	}
-
 	if wpk.capiProv != 0 {
 		return wpk.capiSignHash(opts, digest)
 	} else if wpk.cngHandle != 0 {
