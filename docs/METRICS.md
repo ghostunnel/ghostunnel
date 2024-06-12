@@ -54,9 +54,13 @@ information on profiling via pprof, see the [`runtime/pprof`][pprof] and
 [http-pprof]: https://golang.org/pkg/net/http/pprof
 [pprof-bug]: https://github.com/golang/go/issues/20939
 
-### exposing status port with HTTP instead of HTTPS
+### Exposing status port with HTTP instead of HTTPS
 
-    # Add `http://` like an example below
+By default, Ghostunnel uses HTTPS for the status port. But you can force it to use HTTP by explicitly prefixing the status address with "http://".
+
+For example:
+
+    # Status flag passed to Ghostunnel
     --status http://localhost:6060
 
     # Status information (JSON)
