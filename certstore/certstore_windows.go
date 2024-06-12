@@ -403,7 +403,7 @@ func (wpk *winPrivateKey) cngSignHash(opts crypto.SignerOpts, digest []byte) ([]
 
 		if pssOpts, ok := opts.(*rsa.PSSOptions); ok {
 			saltLen := pssOpts.SaltLength
-			if saltLen == rsa.PSSSaltLengthEqualsHash {
+			if saltLen == rsa.PSSSaltLengthAuto || saltLen == rsa.PSSSaltLengthEqualsHash {
 				saltLen = len(digest)
 			}
 			padPtr = unsafe.Pointer(&C.BCRYPT_PSS_PADDING_INFO{
@@ -463,7 +463,7 @@ func (wpk *winPrivateKey) capiSignHash(opts crypto.SignerOpts, digest []byte) ([
 	}
 	if _, isPSS := opts.(*rsa.PSSOptions); isPSS {
 		// RSA-PSS is implemented only via CNG, not via CAPI.
-		// CNG has been available since Windows Vista / Server 2016.
+		// CNG has been available since Windows Vista / Server 2008.
 		return nil, ErrUnsupportedHash
 	}
 
