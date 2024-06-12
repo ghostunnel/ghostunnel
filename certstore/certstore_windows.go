@@ -461,6 +461,11 @@ func (wpk *winPrivateKey) capiSignHash(opts crypto.SignerOpts, digest []byte) ([
 	if len(digest) != hash.Size() {
 		return nil, errors.New("bad digest for hash")
 	}
+	if _, isPSS := opts.(*rsa.PSSOptions); isPSS {
+		// RSA-PSS is implemented only via CNG, not via CAPI.
+		// CNG has been available since Windows Vista / Server 2016.
+		return nil, ErrUnsupportedHash
+	}
 
 	// Figure out which CryptoAPI hash algorithm we're using.
 	var hash_alg C.ALG_ID
