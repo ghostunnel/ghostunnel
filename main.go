@@ -131,9 +131,10 @@ var (
 	metricsInterval = app.Flag("metrics-interval", "Collect (and post/send) metrics every specified interval.").Default("30s").Duration()
 
 	// Status & logging
-	statusAddress = app.Flag("status", "Enable serving /_status and /_metrics on given HOST:PORT (or unix:SOCKET).").PlaceHolder("ADDR").String()
-	enableProf    = app.Flag("enable-pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
-	quiet         = app.Flag("quiet", "Silence log messages (can be all, conns, conn-errs, handshake-errs; repeat flag for more than one)").Default("").Enums("", "all", "conns", "handshake-errs", "conn-errs")
+	statusAddress  = app.Flag("status", "Enable serving /_status and /_metrics on given HOST:PORT (or unix:SOCKET).").PlaceHolder("ADDR").String()
+	enableProf     = app.Flag("enable-pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
+	enableShutdown = app.Flag("enable-shutdown", "Enable serving a /_shutdown endpoint alongside /_status to allow terminating via HTTP.").Default("false").Bool()
+	quiet          = app.Flag("quiet", "Silence log messages (can be all, conns, conn-errs, handshake-errs; repeat flag for more than one)").Default("").Enums("", "all", "conns", "handshake-errs", "conn-errs")
 
 	// Man page /help
 	helpMan = app.Flag("help-custom-man", "Generate a man page.").Hidden().PreAction(generateManPage).Bool()
@@ -179,6 +180,7 @@ var exitFunc = os.Exit
 type Context struct {
 	status          *statusHandler
 	statusHTTP      *http.Server
+	shutdownChannel chan bool
 	shutdownTimeout time.Duration
 	dial            func() (net.Conn, error)
 	metrics         *sqmetrics.SquareMetrics
@@ -224,8 +226,13 @@ func panicOnError(err error) {
 
 // Validate flags for both, server and client mode
 func validateFlags(app *kingpin.Application) error {
-	if *enableProf && *statusAddress == "" {
-		return fmt.Errorf("--enable-pprof requires --status to be set")
+	if *statusAddress == "" {
+		if *enableProf {
+			return fmt.Errorf("--enable-pprof requires --status to be set")
+		}
+		if *enableShutdown {
+			return fmt.Errorf("--enable-shutdown requires --status to be set")
+		}
 	}
 	if *metricsURL != "" && !strings.HasPrefix(*metricsURL, "http://") && !strings.HasPrefix(*metricsURL, "https://") {
 		return fmt.Errorf("--metrics-url should start with http:// or https://")
@@ -487,6 +494,7 @@ func run(args []string) error {
 		status := newStatusHandler(dial, *serverStatusTargetAddress)
 		context := &Context{
 			status:          status,
+			shutdownChannel: make(chan bool, 1),
 			shutdownTimeout: *shutdownTimeout,
 			dial:            dial,
 			metrics:         metrics,
@@ -538,6 +546,7 @@ func run(args []string) error {
 		status := newStatusHandler(dial, "")
 		context := &Context{
 			status:          status,
+			shutdownChannel: make(chan bool, 1),
 			shutdownTimeout: *shutdownTimeout,
 			dial:            dial,
 			metrics:         metrics,
@@ -704,6 +713,21 @@ func (context *Context) serveStatus() error {
 		}
 		promHandler.ServeHTTP(w, r)
 	})
+
+	if *enableShutdown {
+		mux.HandleFunc("/_shutdown", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPost {
+				w.WriteHeader(http.StatusMethodNotAllowed)
+				return
+			}
+
+			logger.Printf("shutdown was requested via status endpoint")
+
+			context.shutdownChannel <- true
+
+			w.WriteHeader(http.StatusOK)
+		})
+	}
 
 	if *enableProf {
 		mux.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))

@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TlsClient, TlsServer, print_ok, run_ghostunnel, terminate
+import urllib.request
+import urllib.error
+import urllib.parse
 import time
 import os
 
@@ -18,9 +21,12 @@ if __name__ == "__main__":
                                      '--target={0}:13002'.format(LOCALHOST),
                                      '--keystore=client.p12',
                                      '--cacert=root.crt',
-                                     '--shutdown-timeout=1s',
+                                     '--enable-shutdown',
                                      '--status={0}:{1}'.format(LOCALHOST,
                                                                STATUS_PORT)])
+
+        def urlopen(path):
+            return urllib.request.urlopen(path, cafile='root.crt')
 
         # wait for startup
         TlsClient(None, 'root', STATUS_PORT).connect(20, 'client')
@@ -29,10 +35,10 @@ if __name__ == "__main__":
         pair1 = SocketPair(
             TcpClient(13001), TlsServer('server', 'root', 13002))
         pair1.validate_can_send_from_client("toto", "pair1 works")
+        pair1.cleanup()
 
-        # shut down ghostunnel with connection open, make sure it doesn't hang
-        print_ok('attempting to terminate ghostunnel via SIGTERM signals')
-        ghostunnel.terminate()
+        print_ok('attempting to terminate ghostunnel via HTTP POST')
+        urlopen(urllib.request.Request("https://{0}:{1}/_shutdown".format(LOCALHOST, STATUS_PORT), method='POST'))
 
         for n in range(0, 90):
             try:
@@ -49,11 +55,6 @@ if __name__ == "__main__":
 
         if not stopped:
             raise Exception('ghostunnel did not terminate within 90 seconds')
-
-        # We expect retv != 0 because of timeout
-        if ghostunnel.returncode == 0:
-            raise Exception(
-                'ghostunnel terminated gracefully instead of timing out?')
 
         print_ok("OK (terminated)")
     finally:
