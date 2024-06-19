@@ -14,9 +14,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package klog implements logging analogous to the Google-internal C++ INFO/ERROR/V setup.
-// It provides functions Info, Warning, Error, Fatal, plus formatting variants such as
-// Infof. It also provides V-style logging controlled by the -v and -vmodule=file=2 flags.
+// Package klog contains the following functionality:
+//
+//   - output routing as defined via command line flags ([InitFlags])
+//   - log formatting as text, either with a single, unstructured string ([Info], [Infof], etc.)
+//     or as a structured log entry with message and key/value pairs ([InfoS], etc.)
+//   - management of a go-logr [Logger] ([SetLogger], [Background], [TODO])
+//   - helper functions for logging values ([Format]) and managing the state of klog ([CaptureState], [State.Restore])
+//   - wrappers for [logr] APIs for contextual logging where the wrappers can
+//     be turned into no-ops ([EnableContextualLogging], [NewContext], [FromContext],
+//     [LoggerWithValues], [LoggerWithName]); if the ability to turn off
+//     contextual logging is not needed, then go-logr can also be used directly
+//   - type aliases for go-logr types to simplify imports in code which uses both (e.g. [Logger])
+//   - [k8s.io/klog/v2/textlogger]: a logger which uses the same formatting as klog log with
+//     simpler output routing; beware that it comes with its own command line flags
+//     and does not use the ones from klog
+//   - [k8s.io/klog/v2/ktesting]: per-test output in Go unit tests
+//   - [k8s.io/klog/v2/klogr]: a deprecated, standalone [logr.Logger] on top of the main klog package;
+//     use [Background] instead if klog output routing is needed, [k8s.io/klog/v2/textlogger] if not
+//   - [k8s.io/klog/v2/examples]: demos of this functionality
+//   - [k8s.io/klog/v2/test]: reusable tests for [logr.Logger] implementations
 //
 // Basic examples:
 //
@@ -994,7 +1011,8 @@ func (l *loggingT) exit(err error) {
 		logExitFunc(err)
 		return
 	}
-	l.flushAll()
+	files := l.flushAll()
+	l.syncAll(files)
 	OsExit(2)
 }
 
@@ -1206,23 +1224,37 @@ func StartFlushDaemon(interval time.Duration) {
 // lockAndFlushAll is like flushAll but locks l.mu first.
 func (l *loggingT) lockAndFlushAll() {
 	l.mu.Lock()
-	l.flushAll()
+	files := l.flushAll()
 	l.mu.Unlock()
+	// Some environments are slow when syncing and holding the lock might cause contention.
+	l.syncAll(files)
 }
 
-// flushAll flushes all the logs and attempts to "sync" their data to disk.
+// flushAll flushes all the logs
 // l.mu is held.
-func (l *loggingT) flushAll() {
+func (l *loggingT) flushAll() []flushSyncWriter {
+	files := make([]flushSyncWriter, 0, severity.NumSeverity)
 	// Flush from fatal down, in case there's trouble flushing.
 	for s := severity.FatalLog; s >= severity.InfoLog; s-- {
 		file := l.file[s]
 		if file != nil {
 			_ = file.Flush() // ignore error
-			_ = file.Sync()  // ignore error
 		}
+		files = append(files, file)
 	}
 	if logging.loggerOptions.flush != nil {
 		logging.loggerOptions.flush()
+	}
+	return files
+}
+
+// syncAll attempts to "sync" their data to disk.
+func (l *loggingT) syncAll(files []flushSyncWriter) {
+	// Flush from fatal down, in case there's trouble flushing.
+	for _, file := range files {
+		if file != nil {
+			_ = file.Sync() // ignore error
+		}
 	}
 }
 
