@@ -34,6 +34,7 @@ if __name__ == "__main__":
         # shut down ghostunnel with connection open, make sure it doesn't hang
         print_ok('attempting to terminate ghostunnel via SIGTERM signals')
         ghostunnel.terminate()
+
         for n in range(0, 90):
             try:
                 try:

@@ -45,29 +45,41 @@ func (context *Context) signalHandler(p *proxy.Proxy) {
 	signal.Notify(signals, append(shutdownSignals, refreshSignals...)...)
 	defer signal.Stop(signals)
 
+	shutdownFunc := func() {
+		context.status.Stopping()
+
+		// Best-effort graceful shutdown of status listener
+		if context.statusHTTP != nil {
+			go context.statusHTTP.Shutdown(ctx.Background())
+		}
+
+		// Force-exit after timeout
+		time.AfterFunc(context.shutdownTimeout, func() {
+			// Graceful shutdown timeout reached. If we can't drain connections
+			// to exit gracefully after this timeout, let's just exit.
+			logger.Printf("graceful shutdown timeout: forcing exit")
+			exitFunc(1)
+		})
+
+		p.Shutdown()
+		logger.Printf("shutdown proxy, waiting for drain")
+	}
+
 	for {
 		// Wait for a signal
 		select {
+		case <-context.shutdownChannel:
+			logger.Printf("shutdown request processing")
+
+			shutdownFunc()
+
+			return
 		case sig := <-signals:
 			if isShutdownSignal(sig) {
 				logger.Printf("received %s, shutting down", sig.String())
-				context.status.Stopping()
 
-				// Best-effort graceful shutdown of status listener
-				if context.statusHTTP != nil {
-					go context.statusHTTP.Shutdown(ctx.Background())
-				}
+				shutdownFunc()
 
-				// Force-exit after timeout
-				time.AfterFunc(context.shutdownTimeout, func() {
-					// Graceful shutdown timeout reached. If we can't drain connections
-					// to exit gracefully after this timeout, let's just exit.
-					logger.Printf("graceful shutdown timeout: forcing exit")
-					exitFunc(1)
-				})
-
-				p.Shutdown()
-				logger.Printf("shutdown proxy, waiting for drain")
 				return
 			}
 
