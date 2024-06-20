@@ -76,7 +76,7 @@ func setupLandlock(logger *log.Logger) error {
 		fsRules = append(fsRules, landlock.RODirs(path))
 	}
 
-	// Process string flags containing addresses.
+	// Process string flags containing addresses or URLs.
 	for _, addr := range []*string{
 		serverListenAddress,
 		serverForwardAddress,
@@ -85,6 +85,7 @@ func setupLandlock(logger *log.Logger) error {
 		clientForwardAddress,
 		useWorkloadAPIAddr,
 		statusAddress,
+		metricsURL,
 	} {
 		if addr == nil || len(*addr) == 0 {
 			continue
@@ -139,18 +140,6 @@ func setupLandlock(logger *log.Logger) error {
 		}
 	}
 
-	// Process string flags containing http(s):// URLs.
-	for _, url := range []*string{metricsURL} {
-		if url == nil || len(*url) == 0 {
-			continue
-		}
-
-		rule := ruleFromURLString(*url)
-		if rule != nil {
-			netRules = append(netRules, rule)
-		}
-	}
-
 	// Process url.URL flags.
 	for _, url := range []**url.URL{clientConnectProxy} {
 		if url == nil || *url == nil {
@@ -187,6 +176,13 @@ func ruleFromStringAddress(addr string) landlock.Rule {
 	if strings.HasPrefix(addr, "systemd:") || strings.HasPrefix(addr, "launchd:") {
 		return nil
 	}
+	if strings.HasPrefix(addr, "http://") || strings.HasPrefix(addr, "https://") {
+		u, err := url.Parse(addr)
+		if err != nil {
+			return nil
+		}
+		return ruleFromURL(u)
+	}
 	parts := strings.Split(addr, ":")
 	if len(parts) < 2 {
 		return nil
@@ -206,14 +202,6 @@ func ruleFromTCPAddress(addr *net.TCPAddr) landlock.Rule {
 		return nil
 	}
 	return landlock.BindTCP(uint16(addr.Port))
-}
-
-func ruleFromURLString(urlStr string) landlock.Rule {
-	u, err := url.Parse(urlStr)
-	if err != nil {
-		return nil
-	}
-	return ruleFromURL(u)
 }
 
 func ruleFromURL(u *url.URL) landlock.Rule {

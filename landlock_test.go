@@ -30,15 +30,28 @@ func TestLandlockRuleFromStringAddress(t *testing.T) {
 		valid bool
 	}{
 		{"unix:/tmp/test", true},
-		{"systemd:test", false},
-		{"launchd:test", false},
+		{"systemd:test", false}, // no rule needed
+		{"launchd:test", false}, // no rule needed
 		{"1.2.3.4:5", true},
 		{"asdf:50", true},
 		{"[1fff:0:a88:85a3::ac1f]:8001", true},
-		{"foobar", false},
-		{"foobar:foobar", false},
-		{"foobar:100000000000", false},
-		{"foobar:0", false},
+		{"foobar:80", true},
+		{"foobar", false},              // invalid port
+		{"foobar:foobar", false},       // invalid port
+		{"foobar:100000000000", false}, // invalid port
+		{"foobar:0", false},            // invalid port
+		{"http://127.0.0.1:8001/something", true},
+		{"https://127.0.0.1:8001/something", true},
+		{"http://[1fff:0:a88:85a3::ac1f]:8001/something", true},
+		{"https://[1fff:0:a88:85a3::ac1f]:8001/something", true},
+		{"http://localhost", true},
+		{"https://localhost", true},
+		{"http://_:_!", false},                            // invalid domain
+		{"https://_:_!", false},                           // invalid domain
+		{"http://127.0.0.1:0/something", false},           // invalid port
+		{"https://127.0.0.1:1000000000/something", false}, // invalid port
+		{"!", false},                                      // invalid string
+		{"", false},                                       // invalid string
 	}
 	for _, tc := range testCases {
 		rule := ruleFromStringAddress(tc.addr)
@@ -66,34 +79,6 @@ func TestLandlockRuleFromTCPAddress(t *testing.T) {
 		}
 		if !tc.valid && rule != nil {
 			t.Errorf("got result on invalid input %s", tc.addr)
-		}
-	}
-}
-
-func TestLandlockRuleFromURLString(t *testing.T) {
-	testCases := []struct {
-		url   string
-		valid bool
-	}{
-		{"http://127.0.0.1:8001/something", true},
-		{"https://127.0.0.1:8001/something", true},
-		{"http://[1fff:0:a88:85a3::ac1f]:8001/something", true},
-		{"https://[1fff:0:a88:85a3::ac1f]:8001/something", true},
-		{"http://localhost", true},
-		{"https://localhost", true},
-		{"http://127.0.0.1:0/something", false},
-		{"https://127.0.0.1:1000000000/something", false},
-		{"foobar", false},
-		{"!", false},
-		{"", false},
-	}
-	for _, tc := range testCases {
-		rule := ruleFromURLString(tc.url)
-		if tc.valid && rule == nil {
-			t.Errorf("no result on valid input: %v", tc.url)
-		}
-		if !tc.valid && rule != nil {
-			t.Errorf("got result on invalid input %s", tc.url)
 		}
 	}
 }
