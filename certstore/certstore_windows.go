@@ -38,6 +38,7 @@ import (
 	"encoding/asn1"
 	"fmt"
 	"io"
+	"log"
 	"math/big"
 	"unicode/utf16"
 	"unsafe"
@@ -72,24 +73,70 @@ var winAPIFlag C.DWORD = C.CRYPT_ACQUIRE_PREFER_NCRYPT_KEY_FLAG
 
 // winStore is a wrapper around a C.HCERTSTORE.
 type winStore struct {
-	store C.HCERTSTORE
+	userStore   C.HCERTSTORE
+	extraStores []C.HCERTSTORE
+	logger      *log.Logger
 }
 
 // openStore opens the current user's personal cert store.
-func openStore() (*winStore, error) {
+func openStore(logger *log.Logger) (*winStore, error) {
 	storeName := unsafe.Pointer(stringToUTF16("MY"))
 	defer C.free(storeName)
 
-	store := C.CertOpenStore(CERT_STORE_PROV_SYSTEM_W, 0, 0, C.CERT_SYSTEM_STORE_CURRENT_USER, storeName)
-	if store == nil {
+	userStore := C.CertOpenStore(CERT_STORE_PROV_SYSTEM_W, 0, 0, C.CERT_SYSTEM_STORE_CURRENT_USER, storeName)
+	if userStore == nil {
+		logger.Printf("certstore: failed to open key store 'CURRENT_USER', aborting")
 		return nil, lastError("failed to open system cert store")
 	}
 
-	return &winStore{store}, nil
+	ret := &winStore{
+		userStore:   userStore,
+		extraStores: []C.HCERTSTORE{},
+		logger:      logger,
+	}
+
+	// Additional stores to use to look for certificates in Identities().
+	// The identity we want to load might be in the "current service" or "local
+	// machine" stores, so we need to open those to check.
+	extraStores := map[string]C.DWORD{
+		"CURRENT_SERVICE": C.CERT_SYSTEM_STORE_CURRENT_SERVICE,
+		"LOCAL_MACHINE":   C.CERT_SYSTEM_STORE_LOCAL_MACHINE,
+	}
+	for friendlyName, storeIdent := range extraStores {
+		store := C.CertOpenStore(CERT_STORE_PROV_SYSTEM_W, 0, 0, storeIdent, storeName)
+		if store == nil {
+			logger.Printf("certstore: failed to open key store '%s', skipping", friendlyName)
+			continue
+		}
+
+		ret.extraStores = append(ret.extraStores, store)
+	}
+
+	return ret, nil
 }
 
 // Identities implements the Store interface.
 func (s *winStore) Identities(unusedFlags int) ([]Identity, error) {
+	identities := []Identity{}
+	userIdentities, err := identitiesForStore(s.userStore)
+	if err != nil {
+		s.logger.Printf("certstore: failed to get identities from user store: %v", err)
+	} else {
+		identities = append(identities, userIdentities...)
+	}
+
+	for _, extraStore := range s.extraStores {
+		extraIdentities, err := identitiesForStore(extraStore)
+		if err != nil {
+			s.logger.Printf("certstore: failed to get identities from extra store: %v", err)
+			continue
+		}
+		identities = append(identities, extraIdentities...)
+	}
+	return identities, nil
+}
+
+func identitiesForStore(store C.HCERTSTORE) ([]Identity, error) {
 	var (
 		err    error
 		idents = []Identity{}
@@ -104,7 +151,7 @@ func (s *winStore) Identities(unusedFlags int) ([]Identity, error) {
 	)
 
 	for {
-		if chainCtx = C.CertFindChainInStore(s.store, encoding, flags, findType, paramsPtr, chainCtx); chainCtx == nil {
+		if chainCtx = C.CertFindChainInStore(store, encoding, flags, findType, paramsPtr, chainCtx); chainCtx == nil {
 			break
 		}
 		if chainCtx.cChain < 1 {
@@ -192,7 +239,7 @@ func (s *winStore) Import(data []byte, password string) error {
 		}
 
 		// Copy the cert to the system store.
-		if ok := C.CertAddCertificateContextToStore(s.store, ctx, C.CERT_STORE_ADD_REPLACE_EXISTING, nil); ok == winFalse {
+		if ok := C.CertAddCertificateContextToStore(s.userStore, ctx, C.CERT_STORE_ADD_REPLACE_EXISTING, nil); ok == winFalse {
 			return lastError("failed to add importerd certificate to MY store")
 		}
 	}
@@ -202,8 +249,13 @@ func (s *winStore) Import(data []byte, password string) error {
 
 // Close implements the Store interface.
 func (s *winStore) Close() {
-	C.CertCloseStore(s.store, 0)
-	s.store = nil
+	C.CertCloseStore(s.userStore, 0)
+	for _, extraStore := range s.extraStores {
+		C.CertCloseStore(extraStore, 0)
+	}
+
+	s.userStore = nil
+	s.extraStores = nil
 }
 
 // winIdentity implements the Identity interface.

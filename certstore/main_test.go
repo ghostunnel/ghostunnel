@@ -10,6 +10,8 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"log"
+	"os"
 	"testing"
 
 	"github.com/github/smimesign/fakeca"
@@ -45,7 +47,8 @@ func init() {
 }
 
 func withStore(t *testing.T, cb func(Store)) {
-	store, err := Open()
+	logger := log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
+	store, err := Open(logger)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +103,8 @@ func withIdentity(t *testing.T, i *fakeca.Identity, cb func(Identity)) {
 }
 
 func clearFixtures() {
-	store, err := Open()
+	logger := log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
+	store, err := Open(logger)
 	if err != nil {
 		panic(err)
 	}

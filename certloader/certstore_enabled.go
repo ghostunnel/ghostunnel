@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"log"
 	"sort"
 	"sync/atomic"
 	"unsafe"
@@ -42,6 +43,8 @@ type certstoreCertificate struct {
 	cachedCertificate unsafe.Pointer
 	// Cached *x509.CertPool
 	cachedCertPool unsafe.Pointer
+	// Added logger, useful for certstore logging
+	logger *log.Logger
 }
 
 // SupportsKeychain returns true or false, depending on whether the
@@ -53,13 +56,14 @@ func SupportsKeychain() bool {
 
 // CertificateFromKeychainIdentity creates a reloadable certificate from a system keychain identity.
 func CertificateFromKeychainIdentity(
-	commonNameOrSerial string, issuerName string, caBundlePath string, requireToken bool,
+	commonNameOrSerial string, issuerName string, caBundlePath string, requireToken bool, logger *log.Logger,
 ) (Certificate, error) {
 	c := certstoreCertificate{
 		commonNameOrSerial: commonNameOrSerial,
 		issuerName:         issuerName,
 		caBundlePath:       caBundlePath,
 		requireToken:       requireToken,
+		logger:             logger,
 	}
 	err := c.Reload()
 	if err != nil {
@@ -70,7 +74,7 @@ func CertificateFromKeychainIdentity(
 
 // Reload transparently reloads the certificate.
 func (c *certstoreCertificate) Reload() error {
-	store, err := certstore.Open()
+	store, err := certstore.Open(c.logger)
 	if err != nil {
 		return err
 	}

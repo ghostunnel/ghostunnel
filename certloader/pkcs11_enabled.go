@@ -21,6 +21,7 @@ package certloader
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"log"
 	"sync/atomic"
 	"unsafe"
 
@@ -38,6 +39,8 @@ type pkcs11Certificate struct {
 	cachedCertificate unsafe.Pointer
 	// Cached *x509.CertPool
 	cachedCertPool unsafe.Pointer
+	// Added logger, useful for PKCS#11 logging
+	logger *log.Logger
 }
 
 // SupportsPKCS11 returns true or false, depending on whether the binary
@@ -47,13 +50,14 @@ func SupportsPKCS11() bool {
 }
 
 // CertificateFromPKCS11Module creates a reloadable certificate from a PKCS#11 module.
-func CertificateFromPKCS11Module(certificatePath, caBundlePath, modulePath, tokenLabel, pin string) (Certificate, error) {
+func CertificateFromPKCS11Module(certificatePath, caBundlePath, modulePath, tokenLabel, pin string, logger *log.Logger) (Certificate, error) {
 	c := &pkcs11Certificate{
 		certificatePath: certificatePath,
 		caBundlePath:    caBundlePath,
 		modulePath:      modulePath,
 		tokenLabel:      tokenLabel,
 		pin:             pin,
+		logger:          logger,
 	}
 	err := c.Reload()
 	if err != nil {
@@ -82,9 +86,11 @@ func (c *pkcs11Certificate) Reload() error {
 	// We want to avoid reloading the key every time the cert reloads, as it's
 	// a potentially expensive operation that calls out into a shared library.
 	if c.cachedCertificate != nil {
+		c.logger.Printf("pkcs11: re-using previously cached private key handle from module")
 		old, _ := c.GetCertificate(nil)
 		certAndKey.PrivateKey = old.PrivateKey
 	} else {
+		c.logger.Printf("pkcs11: loading private key for given certificate from module")
 		privateKey, err := pkcs11key.New(c.modulePath, c.tokenLabel, c.pin, certAndKey.Leaf.PublicKey)
 		if err != nil {
 			return err

@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"crypto/x509"
 	"errors"
+	"log"
 )
 
 var (
@@ -18,8 +19,8 @@ const (
 )
 
 // Open opens the system's certificate store.
-func Open() (Store, error) {
-	return openStore()
+func Open(logger *log.Logger) (Store, error) {
+	return openStore(logger)
 }
 
 // Store represents the system's certificate store.

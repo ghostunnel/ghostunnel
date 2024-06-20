@@ -18,7 +18,10 @@
 
 package certloader
 
-import "errors"
+import (
+	"errors"
+	"log"
+)
 
 // SupportsKeychain returns true or false, depending on whether the
 // binary was built with Certstore/Keychain support or not (requires CGO, recent
@@ -29,7 +32,7 @@ func SupportsKeychain() bool {
 
 // CertificateFromKeychainIdentity creates a reloadable certificate from a system keychain identity.
 func CertificateFromKeychainIdentity(
-	commonNameOrSerial string, issuerName string, caBundlePath string, requireToken bool,
+	commonNameOrSerial string, issuerName string, caBundlePath string, requireToken bool, logger *log.Logger,
 ) (Certificate, error) {
 	return nil, errors.New("not supported")
 }
