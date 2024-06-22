@@ -22,6 +22,8 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"log"
+	"os"
 	"testing"
 	"unsafe"
 
@@ -29,7 +31,8 @@ import (
 )
 
 func TestInvalidPKCS11Module(t *testing.T) {
-	_, err := CertificateFromPKCS11Module("", "", "", "", "")
+	logger := log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
+	_, err := CertificateFromPKCS11Module("", "", "", "", "", logger)
 	assert.NotNil(t, err, "should not load invalid PKCS11 certificate/key")
 }
 

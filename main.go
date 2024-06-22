@@ -909,7 +909,7 @@ func getTLSConfigSource(disableAuth bool) (certloader.TLSConfigSource, error) {
 		return source, nil
 	}
 
-	cert, err := buildCertificate(*keystorePath, *certPath, *keyPath, *keystorePass, *caBundlePath)
+	cert, err := buildCertificate(*keystorePath, *certPath, *keyPath, *keystorePass, *caBundlePath, logger)
 	if err != nil {
 		logger.Printf("error: unable to load certificates: %s\n", err)
 		return nil, err

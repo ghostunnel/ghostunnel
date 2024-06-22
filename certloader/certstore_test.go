@@ -17,12 +17,18 @@
 package certloader
 
 import (
+	"log"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestInvalidKeychainIdentity(t *testing.T) {
-	_, err := CertificateFromKeychainIdentity("", "", "", false)
+	logger := log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
+	ident, err := CertificateFromKeychainIdentity("!", "!", "!", false, logger)
+	if ident != nil {
+		t.Logf("loaded invalid identity: %v", ident)
+	}
 	assert.NotNil(t, err, "should not load invalid identity")
 }

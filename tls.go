@@ -19,6 +19,7 @@ package main
 import (
 	"crypto/tls"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/ghostunnel/ghostunnel/certloader"
@@ -53,18 +54,18 @@ var cipherSuites = map[string][]uint16{
 }
 
 // Build reloadable certificate
-func buildCertificate(keystorePath, certPath, keyPath, keystorePass, caBundlePath string) (certloader.Certificate, error) {
+func buildCertificate(keystorePath, certPath, keyPath, keystorePass, caBundlePath string, logger *log.Logger) (certloader.Certificate, error) {
 	if hasPKCS11() {
 		logger.Printf("using PKCS#11 module as certificate source")
 		if keystorePath != "" {
-			return buildCertificateFromPKCS11(keystorePath, caBundlePath)
+			return buildCertificateFromPKCS11(keystorePath, caBundlePath, logger)
 		} else {
-			return buildCertificateFromPKCS11(certPath, caBundlePath)
+			return buildCertificateFromPKCS11(certPath, caBundlePath, logger)
 		}
 	}
 	if hasKeychainIdentity() {
 		logger.Printf("using operating system keychain as certificate source")
-		return certloader.CertificateFromKeychainIdentity(*keychainIdentity, *keychainIssuer, caBundlePath, *keychainRequireToken)
+		return certloader.CertificateFromKeychainIdentity(*keychainIdentity, *keychainIssuer, caBundlePath, *keychainRequireToken, logger)
 	}
 	if keyPath != "" && certPath != "" {
 		logger.Printf("using cert/key files on disk as certificate source")
@@ -78,8 +79,8 @@ func buildCertificate(keystorePath, certPath, keyPath, keystorePass, caBundlePat
 	return certloader.NoCertificate(caBundlePath)
 }
 
-func buildCertificateFromPKCS11(certificatePath, caBundlePath string) (certloader.Certificate, error) {
-	return certloader.CertificateFromPKCS11Module(certificatePath, caBundlePath, *pkcs11Module, *pkcs11TokenLabel, *pkcs11PIN)
+func buildCertificateFromPKCS11(certificatePath, caBundlePath string, logger *log.Logger) (certloader.Certificate, error) {
+	return certloader.CertificateFromPKCS11Module(certificatePath, caBundlePath, *pkcs11Module, *pkcs11TokenLabel, *pkcs11PIN, logger)
 }
 
 func hasPKCS11() bool {

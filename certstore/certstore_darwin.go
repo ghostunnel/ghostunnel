@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"unsafe"
 )
 
@@ -37,7 +38,7 @@ var (
 type macStore int
 
 // openStore is a function for opening a macStore.
-func openStore() (macStore, error) {
+func openStore(logger *log.Logger) (Store, error) {
 	return macStore(0), nil
 }
 
