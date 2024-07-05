@@ -155,7 +155,7 @@ github.com/mitchellh/reflectwalk
 # github.com/mwitkow/go-http-dialer v0.0.0-20161116154839-378f744fb2b8
 ## explicit
 github.com/mwitkow/go-http-dialer
-# github.com/open-policy-agent/opa v0.65.0
+# github.com/open-policy-agent/opa v0.66.0
 ## explicit; go 1.21
 github.com/open-policy-agent/opa/ast
 github.com/open-policy-agent/opa/ast/internal/scanner
