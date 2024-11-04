@@ -15,16 +15,16 @@ require (
 	github.com/letsencrypt/pkcs11key/v4 v4.0.0
 	github.com/mholt/acmez v1.2.0
 	github.com/mwitkow/go-http-dialer v0.0.0-20161116154839-378f744fb2b8
-	github.com/open-policy-agent/opa v0.68.0
+	github.com/open-policy-agent/opa v0.70.0
 	github.com/pires/go-proxyproto v0.7.0
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.20.2
+	github.com/prometheus/client_golang v1.20.5
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475
 	github.com/spiffe/go-spiffe/v2 v2.3.0
 	github.com/square/certigo v1.16.1-0.20220921173659-75f2ec06b4a5
 	github.com/square/go-sq-metrics v0.0.0-20170531223841-ae72f332d0d9
 	github.com/stretchr/testify v1.9.0
-	google.golang.org/grpc v1.66.0
+	google.golang.org/grpc v1.67.1
 	google.golang.org/protobuf v1.34.2
 )
 
@@ -33,7 +33,7 @@ require (
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/sprig v2.22.0+incompatible // indirect
 	github.com/OneOfOne/xxhash v1.2.8 // indirect
-	github.com/agnivade/levenshtein v1.1.1 // indirect
+	github.com/agnivade/levenshtein v1.2.0 // indirect
 	github.com/alecthomas/units v0.0.0-20231202071711-9a357b53e9c9 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/caddyserver/zerossl v0.1.3 // indirect
@@ -82,15 +82,14 @@ require (
 	go.opentelemetry.io/otel/trace v1.28.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/crypto v0.26.0 // indirect
+	golang.org/x/crypto v0.28.0 // indirect
 	golang.org/x/mod v0.18.0 // indirect
-	golang.org/x/net v0.28.0 // indirect
+	golang.org/x/net v0.30.0 // indirect
 	golang.org/x/sync v0.8.0 // indirect
-	golang.org/x/sys v0.23.0 // indirect
-	golang.org/x/text v0.17.0 // indirect
+	golang.org/x/sys v0.26.0 // indirect
+	golang.org/x/text v0.19.0 // indirect
 	golang.org/x/tools v0.22.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240701130421-f6361c86f094 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240814211410-ddb44dafa142 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/klog/v2 v2.130.0 // indirect
 	kernel.org/pub/linux/libs/security/libcap/psx v1.2.70 // indirect

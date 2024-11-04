@@ -17,7 +17,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 
 	"github.com/open-policy-agent/opa/ast/internal/scanner"
 	"github.com/open-policy-agent/opa/ast/internal/tokens"
@@ -29,6 +29,8 @@ var RegoV1CompatibleRef = Ref{VarTerm("rego"), StringTerm("v1")}
 
 // RegoVersion defines the Rego syntax requirements for a module.
 type RegoVersion int
+
+const DefaultRegoVersion = RegoVersion(0)
 
 const (
 	// RegoV0 is the default, original Rego syntax.
@@ -316,6 +318,31 @@ func (p *Parser) Parse() ([]Statement, []*Comment, Errors) {
 		// RegoV1 includes all future keywords in the default language definition
 		for k, v := range futureKeywords {
 			allowedFutureKeywords[k] = v
+		}
+
+		// For sake of error reporting, we still need to check that keywords in capabilities are known,
+		for _, kw := range p.po.Capabilities.FutureKeywords {
+			if _, ok := futureKeywords[kw]; !ok {
+				return nil, nil, Errors{
+					&Error{
+						Code:     ParseErr,
+						Message:  fmt.Sprintf("illegal capabilities: unknown keyword: %v", kw),
+						Location: nil,
+					},
+				}
+			}
+		}
+		// and that explicitly requested future keywords are known.
+		for _, kw := range p.po.FutureKeywords {
+			if _, ok := allowedFutureKeywords[kw]; !ok {
+				return nil, nil, Errors{
+					&Error{
+						Code:     ParseErr,
+						Message:  fmt.Sprintf("unknown future keyword: %v", kw),
+						Location: nil,
+					},
+				}
+			}
 		}
 	} else {
 		for _, kw := range p.po.Capabilities.FutureKeywords {
@@ -686,6 +713,10 @@ func (p *Parser) parseRules() []*Rule {
 
 	// p[x] if ...  becomes a single-value rule p[x]
 	if hasIf && !usesContains && len(rule.Head.Ref()) == 2 {
+		if !rule.Head.Ref()[1].IsGround() && len(rule.Head.Args) == 0 {
+			rule.Head.Key = rule.Head.Ref()[1]
+		}
+
 		if rule.Head.Value == nil {
 			rule.Head.generatedValue = true
 			rule.Head.Value = BooleanTerm(true).SetLocation(rule.Head.Location)
@@ -749,6 +780,8 @@ func (p *Parser) parseRules() []*Rule {
 	case usesContains:
 		rule.Body = NewBody(NewExpr(BooleanTerm(true).SetLocation(rule.Location)).SetLocation(rule.Location))
 		rule.generatedBody = true
+		rule.Location = rule.Head.Location
+
 		return []*Rule{&rule}
 
 	default:
@@ -2278,11 +2311,9 @@ type rawAnnotation struct {
 	Organizations    []string               `yaml:"organizations"`
 	RelatedResources []interface{}          `yaml:"related_resources"`
 	Authors          []interface{}          `yaml:"authors"`
-	Schemas          []rawSchemaAnnotation  `yaml:"schemas"`
+	Schemas          []map[string]any       `yaml:"schemas"`
 	Custom           map[string]interface{} `yaml:"custom"`
 }
-
-type rawSchemaAnnotation map[string]interface{}
 
 type metadataParser struct {
 	buf      *bytes.Buffer
@@ -2314,9 +2345,8 @@ func (b *metadataParser) Parse() (*Annotations, error) {
 		var comment *Comment
 		match := yamlLineErrRegex.FindStringSubmatch(err.Error())
 		if len(match) == 2 {
-			n, err2 := strconv.Atoi(match[1])
+			index, err2 := strconv.Atoi(match[1])
 			if err2 == nil {
-				index := n - 1 // line numbering is 1-based so subtract one from row
 				if index >= len(b.comments) {
 					comment = b.comments[len(b.comments)-1]
 				} else {
@@ -2366,7 +2396,7 @@ func (b *metadataParser) Parse() (*Annotations, error) {
 			if err != nil {
 				return nil, err
 			}
-		case map[interface{}]interface{}:
+		case map[string]any:
 			w, err := convertYAMLMapKeyTypes(v, nil)
 			if err != nil {
 				return nil, fmt.Errorf("invalid schema definition: %w", err)
@@ -2415,8 +2445,9 @@ func (b *metadataParser) Parse() (*Annotations, error) {
 	return &result, nil
 }
 
-// augmentYamlError augments a YAML error with hints intended to help the user figure out the cause of an otherwise cryptic error.
-// These are hints, instead of proper errors, because they are educated guesses, and aren't guaranteed to be correct.
+// augmentYamlError augments a YAML error with hints intended to help the user figure out the cause of an otherwise
+// cryptic error. These are hints, instead of proper errors, because they are educated guesses, and aren't guaranteed
+// to be correct.
 func augmentYamlError(err error, comments []*Comment) error {
 	// Adding hints for when key/value ':' separator isn't suffixed with a legal YAML space symbol
 	for _, comment := range comments {
@@ -2570,11 +2601,11 @@ func parseAuthorString(s string) (*AuthorAnnotation, error) {
 	return &AuthorAnnotation{Name: name, Email: email}, nil
 }
 
-func convertYAMLMapKeyTypes(x interface{}, path []string) (interface{}, error) {
+func convertYAMLMapKeyTypes(x any, path []string) (any, error) {
 	var err error
 	switch x := x.(type) {
-	case map[interface{}]interface{}:
-		result := make(map[string]interface{}, len(x))
+	case map[any]any:
+		result := make(map[string]any, len(x))
 		for k, v := range x {
 			str, ok := k.(string)
 			if !ok {
@@ -2586,7 +2617,7 @@ func convertYAMLMapKeyTypes(x interface{}, path []string) (interface{}, error) {
 			}
 		}
 		return result, nil
-	case []interface{}:
+	case []any:
 		for i := range x {
 			x[i], err = convertYAMLMapKeyTypes(x[i], append(path, fmt.Sprintf("%d", i)))
 			if err != nil {
@@ -2665,15 +2696,16 @@ func (p *Parser) regoV1Import(imp *Import) {
 		return
 	}
 
-	if p.po.RegoVersion == RegoV1 {
-		// We're parsing for Rego v1, where the 'rego.v1' import is a no-op.
+	path := imp.Path.Value.(Ref)
+
+	// v1 is only valid option
+	if len(path) == 1 || !path[1].Equal(RegoV1CompatibleRef[1]) || len(path) > 2 {
+		p.errorf(imp.Path.Location, "invalid import `%s`, must be `%s`", path, RegoV1CompatibleRef)
 		return
 	}
 
-	path := imp.Path.Value.(Ref)
-
-	if len(path) == 1 || !path[1].Equal(RegoV1CompatibleRef[1]) || len(path) > 2 {
-		p.errorf(imp.Path.Location, "invalid import `%s`, must be `%s`", path, RegoV1CompatibleRef)
+	if p.po.RegoVersion == RegoV1 {
+		// We're parsing for Rego v1, where the 'rego.v1' import is a no-op.
 		return
 	}
 

@@ -168,6 +168,7 @@ func generateRaiseErrorResult(err error) *ast.Term {
 func getHTTPResponse(bctx BuiltinContext, req ast.Object) (*ast.Term, error) {
 
 	bctx.Metrics.Timer(httpSendLatencyMetricKey).Start()
+	defer bctx.Metrics.Timer(httpSendLatencyMetricKey).Stop()
 
 	key, err := getKeyFromRequest(req)
 	if err != nil {
@@ -198,8 +199,6 @@ func getHTTPResponse(bctx BuiltinContext, req ast.Object) (*ast.Term, error) {
 			return nil, err
 		}
 	}
-
-	bctx.Metrics.Timer(httpSendLatencyMetricKey).Stop()
 
 	return ast.NewTerm(resp), nil
 }
@@ -413,7 +412,7 @@ func createHTTPRequest(bctx BuiltinContext, obj ast.Object) (*http.Request, *htt
 	var tlsConfig tls.Config
 	var customHeaders map[string]interface{}
 	var tlsInsecureSkipVerify bool
-	var timeout = defaultHTTPRequestTimeout
+	timeout := defaultHTTPRequestTimeout
 
 	for _, val := range obj.Keys() {
 		key, err := ast.JSON(val.Value)
@@ -474,7 +473,7 @@ func createHTTPRequest(bctx BuiltinContext, obj ast.Object) (*http.Request, *htt
 			}
 			body = bytes.NewBuffer(bodyValBytes)
 		case "raw_body":
-			rawBody = bytes.NewBuffer([]byte(strVal))
+			rawBody = bytes.NewBufferString(strVal)
 		case "tls_use_system_certs":
 			tempTLSUseSystemCerts, err := strconv.ParseBool(obj.Get(val).String())
 			if err != nil {
@@ -737,9 +736,12 @@ func executeHTTPRequest(req *http.Request, client *http.Client, inputReqObj ast.
 			return nil, err
 		}
 
+		delay := util.DefaultBackoff(float64(minRetryDelay), float64(maxRetryDelay), i)
+		timer, timerCancel := util.TimerWithCancel(delay)
 		select {
-		case <-time.After(util.DefaultBackoff(float64(minRetryDelay), float64(maxRetryDelay), i)):
+		case <-timer.C:
 		case <-req.Context().Done():
+			timerCancel() // explicitly cancel the timer.
 			return nil, context.Canceled
 		}
 	}
