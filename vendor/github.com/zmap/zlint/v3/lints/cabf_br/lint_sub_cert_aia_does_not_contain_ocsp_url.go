@@ -36,11 +36,12 @@ It SHOULD also contain the HTTP URL of the Issuing CA’s certificate (accessMet
 func init() {
 	lint.RegisterCertificateLint(&lint.CertificateLint{
 		LintMetadata: lint.LintMetadata{
-			Name:          "e_sub_cert_aia_does_not_contain_ocsp_url",
-			Description:   "Subscriber Certificate: authorityInformationAccess MUST contain the HTTP URL of the Issuing CA's OSCP responder.",
-			Citation:      "BRs: 7.1.2.3",
-			Source:        lint.CABFBaselineRequirements,
-			EffectiveDate: util.CABEffectiveDate,
+			Name:            "e_sub_cert_aia_does_not_contain_ocsp_url",
+			Description:     "Subscriber Certificate: authorityInformationAccess MUST contain the HTTP URL of the Issuing CA's OSCP responder.",
+			Citation:        "BRs: 7.1.2.3",
+			Source:          lint.CABFBaselineRequirements,
+			EffectiveDate:   util.CABEffectiveDate,
+			IneffectiveDate: util.CABFBRs_2_0_0_Date,
 		},
 		Lint: NewSubCertOcspUrl,
 	})

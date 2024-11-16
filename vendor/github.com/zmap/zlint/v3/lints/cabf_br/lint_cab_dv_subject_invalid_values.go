@@ -66,20 +66,11 @@ func (l *dvSubjectInvalidValues) CheckApplies(cert *x509.Certificate) bool {
 
 func (l *dvSubjectInvalidValues) Execute(cert *x509.Certificate) *lint.LintResult {
 	names := util.GetTypesInName(&cert.Subject)
-	var cnFound = false
 	for _, n := range names {
-		if n.Equal(util.CommonNameOID) {
-			cnFound = true
-			continue
-		}
-		if n.Equal(util.CountryNameOID) {
+		if n.Equal(util.CommonNameOID) || n.Equal(util.CountryNameOID) {
 			continue
 		}
 		return &lint.LintResult{Status: lint.Error, Details: fmt.Sprintf("DV certificate contains the invalid attribute type %s", n)}
-	}
-
-	if cnFound {
-		return &lint.LintResult{Status: lint.Warn, Details: "DV certificate contains a subject common name, this is not recommended."}
 	}
 
 	return &lint.LintResult{Status: lint.Pass}

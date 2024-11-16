@@ -34,7 +34,7 @@ func LandlockGetABIVersion() (version int, err error) {
 // Landlock rule types.
 const (
 	RuleTypePathBeneath = unix.LANDLOCK_RULE_PATH_BENEATH
-	RuleTypeNetService  = 2 // TODO: Use it from sys/unix when available.
+	RuleTypeNetPort     = 2 // TODO: Use it from sys/unix when available.
 )
 
 // LandlockAddPathBeneathRule adds a rule of type "path beneath" to
@@ -44,10 +44,10 @@ func LandlockAddPathBeneathRule(rulesetFd int, attr *PathBeneathAttr, flags int)
 	return LandlockAddRule(rulesetFd, RuleTypePathBeneath, unsafe.Pointer(attr), flags)
 }
 
-// LandlockAddNetServiceRule adds a rule of type "net service" to the given ruleset FD.
+// LandlockAddNetPortRule adds a rule of type "net port" to the given ruleset FD.
 // attr defines the rule parameters. flags must currently be 0.
-func LandlockAddNetServiceRule(rulesetFD int, attr *NetServiceAttr, flags int) error {
-	return LandlockAddRule(rulesetFD, RuleTypeNetService, unsafe.Pointer(attr), flags)
+func LandlockAddNetPortRule(rulesetFD int, attr *NetPortAttr, flags int) error {
+	return LandlockAddRule(rulesetFD, RuleTypeNetPort, unsafe.Pointer(attr), flags)
 }
 
 // LandlockAddRule is the generic landlock_add_rule syscall.

@@ -21,6 +21,7 @@ var accessFSNames = []string{
 	"make_sym",
 	"refer",
 	"truncate",
+	"ioctl_dev",
 }
 
 // AccessFSSet is a set of Landlockable file system access operations.

@@ -39,6 +39,14 @@ func (r FSRule) WithRefer() FSRule {
 	return r.withRights(ll.AccessFSRefer)
 }
 
+// WithIoctlDev adds the "ioctl dev" access right to a FSRule.
+//
+// It is uncommon to need this access right, so it is not part of
+// [RWFiles] or [RWDirs].
+func (r FSRule) WithIoctlDev() FSRule {
+	return r.withRights(ll.AccessFSIoctlDev)
+}
+
 // IgnoreIfMissing gracefully ignores missing paths.
 //
 // Under normal circumstances, referring to a non-existing path in a rule would
@@ -128,6 +136,16 @@ func RODirs(paths ...string) FSRule {
 
 // RWDirs is a [Rule] which grants full (read and write) access to
 // files and directories under the given paths.
+//
+// Noteworthy operations which are *not* covered by RWDirs:
+//
+//   - RWDirs does *not* grant the right to *reparent or link* files
+//     across different directories.  If this access right is
+//     required, use [FSRule.WithRefer].
+//
+//   - RWDirs does *not* grant the right to *use IOCTL* on device
+//     files.  If this access right is required, use
+//     [FSRule.WithIoctlDev].
 func RWDirs(paths ...string) FSRule {
 	return FSRule{
 		accessFS:      accessFSReadWrite,
@@ -150,6 +168,12 @@ func ROFiles(paths ...string) FSRule {
 // RWFiles is a [Rule] which grants common read and write access to
 // files under the given paths, but it does not permit access to
 // directories.
+//
+// Noteworthy operations which are *not* covered by RWFiles:
+//
+//   - RWFiles does *not* grant the right to *use IOCTL* on device
+//     files.  If this access right is required, use
+//     [FSRule.WithIoctlDev].
 func RWFiles(paths ...string) FSRule {
 	return FSRule{
 		accessFS:      accessFSReadWrite & accessFile,

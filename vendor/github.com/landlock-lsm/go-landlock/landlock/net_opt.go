@@ -44,12 +44,17 @@ func (n NetRule) compatibleWithConfig(c Config) bool {
 }
 
 func (n NetRule) addToRuleset(rulesetFD int, c Config) error {
-	flags := 0
-	attr := &ll.NetServiceAttr{
-		AllowedAccess: uint64(n.access),
-		Port:          n.port,
+	if n.access == 0 {
+		// Adding this to the ruleset would be a no-op
+		// and result in an error.
+		return nil
 	}
-	return ll.LandlockAddNetServiceRule(rulesetFD, attr, flags)
+	flags := 0
+	attr := &ll.NetPortAttr{
+		AllowedAccess: uint64(n.access),
+		Port:          uint64(n.port),
+	}
+	return ll.LandlockAddNetPortRule(rulesetFD, attr, flags)
 }
 
 func (n NetRule) downgrade(c Config) (out Rule, ok bool) {

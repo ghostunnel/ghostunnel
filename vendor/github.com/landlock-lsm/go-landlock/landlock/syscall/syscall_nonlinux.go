@@ -23,7 +23,7 @@ func LandlockAddPathBeneathRule(rulesetFd int, attr *PathBeneathAttr, flags int)
 	return syscall.ENOSYS
 }
 
-func LandlockAddNetServiceRule(rulesetFD int, attr *NetServiceAttr, flags int) error {
+func LandlockAddNetPortRule(rulesetFD int, attr *NetPortAttr, flags int) error {
 	return syscall.ENOSYS
 }
 
