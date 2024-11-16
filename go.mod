@@ -92,7 +92,7 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20241113202542-65e8d215514f // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
-	kernel.org/pub/linux/libs/security/libcap/psx v1.2.72 // indirect
+	kernel.org/pub/linux/libs/security/libcap/psx v1.2.70 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 	software.sslmate.com/src/go-pkcs12 v0.5.0 // indirect
 )

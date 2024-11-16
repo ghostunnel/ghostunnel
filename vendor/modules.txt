@@ -590,7 +590,7 @@ k8s.io/klog/v2/internal/dbg
 k8s.io/klog/v2/internal/serialize
 k8s.io/klog/v2/internal/severity
 k8s.io/klog/v2/internal/sloghandler
-# kernel.org/pub/linux/libs/security/libcap/psx v1.2.72
+# kernel.org/pub/linux/libs/security/libcap/psx v1.2.70
 ## explicit; go 1.11
 kernel.org/pub/linux/libs/security/libcap/psx
 # sigs.k8s.io/yaml v1.4.0
