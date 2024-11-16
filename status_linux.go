@@ -34,7 +34,10 @@ const (
 // getMonotonicUsec gets time via CLOCK_MONOTONIC for reload messages
 func getMonotonicUsec() int64 {
 	var ts syscall.Timespec
-	syscall.Syscall(syscall.SYS_CLOCK_GETTIME, clock_monotonic_clkid, uintptr(unsafe.Pointer(&ts)), 0)
+	_, _, errno := syscall.Syscall(syscall.SYS_CLOCK_GETTIME, clock_monotonic_clkid, uintptr(unsafe.Pointer(&ts)), 0)
+	if errno != 0 {
+		panic("Unable to get current time from SYS_CLOCK_GETTIME")
+	}
 	sec, nsec := ts.Unix()
 	// 1s is 1e6µs, 1ns is 1/1000µs
 	return (sec * 1e6) + (nsec / 1000)
@@ -84,5 +87,6 @@ func systemdHandleWatchdog(isHealthy func() bool, shutdown chan bool) error {
 			return nil
 		}
 	}
+	//nolint:govet
 	panic("unreachable")
 }

@@ -21,5 +21,5 @@ jobs:
         uses: golangci/golangci-lint-action@v6
         with:
           version: v1.62
-          args: --skip-dirs-use-default --skip-dirs=test
+          args: --exclude-dirs-use-default --exclude-use-default
           only-new-issues: true

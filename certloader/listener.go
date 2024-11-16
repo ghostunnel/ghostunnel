@@ -28,7 +28,6 @@ import (
 type Listener struct {
 	net.Listener
 
-	cert   Certificate
 	config TLSServerConfig
 }
 

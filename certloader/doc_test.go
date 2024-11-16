@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+//nolint:errcheck
 package certloader
 
 import "crypto/tls"

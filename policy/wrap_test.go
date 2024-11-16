@@ -38,5 +38,6 @@ func TestStaticPolicy(t *testing.T) {
 	assert.Nil(t, policy.Reload())
 
 	res, err := policy.Eval(ctx, rego.EvalInput(map[string]interface{}{}))
+	assert.Nil(t, err)
 	assert.True(t, res.Allowed())
 }

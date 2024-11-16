@@ -115,7 +115,7 @@ func TestWorkloadAPITLSConfigSource(t *testing.T) {
 
 	// read the response to assert the transport works
 	t.Logf("READING RESPONSE...")
-	conn.SetReadDeadline(time.Now().Add(time.Second * 10))
+	_ = conn.SetReadDeadline(time.Now().Add(time.Second * 10))
 	buf := new(bytes.Buffer)
 	_, err = buf.ReadFrom(conn)
 	t.Logf("READ RESPONSE: response=%q err=%v", buf.String(), err)
