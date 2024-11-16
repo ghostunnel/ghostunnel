@@ -6,7 +6,7 @@
 # To run ghostunnel from the image (for example):
 #     docker run --rm ghostunnel/ghostunnel --version
 
-FROM golang:1.22-alpine as build
+FROM golang:1.23-alpine as build
 
 # Dependencies
 RUN apk add --no-cache --update gcc musl-dev libtool make git

@@ -10,7 +10,7 @@ import (
 // Access permission sets for filesystem access.
 const (
 	// The set of access rights that only apply to files.
-	accessFile AccessFSSet = ll.AccessFSExecute | ll.AccessFSWriteFile | ll.AccessFSReadFile
+	accessFile AccessFSSet = ll.AccessFSExecute | ll.AccessFSWriteFile | ll.AccessFSTruncate | ll.AccessFSReadFile
 
 	// The set of access rights associated with read access to files and directories.
 	accessFSRead AccessFSSet = ll.AccessFSExecute | ll.AccessFSReadFile | ll.AccessFSReadDir
@@ -37,6 +37,8 @@ var (
 	V3 = abiInfos[3].asConfig()
 	// Landlock V4 support (V3 + networking)
 	V4 = abiInfos[4].asConfig()
+	// Landlock V5 support (V4 + ioctl on device files)
+	V5 = abiInfos[5].asConfig()
 )
 
 // v0 denotes "no Landlock support". Only used internally.
@@ -289,7 +291,8 @@ func (c Config) compatibleWithABI(abi abiInfo) bool {
 // restrictTo returns a config that is a subset of c and which is compatible with the given ABI.
 func (c Config) restrictTo(abi abiInfo) Config {
 	return Config{
-		handledAccessFS: c.handledAccessFS.intersect(abi.supportedAccessFS),
-		bestEffort:      true,
+		handledAccessFS:  c.handledAccessFS.intersect(abi.supportedAccessFS),
+		handledAccessNet: c.handledAccessNet.intersect(abi.supportedAccessNet),
+		bestEffort:       true,
 	}
 }

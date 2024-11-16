@@ -34,6 +34,7 @@ const (
 	AccessFSMakeSym
 	AccessFSRefer
 	AccessFSTruncate
+	AccessFSIoctlDev
 )
 
 // Landlock network access rights.
@@ -41,9 +42,8 @@ const (
 // Please see the full documentation at
 // https://www.kernel.org/doc/html/latest/userspace-api/landlock.html#network-flags.
 const (
-	// TODO: Use these from sys/unix when available.
-	AccessNetBindTCP    = 1 << 0
-	AccessNetConnectTCP = 1 << 1
+	AccessNetBindTCP = 1 << iota
+	AccessNetConnectTCP
 )
 
 // RulesetAttr is the Landlock ruleset definition.
@@ -72,8 +72,8 @@ type PathBeneathAttr struct {
 	ParentFd int
 }
 
-// NetServiceAttr specifies which ports can be used for what.
-type NetServiceAttr struct {
+// NetPortAttr specifies which ports can be used for what.
+type NetPortAttr struct {
 	AllowedAccess uint64
-	Port          uint16
+	Port          uint64
 }

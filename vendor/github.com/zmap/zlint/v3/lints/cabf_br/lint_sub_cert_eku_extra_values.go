@@ -34,11 +34,12 @@ present.
 func init() {
 	lint.RegisterCertificateLint(&lint.CertificateLint{
 		LintMetadata: lint.LintMetadata{
-			Name:          "w_sub_cert_eku_extra_values",
-			Description:   "Subscriber Certificate: extKeyUsage values other than id-kp-serverAuth, id-kp-clientAuth, and id-kp-emailProtection SHOULD NOT be present.",
-			Citation:      "BRs: 7.1.2.3",
-			Source:        lint.CABFBaselineRequirements,
-			EffectiveDate: util.CABEffectiveDate,
+			Name:            "w_sub_cert_eku_extra_values",
+			Description:     "Subscriber Certificate: extKeyUsage values other than id-kp-serverAuth, id-kp-clientAuth, and id-kp-emailProtection SHOULD NOT be present.",
+			Citation:        "BRs: 7.1.2.3",
+			Source:          lint.CABFBaselineRequirements,
+			EffectiveDate:   util.CABEffectiveDate,
+			IneffectiveDate: util.CABFBRs_2_0_0_Date,
 		},
 		Lint: NewSubExtKeyUsageLegalUsage,
 	})

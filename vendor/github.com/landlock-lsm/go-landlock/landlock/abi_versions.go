@@ -30,6 +30,11 @@ var abiInfos = []abiInfo{
 		supportedAccessFS:  (1 << 15) - 1,
 		supportedAccessNet: (1 << 2) - 1,
 	},
+	{
+		version:            5,
+		supportedAccessFS:  (1 << 16) - 1,
+		supportedAccessNet: (1 << 2) - 1,
+	},
 }
 
 func (a abiInfo) asConfig() Config {

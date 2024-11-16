@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+//nolint:errcheck
 package main
 
 import (
@@ -243,16 +244,16 @@ func TestBuildConfig(t *testing.T) {
 }
 
 func TestCipherSuitePreference(t *testing.T) {
-	conf, err := buildConfig("XYZ")
+	_, err := buildConfig("XYZ")
 	assert.NotNil(t, err, "should not be able to build TLS config with invalid cipher suite option")
 
 	_, err = buildServerConfig("XYZ")
 	assert.NotNil(t, err, "should not be able to build TLS config with invalid cipher suite option")
 
-	conf, err = buildConfig("")
+	_, err = buildConfig("")
 	assert.NotNil(t, err, "should not be able to build TLS config wihout cipher suite selection")
 
-	conf, err = buildConfig("CHACHA,AES")
+	conf, err := buildConfig("CHACHA,AES")
 	assert.Nil(t, err, "should be able to build TLS config")
 	assert.True(t, conf.CipherSuites[0] == tls.TLS_CHACHA20_POLY1305_SHA256, "expecting TLS 1.3 ChaCha20")
 
@@ -260,7 +261,7 @@ func TestCipherSuitePreference(t *testing.T) {
 	assert.Nil(t, err, "should be able to build TLS config")
 	assert.True(t, conf.CipherSuites[0] == tls.TLS_AES_128_GCM_SHA256, "expecting TLS 1.3 AES")
 
-	conf, err = buildConfig("AES,CHACHA,UNSAFE-AZURE")
+	_, err = buildConfig("AES,CHACHA,UNSAFE-AZURE")
 	assert.NotNil(t, err, "should not be able to build TLS config with unsafe cipher suite without flag")
 
 	*allowUnsafeCipherSuites = true

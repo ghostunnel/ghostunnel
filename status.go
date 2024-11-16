@@ -110,6 +110,7 @@ func (s *statusHandler) HandleWatchdog() {
 	// when the backend is down doesn't help much. But not clear what else
 	// we can check that's useful inside the status handler. Right now,
 	// this is good enough to report that we're not frozen.
+	//nolint:errcheck
 	go systemdHandleWatchdog(func() bool { return true }, nil)
 }
 

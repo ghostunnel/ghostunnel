@@ -50,6 +50,7 @@ func (context *Context) signalHandler(p *proxy.Proxy) {
 
 		// Best-effort graceful shutdown of status listener
 		if context.statusHTTP != nil {
+			//nolint:errcheck
 			go context.statusHTTP.Shutdown(ctx.Background())
 		}
 

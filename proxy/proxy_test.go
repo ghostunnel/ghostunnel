@@ -75,7 +75,7 @@ func TestProxySuccess(t *testing.T) {
 	dst, err := target.Accept()
 	assert.Nil(t, err, "should be able to receive connection on target")
 
-	src.Write([]byte("A"))
+	_, _ = src.Write([]byte("A"))
 
 	received := make([]byte, 1)
 	for {
@@ -133,7 +133,7 @@ func TestProxyProtocolSuccess(t *testing.T) {
 	assert.Equal(t, header.SourceAddr.(*net.TCPAddr).Port, src.LocalAddr().(*net.TCPAddr).Port)
 	assert.Equal(t, header.DestinationAddr.(*net.TCPAddr).Port, incoming.Addr().(*net.TCPAddr).Port)
 
-	src.Write([]byte("A"))
+	_, _ = src.Write([]byte("A"))
 
 	received := make([]byte, 1)
 	for {

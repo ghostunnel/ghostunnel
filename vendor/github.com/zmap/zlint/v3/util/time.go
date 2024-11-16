@@ -37,6 +37,7 @@ var (
 	RFC4630Date                = time.Date(2006, time.August, 1, 0, 0, 0, 0, time.UTC)
 	RFC5280Date                = time.Date(2008, time.May, 1, 0, 0, 0, 0, time.UTC)
 	RFC6818Date                = time.Date(2013, time.January, 1, 0, 0, 0, 0, time.UTC)
+	RFC6962Date                = time.Date(2013, time.June, 1, 0, 0, 0, 0, time.UTC)
 	RFC8813Date                = time.Date(2020, time.August, 1, 0, 0, 0, 0, time.UTC)
 	CABEffectiveDate           = time.Date(2012, time.July, 1, 0, 0, 0, 0, time.UTC)
 	CABReservedIPDate          = time.Date(2016, time.October, 1, 0, 0, 0, 0, time.UTC)
@@ -77,11 +78,15 @@ var (
 	CABFBRs_2_0_0_Date                               = time.Date(2023, time.September, 15, 0, 0, 0, 0, time.UTC)
 	NoReservedDomainLabelsDate                       = time.Date(2021, time.October, 1, 0, 0, 0, 0, time.UTC)
 	CABFBRs_OU_Prohibited_Date                       = time.Date(2022, time.September, 1, 0, 0, 0, 0, time.UTC)
+	SC17EffectiveDate                                = time.Date(2019, time.June, 21, 0, 0, 0, 0, time.UTC)
 	CABF_SMIME_BRs_1_0_0_Date                        = time.Date(2023, time.September, 1, 0, 0, 0, 0, time.UTC)
 	// Enforcement date of CRL reason codes from Ballot SC 061
 	CABFBRs_1_8_7_Date = time.Date(2023, time.July, 15, 0, 0, 0, 0, time.UTC)
 	// Updates to the CABF BRs and EVGLs from Ballot SC 062 https://cabforum.org/2023/03/17/ballot-sc62v2-certificate-profiles-update/
 	SC62EffectiveDate = time.Date(2023, time.September, 15, 0, 0, 0, 0, time.UTC)
+	// Date when section 9.2.8 of CABF EVG became effective
+	CABFEV_Sec9_2_8_Date = time.Date(2020, time.January, 31, 0, 0, 0, 0, time.UTC)
+	CABF_CS_BRs_1_2_Date = time.Date(2019, time.August, 13, 0, 0, 0, 0, time.UTC)
 )
 
 var (
