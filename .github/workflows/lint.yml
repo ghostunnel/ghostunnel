@@ -8,12 +8,18 @@ on:
 jobs:
   golangci:
     name: Lint
+    strategy:
+      matrix:
+        version: [1.23.x]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.version }}
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.39
+          version: v1.62
           args: --skip-dirs-use-default --skip-dirs=test
           only-new-issues: true
