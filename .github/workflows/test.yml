@@ -41,7 +41,7 @@ jobs:
       - name: Run tests 
         run: GO_VERSION=${{ matrix.version }} make docker-test
       - name: Codecov upload
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         if: ${{ github.actor != 'dependabot[bot]' }}
         with:
           files: ./coverage/all.profile
@@ -76,7 +76,7 @@ jobs:
       - name: Run tests
         run: make test
       - name: Codecov upload
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         if: ${{ github.actor != 'dependabot[bot]' }}
         with:
           files: ./coverage/all.profile
