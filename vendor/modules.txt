@@ -317,9 +317,10 @@ github.com/square/certigo/pkcs7
 # github.com/square/go-sq-metrics v0.0.0-20170531223841-ae72f332d0d9
 ## explicit
 github.com/square/go-sq-metrics
-# github.com/stretchr/testify v1.9.0
+# github.com/stretchr/testify v1.10.0
 ## explicit; go 1.17
 github.com/stretchr/testify/assert
+github.com/stretchr/testify/assert/yaml
 github.com/stretchr/testify/require
 # github.com/tchap/go-patricia/v2 v2.3.1
 ## explicit; go 1.16
