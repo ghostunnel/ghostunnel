@@ -22,8 +22,10 @@ jobs:
         with:
           go-version: ${{ matrix.version }}
         id: go
-      - name: Check out code
+      - name: Checkout
         uses: actions/checkout@v4
+        fetch-depth: 100
+        fetch-tags: true
       - name: Build binary
         run: |
           CGO_ENABLED=1 GOARCH=amd64 make ghostunnel
@@ -54,8 +56,10 @@ jobs:
         with:
           go-version: ${{ matrix.version }}
         id: go
-      - name: Check out code
+      - name: Checkout
         uses: actions/checkout@v4
+        fetch-depth: 100
+        fetch-tags: true
       - name: Build binary
         run: |
           CGO_ENABLED=1 GOARCH=amd64 make ghostunnel
@@ -92,8 +96,10 @@ jobs:
         with:
           go-version: ${{ matrix.version }}
         id: go
-      - name: Check out code
+      - name: Checkout
         uses: actions/checkout@v4
+        fetch-depth: 100
+        fetch-tags: true
       - name: Build binary
         run: |
           make ghostunnel
@@ -111,7 +117,10 @@ jobs:
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        fetch-depth: 100
+        fetch-tags: true
       - name: Create release
         id: create_release
         uses: actions/create-release@v1
@@ -137,7 +146,10 @@ jobs:
         - { os: 'darwin', arch: 'arm64' }
         - { os: 'darwin', arch: 'universal' }
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        fetch-depth: 100
+        fetch-tags: true
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
@@ -162,7 +174,10 @@ jobs:
         target:
         - { os: 'windows', arch: 'amd64' }
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        fetch-depth: 100
+        fetch-tags: true
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:

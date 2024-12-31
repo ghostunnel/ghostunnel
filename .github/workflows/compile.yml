@@ -24,8 +24,10 @@ jobs:
         with:
           go-version: ${{ matrix.version }}
         id: go
-      - name: Check out code
+      - name: Checkout
         uses: actions/checkout@v4
+        fetch-depth: 100
+        fetch-tags: true
       - name: Build binary
         run: |
           CGO_ENABLED=1 GOARCH=amd64 make ghostunnel
@@ -56,8 +58,10 @@ jobs:
         with:
           go-version: ${{ matrix.version }}
         id: go
-      - name: Check out code
+      - name: Checkout
         uses: actions/checkout@v4
+        fetch-depth: 100
+        fetch-tags: true
       - name: Build binary
         run: |
           CGO_ENABLED=1 GOARCH=amd64 make ghostunnel
@@ -94,8 +98,10 @@ jobs:
         with:
           go-version: ${{ matrix.version }}
         id: go
-      - name: Check out code
+      - name: Checkout
         uses: actions/checkout@v4
+        fetch-depth: 100
+        fetch-tags: true
       - name: Build binary
         run: make ghostunnel
       - name: Upload artifact

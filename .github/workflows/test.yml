@@ -21,7 +21,7 @@ jobs:
         with:
           go-version: ${{ matrix.version }}
         id: go
-      - name: Check out code
+      - name: Checkout
         uses: actions/checkout@v4
       - name: Build binary
         run: make ghostunnel
@@ -36,7 +36,7 @@ jobs:
         os: [ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Check out code
+      - name: Checkout
         uses: actions/checkout@v4
       - name: Run tests 
         run: GO_VERSION=${{ matrix.version }} make docker-test
@@ -71,7 +71,7 @@ jobs:
           python-version: '3.11.x'
       - name: Install gocovmerge
         run: go install github.com/wadey/gocovmerge@latest
-      - name: Check out code
+      - name: Checkout
         uses: actions/checkout@v4
       - name: Run tests
         run: make test
