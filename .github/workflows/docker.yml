@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        fetch-depth: 100
+        fetch-tags: true
       - name: Set up emulation
         uses: docker/setup-qemu-action@v3
       - name: Set up buildx command
