@@ -2,6 +2,39 @@
 
 ## HEAD
 
+## v1.3.0
+
+### CTFE Storage Saving: Extra Data Issuance Chain Deduplication
+
+This feature now supports PostgreSQL, in addition to the support for MySQL/MariaDB that was added in [v1.2.0](#v1.2.0).
+
+Log operators can choose to enable this feature for new PostgreSQL-based CT logs by adding new CTFE configs in the [LogMultiConfig](trillian/ctfe/configpb/config.proto) and importing the [database schema](trillian/ctfe/storage/postgresql/schema.sql). The other available options are documented in the [v1.2.0](#v1.2.0) changelog entry.
+
+This change is tested in Cloud Build tests using the `postgres:17` Docker image as of the time of writing.
+
+* Add IssuanceChainStorage PostgreSQL implementation by @robstradling in https://github.com/google/certificate-transparency-go/pull/1618
+
+### Misc
+
+* [Dependabot] Update all docker images in one PR by @mhutchinson in https://github.com/google/certificate-transparency-go/pull/1614
+* Explicitly include version tag by @mhutchinson in https://github.com/google/certificate-transparency-go/pull/1617
+* Add empty cloudbuild_postgresql.yaml by @roger2hk in https://github.com/google/certificate-transparency-go/pull/1623
+
+### Dependency update
+
+* Bump the all-deps group with 4 updates by @dependabot in https://github.com/google/certificate-transparency-go/pull/1609
+* Bump golang from 1.23.2-bookworm to 1.23.3-bookworm in /internal/witness/cmd/feeder in the all-deps group by @dependabot in https://github.com/google/certificate-transparency-go/pull/1611
+* Bump github/codeql-action from 3.27.0 to 3.27.1 in the all-deps group by @dependabot in https://github.com/google/certificate-transparency-go/pull/1610
+* Bump golang from 1.23.2-bookworm to 1.23.3-bookworm in /trillian/examples/deployment/docker/ctfe in the all-deps group by @dependabot in https://github.com/google/certificate-transparency-go/pull/1612
+* Bump github.com/golang-jwt/jwt/v4 from 4.5.0 to 4.5.1 in the go_modules group by @dependabot in https://github.com/google/certificate-transparency-go/pull/1613
+* Bump the docker-deps group across 3 directories with 2 updates by @dependabot in https://github.com/google/certificate-transparency-go/pull/1616
+* Bump github/codeql-action from 3.27.1 to 3.27.2 in the all-deps group by @dependabot in https://github.com/google/certificate-transparency-go/pull/1615
+* Bump the docker-deps group across 4 directories with 2 updates by @dependabot in https://github.com/google/certificate-transparency-go/pull/1622
+* Bump github/codeql-action from 3.27.2 to 3.27.4 in the all-deps group by @dependabot in https://github.com/google/certificate-transparency-go/pull/1620
+* Bump the all-deps group with 4 updates by @dependabot in https://github.com/google/certificate-transparency-go/pull/1621
+* Bump github.com/google/trillian from 1.6.1 to 1.7.0 in the all-deps group by @dependabot in https://github.com/google/certificate-transparency-go/pull/1624
+* Bump github/codeql-action from 3.27.4 to 3.27.5 in the all-deps group by @dependabot in https://github.com/google/certificate-transparency-go/pull/1625
+
 ## v1.2.2
 
 * Recommended Go version for development: 1.22
