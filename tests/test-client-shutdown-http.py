@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TlsClient, TlsServer, print_ok, run_ghostunnel, terminate
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TlsClient, TlsServer, print_ok, run_ghostunnel, terminate, urlopen
 import urllib.request
 import urllib.error
 import urllib.parse
@@ -24,9 +24,6 @@ if __name__ == "__main__":
                                      '--enable-shutdown',
                                      '--status={0}:{1}'.format(LOCALHOST,
                                                                STATUS_PORT)])
-
-        def urlopen(path):
-            return urllib.request.urlopen(path, cafile='root.crt')
 
         # wait for startup
         TlsClient(None, 'root', STATUS_PORT).connect(20, 'client')

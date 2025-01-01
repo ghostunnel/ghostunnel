@@ -4,7 +4,7 @@
 Ensures that /_status endpoint works.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, TlsClient, print_ok, run_ghostunnel, terminate
+from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, TlsClient, print_ok, run_ghostunnel, terminate, urlopen
 import urllib.request
 import urllib.error
 import urllib.parse
@@ -30,9 +30,6 @@ if __name__ == "__main__":
                                      '--cacert=root.crt',
                                      '--status={0}:{1}'.format(LOCALHOST,
                                                                STATUS_PORT)])
-
-        def urlopen(path):
-            return urllib.request.urlopen(path, cafile='root.crt')
 
         # block until ghostunnel is up
         TcpClient(STATUS_PORT).connect(20)

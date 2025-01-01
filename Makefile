@@ -24,7 +24,7 @@ clean:
 .PHONY: clean
 
 # Run all tests (unit + integration tests)
-test: unit $(INTEGRATION_TESTS)
+test: unit integration
 	gocovmerge coverage/*.profile | grep -v "internal/test" > coverage/all.profile
 	@echo "PASS"
 .PHONY: test
@@ -34,6 +34,9 @@ unit:
 	@mkdir -p coverage
 	go test -v -covermode=count -coverprofile=coverage/unit-test.profile ./...
 .PHONY: unit
+
+integration: $(INTEGRATION_TESTS)
+.PHONY: integration
 
 # Run integration tests
 $(INTEGRATION_TESTS): ghostunnel.test

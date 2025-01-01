@@ -4,7 +4,7 @@
 Simulates a hanging handshake, waits for timeout.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, print_ok, run_ghostunnel, terminate
+from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, print_ok, run_ghostunnel, terminate, urlopen
 import urllib.request
 import urllib.error
 import urllib.parse
@@ -35,9 +35,6 @@ if __name__ == "__main__":
         client = TcpClient(13000)
         client.connect(20)
         client.get_socket().setblocking(False)
-
-        def urlopen(path):
-            return urllib.request.urlopen(path, cafile='root.crt')
 
         # wait until handshake times out
         timeout = False

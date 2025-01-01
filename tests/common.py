@@ -121,7 +121,7 @@ class RootCert:
             shell=True,
             stderr=FNULL)
         call(
-            'openssl req -x509 -new -key {0}.key -days 5 -out {0}_temp.crt -subj /C=US/ST=CA/O=ghostunnel/OU={0}'.format(name),
+            'openssl req -x509 -new -key {0}.key -days 5 -out {0}_temp.crt -addext "keyUsage = digitalSignature, cRLSign, keyCertSign" -subj /C=US/ST=CA/O=ghostunnel/OU={0}'.format(name),
             shell=True)
         os.rename("{0}_temp.crt".format(name), "{0}.crt".format(name))
         call('chmod 600 {0}.key'.format(name), shell=True)
@@ -167,9 +167,22 @@ class RootCert:
                 except OSError:
                     pass
 
-
 def print_ok(msg):
     print(("\033[92m{0}\033[0m".format(msg)))
+
+def wrap_socket(socket, keyfile=None, certfile=None, ca_certs=None, cert_reqs=ssl.CERT_REQUIRED, server_side=False):
+    ctx = ssl.SSLContext();
+    if certfile is not None and keyfile is not None:
+        ctx.load_cert_chain(certfile, keyfile)
+    if ca_certs is not None:
+        ctx.load_verify_locations(cafile=ca_certs)
+    ctx.verify_mode = cert_reqs;
+    return ctx.wrap_socket(socket, server_side=server_side);
+
+def urlopen(path):
+    context = ssl.create_default_context(cafile='root.crt')
+    return urllib.request.urlopen(path, context=context)
+
 
 ######################### Abstract #########################
 
@@ -235,12 +248,11 @@ class TcpServer(MySocket):
 
 
 class TlsClient(MySocket):
-    def __init__(self, cert, ca, port, ssl_version=ssl.PROTOCOL_SSLv23):
+    def __init__(self, cert, ca, port):
         super().__init__()
         self.cert = cert
         self.ca = ca
         self.port = port
-        self.ssl_version = ssl_version
         self.tls_listener = None
 
     def connect(self, attempts=1, peer=None):
@@ -249,21 +261,19 @@ class TlsClient(MySocket):
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.settimeout(TIMEOUT)
                 if self.cert is not None:
-                    self.socket = ssl.wrap_socket(sock,
+                    self.socket = wrap_socket(sock,
                                                   keyfile='{0}.key'.format(
                                                       self.cert),
                                                   certfile='{0}.crt'.format(
                                                       self.cert),
                                                   ca_certs='{0}.crt'.format(
                                                       self.ca),
-                                                  cert_reqs=ssl.CERT_REQUIRED,
-                                                  ssl_version=self.ssl_version)
+                                                  cert_reqs=ssl.CERT_REQUIRED)
                 else:
-                    self.socket = ssl.wrap_socket(sock,
+                    self.socket = wrap_socket(sock,
                                                   ca_certs='{0}.crt'.format(
                                                       self.ca),
-                                                  cert_reqs=ssl.CERT_REQUIRED,
-                                                  ssl_version=self.ssl_version)
+                                                  cert_reqs=ssl.CERT_REQUIRED)
                 self.socket.connect((LOCALHOST, self.port))
 
                 if peer is not None:
@@ -289,14 +299,12 @@ class TlsServer(MySocket):
             cert,
             ca,
             port,
-            cert_reqs=ssl.CERT_REQUIRED,
-            ssl_version=ssl.PROTOCOL_SSLv23):
+            cert_reqs=ssl.CERT_REQUIRED):
         super().__init__()
         self.cert = cert
         self.ca = ca
         self.port = port
         self.cert_reqs = cert_reqs
-        self.ssl_version = ssl_version
         self.tls_listener = None
 
     def listen(self):
@@ -305,15 +313,14 @@ class TlsServer(MySocket):
         listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         listener.bind((LOCALHOST, self.port))
         listener.listen(1)
-        self.tls_listener = ssl.wrap_socket(listener,
+        self.tls_listener = wrap_socket(listener,
                                             server_side=True,
                                             keyfile='{0}.key'.format(
                                                 self.cert),
                                             certfile='{0}.crt'.format(
                                                 self.cert),
                                             ca_certs='{0}.crt'.format(self.ca),
-                                            cert_reqs=self.cert_reqs,
-                                            ssl_version=self.ssl_version)
+                                            cert_reqs=self.cert_reqs)
 
     def accept(self):
         self.socket, _ = self.tls_listener.accept()

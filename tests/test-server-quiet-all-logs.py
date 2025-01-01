@@ -4,7 +4,7 @@
 Ensures that --quiet=all disables any and all logging. 
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, TlsClient, TcpServer, print_ok, run_ghostunnel, terminate, SocketPair
+from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, TlsClient, TcpServer, print_ok, run_ghostunnel, terminate, SocketPair, urlopen
 import urllib.request
 import urllib.error
 import urllib.parse
@@ -34,9 +34,6 @@ if __name__ == '__main__':
                                                                STATUS_PORT)],
                                      stdout=subprocess.PIPE,
                                      stderr=subprocess.PIPE)
-
-        def urlopen(path):
-            return urllib.request.urlopen(path, cafile='root.crt')
 
         # block until ghostunnel is up
         TcpClient(STATUS_PORT).connect(20)
