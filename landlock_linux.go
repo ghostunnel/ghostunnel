@@ -33,6 +33,8 @@ import (
 
 var testRules = []landlock.Rule{}
 
+type portRuleFunc = func(port uint16) landlock.NetRule
+
 // addLandlockTestPaths can be used to add extra rules necessary for
 // integration tests to run, e.g. the ability to write a coverage
 // file to the current directory.
@@ -57,7 +59,7 @@ func setupLandlock(logger *log.Logger) error {
 	// Default RW FS rules. Some paths we need always accessible for syslog and
 	// for creating runtime/temporary files. Note that syslog can be in multiple
 	// places not just /dev/log, e.g. /var/run is an option.
-	for _, path := range []string{"/dev", "/var/run", "/tmp"} {
+	for _, path := range []string{"/dev", "/var/run", "/tmp", "/proc"} {
 		if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 			continue
 		}
@@ -79,19 +81,37 @@ func setupLandlock(logger *log.Logger) error {
 	// Process string flags containing addresses or URLs.
 	for _, addr := range []*string{
 		serverListenAddress,
+		clientListenAddress,
+		statusAddress,
+	} {
+		if addr == nil || len(*addr) == 0 {
+			continue
+		}
+
+		rule, err := ruleFromStringAddress(*addr, landlock.BindTCP)
+		if err != nil {
+			logger.Printf("error processing argument '%s' for landlock rule", *addr)
+		}
+		if rule != nil {
+			netRules = append(netRules, rule)
+		}
+	}
+
+	for _, addr := range []*string{
 		serverForwardAddress,
 		serverStatusTargetAddress,
-		clientListenAddress,
 		clientForwardAddress,
 		useWorkloadAPIAddr,
-		statusAddress,
 		metricsURL,
 	} {
 		if addr == nil || len(*addr) == 0 {
 			continue
 		}
 
-		rule := ruleFromStringAddress(*addr)
+		rule, err := ruleFromStringAddress(*addr, landlock.ConnectTCP)
+		if err != nil {
+			logger.Printf("error processing argument '%s' for landlock rule", *addr)
+		}
 		if rule != nil {
 			netRules = append(netRules, rule)
 		}
@@ -134,7 +154,10 @@ func setupLandlock(logger *log.Logger) error {
 			continue
 		}
 
-		rule := ruleFromTCPAddress(*addr)
+		rule, err := ruleFromTCPAddress(*addr, landlock.ConnectTCP)
+		if err != nil {
+			logger.Printf("error processing argument '%s' for landlock rule", *addr)
+		}
 		if rule != nil {
 			netRules = append(netRules, rule)
 		}
@@ -146,7 +169,10 @@ func setupLandlock(logger *log.Logger) error {
 			continue
 		}
 
-		rule := ruleFromURL(*url)
+		rule, err := ruleFromURL(*url, landlock.ConnectTCP)
+		if err != nil {
+			logger.Printf("error processing argument '%s' for landlock rule", *url)
+		}
 		if rule != nil {
 			netRules = append(netRules, rule)
 		}
@@ -169,57 +195,58 @@ func setupLandlock(logger *log.Logger) error {
 	return err
 }
 
-func ruleFromStringAddress(addr string) landlock.Rule {
+func ruleFromStringAddress(addr string, ruleFromPort portRuleFunc) (landlock.Rule, error) {
 	if strings.HasPrefix(addr, "unix:") {
-		return landlock.RWFiles(addr[5:])
+		return landlock.RWFiles(addr[5:]), nil
 	}
 	if strings.HasPrefix(addr, "systemd:") || strings.HasPrefix(addr, "launchd:") {
-		return nil
+		// Socket activation - no rule needed
+		return nil, nil
 	}
 	if strings.HasPrefix(addr, "http://") || strings.HasPrefix(addr, "https://") {
 		u, err := url.Parse(addr)
 		if err != nil {
-			return nil
+			return nil, err
 		}
-		return ruleFromURL(u)
+		return ruleFromURL(u, ruleFromPort)
 	}
 	parts := strings.Split(addr, ":")
 	if len(parts) < 2 {
-		return nil
+		return nil, errors.New("unable to extract port number from address")
 	}
 	port, err := strconv.ParseUint(parts[len(parts)-1], 10, 16)
 	if err != nil {
-		return nil
+		return nil, errors.New("unable to extract port number from address")
 	}
 	if port == 0 {
-		return nil
+		return nil, errors.New("unable to extract port number from address")
 	}
-	return landlock.BindTCP(uint16(port))
+	return ruleFromPort(uint16(port)), nil
 }
 
-func ruleFromTCPAddress(addr *net.TCPAddr) landlock.Rule {
+func ruleFromTCPAddress(addr *net.TCPAddr, ruleFromPort portRuleFunc) (landlock.Rule, error) {
 	if addr.Port == 0 {
-		return nil
+		return nil, errors.New("unable to extract port number from address")
 	}
-	return landlock.BindTCP(uint16(addr.Port))
+	return ruleFromPort(uint16(addr.Port)), nil
 }
 
-func ruleFromURL(u *url.URL) landlock.Rule {
+func ruleFromURL(u *url.URL, ruleFromPort portRuleFunc) (landlock.Rule, error) {
 	port := u.Port()
 	if len(port) == 0 {
 		if u.Scheme == "http" {
-			return landlock.BindTCP(uint16(80))
+			return ruleFromPort(uint16(80)), nil
 		}
 		if u.Scheme == "https" {
-			return landlock.BindTCP(uint16(443))
+			return ruleFromPort(uint16(443)), nil
 		}
 	}
 	numericPort, err := strconv.ParseUint(port, 10, 16)
 	if err != nil {
-		return nil
+		return nil, errors.New("unable to extract port number from address")
 	}
 	if numericPort == 0 {
-		return nil
+		return nil, errors.New("unable to extract port number from address")
 	}
-	return landlock.BindTCP(uint16(numericPort))
+	return ruleFromPort(uint16(numericPort)), nil
 }
