@@ -22,6 +22,8 @@ import (
 	"net"
 	"net/netip"
 	"testing"
+
+	"github.com/landlock-lsm/go-landlock/landlock"
 )
 
 func TestLandlockRuleFromStringAddress(t *testing.T) {
@@ -54,7 +56,7 @@ func TestLandlockRuleFromStringAddress(t *testing.T) {
 		{"", false},                                       // invalid string
 	}
 	for _, tc := range testCases {
-		rule := ruleFromStringAddress(tc.addr)
+		rule, _ := ruleFromStringAddress(tc.addr, landlock.ConnectTCP)
 		if tc.valid && rule == nil {
 			t.Errorf("no result on valid input: %v", tc.addr)
 		}
@@ -73,7 +75,7 @@ func TestLandlockRuleFromTCPAddress(t *testing.T) {
 		{"127.0.0.1:0", false},
 	}
 	for _, tc := range testCases {
-		rule := ruleFromTCPAddress(net.TCPAddrFromAddrPort(netip.MustParseAddrPort(tc.addr)))
+		rule, _ := ruleFromTCPAddress(net.TCPAddrFromAddrPort(netip.MustParseAddrPort(tc.addr)), landlock.ConnectTCP)
 		if tc.valid && rule == nil {
 			t.Errorf("no result on valid input: %v", tc.addr)
 		}
