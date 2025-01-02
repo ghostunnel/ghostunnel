@@ -24,8 +24,9 @@ jobs:
         id: go
       - name: Checkout
         uses: actions/checkout@v4
-        fetch-depth: 100
-        fetch-tags: true
+        with:
+          fetch-depth: 100
+          fetch-tags: true
       - name: Build binary
         run: |
           CGO_ENABLED=1 GOARCH=amd64 make ghostunnel
@@ -58,8 +59,9 @@ jobs:
         id: go
       - name: Checkout
         uses: actions/checkout@v4
-        fetch-depth: 100
-        fetch-tags: true
+        with:
+          fetch-depth: 100
+          fetch-tags: true
       - name: Build binary
         run: |
           CGO_ENABLED=1 GOARCH=amd64 make ghostunnel
@@ -98,8 +100,9 @@ jobs:
         id: go
       - name: Checkout
         uses: actions/checkout@v4
-        fetch-depth: 100
-        fetch-tags: true
+        with:
+          fetch-depth: 100
+          fetch-tags: true
       - name: Build binary
         run: |
           make ghostunnel
@@ -119,8 +122,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        fetch-depth: 100
-        fetch-tags: true
+        with:
+          fetch-depth: 100
+          fetch-tags: true
       - name: Create release
         id: create_release
         uses: actions/create-release@v1
@@ -148,8 +152,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        fetch-depth: 100
-        fetch-tags: true
+        with:
+          fetch-depth: 100
+          fetch-tags: true
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
@@ -176,8 +181,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        fetch-depth: 100
-        fetch-tags: true
+        with:
+          fetch-depth: 100
+          fetch-tags: true
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
