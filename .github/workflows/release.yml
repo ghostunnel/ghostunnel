@@ -28,10 +28,10 @@ jobs:
           fetch-depth: 0
       - name: Build binary
         run: |
-          CGO_ENABLED=1 GOARCH=amd64 make ghostunnel
+          CGO_ENABLED=1 GOARCH=amd64 make VERSION=$GITHUB_REF_NAME ghostunnel
           mv ghostunnel ghostunnel-linux-amd64
           make clean
-          CGO_ENABLED=1 GOARCH=arm64 CC=aarch64-linux-gnu-gcc make ghostunnel
+          CGO_ENABLED=1 GOARCH=arm64 CC=aarch64-linux-gnu-gcc make VERSION=$GITHUB_REF_NAME ghostunnel
           mv ghostunnel ghostunnel-linux-arm64
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -62,10 +62,10 @@ jobs:
           fetch-depth: 0
       - name: Build binary
         run: |
-          CGO_ENABLED=1 GOARCH=amd64 make ghostunnel
+          CGO_ENABLED=1 GOARCH=amd64 make VERSION=$GITHUB_REF_NAME ghostunnel
           mv ghostunnel ghostunnel-darwin-amd64
           make clean
-          CGO_ENABLED=1 GOARCH=arm64 make ghostunnel
+          CGO_ENABLED=1 GOARCH=arm64 make VERSION=$GITHUB_REF_NAME ghostunnel
           mv ghostunnel ghostunnel-darwin-arm64
           lipo -create -output ghostunnel-darwin-universal ghostunnel-darwin-amd64 ghostunnel-darwin-arm64
       - name: Upload artifact
@@ -102,7 +102,7 @@ jobs:
           fetch-depth: 0
       - name: Build binary
         run: |
-          make ghostunnel
+          make VERSION=$GITHUB_REF_NAME ghostunnel
           mv ghostunnel ghostunnel-windows-amd64.exe
       - name: Upload artifact
         uses: actions/upload-artifact@v4
