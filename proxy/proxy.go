@@ -79,6 +79,8 @@ type Proxy struct {
 	proxyProtocol bool
 	// Internal wait group to keep track of outstanding handlers.
 	handlers *sync.WaitGroup
+	// Pool for buffers
+	pool sync.Pool
 }
 
 func proxyProtoHeader(c net.Conn) *proxyproto.Header {
@@ -102,6 +104,12 @@ func New(listener net.Listener, timeout time.Duration, dial Dialer, logger Logge
 		loggerFlags:    loggerFlags,
 		proxyProtocol:  proxyProtocol,
 		handlers:       &sync.WaitGroup{},
+		pool: sync.Pool{
+			New: func() any {
+				b := make([]byte, 1<<15 /* 32 KiB */)
+				return &b
+			},
+		},
 	}
 
 	// Add one handler to the wait group, so that Wait() will always block until
@@ -235,10 +243,13 @@ func (p *Proxy) fuse(client, backend net.Conn) {
 
 // Copy data between two connections
 func (p *Proxy) copyData(dst net.Conn, src net.Conn) {
-	defer dst.Close()
-	defer src.Close()
+	defer closeRead(src)
+	defer closeWrite(dst)
 
-	_, err := io.Copy(dst, src)
+	buf := p.pool.Get().(*[]byte)
+	defer p.pool.Put(buf)
+
+	_, err := io.CopyBuffer(dst, src, *buf)
 
 	if err != nil && !isClosedConnectionError(err) {
 		// We don't log individual "read from closed connection" errors, because
@@ -272,7 +283,7 @@ func isClosedConnectionError(err error) bool {
 	if e, ok := err.(*net.OpError); ok {
 		return e.Op == "read" && strings.Contains(err.Error(), "closed network connection")
 	}
-	return false
+	return strings.Contains(err.Error(), "closed pipe")
 }
 
 func peerCertificatesString(conn net.Conn) string {
@@ -285,4 +296,26 @@ func peerCertificatesString(conn net.Conn) string {
 	}
 
 	return "no tls"
+}
+
+func closeRead(conn net.Conn) {
+	switch c := conn.(type) {
+	case *net.TCPConn:
+		c.CloseRead()
+	case *net.UnixConn:
+		c.CloseRead()
+	default:
+		c.Close()
+	}
+}
+
+func closeWrite(conn net.Conn) {
+	switch c := conn.(type) {
+	case *net.TCPConn:
+		c.CloseWrite()
+	case *net.UnixConn:
+		c.CloseWrite()
+	default:
+		c.Close()
+	}
 }
