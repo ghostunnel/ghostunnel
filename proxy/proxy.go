@@ -80,6 +80,8 @@ type Proxy struct {
 	proxyProtocol bool
 	// Internal wait group to keep track of outstanding handlers.
 	handlers *sync.WaitGroup
+	// Pool for buffers
+	pool sync.Pool
 }
 
 func proxyProtoHeader(c net.Conn) *proxyproto.Header {
@@ -103,6 +105,12 @@ func New(listener net.Listener, timeout time.Duration, dial Dialer, logger Logge
 		loggerFlags:    loggerFlags,
 		proxyProtocol:  proxyProtocol,
 		handlers:       &sync.WaitGroup{},
+		pool: sync.Pool{
+			New: func() any {
+				b := make([]byte, 1<<15 /* 32 KiB */)
+				return &b
+			},
+		},
 	}
 
 	// Add one handler to the wait group, so that Wait() will always block until
@@ -227,6 +235,15 @@ func (p *Proxy) fuse(client, backend net.Conn) {
 	start := time.Now()
 	p.logConnectionMessage("opening", client, backend, -1, -1, 0)
 
+	// For TCP and UNIX sockets, copyData calls closeRead and closeWrite for the
+	// src/dst respectively. For TCP sockets, this will call the shutdown syscall
+	// to block read/writes (and send a FIN packet). However, we still need to
+	// free up the FDs after we're done by calling close.
+	defer func() {
+		_ = client.Close()
+		_ = backend.Close()
+	}()
+
 	returnedC := make(chan int64)
 	go func() {
 		returnedC <- p.copyData(client, backend)
@@ -239,10 +256,13 @@ func (p *Proxy) fuse(client, backend net.Conn) {
 
 // Copy data between two connections
 func (p *Proxy) copyData(dst net.Conn, src net.Conn) (written int64) {
-	defer dst.Close()
-	defer src.Close()
+	defer closeRead(src)
+	defer closeWrite(dst)
 
-	written, err := io.Copy(dst, src)
+	buf := p.pool.Get().(*[]byte)
+	defer p.pool.Put(buf)
+
+	_, err := io.CopyBuffer(dst, src, *buf)
 
 	if err != nil && !isClosedConnectionError(err) {
 		// We don't log individual "read from closed connection" errors, because
@@ -281,5 +301,27 @@ func isClosedConnectionError(err error) bool {
 		return (opErr.Op == "read" || opErr.Op == "readfrom" || opErr.Op == "write" || opErr.Op == "writeto") &&
 			strings.Contains(err.Error(), "closed network connection")
 	}
-	return false
+	return strings.Contains(err.Error(), "closed pipe")
+}
+
+func closeRead(conn net.Conn) {
+	switch c := conn.(type) {
+	case *net.TCPConn:
+		_ = c.CloseRead()
+	case *net.UnixConn:
+		_ = c.CloseRead()
+	default:
+		_ = c.Close()
+	}
+}
+
+func closeWrite(conn net.Conn) {
+	switch c := conn.(type) {
+	case *net.TCPConn:
+		_ = c.CloseWrite()
+	case *net.UnixConn:
+		_ = c.CloseWrite()
+	default:
+		_ = c.Close()
+	}
 }
