@@ -38,7 +38,7 @@ func benchmarkCopyData(b *testing.B, proxy *Proxy, size int) {
 			for i := 0; i < size; i++ {
 				buf[i] = byte(i % (1 << 8))
 			}
-			srcIn.Write(buf)
+			_, _ = srcIn.Write(buf)
 			srcIn.Close()
 		}()
 
@@ -48,7 +48,7 @@ func benchmarkCopyData(b *testing.B, proxy *Proxy, size int) {
 			for err == nil {
 				_, err = dstOut.Read(buf)
 			}
-			if err != io.EOF && !isClosedConnectionError(err) {
+			if err != nil && err != io.EOF && !isClosedConnectionError(err) {
 				fmt.Fprintf(os.Stderr, "%v\n", err)
 			}
 		}()

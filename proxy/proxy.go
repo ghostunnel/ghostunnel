@@ -301,21 +301,21 @@ func peerCertificatesString(conn net.Conn) string {
 func closeRead(conn net.Conn) {
 	switch c := conn.(type) {
 	case *net.TCPConn:
-		c.CloseRead()
+		_ = c.CloseRead()
 	case *net.UnixConn:
-		c.CloseRead()
+		_ = c.CloseRead()
 	default:
-		c.Close()
+		_ = c.Close()
 	}
 }
 
 func closeWrite(conn net.Conn) {
 	switch c := conn.(type) {
 	case *net.TCPConn:
-		c.CloseWrite()
+		_ = c.CloseWrite()
 	case *net.UnixConn:
-		c.CloseWrite()
+		_ = c.CloseWrite()
 	default:
-		c.Close()
+		_ = c.Close()
 	}
 }
