@@ -762,8 +762,9 @@ func (context *Context) serveStatus() error {
 	}
 
 	context.statusHTTP = &http.Server{
-		Handler:  mux,
-		ErrorLog: logger,
+		Handler:           mux,
+		ErrorLog:          logger,
+		ReadHeaderTimeout: *timeoutDuration,
 	}
 
 	go func() {
