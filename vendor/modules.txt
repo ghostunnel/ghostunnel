@@ -29,7 +29,7 @@ github.com/alecthomas/units
 # github.com/beorn7/perks v1.0.1
 ## explicit; go 1.11
 github.com/beorn7/perks/quantile
-# github.com/caddyserver/certmagic v0.21.5
+# github.com/caddyserver/certmagic v0.21.6
 ## explicit; go 1.21.0
 github.com/caddyserver/certmagic
 github.com/caddyserver/certmagic/internal/atomicfile
@@ -144,8 +144,6 @@ github.com/mattn/go-isatty
 ## explicit; go 1.20
 github.com/mholt/acmez
 github.com/mholt/acmez/acme
-# github.com/mholt/acmez/v2 v2.0.3
-## explicit; go 1.21.0
 # github.com/mholt/acmez/v3 v3.0.0
 ## explicit; go 1.21.0
 github.com/mholt/acmez/v3
