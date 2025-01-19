@@ -11,7 +11,7 @@ jobs:
     strategy:
       matrix:
         version: [1.23.x]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Set up cross toolchain
         run: |
@@ -112,7 +112,7 @@ jobs:
 
   release:
     name: Create release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: [ build-linux, build-darwin, build-windows ]
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
@@ -135,7 +135,7 @@ jobs:
 
   add-assets-linux-darwin:
     name: Add assets for Linux/Darwin
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: [ build-linux, build-darwin, release ]
     strategy:
       matrix:
@@ -167,7 +167,7 @@ jobs:
 
   add-assets-windows:
     name: Add assets for Windows
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: [ build-windows, release ]
     strategy:
       matrix:

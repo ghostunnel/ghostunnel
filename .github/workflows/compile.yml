@@ -13,7 +13,8 @@ jobs:
     strategy:
       matrix:
         version: [1.23.x]
-    runs-on: ubuntu-latest
+        os: [ubuntu-22.04, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Set up cross toolchain
         run: |
