@@ -20,8 +20,6 @@ a TLS-secured service. In other words, ghostunnel is a replacement for stunnel.
 including FreeBSD, OpenBSD and NetBSD. Ghostunnel also supports running on
 Windows, though with a reduced feature set. 
 
-See `ghostunnel --help`, `ghostunnel server --help` and `ghostunnel client --help`.
-
 Features
 ========
 
@@ -70,11 +68,19 @@ on how to generate new ones with OpenSSL).
 
 Ghostunnel is available through [GitHub releases][rel] and through [Docker Hub][hub].
 
-    # Compile for local architecture
+Please note that the official release binaries are best effort, and are usually
+built directly via Github Actions on the latest available images. If you need
+compatibility for specific OS versions, we recommend building yourself.
+
+To build Ghostunnel, simply run:
+
+    # Compile binary
     make ghostunnel
 
-Note that ghostunnel requires Go 1.22 or later to build, and CGO is required for
-PKCS#11 support.
+    # Generate man page
+    make ghostunnel.man
+
+Note that ghostunnel requires Go 1.22 or later to build, and CGO is required.
 
 [rel]: https://github.com/ghostunnel/ghostunnel/releases
 [hub]: https://hub.docker.com/r/ghostunnel/ghostunnel
@@ -105,8 +111,12 @@ For more information on how to contribute, please see the [CONTRIBUTING](CONTRIB
 Usage
 =====
 
-By default, ghostunnel runs in the foreground and logs to stderr. You can set
-`--syslog` to log to syslog instead of stderr. If you want to run ghostunnel
+To see available commands and flags, run `ghostunnel --help`. You can get more
+information about a command by adding `--help` to the command, like `ghostunnel
+server --help` or `ghostunnel client --help`.
+
+By default, ghostunnel runs in the foreground and logs to stdout. You can set
+`--syslog` to log to syslog instead of stdout. If you want to run ghostunnel
 in the background, we recommend using a service manager such as [systemd][systemd] or
 [runit][runit], or use a wrapper such as [daemonize][daemonize] or [dumb-init][dumb-init].
 
