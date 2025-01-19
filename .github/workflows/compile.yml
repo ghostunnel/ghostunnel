@@ -40,12 +40,12 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ghostunnel-linux-amd64
+          name: ghostunnel-linux-amd64-${{ matrix.os }}
           path: ghostunnel-linux-amd64
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ghostunnel-linux-arm64
+          name: ghostunnel-linux-arm64-${{ matrix.os }}
           path: ghostunnel-linux-arm64
 
   build-darwin:
