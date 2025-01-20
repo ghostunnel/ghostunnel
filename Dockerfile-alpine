@@ -1,4 +1,4 @@
-# Dockerfile for ghostunnel/ghostunnel, useful as a basis for other images.
+# Dockerfile for ghostunnel/ghostunnel built on Alpine.
 #
 # To build this image:
 #     docker build -t ghostunnel/ghostunnel .
@@ -6,7 +6,7 @@
 # To run ghostunnel from the image (for example):
 #     docker run --rm ghostunnel/ghostunnel --version
 
-FROM golang:1.23-alpine as build
+FROM golang:1.23-alpine AS build
 
 # Dependencies
 RUN apk add --no-cache --update gcc musl-dev libtool make git
