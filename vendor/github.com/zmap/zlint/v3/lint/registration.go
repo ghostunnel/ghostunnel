@@ -35,6 +35,8 @@ import (
 //
 // Only one of NameFilter or IncludeNames/ExcludeNames can be provided at
 // a time.
+//
+//nolint:recvcheck
 type FilterOptions struct {
 	// NameFilter is a regexp used to filter lints by their name. It is mutually
 	// exclusive with IncludeNames and ExcludeNames.

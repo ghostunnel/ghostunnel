@@ -99,6 +99,8 @@ func (s *LintSource) FromString(src string) {
 }
 
 // SourceList is a slice of LintSources that can be sorted.
+//
+//nolint:recvcheck
 type SourceList []LintSource
 
 // Len returns the length of the list.
