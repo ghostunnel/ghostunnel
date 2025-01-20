@@ -2,6 +2,27 @@
 
 ## HEAD
 
+## v1.3.1
+
+* Add AllLogListSignatureURL by @AlexLaroche in https://github.com/google/certificate-transparency-go/pull/1634
+* Add TiledLogs to log list JSON by @mcpherrinm in https://github.com/google/certificate-transparency-go/pull/1635
+* chore: relax go directive to permit 1.22.x by @dnwe in https://github.com/google/certificate-transparency-go/pull/1640
+
+### Dependency Update
+
+* Bump github.com/fullstorydev/grpcurl from 1.9.1 to 1.9.2 in the all-deps group by @dependabot in https://github.com/google/certificate-transparency-go/pull/1627
+* Bump the all-deps group with 3 updates by @dependabot in https://github.com/google/certificate-transparency-go/pull/1628
+* Bump the docker-deps group across 5 directories with 3 updates by @dependabot in https://github.com/google/certificate-transparency-go/pull/1630
+* Bump github/codeql-action from 3.27.5 to 3.27.6 in the all-deps group by @dependabot in https://github.com/google/certificate-transparency-go/pull/1629
+* Bump golang.org/x/crypto from 0.30.0 to 0.31.0 in the go_modules group by @dependabot in https://github.com/google/certificate-transparency-go/pull/1631
+* Bump the all-deps group with 2 updates by @dependabot in https://github.com/google/certificate-transparency-go/pull/1633
+* Bump the all-deps group with 2 updates by @dependabot in https://github.com/google/certificate-transparency-go/pull/1632
+* Bump the docker-deps group across 4 directories with 1 update by @dependabot in https://github.com/google/certificate-transparency-go/pull/1638
+* Bump the all-deps group with 2 updates by @dependabot in https://github.com/google/certificate-transparency-go/pull/1637
+* Bump the all-deps group across 1 directory with 2 updates by @dependabot in https://github.com/google/certificate-transparency-go/pull/1641
+* Bump the all-deps group with 2 updates by @dependabot in https://github.com/google/certificate-transparency-go/pull/1643
+* Bump google.golang.org/grpc from 1.69.2 to 1.69.4 in the all-deps group by @dependabot in https://github.com/google/certificate-transparency-go/pull/1642
+
 ## v1.3.0
 
 ### CTFE Storage Saving: Extra Data Issuance Chain Deduplication
