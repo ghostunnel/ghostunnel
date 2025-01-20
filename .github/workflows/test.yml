@@ -13,7 +13,7 @@ jobs:
     strategy:
       matrix:
         version: [1.23.x]
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-22.04, ubuntu-24.04, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Set up Go
@@ -33,7 +33,7 @@ jobs:
     strategy:
       matrix:
         version: [1.23]
-        os: [ubuntu-latest]
+        os: [ubuntu-22.04, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
