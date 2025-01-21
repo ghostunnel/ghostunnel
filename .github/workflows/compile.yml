@@ -16,17 +16,15 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Set up emulation
-        uses: docker/setup-qemu-action@v3
       - name: Set up buildx command
         id: buildx
         uses: docker/setup-buildx-action@v3
         with:
           install: true
       - name: Build container (alpine)
-        run: 'docker buildx build -f Dockerfile-alpine --platform linux/amd64,linux/arm64,linux/arm/v7 .'
+        run: 'docker buildx build -f Dockerfile-alpine .'
       - name: Build container (debian)
-        run: 'docker buildx build -f Dockerfile-debian --platform linux/amd64,linux/arm64,linux/arm/v7 .'
+        run: 'docker buildx build -f Dockerfile-debian .'
 
   build-linux:
     name: Build (Linux)
