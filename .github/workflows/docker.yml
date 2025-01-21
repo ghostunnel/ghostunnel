@@ -35,7 +35,7 @@ jobs:
         run: 'docker buildx build -f Dockerfile-debian --push -t ghostunnel/ghostunnel:latest-debian --platform linux/amd64,linux/arm64,linux/arm/v7 .'
       - name: Build container (alpine/tagged)
         if: ${{ github.ref != 'refs/heads/master' }}
-        run: 'docker buildx build --push -t ghostunnel/ghostunnel:$(git describe --tags --abbrev=0) -t ghostunnel/ghostunnel:$(git describe --tags --abbrev=0)-alpine --platform linux/amd64,linux/arm64,linux/arm/v7 .'
+        run: 'docker buildx build -f Dockerfile-alpine --push -t ghostunnel/ghostunnel:$(git describe --tags --abbrev=0) -t ghostunnel/ghostunnel:$(git describe --tags --abbrev=0)-alpine --platform linux/amd64,linux/arm64,linux/arm/v7 .'
       - name: Build container (debian/tagged)
         if: ${{ github.ref != 'refs/heads/master' }}
-        run: 'docker buildx build --push -t ghostunnel/ghostunnel:$(git describe --tags --abbrev=0)-debian --platform linux/amd64,linux/arm64,linux/arm/v7 .'
+        run: 'docker buildx build -f Dockerfile-debian --push -t ghostunnel/ghostunnel:$(git describe --tags --abbrev=0)-debian --platform linux/amd64,linux/arm64,linux/arm/v7 .'
