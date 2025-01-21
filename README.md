@@ -47,11 +47,11 @@ instance. Metrics can be fed into Graphite or Prometheus to see number of
 open connections, rate of new connections, connection lifetimes, timeouts, and
 other info.
 
-**[Emphasis on security](BUG-BOUNTY.md)**: We have put some thought into making
-Ghostunnel secure by default and prevent accidental misconfiguration. For example, 
-we always negotiate TLS v1.2 (or greater) and only use safe cipher suites. Ghostunnel
-also supports PKCS#11 which makes it possible to use Hardware Security Modules (HSMs)
-to protect private keys. 
+**Emphasis on security**: We have put some thought into making Ghostunnel
+secure by default and prevent accidental misconfiguration. For example, we
+always negotiate TLS v1.2 (or greater) and only use safe cipher suites.
+Ghostunnel also supports PKCS#11 which makes it possible to use Hardware
+Security Modules (HSMs) to protect private keys.
 
 Getting Started
 ===============
