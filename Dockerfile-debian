@@ -9,7 +9,7 @@
 FROM golang:1.23-bookworm AS build
 
 # Dependencies
-RUN apt update && apt upgrade && apt install -y gcc libtool make git
+RUN apt update && apt install -y gcc libtool make git
 
 # Copy source
 COPY . /go/src/github.com/ghostunnel/ghostunnel
@@ -22,7 +22,7 @@ RUN cd /go/src/github.com/ghostunnel/ghostunnel && \
 # Create a multi-stage build with the binary
 FROM debian:bookworm-slim
 
-RUN apt update && apt upgrade && apt install -y libtool curl
+RUN apt update && apt install -y --no-install-recommends libtool curl && rm -rf /var/lib/apt/lists/*
 COPY --from=build /usr/bin/ghostunnel /usr/bin/ghostunnel
 
 ENTRYPOINT ["/usr/bin/ghostunnel"]
