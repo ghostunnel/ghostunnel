@@ -10,7 +10,7 @@ import (
 )
 
 func BenchmarkCopyData(b *testing.B) {
-	proxy := New(nil, 60*time.Second, nil, &testLogger{}, LogEverything, false)
+	proxy := New(nil, 10*time.Second, 10*time.Second, nil, &testLogger{}, LogEverything, false)
 
 	for i := 0; i < 16; i++ {
 		b.Run(fmt.Sprintf("%d bytes", 1<<i), func(b *testing.B) {

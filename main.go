@@ -120,9 +120,10 @@ var (
 	allowUnsafeCipherSuites = app.Flag("allow-unsafe-cipher-suites", "Allow cipher suites deemed to be unsafe to be enabled via the cipher-suites flag.").Hidden().Default("false").Bool()
 
 	// Reloading and timeouts
-	timedReload     = app.Flag("timed-reload", "Reload keystores every given interval (e.g. 300s), refresh listener/client on changes.").PlaceHolder("DURATION").Duration()
-	shutdownTimeout = app.Flag("shutdown-timeout", "Graceful shutdown timeout. Terminates after timeout even if connections still open.").Default("5m").Duration()
-	timeoutDuration = app.Flag("connect-timeout", "Timeout for establishing connections, handshakes.").Default("10s").Duration()
+	timedReload            = app.Flag("timed-reload", "Reload keystores every given interval (e.g. 300s), refresh listener/client on changes.").PlaceHolder("DURATION").Duration()
+	processShutdownTimeout = app.Flag("shutdown-timeout", "Process shutdown timeout. Terminates after timeout even if connections still open.").Default("5m").Duration()
+	connectTimeout         = app.Flag("connect-timeout", "Timeout for establishing connections, handshakes.").Default("10s").Duration()
+	closeTimeout           = app.Flag("close-timeout", "Timeout for closing connections when one side terminates.").Default("10s").Duration()
 
 	// Metrics options
 	metricsGraphite = app.Flag("metrics-graphite", "Collect metrics and report them to the given graphite instance (raw TCP).").PlaceHolder("ADDR").TCP()
@@ -240,7 +241,7 @@ func validateFlags(app *kingpin.Application) error {
 	if *serverStatusTargetAddress != "" && !strings.HasPrefix(*serverStatusTargetAddress, "http://") && !strings.HasPrefix(*serverStatusTargetAddress, "https://") {
 		return fmt.Errorf("--target-status should start with http:// or https://")
 	}
-	if *timeoutDuration == 0 {
+	if *connectTimeout == 0 {
 		return fmt.Errorf("--connect-timeout duration must not be zero")
 	}
 	if pkcs11Module != nil && *pkcs11Module != "" && useLandlock != nil && *useLandlock {
@@ -495,7 +496,7 @@ func run(args []string) error {
 		context := &Context{
 			status:          status,
 			shutdownChannel: make(chan bool, 1),
-			shutdownTimeout: *shutdownTimeout,
+			shutdownTimeout: *processShutdownTimeout,
 			dial:            dial,
 			metrics:         metrics,
 			tlsConfigSource: tlsConfigSource,
@@ -547,7 +548,7 @@ func run(args []string) error {
 		context := &Context{
 			status:          status,
 			shutdownChannel: make(chan bool, 1),
-			shutdownTimeout: *shutdownTimeout,
+			shutdownTimeout: *processShutdownTimeout,
 			dial:            dial,
 			metrics:         metrics,
 			tlsConfigSource: tlsConfigSource,
@@ -604,7 +605,7 @@ func serverListen(context *Context) error {
 		AllowedIPs:      *serverAllowedIPs,
 		AllowOPAQuery:   regoPolicy,
 		AllowedURIs:     allowedURIs,
-		OPAQueryTimeout: *timeoutDuration,
+		OPAQueryTimeout: *connectTimeout,
 	}
 
 	if *serverDisableAuth {
@@ -623,7 +624,8 @@ func serverListen(context *Context) error {
 
 	p := proxy.New(
 		certloader.NewListener(listener, serverConfig),
-		*timeoutDuration,
+		*connectTimeout,
+		*closeTimeout,
 		context.dial,
 		logger,
 		proxyLoggerFlags(*quiet),
@@ -665,7 +667,8 @@ func clientListen(context *Context) error {
 
 	p := proxy.New(
 		listener,
-		*timeoutDuration,
+		*connectTimeout,
+		*closeTimeout,
 		context.dial,
 		logger,
 		proxyLoggerFlags(*quiet),
@@ -785,7 +788,7 @@ func serverBackendDialer() (func() (net.Conn, error), error) {
 	}
 
 	return func() (net.Conn, error) {
-		return net.DialTimeout(backendNet, backendAddr, *timeoutDuration)
+		return net.DialTimeout(backendNet, backendAddr, *connectTimeout)
 	}, nil
 }
 
@@ -825,12 +828,12 @@ func clientBackendDialer(tlsConfigSource certloader.TLSConfigSource, network, ad
 		AllowedIPs:      *clientAllowedIPs,
 		AllowedURIs:     allowedURIs,
 		AllowOPAQuery:   regoPolicy,
-		OPAQueryTimeout: *timeoutDuration,
+		OPAQueryTimeout: *connectTimeout,
 	}
 
 	config.VerifyPeerCertificate = clientACL.VerifyPeerCertificateClient
 
-	var dialer Dialer = &net.Dialer{Timeout: *timeoutDuration}
+	var dialer Dialer = &net.Dialer{Timeout: *connectTimeout}
 
 	if *clientConnectProxy != nil {
 		logger.Printf("using HTTP(S) CONNECT proxy %s", (*clientConnectProxy).String())
@@ -857,7 +860,7 @@ func clientBackendDialer(tlsConfigSource certloader.TLSConfigSource, network, ad
 	}
 
 	clientConfig := mustGetClientConfig(tlsConfigSource, config)
-	d := certloader.DialerWithCertificate(clientConfig, *timeoutDuration, dialer)
+	d := certloader.DialerWithCertificate(clientConfig, *connectTimeout, dialer)
 	return func() (net.Conn, error) { return d.Dial(network, address) }, regoPolicy, nil
 }
 

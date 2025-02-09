@@ -146,10 +146,10 @@ func TestFlagValidation(t *testing.T) {
 	assert.NotNil(t, err, "--target-status should start with http:// or https://")
 	*serverStatusTargetAddress = ""
 
-	*timeoutDuration = 0
+	*connectTimeout = 0
 	err = validateFlags(nil)
 	assert.NotNil(t, err, "invalid --connect-timeout should be rejected")
-	*timeoutDuration = 10 * time.Second
+	*connectTimeout = 10 * time.Second
 
 	isTrue := true
 	somePath := "/tmp/test"

@@ -64,8 +64,8 @@ type Dialer func() (net.Conn, error)
 type Proxy struct {
 	// Listener to accept connetions on.
 	Listener net.Listener
-	// ConnectTimeout after which connections are terminated.
-	ConnectTimeout time.Duration
+	// ConnectTimeout, CloseTimeout limit time to execute connects/close connections.
+	ConnectTimeout, CloseTimeout time.Duration
 	// Dial function to reach backend to forward connections to.
 	Dial Dialer
 	// Logger is used to log information messages about connections, errors.
@@ -95,10 +95,11 @@ func proxyProtoHeader(c net.Conn) *proxyproto.Header {
 }
 
 // New creates a new proxy.
-func New(listener net.Listener, timeout time.Duration, dial Dialer, logger Logger, loggerFlags int, proxyProtocol bool) *Proxy {
+func New(listener net.Listener, connectTimeout, closeTimeout time.Duration, dial Dialer, logger Logger, loggerFlags int, proxyProtocol bool) *Proxy {
 	p := &Proxy{
 		Listener:       listener,
-		ConnectTimeout: timeout,
+		ConnectTimeout: connectTimeout,
+		CloseTimeout:   closeTimeout,
 		Dial:           dial,
 		Logger:         logger,
 		quit:           0,
@@ -256,8 +257,12 @@ func (p *Proxy) fuse(client, backend net.Conn) {
 
 // Copy data between two connections
 func (p *Proxy) copyData(dst net.Conn, src net.Conn) (written int64) {
-	defer closeRead(src)
-	defer closeWrite(dst)
+	defer func() {
+		closeRead(src)
+		closeWrite(dst)
+		setDeadline(src, p.CloseTimeout)
+		setDeadline(dst, p.CloseTimeout)
+	}()
 
 	buf := p.pool.Get().(*[]byte)
 	defer p.pool.Put(buf)
@@ -324,4 +329,8 @@ func closeWrite(conn net.Conn) {
 	default:
 		_ = c.Close()
 	}
+}
+
+func setDeadline(conn net.Conn, timeout time.Duration) {
+	conn.SetDeadline(time.Now().Add(timeout))
 }
