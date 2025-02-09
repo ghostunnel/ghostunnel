@@ -18,6 +18,7 @@ package proxy
 
 import (
 	"crypto/tls"
+	"errors"
 	"io"
 	"net"
 	"strings"
@@ -223,35 +224,40 @@ func forceHandshake(timeout time.Duration, conn net.Conn) error {
 // Fuse connections together
 func (p *Proxy) fuse(client, backend net.Conn) {
 	// Copy from client -> backend, and from backend -> client
-	defer p.logConnectionMessage("closed", client, backend)
-	p.logConnectionMessage("opening", client, backend)
+	start := time.Now()
+	p.logConnectionMessage("opening", client, backend, -1, -1, 0)
 
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	go func() { p.copyData(client, backend); wg.Done() }()
-	p.copyData(backend, client)
-	wg.Wait()
+	sentC := make(chan int64)
+	go func() {
+		sentC <- p.copyData(client, backend)
+	}()
+	recv := p.copyData(backend, client)
+	sent := <-sentC
+
+	p.logConnectionMessage("closed", client, backend, sent, recv, time.Since(start))
 }
 
 // Copy data between two connections
-func (p *Proxy) copyData(dst net.Conn, src net.Conn) {
+func (p *Proxy) copyData(dst net.Conn, src net.Conn) (written int64) {
 	defer dst.Close()
 	defer src.Close()
 
-	_, err := io.Copy(dst, src)
+	written, err := io.Copy(dst, src)
 
 	if err != nil && !isClosedConnectionError(err) {
 		// We don't log individual "read from closed connection" errors, because
 		// we already have a log statement showing that a pipe has been closed.
 		p.logConditional(LogConnectionErrors, "error during copy: %s", err)
 	}
+
+	return written
 }
 
 // Log information message about connection
-func (p *Proxy) logConnectionMessage(action string, dst net.Conn, src net.Conn) {
+func (p *Proxy) logConnectionMessage(action string, dst net.Conn, src net.Conn, sent, recv int64, open time.Duration) {
 	p.logConditional(
 		LogConnections,
-		"%s pipe: %s:%s [%s] <-> %s:%s [%s]",
+		"%s pipe: %s:%s [%s] <-> %s:%s [%s] %s",
 		action,
 		dst.RemoteAddr().Network(),
 		dst.RemoteAddr().String(),
@@ -259,6 +265,7 @@ func (p *Proxy) logConnectionMessage(action string, dst net.Conn, src net.Conn) 
 		src.RemoteAddr().Network(),
 		src.RemoteAddr().String(),
 		peerCertificatesString(src),
+		connStatsString(sent, recv, open),
 	)
 }
 
@@ -269,20 +276,9 @@ func (p *Proxy) logConditional(flag int, msg string, args ...interface{}) {
 }
 
 func isClosedConnectionError(err error) bool {
-	if e, ok := err.(*net.OpError); ok {
-		return e.Op == "read" && strings.Contains(err.Error(), "closed network connection")
+	opErr := &net.OpError{}
+	if errors.As(err, &opErr) {
+		return (opErr.Op == "read" || opErr.Op == "readfrom") && strings.Contains(err.Error(), "closed network connection")
 	}
 	return false
-}
-
-func peerCertificatesString(conn net.Conn) string {
-	if tlsConn, ok := conn.(*tls.Conn); ok {
-		if len(tlsConn.ConnectionState().PeerCertificates) > 0 {
-			return tlsConn.ConnectionState().PeerCertificates[0].Subject.String()
-		}
-
-		return "no peer certificate"
-	}
-
-	return "no tls"
 }
