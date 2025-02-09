@@ -278,7 +278,8 @@ func (p *Proxy) logConditional(flag int, msg string, args ...interface{}) {
 func isClosedConnectionError(err error) bool {
 	opErr := &net.OpError{}
 	if errors.As(err, &opErr) {
-		return (opErr.Op == "read" || opErr.Op == "readfrom") && strings.Contains(err.Error(), "closed network connection")
+		return (opErr.Op == "read" || opErr.Op == "readfrom" || opErr.Op == "write" || opErr.Op == "writeto") &&
+			strings.Contains(err.Error(), "closed network connection")
 	}
 	return false
 }
