@@ -28,12 +28,12 @@ func bytesWithUnit(n int64) string {
 	return fmt.Sprintf("%1.1f EiB", float32(n)/float32(1024))
 }
 
-func connStatsString(sent, recv int64, open time.Duration) string {
-	if sent < 0 || recv < 0 || open == 0 {
+func connStatsString(forwarded, returned int64, open time.Duration) string {
+	if forwarded < 0 || returned < 0 || open == 0 {
 		return ""
 	}
 
-	return fmt.Sprintf("[sent %s, recv %s, open %s]", bytesWithUnit(sent), bytesWithUnit(recv), open.String())
+	return fmt.Sprintf("[forwarded %s, returned %s, open %s]", bytesWithUnit(forwarded), bytesWithUnit(returned), open.String())
 }
 
 func peerCertificatesString(conn net.Conn) string {

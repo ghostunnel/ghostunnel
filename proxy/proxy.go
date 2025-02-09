@@ -227,14 +227,14 @@ func (p *Proxy) fuse(client, backend net.Conn) {
 	start := time.Now()
 	p.logConnectionMessage("opening", client, backend, -1, -1, 0)
 
-	sentC := make(chan int64)
+	returnedC := make(chan int64)
 	go func() {
-		sentC <- p.copyData(client, backend)
+		returnedC <- p.copyData(client, backend)
 	}()
-	recv := p.copyData(backend, client)
-	sent := <-sentC
+	forwarded := p.copyData(backend, client)
+	returned := <-returnedC
 
-	p.logConnectionMessage("closed", client, backend, sent, recv, time.Since(start))
+	p.logConnectionMessage("closed", client, backend, forwarded, returned, time.Since(start))
 }
 
 // Copy data between two connections
@@ -254,7 +254,7 @@ func (p *Proxy) copyData(dst net.Conn, src net.Conn) (written int64) {
 }
 
 // Log information message about connection
-func (p *Proxy) logConnectionMessage(action string, dst net.Conn, src net.Conn, sent, recv int64, open time.Duration) {
+func (p *Proxy) logConnectionMessage(action string, dst net.Conn, src net.Conn, forwarded, returned int64, open time.Duration) {
 	p.logConditional(
 		LogConnections,
 		"%s pipe: %s:%s [%s] <-> %s:%s [%s] %s",
@@ -265,7 +265,7 @@ func (p *Proxy) logConnectionMessage(action string, dst net.Conn, src net.Conn, 
 		src.RemoteAddr().Network(),
 		src.RemoteAddr().String(),
 		peerCertificatesString(src),
-		connStatsString(sent, recv, open),
+		connStatsString(forwarded, returned, open),
 	)
 }
 
