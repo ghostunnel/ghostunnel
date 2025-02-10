@@ -32,8 +32,11 @@ func connStatsString(forwarded, returned int64, open time.Duration) string {
 	if forwarded < 0 || returned < 0 || open == 0 {
 		return ""
 	}
+	if open > time.Millisecond {
+		open = open.Round(time.Millisecond)
+	}
 
-	return fmt.Sprintf("[forwarded %s, returned %s, open %s]", bytesWithUnit(forwarded), bytesWithUnit(returned), open.Round(time.Millisecond).String())
+	return fmt.Sprintf("[forwarded %s, returned %s, open %s]", bytesWithUnit(forwarded), bytesWithUnit(returned), open.String())
 }
 
 func peerCertificatesString(conn net.Conn) string {
