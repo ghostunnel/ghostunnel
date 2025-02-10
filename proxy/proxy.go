@@ -275,6 +275,21 @@ func (p *Proxy) fuse(client, backend net.Conn) {
 
 // Copy data between two connections
 func (p *Proxy) copyData(dst net.Conn, src net.Conn) (written int64) {
+	// When we're done copying the data, we close the read/write sides of the
+	// src/dst respectively. This uses the shutdown system call to send a FIN
+	// packet to the other end of the connection. By only closing the read/write
+	// sides specifically, we retain the ability to forward or return data in a
+	// case where a client has only half-closed the connection.
+	//
+	// We also set a deadline on the entire connection in order to avoid resource
+	// leaks. Without the deadline, a misbehaving client could keep a connection
+	// open by not reading/writing any data on their end, which would cause the
+	// other copyData Go routine to wait forever. Setting a deadline forces the
+	// other Go routine to unblock and return with an i/o timeout error. We could
+	// also solve this by by monitoring for POLLHUP but doing so would tie up an
+	// OS thread.
+	//
+	// See: https://github.com/golang/go/issues/67337#issuecomment-2123352634
 	defer func() {
 		closeRead(src)
 		closeWrite(dst)
@@ -282,10 +297,34 @@ func (p *Proxy) copyData(dst net.Conn, src net.Conn) (written int64) {
 		setDeadline(dst, p.CloseTimeout)
 	}()
 
+	// Get a buffer for copy from the pool of shared buffers, to reduce allocs.
 	buf := p.pool.Get().(*[]byte)
 	defer p.pool.Put(buf)
 
-	written, err := io.CopyBuffer(dst, src, *buf)
+	// Note: We wrap src and dst in io.Writer and io.Reader structs respectively,
+	// to hide the WriteTo and ReadFrom functions on TCPConn and UnixConn.
+	//
+	// Why do we do this? Because CopyBuffer will prefer calling WriteTo/ReadFrom
+	// if possible, in order to use splice or sendfile for better perf. However,
+	// this fails if one of the arguments is tls.Conn, because TLS connections
+	// have to go through user space to perform cryptographic operations.
+	//
+	// But this creates a problem: If splice/sendfile fail, then to still perform
+	// the copy the stdlib will recursively call io.Copy. But in doing so it
+	// can't provide the buffer we've allocated and thus it allocates a new one,
+	// throwing away the original buf we passed in. To avoid this, we hide the
+	// WriteTo and ReadFrom methods.
+	//
+	// Note that this is not easy to catch in testing: You might be tempted to
+	// use net.Pipe() for tests, but pipes don't implement WriteTo/ReadFrom and
+	// thus won't run into this issue.
+	//
+	// See: https://github.com/golang/go/issues/16474
+	// See: https://github.com/golang/go/issues/67074
+	written, err := io.CopyBuffer(
+		struct{ io.Writer }{dst},
+		struct{ io.Reader }{src},
+		*buf)
 
 	if err != nil && !isClosedConnectionError(err) {
 		// We don't log individual "read from closed connection" errors, because
