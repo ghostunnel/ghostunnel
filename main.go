@@ -124,6 +124,7 @@ var (
 	processShutdownTimeout = app.Flag("shutdown-timeout", "Process shutdown timeout. Terminates after timeout even if connections still open.").Default("5m").Duration()
 	connectTimeout         = app.Flag("connect-timeout", "Timeout for establishing connections, handshakes.").Default("10s").Duration()
 	closeTimeout           = app.Flag("close-timeout", "Timeout for closing connections when one side terminates.").Default("10s").Duration()
+	maxConnLifetime        = app.Flag("max-conn-lifetime", "Maximum lifetime for connections post handshake, no matter what. Zero means infinite.").Default("0s").Duration()
 
 	// Metrics options
 	metricsGraphite = app.Flag("metrics-graphite", "Collect metrics and report them to the given graphite instance (raw TCP).").PlaceHolder("ADDR").TCP()
@@ -626,6 +627,7 @@ func serverListen(context *Context) error {
 		certloader.NewListener(listener, serverConfig),
 		*connectTimeout,
 		*closeTimeout,
+		*maxConnLifetime,
 		context.dial,
 		logger,
 		proxyLoggerFlags(*quiet),
@@ -669,6 +671,7 @@ func clientListen(context *Context) error {
 		listener,
 		*connectTimeout,
 		*closeTimeout,
+		*maxConnLifetime,
 		context.dial,
 		logger,
 		proxyLoggerFlags(*quiet),
@@ -767,7 +770,7 @@ func (context *Context) serveStatus() error {
 	context.statusHTTP = &http.Server{
 		Handler:           mux,
 		ErrorLog:          logger,
-		ReadHeaderTimeout: *timeoutDuration,
+		ReadHeaderTimeout: *connectTimeout,
 	}
 
 	go func() {

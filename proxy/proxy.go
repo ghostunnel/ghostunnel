@@ -21,6 +21,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -31,13 +32,14 @@ import (
 )
 
 var (
-	openCounter    = metrics.GetOrRegisterCounter("conn.open", metrics.DefaultRegistry)
-	totalCounter   = metrics.GetOrRegisterCounter("accept.total", metrics.DefaultRegistry)
-	successCounter = metrics.GetOrRegisterCounter("accept.success", metrics.DefaultRegistry)
-	errorCounter   = metrics.GetOrRegisterCounter("accept.error", metrics.DefaultRegistry)
-	timeoutCounter = metrics.GetOrRegisterCounter("accept.timeout", metrics.DefaultRegistry)
-	handshakeTimer = metrics.GetOrRegisterTimer("conn.handshake", metrics.DefaultRegistry)
-	connTimer      = metrics.GetOrRegisterTimer("conn.lifetime", metrics.DefaultRegistry)
+	openCounter             = metrics.GetOrRegisterCounter("conn.open", metrics.DefaultRegistry)
+	connTimeoutCounter      = metrics.GetOrRegisterCounter("conn.timeout", metrics.DefaultRegistry)
+	totalCounter            = metrics.GetOrRegisterCounter("accept.total", metrics.DefaultRegistry)
+	successCounter          = metrics.GetOrRegisterCounter("accept.success", metrics.DefaultRegistry)
+	errorCounter            = metrics.GetOrRegisterCounter("accept.error", metrics.DefaultRegistry)
+	handshakeTimeoutCounter = metrics.GetOrRegisterCounter("accept.timeout", metrics.DefaultRegistry)
+	handshakeTimer          = metrics.GetOrRegisterTimer("conn.handshake", metrics.DefaultRegistry)
+	connTimer               = metrics.GetOrRegisterTimer("conn.lifetime", metrics.DefaultRegistry)
 )
 
 const (
@@ -66,6 +68,8 @@ type Proxy struct {
 	Listener net.Listener
 	// ConnectTimeout, CloseTimeout limit time to execute connects/close connections.
 	ConnectTimeout, CloseTimeout time.Duration
+	// MaxConnLifetime is the max lifetime for any connection, regardless of circumstances.
+	MaxConnLifetime time.Duration
 	// Dial function to reach backend to forward connections to.
 	Dial Dialer
 	// Logger is used to log information messages about connections, errors.
@@ -95,17 +99,25 @@ func proxyProtoHeader(c net.Conn) *proxyproto.Header {
 }
 
 // New creates a new proxy.
-func New(listener net.Listener, connectTimeout, closeTimeout time.Duration, dial Dialer, logger Logger, loggerFlags int, proxyProtocol bool) *Proxy {
+func New(
+	listener net.Listener,
+	connectTimeout, closeTimeout, maxConnLifetime time.Duration,
+	dial Dialer,
+	logger Logger,
+	loggerFlags int,
+	proxyProtocol bool) *Proxy {
+
 	p := &Proxy{
-		Listener:       listener,
-		ConnectTimeout: connectTimeout,
-		CloseTimeout:   closeTimeout,
-		Dial:           dial,
-		Logger:         logger,
-		quit:           0,
-		loggerFlags:    loggerFlags,
-		proxyProtocol:  proxyProtocol,
-		handlers:       &sync.WaitGroup{},
+		Listener:        listener,
+		ConnectTimeout:  connectTimeout,
+		CloseTimeout:    closeTimeout,
+		MaxConnLifetime: maxConnLifetime,
+		Dial:            dial,
+		Logger:          logger,
+		quit:            0,
+		loggerFlags:     loggerFlags,
+		proxyProtocol:   proxyProtocol,
+		handlers:        &sync.WaitGroup{},
 		pool: sync.Pool{
 			New: func() any {
 				b := make([]byte, 1<<15 /* 32 KiB */)
@@ -213,7 +225,7 @@ func forceHandshake(timeout time.Duration, conn net.Conn) error {
 		err = tlsConn.Handshake()
 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 			// If we timed out, increment timeout metric
-			timeoutCounter.Inc(1)
+			handshakeTimeoutCounter.Inc(1)
 		}
 
 		if err != nil {
@@ -235,6 +247,12 @@ func (p *Proxy) fuse(client, backend net.Conn) {
 	// Copy from client -> backend, and from backend -> client
 	start := time.Now()
 	p.logConnectionMessage("opening", client, backend, -1, -1, 0)
+
+	// If set by user, set max conn lifetime for client/backend.
+	if p.MaxConnLifetime > 0 {
+		setDeadline(client, p.MaxConnLifetime)
+		setDeadline(backend, p.MaxConnLifetime)
+	}
 
 	// For TCP and UNIX sockets, copyData calls closeRead and closeWrite for the
 	// src/dst respectively. For TCP sockets, this will call the shutdown syscall
@@ -267,11 +285,14 @@ func (p *Proxy) copyData(dst net.Conn, src net.Conn) (written int64) {
 	buf := p.pool.Get().(*[]byte)
 	defer p.pool.Put(buf)
 
-	_, err := io.CopyBuffer(dst, src, *buf)
+	written, err := io.CopyBuffer(dst, src, *buf)
 
 	if err != nil && !isClosedConnectionError(err) {
 		// We don't log individual "read from closed connection" errors, because
 		// we already have a log statement showing that a pipe has been closed.
+		if errors.Is(err, os.ErrDeadlineExceeded) {
+			connTimeoutCounter.Inc(1)
+		}
 		p.logConditional(LogConnectionErrors, "error during copy: %s", err)
 	}
 
@@ -332,5 +353,5 @@ func closeWrite(conn net.Conn) {
 }
 
 func setDeadline(conn net.Conn, timeout time.Duration) {
-	conn.SetDeadline(time.Now().Add(timeout))
+	_ = conn.SetDeadline(time.Now().Add(timeout))
 }
