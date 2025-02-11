@@ -21,7 +21,6 @@ import (
 	"errors"
 	"io"
 	"net"
-	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -329,7 +328,7 @@ func (p *Proxy) copyData(dst net.Conn, src net.Conn) (written int64) {
 	if err != nil && !isClosedConnectionError(err) {
 		// We don't log individual "read from closed connection" errors, because
 		// we already have a log statement showing that a pipe has been closed.
-		if errors.Is(err, os.ErrDeadlineExceeded) {
+		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 			connTimeoutCounter.Inc(1)
 		}
 		p.logConditional(LogConnectionErrors, "error during copy: %s", err)
