@@ -41,7 +41,7 @@ func TestMultipleShutdownCalls(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	assert.Nil(t, err, "should be able to listen on random port")
 
-	p := New(ln, 60*time.Second, nil, &testLogger{}, LogEverything, false)
+	p := New(ln, 10*time.Second, 10*time.Second, 10*time.Second, nil, &testLogger{}, LogEverything, false)
 
 	// Should not panic
 	p.Shutdown()
@@ -64,7 +64,7 @@ func TestProxySuccess(t *testing.T) {
 	}
 
 	// Start accept loop
-	p := New(incoming, 60*time.Second, dialer, &testLogger{}, LogEverything, false)
+	p := New(incoming, 10*time.Second, 10*time.Second, 10*time.Second, dialer, &testLogger{}, LogEverything, false)
 	go p.Accept()
 	defer p.Shutdown()
 
@@ -112,7 +112,7 @@ func TestProxyProtocolSuccess(t *testing.T) {
 	}
 
 	// Start accept loop
-	p := New(incoming, 60*time.Second, dialer, &testLogger{}, LogEverything, true)
+	p := New(incoming, 10*time.Second, 10*time.Second, 10*time.Second, dialer, &testLogger{}, LogEverything, true)
 	go p.Accept()
 	defer p.Shutdown()
 
@@ -164,7 +164,7 @@ func TestBackendDialError(t *testing.T) {
 		return nil, errors.New("failure for test")
 	}
 
-	p := New(ln, 60*time.Second, dialer, &testLogger{}, LogEverything, false)
+	p := New(ln, 10*time.Second, 10*time.Second, 10*time.Second, dialer, &testLogger{}, LogEverything, false)
 	go p.Accept()
 	defer p.Shutdown()
 
@@ -189,4 +189,42 @@ func TestBackendDialError(t *testing.T) {
 
 	p.Shutdown()
 	p.Wait()
+}
+
+func TestCopyData(t *testing.T) {
+	size := 16 /* bytes */
+	proxy := New(nil, 10*time.Second, 10*time.Second, 10*time.Second, nil, &testLogger{}, LogEverything, false)
+
+	srcIn, srcOut := net.Pipe()
+	dstIn, dstOut := net.Pipe()
+	defer func() {
+		srcIn.Close()
+		srcOut.Close()
+		dstIn.Close()
+		dstOut.Close()
+	}()
+
+	go func() {
+		proxy.copyData(dstIn, srcOut)
+	}()
+
+	input := make([]byte, size)
+	for i := 0; i < size; i++ {
+		input[i] = byte(i)
+	}
+
+	_, _ = srcIn.Write(input)
+	srcIn.Close()
+
+	output := make([]byte, size)
+	n, err := dstOut.Read(output)
+	if n != size {
+		t.Fatalf("expected %d bytes, got %d instead", size, n)
+	}
+	if err != nil && err != io.EOF && !isClosedConnectionError(err) {
+		t.Fatalf("got unexpected error: %v", err)
+	}
+	if !bytes.Equal(input, output) {
+		t.Fatalf("input and output were different after copy")
+	}
 }

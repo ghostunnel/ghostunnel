@@ -31,13 +31,14 @@ import (
 )
 
 var (
-	openCounter    = metrics.GetOrRegisterCounter("conn.open", metrics.DefaultRegistry)
-	totalCounter   = metrics.GetOrRegisterCounter("accept.total", metrics.DefaultRegistry)
-	successCounter = metrics.GetOrRegisterCounter("accept.success", metrics.DefaultRegistry)
-	errorCounter   = metrics.GetOrRegisterCounter("accept.error", metrics.DefaultRegistry)
-	timeoutCounter = metrics.GetOrRegisterCounter("accept.timeout", metrics.DefaultRegistry)
-	handshakeTimer = metrics.GetOrRegisterTimer("conn.handshake", metrics.DefaultRegistry)
-	connTimer      = metrics.GetOrRegisterTimer("conn.lifetime", metrics.DefaultRegistry)
+	openCounter             = metrics.GetOrRegisterCounter("conn.open", metrics.DefaultRegistry)
+	connTimeoutCounter      = metrics.GetOrRegisterCounter("conn.timeout", metrics.DefaultRegistry)
+	totalCounter            = metrics.GetOrRegisterCounter("accept.total", metrics.DefaultRegistry)
+	successCounter          = metrics.GetOrRegisterCounter("accept.success", metrics.DefaultRegistry)
+	errorCounter            = metrics.GetOrRegisterCounter("accept.error", metrics.DefaultRegistry)
+	handshakeTimeoutCounter = metrics.GetOrRegisterCounter("accept.timeout", metrics.DefaultRegistry)
+	handshakeTimer          = metrics.GetOrRegisterTimer("conn.handshake", metrics.DefaultRegistry)
+	connTimer               = metrics.GetOrRegisterTimer("conn.lifetime", metrics.DefaultRegistry)
 )
 
 const (
@@ -64,8 +65,10 @@ type Dialer func() (net.Conn, error)
 type Proxy struct {
 	// Listener to accept connetions on.
 	Listener net.Listener
-	// ConnectTimeout after which connections are terminated.
-	ConnectTimeout time.Duration
+	// ConnectTimeout, CloseTimeout limit time to execute connects/close connections.
+	ConnectTimeout, CloseTimeout time.Duration
+	// MaxConnLifetime is the max lifetime for any connection, regardless of circumstances.
+	MaxConnLifetime time.Duration
 	// Dial function to reach backend to forward connections to.
 	Dial Dialer
 	// Logger is used to log information messages about connections, errors.
@@ -80,6 +83,8 @@ type Proxy struct {
 	proxyProtocol bool
 	// Internal wait group to keep track of outstanding handlers.
 	handlers *sync.WaitGroup
+	// Pool for buffers
+	pool sync.Pool
 }
 
 func proxyProtoHeader(c net.Conn) *proxyproto.Header {
@@ -93,16 +98,31 @@ func proxyProtoHeader(c net.Conn) *proxyproto.Header {
 }
 
 // New creates a new proxy.
-func New(listener net.Listener, timeout time.Duration, dial Dialer, logger Logger, loggerFlags int, proxyProtocol bool) *Proxy {
+func New(
+	listener net.Listener,
+	connectTimeout, closeTimeout, maxConnLifetime time.Duration,
+	dial Dialer,
+	logger Logger,
+	loggerFlags int,
+	proxyProtocol bool) *Proxy {
+
 	p := &Proxy{
-		Listener:       listener,
-		ConnectTimeout: timeout,
-		Dial:           dial,
-		Logger:         logger,
-		quit:           0,
-		loggerFlags:    loggerFlags,
-		proxyProtocol:  proxyProtocol,
-		handlers:       &sync.WaitGroup{},
+		Listener:        listener,
+		ConnectTimeout:  connectTimeout,
+		CloseTimeout:    closeTimeout,
+		MaxConnLifetime: maxConnLifetime,
+		Dial:            dial,
+		Logger:          logger,
+		quit:            0,
+		loggerFlags:     loggerFlags,
+		proxyProtocol:   proxyProtocol,
+		handlers:        &sync.WaitGroup{},
+		pool: sync.Pool{
+			New: func() any {
+				b := make([]byte, 1<<15 /* 32 KiB */)
+				return &b
+			},
+		},
 	}
 
 	// Add one handler to the wait group, so that Wait() will always block until
@@ -204,7 +224,7 @@ func forceHandshake(timeout time.Duration, conn net.Conn) error {
 		err = tlsConn.Handshake()
 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 			// If we timed out, increment timeout metric
-			timeoutCounter.Inc(1)
+			handshakeTimeoutCounter.Inc(1)
 		}
 
 		if err != nil {
@@ -227,6 +247,21 @@ func (p *Proxy) fuse(client, backend net.Conn) {
 	start := time.Now()
 	p.logConnectionMessage("opening", client, backend, -1, -1, 0)
 
+	// If set by user, set max conn lifetime for client/backend.
+	if p.MaxConnLifetime > 0 {
+		setDeadline(client, p.MaxConnLifetime)
+		setDeadline(backend, p.MaxConnLifetime)
+	}
+
+	// For TCP and UNIX sockets, copyData calls closeRead and closeWrite for the
+	// src/dst respectively. For TCP sockets, this will call the shutdown syscall
+	// to block read/writes (and send a FIN packet). However, we still need to
+	// free up the FDs after we're done by calling close.
+	defer func() {
+		_ = client.Close()
+		_ = backend.Close()
+	}()
+
 	returnedC := make(chan int64)
 	go func() {
 		returnedC <- p.copyData(client, backend)
@@ -239,14 +274,63 @@ func (p *Proxy) fuse(client, backend net.Conn) {
 
 // Copy data between two connections
 func (p *Proxy) copyData(dst net.Conn, src net.Conn) (written int64) {
-	defer dst.Close()
-	defer src.Close()
+	// When we're done copying the data, we close the read/write sides of the
+	// src/dst respectively. This uses the shutdown system call to send a FIN
+	// packet to the other end of the connection. By only closing the read/write
+	// sides specifically, we retain the ability to forward or return data in a
+	// case where a client has only half-closed the connection.
+	//
+	// We also set a deadline on the entire connection in order to avoid resource
+	// leaks. Without the deadline, a misbehaving client could keep a connection
+	// open by not reading/writing any data on their end, which would cause the
+	// other copyData Go routine to wait forever. Setting a deadline forces the
+	// other Go routine to unblock and return with an i/o timeout error. We could
+	// also solve this by by monitoring for POLLHUP but doing so would tie up an
+	// OS thread.
+	//
+	// See: https://github.com/golang/go/issues/67337#issuecomment-2123352634
+	defer func() {
+		closeRead(src)
+		closeWrite(dst)
+		setDeadline(src, p.CloseTimeout)
+		setDeadline(dst, p.CloseTimeout)
+	}()
 
-	written, err := io.Copy(dst, src)
+	// Get a buffer for copy from the pool of shared buffers, to reduce allocs.
+	buf := p.pool.Get().(*[]byte)
+	defer p.pool.Put(buf)
+
+	// Note: We wrap src and dst in io.Writer and io.Reader structs respectively,
+	// to hide the WriteTo and ReadFrom functions on TCPConn and UnixConn.
+	//
+	// Why do we do this? Because CopyBuffer will prefer calling WriteTo/ReadFrom
+	// if possible, in order to use splice or sendfile for better perf. However,
+	// this fails if one of the arguments is tls.Conn, because TLS connections
+	// have to go through user space to perform cryptographic operations.
+	//
+	// But this creates a problem: If splice/sendfile fail, then to still perform
+	// the copy the stdlib will recursively call io.Copy. But in doing so it
+	// can't provide the buffer we've allocated and thus it allocates a new one,
+	// throwing away the original buf we passed in. To avoid this, we hide the
+	// WriteTo and ReadFrom methods.
+	//
+	// Note that this is not easy to catch in testing: You might be tempted to
+	// use net.Pipe() for tests, but pipes don't implement WriteTo/ReadFrom and
+	// thus won't run into this issue.
+	//
+	// See: https://github.com/golang/go/issues/16474
+	// See: https://github.com/golang/go/issues/67074
+	written, err := io.CopyBuffer(
+		struct{ io.Writer }{dst},
+		struct{ io.Reader }{src},
+		*buf)
 
 	if err != nil && !isClosedConnectionError(err) {
 		// We don't log individual "read from closed connection" errors, because
 		// we already have a log statement showing that a pipe has been closed.
+		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+			connTimeoutCounter.Inc(1)
+		}
 		p.logConditional(LogConnectionErrors, "error during copy: %s", err)
 	}
 
@@ -281,5 +365,31 @@ func isClosedConnectionError(err error) bool {
 		return (opErr.Op == "read" || opErr.Op == "readfrom" || opErr.Op == "write" || opErr.Op == "writeto") &&
 			strings.Contains(err.Error(), "closed network connection")
 	}
-	return false
+	return strings.Contains(err.Error(), "closed pipe")
+}
+
+func closeRead(conn net.Conn) {
+	switch c := conn.(type) {
+	case *net.TCPConn:
+		_ = c.CloseRead()
+	case *net.UnixConn:
+		_ = c.CloseRead()
+	default:
+		_ = c.Close()
+	}
+}
+
+func closeWrite(conn net.Conn) {
+	switch c := conn.(type) {
+	case *net.TCPConn:
+		_ = c.CloseWrite()
+	case *net.UnixConn:
+		_ = c.CloseWrite()
+	default:
+		_ = c.Close()
+	}
+}
+
+func setDeadline(conn net.Conn, timeout time.Duration) {
+	_ = conn.SetDeadline(time.Now().Add(timeout))
 }

@@ -17,9 +17,11 @@ TIMEOUT = 5
 def run_ghostunnel(args, stdout=sys.stdout.buffer, stderr=sys.stderr.buffer, prefix=None):
     """Helper to run ghostunnel in integration test mode"""
 
-    # Default shuthdown timeout to speed up tests (otherwise defaults to 5m)
+    # Set lower than default timeouts to speed up tests 
     if not any('shutdown-timeout' in f for f in args):
-        args.append('--shutdown-timeout=5s')
+        args.append('--shutdown-timeout=0.1s')
+    if not any('close-timeout' in f for f in args):
+        args.append('--close-timeout=1s')
 
     # Enable landlock in integration tests, unless we're using PKCS11 modules.
     # Because PKCS11 modules are arbitrary SO files they can do anything at
@@ -375,17 +377,20 @@ class UnixServer(MySocket):
     def __init__(self):
         super().__init__()
         self.socket_path = os.path.join(mkdtemp(), 'ghostunnel-test-socket')
+        self.listening = False
         self.listener = None
 
     def get_socket_path(self):
         return self.socket_path
 
     def listen(self):
+        if self.listening: return
         self.listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.listener.settimeout(TIMEOUT)
         self.listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.listener.bind(self.socket_path)
         self.listener.listen(1)
+        self.listening = True
 
     def accept(self):
         self.socket, _ = self.listener.accept()
@@ -454,6 +459,16 @@ class SocketPair():
         # Timeout
         self.server.get_socket().recv(1)
 
+    def validate_half_closing_client_closes_server(self, msg):
+        print_ok(msg)
+        # call shutdown for write (sends FIN), but don't close connection
+        self.client.get_socket().shutdown(socket.SHUT_WR)
+        # if the tunnel doesn't close the connection (forwarding the FIN packet), 
+        # then recv(1) will raise a Timeout
+        self.server.get_socket().recv(1)
+        # cleanup
+        self.client.get_socket().close()
+
     def validate_closing_server_closes_client(self, msg):
         print_ok(msg)
         self.server.get_socket().shutdown(socket.SHUT_RDWR)
@@ -461,6 +476,16 @@ class SocketPair():
         # if the tunnel doesn't close the connection, recv(1) will raise a
         # Timeout
         self.client.get_socket().recv(1)
+
+    def validate_half_closing_server_closes_client(self, msg):
+        print_ok(msg)
+        # call shutdown for write (sends FIN), but don't close connection
+        self.server.get_socket().shutdown(socket.SHUT_WR)
+        # if the tunnel doesn't close the connection (forwarding the FIN packet), 
+        # then recv(1) will raise a Timeout
+        self.client.get_socket().recv(1)
+        # cleanup
+        self.server.get_socket().close()
 
     def validate_client_cert(self, ou, msg):
         for _ in range(1, 20):

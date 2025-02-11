@@ -32,6 +32,14 @@ if __name__ == "__main__":
         pair.validate_closing_server_closes_client(
             "1: server closed -> client closed")
 
+        pair = SocketPair(TcpClient(13001), TlsServer('server', 'root', 13002))
+        pair.validate_can_send_from_server(
+            "hello world", "2: server -> client")
+        pair.validate_can_send_from_client(
+            "hello world", "2: client -> server")
+        pair.validate_half_closing_server_closes_client(
+            "2: server closed -> client closed")
+
         print_ok("OK")
     finally:
         terminate(ghostunnel)
