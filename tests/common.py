@@ -463,6 +463,9 @@ class SocketPair():
         print_ok(msg)
         # call shutdown for write (sends FIN), but don't close connection
         self.client.get_socket().shutdown(socket.SHUT_WR)
+        # server should still be able to send data back, within the timeout
+        self.server.get_socket().send('A'.encode('utf-8'))
+        self.client.get_socket().recv(1)
         # if the tunnel doesn't close the connection (forwarding the FIN packet), 
         # then recv(1) will raise a Timeout
         self.server.get_socket().recv(1)
@@ -481,6 +484,9 @@ class SocketPair():
         print_ok(msg)
         # call shutdown for write (sends FIN), but don't close connection
         self.server.get_socket().shutdown(socket.SHUT_WR)
+        # client should still be able to send data back, within the timeout
+        self.client.get_socket().send('A'.encode('utf-8'))
+        self.server.get_socket().recv(1)
         # if the tunnel doesn't close the connection (forwarding the FIN packet), 
         # then recv(1) will raise a Timeout
         self.client.get_socket().recv(1)

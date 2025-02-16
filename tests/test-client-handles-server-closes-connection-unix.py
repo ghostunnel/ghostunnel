@@ -22,6 +22,7 @@ if __name__ == "__main__":
                                      '--keystore=client.p12',
                                      '--status={0}:{1}'.format(LOCALHOST,
                                                                STATUS_PORT),
+                                     '--close-timeout=10s',
                                      '--cacert=root.crt'])
 
         # connect with client, confirm that the tunnel is up

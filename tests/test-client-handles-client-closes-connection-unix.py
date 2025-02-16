@@ -23,6 +23,7 @@ if __name__ == "__main__":
                                      '--key=client.key',
                                      '--status={0}:{1}'.format(LOCALHOST,
                                                                STATUS_PORT),
+                                     '--close-timeout=10s',
                                      '--cacert=root.crt'])
 
         # connect to server, confirm that the tunnel is up
