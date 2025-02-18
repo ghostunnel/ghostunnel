@@ -22,6 +22,7 @@ if __name__ == "__main__":
                                      '--keystore=server.p12',
                                      '--status={0}:{1}'.format(LOCALHOST,
                                                                STATUS_PORT),
+                                     '--close-timeout=10s',
                                      '--cacert=root.crt',
                                      '--allow-ou=client'])
 
