@@ -18,7 +18,7 @@ require (
 	github.com/open-policy-agent/opa v1.1.0
 	github.com/pires/go-proxyproto v0.8.0
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.20.5
+	github.com/prometheus/client_golang v1.21.0
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475
 	github.com/spiffe/go-spiffe/v2 v2.5.0
 	github.com/square/certigo v1.16.1-0.20220921173659-75f2ec06b4a5
