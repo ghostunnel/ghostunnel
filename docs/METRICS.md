@@ -31,7 +31,7 @@ How to check status and read connection metrics:
 
     # Metrics information (JSON)
     curl --cacert test-keys/cacert.pem 'https://localhost:6060/_metrics/json'
-    
+
     # Metrics information (Prometheus)
     curl --cacert test-keys/cacert.pem 'https://localhost:6060/_metrics/prometheus'
 
@@ -68,6 +68,6 @@ For example:
 
     # Metrics information (JSON)
     curl http://localhost:6060/_metrics/json
-    
+
     # Metrics information (Prometheus)
     curl http://localhost:6060/_metrics/prometheus

@@ -3,14 +3,14 @@ Access Control Flags
 
 Ghostunnel uses TLS with mutual authentication for authentication and access
 control. This means that both the client and server present a certificate that
-can be verified by the other party. 
+can be verified by the other party.
 
 ### Server mode
 
 There are several flags available to restrict which clients can connect to a
-Ghostunnel server, based on checks on the subject of the client certificate. 
+Ghostunnel server, based on checks on the subject of the client certificate.
 
-Access control flags in server mode are treated as a logical disjunction (OR) 
+Access control flags in server mode are treated as a logical disjunction (OR)
 when multiple flags are specified. This means that a client will be allowed to
 complete a connection as long as at least one flag matches.
 
@@ -70,7 +70,7 @@ perform additional checks on servers it connects to. Regardless of flags passed
 to the client, it will always perform standard hostname verification to check
 the hostname against the server certificate.
 
-Access control flags in client mode are treated as a logical disjunction (OR) 
+Access control flags in client mode are treated as a logical disjunction (OR)
 when multiple flags are specified. This means that a client will be allowed to
 complete a connection as long as at least one flag matches, assuming that
 hostname verification was also successful.
@@ -162,7 +162,7 @@ client certificate contains at least one of the allowed common names or SPIFFE
 IDs.
 
 You can use the [Rego Playground](https://play.openpolicyagent.org) to test and
-develop policies. See the documentation for [x509.Certificate](https://pkg.go.dev/crypto/x509#Certificate) 
+develop policies. See the documentation for [x509.Certificate](https://pkg.go.dev/crypto/x509#Certificate)
 for the structure of the `input.certificate` variable.
 
 Example ([Playground](https://play.openpolicyagent.org/p/uMcOcUkQPE)):
