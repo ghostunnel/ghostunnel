@@ -18,7 +18,7 @@ a TLS-secured service. In other words, ghostunnel is a replacement for stunnel.
 **Supported platforms**: Ghostunnel is developed primarily for Linux and Darwin
 (macOS), although it should run on any UNIX system that exposes `SO_REUSEPORT`,
 including FreeBSD, OpenBSD and NetBSD. Ghostunnel also supports running on
-Windows, though with a reduced feature set. 
+Windows, though with a reduced feature set.
 
 Features
 ========
@@ -26,8 +26,8 @@ Features
 **[Access control](#access-control-flags)**: Ghostunnel enforces mutual
 authentication by requiring a valid client certificate for all connections.
 Policies can enforce checks on the peer certificate in a connection, either
-via simple flags or declarative policies using [Open 
-Policy Agent](https://www.openpolicyagent.org). This is useful 
+via simple flags or declarative policies using [Open
+Policy Agent](https://www.openpolicyagent.org). This is useful
 for restricting access to services that don't have native access control.
 
 **[Certificate hotswapping](#certificate-hotswapping)**: Ghostunnel can reload
@@ -50,8 +50,9 @@ other info.
 **Emphasis on security**: We have put some thought into making Ghostunnel
 secure by default and prevent accidental misconfiguration. For example, we
 always negotiate TLS v1.2 (or greater) and only use safe cipher suites.
-Ghostunnel also supports PKCS#11 which makes it possible to use Hardware
-Security Modules (HSMs) to protect private keys.
+Ghostunnel also supports loading certificates from the Windows/macOS keychains
+or via PKCS#11 which makes it possible to use Hardware Security Modules (HSMs)
+to protect private keys.
 
 Getting Started
 ===============
@@ -89,7 +90,7 @@ Note that ghostunnel requires Go 1.22 or later to build, and CGO is required.
 
 Ghostunnel has an extensive suite of integration tests. Our integration test
 suite requires Python 3.5 (or later) and [gocovmerge][gcvm] to run. We use [Go
-modules][gomod] for managing vendored dependencies. 
+modules][gomod] for managing vendored dependencies.
 
 To run tests:
 
@@ -113,7 +114,7 @@ Usage
 
 To see available commands and flags, run `ghostunnel --help`. You can get more
 information about a command by adding `--help` to the command, like `ghostunnel
-server --help` or `ghostunnel client --help`.
+server --help` or `ghostunnel client --help`. There's also a (MANPAGE)[docs/MANPAGE.md].
 
 By default, ghostunnel runs in the foreground and logs to stdout. You can set
 `--syslog` to log to syslog instead of stdout. If you want to run ghostunnel
@@ -138,7 +139,7 @@ Ghostunnel also supports loading identities from the macOS keychain or the
 SPIFFE Workload API and having private keys backed by PKCS#11 modules, see the
 "Advanced Features" section below for more information.
 
-### Server mode 
+### Server mode
 
 This is an example for how to launch ghostunnel in server mode, listening for
 incoming TLS connections on `localhost:8443` and forwarding them to
@@ -181,7 +182,7 @@ ghostunnel and forward the connections to the insecure backend.
 ### Client mode
 
 This is an example for how to launch ghostunnel in client mode, listening on
-`localhost:8080` and proxying requests to a TLS server on `localhost:8443`. 
+`localhost:8080` and proxying requests to a TLS server on `localhost:8443`.
 
 Start a backend TLS server:
 
@@ -236,7 +237,7 @@ Verify that we can connect to `8003`:
 
     nc -v localhost 8003
 
-Now we have a full tunnel running. We take insecure client connections, 
+Now we have a full tunnel running. We take insecure client connections,
 forward them to the server side of the tunnel via TLS, and finally terminate
 and proxy the connection to the insecure backend.
 
@@ -246,14 +247,12 @@ Advanced Features
 ### Access Control Flags
 
 Ghostunnel supports different types of access control flags in both client and
-server modes.  All checks are made against the certificate of the client or
-server. Multiple flags are treated as a logical disjunction (OR), meaning
-clients can connect as long as any of the flags matches. Ghostunnel is
-compatible with [SPIFFE][spiffe] [X.509 SVIDs][svid].
-
-Ghostunnel also has experimental support for [Open Policy
-Agent](https://www.openpolicyagent.org/) (OPA) policies. Policies can be
-reloaded at runtime much like certificates.
+server modes to enforce authorization checks. Ghostunnel can check various
+attributes of peer certificates directly, including a SPIFFE ID from a peer
+using a [SPIFFE][spiffe] [X.509 SVIDs][svid]. In addition to this, Ghostunnel
+also supports implementing authorization checks via [Open Policy Agent](https://www.openpolicyagent.org/)
+(OPA) policies for maximum flexibility. Policies can be reloaded at runtime
+much like certificates.
 
 See [ACCESS-FLAGS](docs/ACCESS-FLAGS.md) for details.
 
@@ -268,9 +267,9 @@ repeatedly if you want to silence multiple different kinds of log messages.
 
 Supported values are:
 * `all`: silences **all** log messages
-* `conns`: silences log messages about new and closed connections. 
-* `conn-errs`: silences log messages about connection errors encountered (post handshake). 
-* `handshake-errs`: silences log messages about failed handshakes. 
+* `conns`: silences log messages about new and closed connections.
+* `conn-errs`: silences log messages about connection errors encountered (post handshake).
+* `handshake-errs`: silences log messages about failed handshakes.
 
 In particular we recommend setting `--quiet=handshake-errs` if you are
 running TCP health checks in Kubernetes on the listening port, and you
@@ -280,14 +279,14 @@ check.
 ### Certificate Hotswapping
 
 To trigger a reload, simply send `SIGHUP` to the process or set a time-based
-reloading interval with the `--timed-reload` flag. This will cause ghostunnel
+reloading interval with the `--timed-reload` flag. This will cause Ghostunnel
 to reload the certificate and private key from the files on disk. Once
 successful, the reloaded certificate will be used for new connections going
 forward.
 
-Additionally, ghostunnel uses `SO_REUSEPORT` to bind the listening socket on
+Additionally, Ghostunnel uses `SO_REUSEPORT` to bind the listening socket on
 platforms where it is supported (Linux, Apple macOS, FreeBSD, NetBSD, OpenBSD
-and DragonflyBSD). This means a new ghostunnel can be started on the same
+and DragonflyBSD). This means a new Ghostunnel can be started on the same
 host/port before the old one is terminated, to minimize dropped connections (or
 avoid them entirely depending on how the OS implements the `SO_REUSEPORT`
 feature).
@@ -299,25 +298,13 @@ was loaded from the HSM previously, everything else works the same.
 
 ### ACME Support
 
-To have Ghostunnel automatically obtain and renew a public TLS certificate via ACME,
-use the `--auto-acme-cert=` flag (e.g. - `--auto-acme-cert=myservice.example.com`).
-You must also specify an email address so you will get notices from the CA about
-potentially important certificate lifecycle events. Specify the email address with
-the `--auto-acme-email=` flag. To use this feature, you must also specify the
-`--auto-acme-agree-to-tos` flag to indicate your explicit agreement with the CA's
-Terms of Service.
-
-Ghostunnel defaults to using Let's Encrypt, but you can specify a different ACME
-CA URL using the `--auto-acme-ca=` flag. If you wish to test Ghostunnel's ACME
-features against a non-production ACME CA, use the `--auto-acme-testca=` flag.
-If `--auto-acme-testca` is specified, all ACME interaction will be with the
-specified test CA URL and the `--auto-acme-ca=` flag will be ignored.
-
-ACME is only supported in server mode. Additionally, Ghostunnel must either be
-listening to a public interface on tcp/443, or somehow have a public tcp/443
-listening interface forwarded to it (e.g. - systemd socket, iptables, etc.). Public
-DNS records must exist for a valid public DNS FQDN that resolves to the public
+Ghostunnel in server mode supports the ACME protocol for automatically
+obtaining and renewing a public certificate, assuming it's exposed publically
+on tcp/443 and there are valid public DNS FQDN records that resolve to the
 listening interface IP.
+
+See [ACME](docs/ACME.md) for details.
+
 ### Metrics & Profiling
 
 Ghostunnel has a notion of "status port", a TCP port (or UNIX socket) that can
@@ -334,6 +321,15 @@ should work with any hardware security module that exposes a PKCS#11 interface.
 
 See [HSM-PKCS11](docs/HSM-PKCS11.md) for details.
 
+### Windows/MacOS Keychain Support
+
+Ghostunnel supports loading certificates from the Windows and macOS keychains.
+This is useful if you have identities stored in your local keychain that you
+want to use with Ghostunnel, e.g. if you want your private key(s) to be backed
+by the SEP on newer Touch ID MacBooks.
+
+See [KEYCHAIN](docs/KEYCHAIN.md) for details.
+
 ### SPIFFE Workload API
 
 Ghostunnel has support for maintaining up-to-date, frequently rotated
@@ -341,7 +337,7 @@ identities and trusted CA certificates from the SPIFFE Workload API.
 
 See [SPIFFE-WORKLOAD-API](docs/SPIFFE-WORKLOAD-API.md) for details.
 
-### Socket Activation (experimental)
+### Socket Activation
 
 Ghostunnel supports socket activation via both systemd (on Linux) and launchd
 (on macOS). Socket activation is support for the `--listen` and `--status`
@@ -351,41 +347,10 @@ your systemd/launchd configuration.
 
 See [SOCKET-ACTIVATION](docs/SOCKET-ACTIVATION.md) for examples.
 
-### PROXY Protocol (experimental)
+### PROXY Protocol Support
 
 Ghostunnel in server mode supports signalling of transport connection information
 to the backend using the [PROXY protocol](https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt)
 (v2), just pass the `--proxy-protocol` flag on startup. Note that the backend must
 also support the PROXY protocol and must be configured to use it when setting
 this option.
-
-### MacOS Keychain Support (experimental)
-
-Ghostunnel supports loading certificates from the macOS keychain. This is useful
-if you have identities stored in your local keychain that you want to use with
-ghostunnel, e.g. if you want your private key(s) to be backed by the SEP on newer
-Touch ID MacBooks. Certificates from the keychain can be loaded by selecting them
-based on the serial number, Common Name (CN) of the subject, or Common Name (CN)
-of the issuer.
-
-For example, to load an identity based on subject name login keychain:
-
-    ghostunnel client \
-        --keychain-identity <common-name-or-serial> \
-        --listen unix:/path/to/unix/socket \
-        --target example.com:443 \
-        --cacert test-keys/cacert.pem
-
-Or, if you'd like to load an identity by filtering on issuer name:
-
-    ghostunnel client \
-        --keychain-issuer <issuer-common-name> \
-        --listen unix:/path/to/unix/socket \
-        --target example.com:443 \
-        --cacert test-keys/cacert.pem
-
-Both commands above launch a ghostunnel instance that uses the certificate and
-private key for the selected keychain identity to proxy plaintext connections from
-a given UNIX socket to example.com:443. Note that combining both the identity and
-issuer flags in one command will cause ghostunnel to select certificates where both
-attributes match (matching with AND on both subject name/issuer).

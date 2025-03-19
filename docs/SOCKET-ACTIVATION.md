@@ -108,6 +108,6 @@ ExecStart=/usr/bin/ghostunnel server --listen=systemd:ghostunnel --target=localh
 WantedBy=default.target
 ```
 
-Note that the `FileDescriptorName` in `ghostunnel.socket` matches the name passed to 
+Note that the `FileDescriptorName` in `ghostunnel.socket` matches the name passed to
 `--listen`. If multiple sockets are needed, e.g. for a status port, the name can be
-used to distinguish the listening and status sockets. 
+used to distinguish the listening and status sockets.
