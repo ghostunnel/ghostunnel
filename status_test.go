@@ -126,7 +126,7 @@ func TestStatusHandleWatchdog(t *testing.T) {
 }
 
 func TestStatusHandlerNew(t *testing.T) {
-	handler := newStatusHandler(dummyDial, "")
+	handler := newStatusHandler(dummyDial, "", "", "", "")
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, nil)
 
@@ -140,7 +140,7 @@ func TestStatusHandlerNew(t *testing.T) {
 }
 
 func TestStatusHandlerListeningTCP(t *testing.T) {
-	handler := newStatusHandler(dummyDial, "")
+	handler := newStatusHandler(dummyDial, "", "", "", "")
 	response := httptest.NewRecorder()
 	handler.Listening()
 	handler.ServeHTTP(response, nil)
@@ -155,7 +155,7 @@ func TestStatusHandlerListeningTCP(t *testing.T) {
 }
 
 func TestStatusHandlerListeningBackendDown(t *testing.T) {
-	handler := newStatusHandler(dummyDialError, "")
+	handler := newStatusHandler(dummyDialError, "", "", "", "")
 	response := httptest.NewRecorder()
 	handler.Listening()
 	handler.ServeHTTP(response, nil)
@@ -166,7 +166,7 @@ func TestStatusHandlerListeningBackendDown(t *testing.T) {
 }
 
 func TestStatusHandlerReloading(t *testing.T) {
-	handler := newStatusHandler(dummyDial, "")
+	handler := newStatusHandler(dummyDial, "", "", "", "")
 	response := httptest.NewRecorder()
 	handler.Listening()
 	handler.Reloading()
@@ -178,7 +178,7 @@ func TestStatusHandlerReloading(t *testing.T) {
 }
 
 func TestStatusHandlerStopping(t *testing.T) {
-	handler := newStatusHandler(dummyDial, "")
+	handler := newStatusHandler(dummyDial, "", "", "", "")
 	response := httptest.NewRecorder()
 	handler.Listening()
 	handler.Stopping()
@@ -190,7 +190,7 @@ func TestStatusHandlerStopping(t *testing.T) {
 }
 
 func TestStatusHandlerResponses(t *testing.T) {
-	handler := newStatusHandler(dummyDial, "")
+	handler := newStatusHandler(dummyDial, "", "", "", "")
 	resp := handler.status()
 	if resp.Message != "initializing" {
 		t.Error("status should say 'initializing' on startup")

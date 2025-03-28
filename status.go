@@ -41,9 +41,12 @@ type statusHandler struct {
 	// Backend dialer and HTTP client to check if target is up and running
 	// - dialer is used for raw TCP status checks
 	// - client is used for HTTP status checks if a targetAdress is supplied
-	dial          func() (net.Conn, error)
-	client        *http.Client
-	targetAddress string
+	dial                func() (net.Conn, error)
+	client              *http.Client
+	command             string
+	listenAddress       string
+	forwardAddress      string
+	statusTargetAddress string
 	// Current status
 	listening bool
 	reloading bool
@@ -53,32 +56,46 @@ type statusHandler struct {
 }
 
 type statusResponse struct {
-	Ok            bool      `json:"ok"`
-	Status        string    `json:"status"`
-	BackendOk     bool      `json:"backend_ok"`
-	BackendStatus string    `json:"backend_status"`
-	BackendError  string    `json:"backend_error,omitempty"`
-	Time          time.Time `json:"time"`
-	LastReload    time.Time `json:"last_reload,omitempty"`
-	Hostname      string    `json:"hostname,omitempty"`
-	Message       string    `json:"message"`
-	Revision      string    `json:"revision"`
-	Compiler      string    `json:"compiler"`
+	Ok             bool      `json:"ok"`
+	Status         string    `json:"status"`
+	ListenAddress  string    `json:"listen_address"`
+	ForwardAddress string    `json:"forward_address"`
+	BackendOk      bool      `json:"backend_ok"`
+	BackendStatus  string    `json:"backend_status"`
+	BackendError   string    `json:"backend_error,omitempty"`
+	Time           time.Time `json:"time"`
+	LastReload     time.Time `json:"last_reload,omitempty"`
+	Hostname       string    `json:"hostname,omitempty"`
+	Message        string    `json:"message"`
+	Revision       string    `json:"revision"`
+	Compiler       string    `json:"compiler"`
 }
 
-func newStatusHandler(dial func() (net.Conn, error), targetAddress string) *statusHandler {
+func newStatusHandler(dial func() (net.Conn, error), command, listenAddress, forwardAddress, statusTargetAddress string) *statusHandler {
 	client := http.Client{
 		Transport: &http.Transport{
 			Dial: statusDialer{dial}.Dial,
 		},
 	}
-	status := &statusHandler{&sync.Mutex{}, dial, &client, targetAddress, false, false, false, time.Time{}}
+	status := &statusHandler{
+		mu:                  &sync.Mutex{},
+		dial:                dial,
+		client:              &client,
+		command:             command,
+		listenAddress:       listenAddress,
+		forwardAddress:      forwardAddress,
+		statusTargetAddress: statusTargetAddress,
+		listening:           false,
+		reloading:           false,
+		stopping:            false,
+		lastReload:          time.Time{},
+	}
 	return status
 }
 
 func (s *statusHandler) Listening() {
 	systemdNotifyReady()
-	systemdNotifyStatus("accepting connections")
+	systemdNotifyStatus(fmt.Sprintf("listening | %s proxying %s => %s", s.command, s.listenAddress, s.forwardAddress))
 	s.mu.Lock()
 	s.listening = true
 	s.reloading = false
@@ -87,7 +104,7 @@ func (s *statusHandler) Listening() {
 
 func (s *statusHandler) Reloading() {
 	systemdNotifyReloading()
-	systemdNotifyStatus("reloading certificates")
+	systemdNotifyStatus(fmt.Sprintf("reloading | %s proxying %s => %s", s.command, s.listenAddress, s.forwardAddress))
 	s.mu.Lock()
 	s.reloading = true
 	s.lastReload = time.Now()
@@ -96,7 +113,7 @@ func (s *statusHandler) Reloading() {
 
 func (s *statusHandler) Stopping() {
 	systemdNotifyStopping()
-	systemdNotifyStatus("draining connections")
+	systemdNotifyStatus(fmt.Sprintf("stopping | %s proxying %s => %s", s.command, s.listenAddress, s.forwardAddress))
 	s.mu.Lock()
 	s.listening = false
 	s.reloading = false
@@ -122,6 +139,8 @@ func (s *statusHandler) status() statusResponse {
 
 	resp.Revision = version
 	resp.Compiler = runtime.Version()
+	resp.ListenAddress = s.listenAddress
+	resp.ForwardAddress = s.forwardAddress
 
 	// Defaults. Will be overridden if checks fail.
 	resp.BackendOk = true
@@ -174,10 +193,10 @@ func (s *statusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *statusHandler) checkBackendStatus() error {
-	// If a targetAddress was supplied attempt a HTTP status check.
+	// If a statusTargetAddress was supplied attempt a HTTP status check.
 	// Otherwise, fallback to a raw TCP status check.
-	if s.targetAddress != "" {
-		resp, err := s.client.Get(s.targetAddress)
+	if s.statusTargetAddress != "" {
+		resp, err := s.client.Get(s.statusTargetAddress)
 		if err != nil {
 			return err
 		}
