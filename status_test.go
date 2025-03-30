@@ -253,7 +253,7 @@ func statusTargetWithResponseStatusCode(code int) (statusResponse, int) {
 		}
 		u, _ := url.Parse(statusTarget.URL) // NOTE: I tried using statusTarget.Config.Addr instead, but it wasn't set.
 		return net.Dial("tcp", fmt.Sprintf("%s:%s", u.Hostname(), u.Port()))
-	}, statusTarget.URL)
+	}, "", "", "", statusTarget.URL)
 
 	req := httptest.NewRequest(http.MethodGet, "/not-empty", nil)
 	handler.Listening() // NOTE: required for non-503 backend response code.
