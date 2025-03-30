@@ -493,7 +493,7 @@ func run(args []string) error {
 		}
 		logger.Printf("using target address %s", *serverForwardAddress)
 
-		status := newStatusHandler(dial, *serverStatusTargetAddress)
+		status := newStatusHandler(dial, command, *serverListenAddress, *serverForwardAddress, *serverStatusTargetAddress)
 		context := &Context{
 			status:          status,
 			shutdownChannel: make(chan bool, 1),
@@ -542,10 +542,10 @@ func run(args []string) error {
 			return err
 		}
 
-		// NOTE: We don't provide a target status address here because this the client
-		// /_status endpoint and therefore, its target will be a ghostunnel in server
-		// mode and therefore, should be a (default) TCP check.
-		status := newStatusHandler(dial, "")
+		// NOTE: We don't provide a target status address here because this handler
+		// is for the client /_status endpoint, its target will be a Ghostunnel in
+		// server mode, and thus this should be a (default) TCP check.
+		status := newStatusHandler(dial, command, *clientListenAddress, *clientForwardAddress, "")
 		context := &Context{
 			status:          status,
 			shutdownChannel: make(chan bool, 1),
