@@ -245,7 +245,7 @@ func forceHandshake(timeout time.Duration, conn net.Conn) error {
 func (p *Proxy) fuse(client, backend net.Conn) {
 	// Copy from client -> backend, and from backend -> client
 	start := time.Now()
-	p.logConnectionMessage("opening", client, backend, -1, -1, 0)
+	p.logConnectionMessage("opening", client, backend, -1, -1, time.Time{})
 
 	// If set by user, set max conn lifetime for client/backend.
 	if p.MaxConnLifetime > 0 {
@@ -269,7 +269,7 @@ func (p *Proxy) fuse(client, backend net.Conn) {
 	forwarded := p.copyData(backend, client)
 	returned := <-returnedC
 
-	p.logConnectionMessage("closed", client, backend, forwarded, returned, time.Since(start))
+	p.logConnectionMessage("closed", client, backend, forwarded, returned, start)
 }
 
 // Copy data between two connections
@@ -338,9 +338,11 @@ func (p *Proxy) copyData(dst net.Conn, src net.Conn) (written int64) {
 }
 
 // Log information message about connection
-func (p *Proxy) logConnectionMessage(action string, dst net.Conn, src net.Conn, forwarded, returned int64, open time.Duration) {
-	p.logConditional(
-		LogConnections,
+func (p *Proxy) logConnectionMessage(action string, dst net.Conn, src net.Conn, forwarded, returned int64, start time.Time) {
+	if (p.loggerFlags & LogConnections) == 0 {
+		return
+	}
+	p.Logger.Printf(
 		"%s pipe: %s:%s [%s] <-> %s:%s [%s] %s",
 		action,
 		dst.RemoteAddr().Network(),
@@ -349,7 +351,7 @@ func (p *Proxy) logConnectionMessage(action string, dst net.Conn, src net.Conn, 
 		src.RemoteAddr().Network(),
 		src.RemoteAddr().String(),
 		peerCertificatesString(src),
-		connStatsString(forwarded, returned, open),
+		connStatsString(forwarded, returned, time.Since(start)),
 	)
 }
 
