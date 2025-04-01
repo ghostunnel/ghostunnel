@@ -24,7 +24,7 @@ require (
 	github.com/square/certigo v1.16.1-0.20220921173659-75f2ec06b4a5
 	github.com/square/go-sq-metrics v0.0.0-20170531223841-ae72f332d0d9
 	github.com/stretchr/testify v1.10.0
-	google.golang.org/grpc v1.70.0
+	google.golang.org/grpc v1.71.0
 	google.golang.org/protobuf v1.36.5
 )
 
@@ -99,4 +99,4 @@ require (
 )
 
 go 1.22.11
-toolchain go1.24.0
+toolchain go1.24.1
