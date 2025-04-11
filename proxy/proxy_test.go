@@ -37,11 +37,19 @@ func (t *testLogger) Printf(format string, v ...interface{}) {
 	fmt.Fprintf(os.Stderr, format+"\n", v...)
 }
 
+func proxyForTest(listener net.Listener, dialer Dialer) *Proxy {
+	return New(listener, 10*time.Second, 10*time.Second, 10*time.Second, 32, dialer, &testLogger{}, LogEverything, false)
+}
+
+func proxyForTestWithProxyProtocol(listener net.Listener, dialer Dialer) *Proxy {
+	return New(listener, 10*time.Second, 10*time.Second, 10*time.Second, 32, dialer, &testLogger{}, LogEverything, true)
+}
+
 func TestMultipleShutdownCalls(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	assert.Nil(t, err, "should be able to listen on random port")
 
-	p := New(ln, 10*time.Second, 10*time.Second, 10*time.Second, nil, &testLogger{}, LogEverything, false)
+	p := proxyForTest(ln, nil)
 
 	// Should not panic
 	p.Shutdown()
@@ -64,7 +72,7 @@ func TestProxySuccess(t *testing.T) {
 	}
 
 	// Start accept loop
-	p := New(incoming, 10*time.Second, 10*time.Second, 10*time.Second, dialer, &testLogger{}, LogEverything, false)
+	p := proxyForTest(incoming, dialer)
 	go p.Accept()
 	defer p.Shutdown()
 
@@ -112,7 +120,7 @@ func TestProxyProtocolSuccess(t *testing.T) {
 	}
 
 	// Start accept loop
-	p := New(incoming, 10*time.Second, 10*time.Second, 10*time.Second, dialer, &testLogger{}, LogEverything, true)
+	p := proxyForTestWithProxyProtocol(incoming, dialer)
 	go p.Accept()
 	defer p.Shutdown()
 
@@ -164,7 +172,7 @@ func TestBackendDialError(t *testing.T) {
 		return nil, errors.New("failure for test")
 	}
 
-	p := New(ln, 10*time.Second, 10*time.Second, 10*time.Second, dialer, &testLogger{}, LogEverything, false)
+	p := proxyForTest(ln, dialer)
 	go p.Accept()
 	defer p.Shutdown()
 
@@ -193,7 +201,7 @@ func TestBackendDialError(t *testing.T) {
 
 func TestCopyData(t *testing.T) {
 	size := 16 /* bytes */
-	proxy := New(nil, 10*time.Second, 10*time.Second, 10*time.Second, nil, &testLogger{}, LogEverything, false)
+	proxy := proxyForTest(nil, nil)
 
 	srcIn, srcOut := net.Pipe()
 	dstIn, dstOut := net.Pipe()
