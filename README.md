@@ -113,7 +113,7 @@ Usage
 
 To see available commands and flags, run `ghostunnel --help`. You can get more
 information about a command by adding `--help` to the command, like `ghostunnel
-server --help` or `ghostunnel client --help`. There's also a [MANPAGE](docs/MANPAGE.md].
+server --help` or `ghostunnel client --help`. There's also a [MANPAGE](docs/MANPAGE.md).
 
 By default, ghostunnel runs in the foreground and logs to stdout. You can set
 `--syslog` to log to syslog instead of stdout. If you want to run ghostunnel
