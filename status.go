@@ -17,6 +17,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -25,14 +26,16 @@ import (
 	"runtime"
 	"sync"
 	"time"
+
+	"github.com/ghostunnel/ghostunnel/proxy"
 )
 
 type statusDialer struct {
-	dial func() (net.Conn, error)
+	dial proxy.DialFunc
 }
 
-func (sd statusDialer) Dial(network, addr string) (net.Conn, error) {
-	return sd.dial()
+func (sd statusDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	return sd.dial(ctx)
 }
 
 type statusHandler struct {
@@ -41,7 +44,7 @@ type statusHandler struct {
 	// Backend dialer and HTTP client to check if target is up and running
 	// - dialer is used for raw TCP status checks
 	// - client is used for HTTP status checks if a targetAdress is supplied
-	dial                func() (net.Conn, error)
+	dial                proxy.DialFunc
 	client              *http.Client
 	command             string
 	listenAddress       string
@@ -71,10 +74,10 @@ type statusResponse struct {
 	Compiler       string    `json:"compiler"`
 }
 
-func newStatusHandler(dial func() (net.Conn, error), command, listenAddress, forwardAddress, statusTargetAddress string) *statusHandler {
+func newStatusHandler(dial proxy.DialFunc, command, listenAddress, forwardAddress, statusTargetAddress string) *statusHandler {
 	client := http.Client{
 		Transport: &http.Transport{
-			Dial: statusDialer{dial}.Dial,
+			DialContext: statusDialer{dial}.DialContext,
 		},
 	}
 	status := &statusHandler{
@@ -131,7 +134,7 @@ func (s *statusHandler) HandleWatchdog() {
 	go systemdHandleWatchdog(func() bool { return true }, nil)
 }
 
-func (s *statusHandler) status() statusResponse {
+func (s *statusHandler) status(ctx context.Context) statusResponse {
 	resp := statusResponse{
 		Time:       time.Now(),
 		LastReload: s.lastReload,
@@ -146,7 +149,7 @@ func (s *statusHandler) status() statusResponse {
 	resp.BackendOk = true
 	resp.BackendStatus = "ok"
 
-	if err := s.checkBackendStatus(); err != nil {
+	if err := s.checkBackendStatus(ctx); err != nil {
 		resp.BackendOk = false
 		resp.BackendError = err.Error()
 		resp.BackendStatus = "critical"
@@ -180,7 +183,7 @@ func (s *statusHandler) status() statusResponse {
 }
 
 func (s *statusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	resp := s.status()
+	resp := s.status(r.Context())
 	out, err := json.Marshal(resp)
 	panicOnError(err)
 
@@ -192,7 +195,7 @@ func (s *statusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(out)
 }
 
-func (s *statusHandler) checkBackendStatus() error {
+func (s *statusHandler) checkBackendStatus(ctx context.Context) error {
 	// If a statusTargetAddress was supplied attempt a HTTP status check.
 	// Otherwise, fallback to a raw TCP status check.
 	if s.statusTargetAddress != "" {
@@ -206,7 +209,7 @@ func (s *statusHandler) checkBackendStatus() error {
 			return fmt.Errorf("target returned status: %d", resp.StatusCode)
 		}
 	} else {
-		conn, err := s.dial()
+		conn, err := s.dial(ctx)
 		if err != nil {
 			return err
 		}

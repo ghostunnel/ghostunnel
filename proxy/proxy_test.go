@@ -19,6 +19,7 @@ package proxy
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -141,8 +142,9 @@ func TestProxySuccess(t *testing.T) {
 	assert.Nil(t, err, "should be able to listen on random port")
 	defer target.Close()
 
-	dialer := func() (net.Conn, error) {
-		return net.Dial("tcp", target.Addr().String())
+	dialer := func(ctx context.Context) (net.Conn, error) {
+		var d net.Dialer
+		return d.DialContext(ctx, "tcp", target.Addr().String())
 	}
 
 	// Start accept loop
@@ -191,8 +193,9 @@ func TestProxyProtocolSuccess(t *testing.T) {
 	target, err := net.Listen("tcp", "127.0.0.1:0")
 	assert.Nil(t, err, "should be able to listen on random port")
 
-	dialer := func() (net.Conn, error) {
-		return net.Dial("tcp", target.Addr().String())
+	dialer := func(ctx context.Context) (net.Conn, error) {
+		var d net.Dialer
+		return d.DialContext(ctx, "tcp", target.Addr().String())
 	}
 
 	// Start accept loop
@@ -244,7 +247,7 @@ func TestBackendDialError(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	assert.Nil(t, err, "should be able to listen on random port")
 
-	dialer := func() (net.Conn, error) {
+	dialer := func(ctx context.Context) (net.Conn, error) {
 		return nil, errors.New("failure for test")
 	}
 

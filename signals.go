@@ -17,7 +17,7 @@
 package main
 
 import (
-	ctx "context"
+	"context"
 	"os"
 	"os/signal"
 	"time"
@@ -40,22 +40,22 @@ func isShutdownSignal(sig os.Signal) bool {
 // signalHandler listens for incoming shutdown or refresh signals. If we get
 // a shutdown signal, we stop listening for new connections and gracefully
 // terminate the process. If we get a refresh signal, reload certificates.
-func (context *Context) signalHandler(p *proxy.Proxy) {
+func (env *Environment) signalHandler(p *proxy.Proxy) {
 	signals := make(chan os.Signal, 3)
 	signal.Notify(signals, append(shutdownSignals, refreshSignals...)...)
 	defer signal.Stop(signals)
 
 	shutdownFunc := func() {
-		context.status.Stopping()
+		env.status.Stopping()
 
 		// Best-effort graceful shutdown of status listener
-		if context.statusHTTP != nil {
+		if env.statusHTTP != nil {
 			//nolint:errcheck
-			go context.statusHTTP.Shutdown(ctx.Background())
+			go env.statusHTTP.Shutdown(context.Background())
 		}
 
 		// Force-exit after timeout
-		time.AfterFunc(context.shutdownTimeout, func() {
+		time.AfterFunc(env.shutdownTimeout, func() {
 			// Graceful shutdown timeout reached. If we can't drain connections
 			// to exit gracefully after this timeout, let's just exit.
 			logger.Printf("graceful shutdown timeout: forcing exit")
@@ -69,7 +69,7 @@ func (context *Context) signalHandler(p *proxy.Proxy) {
 	for {
 		// Wait for a signal
 		select {
-		case <-context.shutdownChannel:
+		case <-env.shutdownChannel:
 			logger.Printf("shutdown request processing")
 
 			shutdownFunc()
@@ -85,30 +85,30 @@ func (context *Context) signalHandler(p *proxy.Proxy) {
 			}
 
 			logger.Printf("received %s, reloading TLS configuration", sig.String())
-			context.reload()
+			env.reload()
 		}
 	}
 }
 
-func (context *Context) reloadHandler(interval time.Duration) {
+func (env *Environment) reloadHandler(interval time.Duration) {
 	if interval == 0 {
 		return
 	}
 	for range time.Tick(interval) {
-		context.reload()
+		env.reload()
 	}
 }
 
-func (context *Context) reload() {
-	context.status.Reloading()
-	if err := context.tlsConfigSource.Reload(); err != nil {
+func (env *Environment) reload() {
+	env.status.Reloading()
+	if err := env.tlsConfigSource.Reload(); err != nil {
 		logger.Printf("error reloading TLS configuration: %s", err)
 	}
-	if context.regoPolicy != nil {
-		if err := context.regoPolicy.Reload(); err != nil {
+	if env.regoPolicy != nil {
+		if err := env.regoPolicy.Reload(); err != nil {
 			logger.Printf("error reloading OPA policy: %s", err)
 		}
 	}
 	logger.Printf("reloading configuration complete")
-	context.status.Listening()
+	env.status.Listening()
 }

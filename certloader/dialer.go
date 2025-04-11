@@ -17,6 +17,7 @@
 package certloader
 
 import (
+	"context"
 	"crypto/tls"
 	"net"
 	"time"
@@ -30,7 +31,7 @@ func (timeoutError) Temporary() bool { return true }
 
 // Dialer is an interface for dialers. Can be a net.Dialer, http_dialer.HttpTunnel, or a dialer from this package.
 type Dialer interface {
-	Dial(network, address string) (net.Conn, error)
+	DialContext(ctx context.Context, network, address string) (net.Conn, error)
 }
 
 type mtlsDialer struct {
@@ -49,19 +50,19 @@ func DialerWithCertificate(config TLSClientConfig, timeout time.Duration, dialer
 	}
 }
 
-func (d *mtlsDialer) Dial(network, address string) (net.Conn, error) {
-	return dialWithDialer(d.dialer, d.timeout, network, address, d.config.GetClientConfig())
+func (d *mtlsDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	return dialWithDialer(d.dialer, ctx, d.timeout, network, address, d.config.GetClientConfig())
 }
 
 // Internal copy of tls.DialWithDialer, adapted so it can work with HTTP CONNECT dialers.
 // See https://golang.org/pkg/crypto/tls/#DialWithDialer for original implementation.
-func dialWithDialer(dialer Dialer, timeout time.Duration, network, addr string, config *tls.Config) (*tls.Conn, error) {
+func dialWithDialer(dialer Dialer, ctx context.Context, timeout time.Duration, network, addr string, config *tls.Config) (*tls.Conn, error) {
 	errChannel := make(chan error, 2)
 	time.AfterFunc(timeout, func() {
 		errChannel <- timeoutError{}
 	})
 
-	rawConn, err := dialer.Dial(network, addr)
+	rawConn, err := dialer.DialContext(ctx, network, addr)
 	if err != nil {
 		return nil, err
 	}

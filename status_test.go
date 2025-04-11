@@ -17,6 +17,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -57,13 +58,13 @@ func (c fakeConn) SetWriteDeadline(t time.Time) error {
 	return nil
 }
 
-func dummyDial() (net.Conn, error) {
+func dummyDial(ctx context.Context) (net.Conn, error) {
 	f, err := os.Open(os.DevNull)
 	panicOnError(err)
 	return fakeConn{f}, nil
 }
 
-func dummyDialError() (net.Conn, error) {
+func dummyDialError(ctx context.Context) (net.Conn, error) {
 	return nil, errors.New("fail")
 }
 
@@ -191,25 +192,25 @@ func TestStatusHandlerStopping(t *testing.T) {
 
 func TestStatusHandlerResponses(t *testing.T) {
 	handler := newStatusHandler(dummyDial, "", "", "", "")
-	resp := handler.status()
+	resp := handler.status(context.Background())
 	if resp.Message != "initializing" {
 		t.Error("status should say 'initializing' on startup")
 	}
 
 	handler.Listening()
-	resp = handler.status()
+	resp = handler.status(context.Background())
 	if resp.Message != "listening" {
 		t.Error("status should say 'listening' after startup")
 	}
 
 	handler.Reloading()
-	resp = handler.status()
+	resp = handler.status(context.Background())
 	if resp.Message != "reloading" {
 		t.Error("status should say 'reloading' when reload initiated")
 	}
 
 	handler.Stopping()
-	resp = handler.status()
+	resp = handler.status(context.Background())
 	if resp.Message != "stopping" {
 		t.Error("status should say 'stopping' when shutdown initiated")
 	}
@@ -247,7 +248,7 @@ func statusTargetWithResponseStatusCode(code int) (statusResponse, int) {
 	defer statusTarget.Close()
 
 	response := httptest.NewRecorder()
-	handler := newStatusHandler(func() (net.Conn, error) {
+	handler := newStatusHandler(func(ctx context.Context) (net.Conn, error) {
 		if code < 0 {
 			return nil, errors.New("simulating error when talking to backend")
 		}
