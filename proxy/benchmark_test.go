@@ -6,11 +6,10 @@ import (
 	"net"
 	"os"
 	"testing"
-	"time"
 )
 
 func BenchmarkCopyData(b *testing.B) {
-	proxy := New(nil, 10*time.Second, 10*time.Second, 0, nil, &testLogger{}, LogEverything, false)
+	proxy := proxyForTest(nil, nil)
 
 	for i := 0; i < 16; i++ {
 		b.Run(fmt.Sprintf("%d bytes", 1<<i), func(b *testing.B) {

@@ -125,6 +125,7 @@ var (
 	connectTimeout         = app.Flag("connect-timeout", "Timeout for establishing connections, handshakes.").Default("10s").Duration()
 	closeTimeout           = app.Flag("close-timeout", "Timeout for closing connections when one side terminates.").Default("10s").Duration()
 	maxConnLifetime        = app.Flag("max-conn-lifetime", "Maximum lifetime for connections post handshake, no matter what. Zero means infinite.").Default("0s").Duration()
+	maxConcurrentConns     = app.Flag("max-concurrent-conns", "Maximum number of concurrent connections to handle in the proxy. Zero means infinite.").Default("0").Uint32()
 
 	// Metrics options
 	metricsGraphite = app.Flag("metrics-graphite", "Collect metrics and report them to the given graphite instance (raw TCP).").PlaceHolder("ADDR").TCP()
@@ -628,6 +629,7 @@ func serverListen(context *Context) error {
 		*connectTimeout,
 		*closeTimeout,
 		*maxConnLifetime,
+		int64(*maxConcurrentConns),
 		context.dial,
 		logger,
 		proxyLoggerFlags(*quiet),
@@ -672,6 +674,7 @@ func clientListen(context *Context) error {
 		*connectTimeout,
 		*closeTimeout,
 		*maxConnLifetime,
+		int64(*maxConcurrentConns),
 		context.dial,
 		logger,
 		proxyLoggerFlags(*quiet),
