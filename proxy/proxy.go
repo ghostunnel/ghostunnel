@@ -59,7 +59,7 @@ type Logger interface {
 }
 
 // Dialer represents a function that can dial a backend/destination for forwarding connections.
-type Dialer func() (net.Conn, error)
+type Dialer func(context.Context) (net.Conn, error)
 
 // Proxy will take incoming connections from a listener and forward them to
 // a backend through the given dialer.
@@ -203,14 +203,17 @@ func (p *Proxy) Accept() {
 				p.connSemaphore.Release(1)
 			}()
 
-			err := forceHandshake(p.ConnectTimeout, conn)
+			ctx, cancel := context.WithTimeout(p.context, p.ConnectTimeout)
+			defer cancel()
+
+			err := forceHandshake(ctx, conn)
 			if err != nil {
 				errorCounter.Inc(1)
 				p.logConditional(LogHandshakeErrors, "error on TLS handshake from %s: %s", conn.RemoteAddr(), err)
 				return
 			}
 
-			backend, err := p.Dial()
+			backend, err := p.Dial(ctx)
 			if err != nil {
 				p.logConditional(LogConnectionErrors, "error on dial: %s", err)
 				return
@@ -236,29 +239,16 @@ func (p *Proxy) Accept() {
 // unauthenticated clients would be able to open connections and leave them
 // hanging forever. Going through the handshake verifies that clients have a
 // valid client cert and are allowed to talk to us.
-func forceHandshake(timeout time.Duration, conn net.Conn) error {
+func forceHandshake(ctx context.Context, conn net.Conn) error {
 	if tlsConn, ok := conn.(*tls.Conn); ok {
 		startTime := time.Now()
 		defer handshakeTimer.UpdateSince(startTime)
 
-		// Set deadline to avoid blocking forever
-		err := tlsConn.SetDeadline(time.Now().Add(timeout))
-		if err != nil {
-			return err
-		}
-
-		err = tlsConn.Handshake()
-		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+		err := tlsConn.HandshakeContext(ctx)
+		if netErr, ok := err.(net.Error); (ok && netErr.Timeout()) || err == context.DeadlineExceeded {
 			// If we timed out, increment timeout metric
 			handshakeTimeoutCounter.Inc(1)
 		}
-
-		if err != nil {
-			return err
-		}
-
-		// Success: clear deadline
-		err = tlsConn.SetDeadline(time.Time{})
 		if err != nil {
 			return err
 		}
