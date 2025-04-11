@@ -57,12 +57,11 @@ to protect private keys.
 Getting Started
 ===============
 
-To get started and play around with the implementation, you will need to
-generate some test certificates. If you want to bootstrap a full PKI, one
-good way to get started is to use a package like
-[square/certstrap](https://github.com/square/certstrap). If you only need
-some test certificates for playing around with the tunnel, you can find
-some pre-generated ones in the `test-keys` directory (alongside instructions
+To get started and play around with the Ghostunnel you will need X.509 client
+and server certificates. If you don't already maintain a PKI, a good way to get
+started is to use a package like [cloudflare/cfssl](https://github.com/cloudflare/cfssl).
+If you only need some test certificates for playing around with the tunnel you
+can find some pre-generated ones in the `test-keys` directory (alongside instructions
 on how to generate new ones with OpenSSL).
 
 ### Install
@@ -81,7 +80,7 @@ To build Ghostunnel, simply run:
     # Generate man page
     make ghostunnel.man
 
-Note that ghostunnel requires Go 1.22 or later to build, and CGO is required.
+Note that Ghostunnel requires Go 1.22 or later to build, and CGO is required.
 
 [rel]: https://github.com/ghostunnel/ghostunnel/releases
 [hub]: https://hub.docker.com/r/ghostunnel/ghostunnel
@@ -114,7 +113,7 @@ Usage
 
 To see available commands and flags, run `ghostunnel --help`. You can get more
 information about a command by adding `--help` to the command, like `ghostunnel
-server --help` or `ghostunnel client --help`. There's also a (MANPAGE)[docs/MANPAGE.md].
+server --help` or `ghostunnel client --help`. There's also a [MANPAGE](docs/MANPAGE.md].
 
 By default, ghostunnel runs in the foreground and logs to stdout. You can set
 `--syslog` to log to syslog instead of stdout. If you want to run ghostunnel
@@ -159,7 +158,7 @@ Start a backend server:
 
     nc -l localhost 8080
 
-Start a ghostunnel in server mode to proxy connections:
+Start a Ghostunnel in server mode to proxy connections:
 
     ghostunnel server \
         --listen localhost:8443 \
@@ -177,11 +176,11 @@ Verify that clients can connect with their client certificate:
         -CAfile test-keys/cacert.pem
 
 Now we have a TLS proxy running for our backend service. We terminate TLS in
-ghostunnel and forward the connections to the insecure backend.
+Ghostunnel and forward the connections to the insecure backend.
 
 ### Client mode
 
-This is an example for how to launch ghostunnel in client mode, listening on
+This is an example for how to launch Ghostunnel in client mode, listening on
 `localhost:8080` and proxying requests to a TLS server on `localhost:8443`.
 
 Start a backend TLS server:
@@ -192,7 +191,7 @@ Start a backend TLS server:
         -key test-keys/server-combined.pem \
         -CAfile test-keys/cacert.pem
 
-Start a ghostunnel with a client certificate to forward connections:
+Start a Ghostunnel with a client certificate to forward connections:
 
     ghostunnel client \
         --listen localhost:8080 \
@@ -210,7 +209,7 @@ connection, wrap them in TLS, and forward them to the secure backend.
 ### Full tunnel (client plus server)
 
 We can combine the above two examples to get a full tunnel. Note that you can
-start the ghostunnels in either order.
+start the tunnels in either order.
 
 Start netcat on port `8001`:
 
