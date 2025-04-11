@@ -118,8 +118,7 @@ server --help` or `ghostunnel client --help`. There's also a (MANPAGE)[docs/MANP
 
 By default, ghostunnel runs in the foreground and logs to stdout. You can set
 `--syslog` to log to syslog instead of stdout. If you want to run ghostunnel
-in the background, we recommend using a service manager such as [systemd][systemd] or
-[runit][runit], or use a wrapper such as [daemonize][daemonize] or [dumb-init][dumb-init].
+in the background, we recommend using a service manager.
 
 [runit]: http://smarden.org/runit
 [systemd]: https://www.freedesktop.org/wiki/Software/systemd
