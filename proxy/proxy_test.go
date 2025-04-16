@@ -37,12 +37,84 @@ func (t *testLogger) Printf(format string, v ...interface{}) {
 	fmt.Fprintf(os.Stderr, format+"\n", v...)
 }
 
+type failingListener struct{}
+
+func (m *failingListener) Accept() (net.Conn, error) { return nil, errors.New("failure for test") }
+func (m *failingListener) Close() error              { return nil }
+func (m *failingListener) Addr() net.Addr            { return nil }
+
 func proxyForTest(listener net.Listener, dialer Dialer) *Proxy {
-	return New(listener, 10*time.Second, 10*time.Second, 10*time.Second, 32, dialer, &testLogger{}, LogEverything, false)
+	return New(listener, 1*time.Second, 1*time.Second, 1*time.Second, 1, dialer, &testLogger{}, LogEverything, false)
 }
 
 func proxyForTestWithProxyProtocol(listener net.Listener, dialer Dialer) *Proxy {
-	return New(listener, 10*time.Second, 10*time.Second, 10*time.Second, 32, dialer, &testLogger{}, LogEverything, true)
+	return New(listener, 1*time.Second, 1*time.Second, 1*time.Second, 1, dialer, &testLogger{}, LogEverything, true)
+}
+
+func TestAbortedConnection(t *testing.T) {
+	p := proxyForTest(&failingListener{}, nil)
+
+	// Run proxy -- accept will always fail
+	go p.Accept()
+	defer p.Shutdown()
+
+	errorCounter.Clear()
+	for i := 0; i < 10; i++ {
+		if errorCounter.Count() != 0 {
+			return
+		}
+		time.Sleep(1 * time.Second)
+	}
+
+	t.Error("expected proxy to report errors, but got none")
+}
+
+func TestMaxConcurrentConns(t *testing.T) {
+	// Incoming listener
+	incoming, err := net.Listen("tcp", "127.0.0.1:0")
+	assert.Nil(t, err, "should be able to listen on random port")
+	defer incoming.Close()
+
+	// Target listener
+	target, err := net.Listen("tcp", "127.0.0.1:0")
+	assert.Nil(t, err, "should be able to listen on random port")
+	defer target.Close()
+
+	dialer := func() (net.Conn, error) {
+		return net.Dial("tcp", target.Addr().String())
+	}
+
+	// Start accept loop
+	p := proxyForTest(incoming, dialer)
+	go p.Accept()
+	defer p.Shutdown()
+
+	// Proxy multiple connections
+	// First conn
+	src0, err := net.Dial("tcp", incoming.Addr().String())
+	assert.Nil(t, err, "should be able to dial into proxy")
+
+	dst0, err := target.Accept()
+	assert.Nil(t, err, "should be able to receive connection on target")
+	defer dst0.Close()
+
+	// Second conn (while first conn still open)
+	src1, err := net.Dial("tcp", incoming.Addr().String())
+	assert.Nil(t, err, "should be able to dial into proxy")
+	defer src1.Close()
+
+	// Set deadline for accept
+	err = target.(*net.TCPListener).SetDeadline(time.Now().Add(1 * time.Second))
+	assert.Nil(t, err, "should be able to set deadline")
+
+	_, err = target.Accept()
+	assert.NotNil(t, err, "should not be able to receive second conn")
+
+	src0.Close()
+	dst0.Close()
+	src1.Close()
+	p.Shutdown()
+	p.Wait()
 }
 
 func TestMultipleShutdownCalls(t *testing.T) {
@@ -62,10 +134,12 @@ func TestProxySuccess(t *testing.T) {
 	// Incoming listener
 	incoming, err := net.Listen("tcp", "127.0.0.1:0")
 	assert.Nil(t, err, "should be able to listen on random port")
+	defer incoming.Close()
 
 	// Target listener
 	target, err := net.Listen("tcp", "127.0.0.1:0")
 	assert.Nil(t, err, "should be able to listen on random port")
+	defer target.Close()
 
 	dialer := func() (net.Conn, error) {
 		return net.Dial("tcp", target.Addr().String())
@@ -79,9 +153,11 @@ func TestProxySuccess(t *testing.T) {
 	// Proxy a connection
 	src, err := net.Dial("tcp", incoming.Addr().String())
 	assert.Nil(t, err, "should be able to dial into proxy")
+	defer src.Close()
 
 	dst, err := target.Accept()
 	assert.Nil(t, err, "should be able to receive connection on target")
+	defer dst.Close()
 
 	_, _ = src.Write([]byte("A"))
 
@@ -100,9 +176,9 @@ func TestProxySuccess(t *testing.T) {
 		t.Error("got wrong data from connection on target")
 	}
 
-	p.Shutdown()
 	dst.Close()
 	src.Close()
+	p.Shutdown()
 	p.Wait()
 }
 
