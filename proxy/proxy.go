@@ -17,17 +17,18 @@
 package proxy
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"io"
 	"net"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	proxyproto "github.com/pires/go-proxyproto"
 	metrics "github.com/rcrowley/go-metrics"
+	sem "golang.org/x/sync/semaphore"
 )
 
 var (
@@ -74,8 +75,6 @@ type Proxy struct {
 	// Logger is used to log information messages about connections, errors.
 	Logger Logger
 
-	// Internal state to indicate that we want to shut down.
-	quit int32
 	// Logging flags
 	loggerFlags int
 	// Enable HAproxy's PROXY protocol
@@ -83,6 +82,11 @@ type Proxy struct {
 	proxyProtocol bool
 	// Internal wait group to keep track of outstanding handlers.
 	handlers *sync.WaitGroup
+	// Semaphore to limit the max. number of connections.
+	connSemaphore semaphore
+	// Context & associated cancel func
+	context context.Context
+	cancel  context.CancelFunc
 	// Pool for buffers
 	pool sync.Pool
 }
@@ -101,10 +105,13 @@ func proxyProtoHeader(c net.Conn) *proxyproto.Header {
 func New(
 	listener net.Listener,
 	connectTimeout, closeTimeout, maxConnLifetime time.Duration,
+	maxConcurrentConnections int64,
 	dial Dialer,
 	logger Logger,
 	loggerFlags int,
 	proxyProtocol bool) *Proxy {
+
+	ctx, cancel := context.WithCancel(context.Background())
 
 	p := &Proxy{
 		Listener:        listener,
@@ -113,16 +120,23 @@ func New(
 		MaxConnLifetime: maxConnLifetime,
 		Dial:            dial,
 		Logger:          logger,
-		quit:            0,
 		loggerFlags:     loggerFlags,
 		proxyProtocol:   proxyProtocol,
 		handlers:        &sync.WaitGroup{},
+		context:         ctx,
+		cancel:          cancel,
 		pool: sync.Pool{
 			New: func() any {
 				b := make([]byte, 1<<15 /* 32 KiB */)
 				return &b
 			},
 		},
+	}
+
+	if maxConcurrentConnections > 0 {
+		p.connSemaphore = sem.NewWeighted(maxConcurrentConnections)
+	} else {
+		p.connSemaphore = &unlimitedSemaphore{}
 	}
 
 	// Add one handler to the wait group, so that Wait() will always block until
@@ -135,10 +149,11 @@ func New(
 
 // Shutdown tells the proxy to close the listener & stop accepting connections.
 func (p *Proxy) Shutdown() {
-	if atomic.LoadInt32(&p.quit) == 1 {
+	if err := p.context.Err(); err != nil {
+		// Already cancelled
 		return
 	}
-	atomic.StoreInt32(&p.quit, 1)
+	p.cancel()
 	p.Listener.Close()
 	p.handlers.Done()
 }
@@ -156,24 +171,37 @@ func (p *Proxy) Wait() {
 // Run this in a Goroutine, call Wait() to block on proxy shutdown/connection drain.
 func (p *Proxy) Accept() {
 	for {
+		// Acquire semaphore, to limit max concurrent connections
+		err := p.connSemaphore.Acquire(p.context, 1)
+		if err != nil {
+			// Context was cancelled -- we're done here
+			return
+		}
+
 		// Wait for new connection
 		conn, err := p.Listener.Accept()
 		if err != nil {
 			// Check if we're supposed to stop
-			if atomic.LoadInt32(&p.quit) == 1 {
+			if err := p.context.Err(); err != nil {
 				return
 			}
 
 			errorCounter.Inc(1)
+			p.connSemaphore.Release(1)
 			continue
 		}
 
-		openCounter.Inc(1)
-		totalCounter.Inc(1)
-
 		go connTimer.Time(func() {
-			defer conn.Close()
-			defer openCounter.Dec(1)
+			p.handlers.Add(1)
+			openCounter.Inc(1)
+			totalCounter.Inc(1)
+
+			defer func() {
+				conn.Close()
+				openCounter.Dec(1)
+				p.handlers.Done()
+				p.connSemaphore.Release(1)
+			}()
 
 			err := forceHandshake(p.ConnectTimeout, conn)
 			if err != nil {
@@ -198,8 +226,6 @@ func (p *Proxy) Accept() {
 			}
 
 			successCounter.Inc(1)
-			p.handlers.Add(1)
-			defer p.handlers.Done()
 			p.fuse(conn, backend)
 		})
 	}
