@@ -126,7 +126,7 @@ func TestAuthorizeOPARejectCommonName(t *testing.T) {
 	module := `package policy
 	import input
 	default allow := false
-	allow = true {
+	allow if {
 		input.certificate.Subject.CommonName == "gopher NOT"
 	}
 	`
@@ -146,7 +146,7 @@ func TestAuthorizeOPAAcceptCommonName(t *testing.T) {
 	module := `package policy
 	import input
 	default allow := false
-	allow = true {
+	allow if {
 		input.certificate.Subject.CommonName == "gopher"
 	}
 	`
@@ -167,7 +167,7 @@ func TestAuthorizeOPAAcceptDNSn(t *testing.T) {
 	import input
 	default allow := false
 
-	allow = true {
+	allow if {
 		input.certificate.DNSNames[_] == "circle"
 	}
 	`
@@ -189,7 +189,7 @@ func TestAuthorizeOPAAcceptURIs(t *testing.T) {
 	import input
 	default allow := false
 
-	allow {
+	allow if {
 		input.certificate.URIs[_].Scheme == "scheme"
 		input.certificate.URIs[_].Host == "valid"
 		input.certificate.URIs[_].Path == "/path"
@@ -213,7 +213,7 @@ func TestAuthorizeOPAAcceptOneOU(t *testing.T) {
 	import input
 	default allow := false
 
-	allow {
+	allow if {
 		input.certificate.Subject.OrganizationalUnit[_] == "triangle"
 	}
 	`
@@ -235,7 +235,7 @@ func TestAuthorizeOPARejectAllOU(t *testing.T) {
 	import input
 	default allow := false
 
-	allow {
+	allow if {
 		input.certificate.Subject.OrganizationalUnit[_] == "no existing OU"
 	}
 	`
@@ -351,7 +351,7 @@ func TestVerifyOPARejectCommonName(t *testing.T) {
 	module := `package policy
 	import input
 	default allow := false
-	allow = true {
+	allow if {
 		input.certificate.Subject.CommonName == "gopher NOT"
 	}
 	`
@@ -371,7 +371,7 @@ func TestVerifyOPAAcceptCommonName(t *testing.T) {
 	module := `package policy
 	import input
 	default allow := false
-	allow = true {
+	allow if {
 		input.certificate.Subject.CommonName == "gopher"
 	}
 	`
@@ -392,7 +392,7 @@ func TestVerifyOPAAcceptDNSn(t *testing.T) {
 	import input
 	default allow := false
 
-	allow = true {
+	allow if {
 		input.certificate.DNSNames[_] == "circle"
 	}
 	`
@@ -414,7 +414,7 @@ func TestVerifyOPAAcceptURIs(t *testing.T) {
 	import input
 	default allow := false
 
-	allow {
+	allow if {
 		input.certificate.URIs[_].Scheme == "scheme"
 		input.certificate.URIs[_].Host == "valid"
 		input.certificate.URIs[_].Path == "/path"
@@ -438,7 +438,7 @@ func TestVerifyOPAAcceptOneOU(t *testing.T) {
 	import input
 	default allow := false
 
-	allow {
+	allow if {
 		input.certificate.Subject.OrganizationalUnit[_] == "triangle"
 	}
 	`
@@ -460,7 +460,7 @@ func TestVerifyOPARejectAllOU(t *testing.T) {
 	import input
 	default allow := false
 
-	allow {
+	allow if {
 		input.certificate.Subject.OrganizationalUnit[_] == "no existing OU"
 	}
 	`
