@@ -481,13 +481,13 @@ func (c *Certificate) MarshalJSON() ([]byte, error) {
 	}
 
 	jc.SubjectKeyInfo = c.jsonifySubjectKey()
-	jc.Extensions, jc.UnknownExtensions = c.JsonifyExtensions()
+	jc.Extensions, jc.UnknownExtensions = c.jsonifyExtensions()
 
 	// TODO: Handle the fact this might not match
 	jc.SignatureAlgorithm = c.jsonifySignatureAlgorithm()
 	jc.Signature.SignatureAlgorithm = jc.SignatureAlgorithm
 	jc.Signature.Value = c.Signature
-	jc.Signature.Valid = c.ValidSignature
+	jc.Signature.Valid = c.validSignature
 	jc.Signature.SelfSigned = c.SelfSigned
 	if c.SelfSigned {
 		jc.Signature.Valid = true

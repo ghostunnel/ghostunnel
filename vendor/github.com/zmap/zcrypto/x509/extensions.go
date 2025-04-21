@@ -91,7 +91,6 @@ type CertificatePoliciesData struct {
 	ExplicitTexts         [][]string
 	NoticeRefOrganization [][]string
 	NoticeRefNumbers      [][]NoticeNumber
-	UserNotices           [][]UserNotice
 }
 
 func (cp *CertificatePoliciesData) MarshalJSON() ([]byte, error) {
@@ -728,7 +727,7 @@ type CABFOrganizationIdentifier struct {
 	Reference string `json:"reference,omitempty"`
 }
 
-func (c *Certificate) JsonifyExtensions() (*CertificateExtensions, UnknownCertificateExtensions) {
+func (c *Certificate) jsonifyExtensions() (*CertificateExtensions, UnknownCertificateExtensions) {
 	exts := new(CertificateExtensions)
 	unk := make([]pkix.Extension, 0, 2)
 	for _, e := range c.Extensions {
@@ -796,7 +795,6 @@ func (c *Certificate) JsonifyExtensions() (*CertificateExtensions, UnknownCertif
 			exts.CertificatePolicies.ExplicitTexts = c.ParsedExplicitTexts
 			exts.CertificatePolicies.QualifierId = c.QualifierId
 			exts.CertificatePolicies.CPSUri = c.CPSuri
-			exts.CertificatePolicies.UserNotices = c.UserNotices
 
 		} else if e.Id.Equal(oidExtAuthorityInfoAccess) {
 			exts.AuthorityInfoAccess = new(AuthorityInfoAccess)

@@ -38,9 +38,9 @@ func ParseECPrivateKey(der []byte) (*ecdsa.PrivateKey, error) {
 
 // MarshalECPrivateKey marshals an EC private key into ASN.1, DER format.
 func MarshalECPrivateKey(key *ecdsa.PrivateKey) ([]byte, error) {
-	oid, err := oidFromNamedCurve(key.Curve)
-	if err != nil {
-		return nil, err
+	oid, ok := oidFromNamedCurve(key.Curve)
+	if !ok {
+		return nil, errors.New("x509: unknown elliptic curve")
 	}
 
 	privateKeyBytes := key.D.Bytes()
@@ -50,18 +50,6 @@ func MarshalECPrivateKey(key *ecdsa.PrivateKey) ([]byte, error) {
 	return asn1.Marshal(ecPrivateKey{
 		Version:       1,
 		PrivateKey:    paddedPrivateKey,
-		NamedCurveOID: oid,
-		PublicKey:     asn1.BitString{Bytes: elliptic.Marshal(key.Curve, key.X, key.Y)},
-	})
-}
-
-// marshalECPrivateKey marshals an EC private key into ASN.1, DER format and
-// sets the curve ID to the given OID, or omits it if OID is nil.
-func marshalECPrivateKeyWithOID(key *ecdsa.PrivateKey, oid asn1.ObjectIdentifier) ([]byte, error) {
-	privateKey := make([]byte, (key.Curve.Params().N.BitLen()+7)/8)
-	return asn1.Marshal(ecPrivateKey{
-		Version:       1,
-		PrivateKey:    key.D.FillBytes(privateKey),
 		NamedCurveOID: oid,
 		PublicKey:     asn1.BitString{Bytes: elliptic.Marshal(key.Curve, key.X, key.Y)},
 	})
@@ -82,12 +70,12 @@ func parseECPrivateKey(namedCurveOID *asn1.ObjectIdentifier, der []byte) (key *e
 
 	var curve elliptic.Curve
 	if namedCurveOID != nil {
-		curve, err = namedCurveFromOID(*namedCurveOID)
+		curve = namedCurveFromOID(*namedCurveOID)
 	} else {
-		curve, err = namedCurveFromOID(privKey.NamedCurveOID)
+		curve = namedCurveFromOID(privKey.NamedCurveOID)
 	}
-	if err != nil {
-		return nil, err
+	if curve == nil {
+		return nil, errors.New("x509: unknown elliptic curve")
 	}
 
 	k := new(big.Int).SetBytes(privKey.PrivateKey)
