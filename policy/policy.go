@@ -17,7 +17,7 @@ package policy
 import (
 	"context"
 
-	"github.com/open-policy-agent/opa/rego"
+	"github.com/open-policy-agent/opa/v1/rego"
 )
 
 // Policy wraps a OPA policy and supports reloading at runtime.

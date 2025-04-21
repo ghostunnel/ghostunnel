@@ -156,9 +156,6 @@ github.com/munnerz/goautoneg
 github.com/mwitkow/go-http-dialer
 # github.com/open-policy-agent/opa v1.3.0
 ## explicit; go 1.23.6
-github.com/open-policy-agent/opa/ast
-github.com/open-policy-agent/opa/ast/json
-github.com/open-policy-agent/opa/bundle
 github.com/open-policy-agent/opa/capabilities
 github.com/open-policy-agent/opa/internal/bundle
 github.com/open-policy-agent/opa/internal/cidr/merge
@@ -211,9 +208,6 @@ github.com/open-policy-agent/opa/internal/wasm/opcode
 github.com/open-policy-agent/opa/internal/wasm/sdk/opa/capabilities
 github.com/open-policy-agent/opa/internal/wasm/types
 github.com/open-policy-agent/opa/internal/wasm/util
-github.com/open-policy-agent/opa/loader
-github.com/open-policy-agent/opa/rego
-github.com/open-policy-agent/opa/storage
 github.com/open-policy-agent/opa/v1/ast
 github.com/open-policy-agent/opa/v1/ast/internal/scanner
 github.com/open-policy-agent/opa/v1/ast/internal/tokens
@@ -221,6 +215,7 @@ github.com/open-policy-agent/opa/v1/ast/json
 github.com/open-policy-agent/opa/v1/ast/location
 github.com/open-policy-agent/opa/v1/bundle
 github.com/open-policy-agent/opa/v1/capabilities
+github.com/open-policy-agent/opa/v1/compile
 github.com/open-policy-agent/opa/v1/config
 github.com/open-policy-agent/opa/v1/format
 github.com/open-policy-agent/opa/v1/hooks

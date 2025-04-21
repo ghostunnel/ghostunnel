@@ -27,7 +27,7 @@ import (
 
 	"github.com/ghostunnel/ghostunnel/policy"
 	"github.com/ghostunnel/ghostunnel/wildcard"
-	"github.com/open-policy-agent/opa/rego"
+	"github.com/open-policy-agent/opa/v1/rego"
 )
 
 // ACL represents an access control list for mutually-authenticated TLS connections.
