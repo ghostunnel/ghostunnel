@@ -590,7 +590,7 @@ func serverListen(context *Context) error {
 	// Compile the rego policy
 	var regoPolicy policy.Policy
 	if len(*serverAllowPolicy) > 0 && len(*serverAllowQuery) > 0 {
-		regoPolicy, err = policy.LoadFromFile(*serverAllowPolicy, *serverAllowQuery)
+		regoPolicy, err = policy.LoadFromPath(*serverAllowPolicy, *serverAllowQuery)
 		if err != nil {
 			logger.Printf("Invalid rego policy or query: %s", err)
 			return err
@@ -820,7 +820,7 @@ func clientBackendDialer(tlsConfigSource certloader.TLSConfigSource, network, ad
 	// Compile the rego policy
 	var regoPolicy policy.Policy
 	if len(*clientAllowPolicy) > 0 && len(*clientAllowQuery) > 0 {
-		regoPolicy, err = policy.LoadFromFile(*clientAllowPolicy, *clientAllowQuery)
+		regoPolicy, err = policy.LoadFromPath(*clientAllowPolicy, *clientAllowQuery)
 		if err != nil {
 			logger.Printf("Invalid rego policy or query: %s", err)
 			return nil, nil, err

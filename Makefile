@@ -61,6 +61,6 @@ docker-build:
 
 # Run unit and integration tests in Docker container
 docker-test:
-	docker build --build-arg GO_VERSION=${GO_VERSION} -t ghostunnel/ghostunnel-test -f Dockerfile-test .
+	docker build -t ghostunnel/ghostunnel-test -f Dockerfile-test .
 	docker run -v ${PWD}:/go/src/github.com/ghostunnel/ghostunnel ghostunnel/ghostunnel-test
 .PHONY: docker-test

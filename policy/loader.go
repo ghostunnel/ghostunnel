@@ -16,10 +16,12 @@ package policy
 
 import (
 	"context"
+	"strings"
 	"sync/atomic"
 	"unsafe"
 
-	"github.com/open-policy-agent/opa/rego"
+	"github.com/open-policy-agent/opa/v1/ast"
+	"github.com/open-policy-agent/opa/v1/rego"
 )
 
 type filePolicy struct {
@@ -33,8 +35,8 @@ type filePolicy struct {
 	cachedPolicy unsafe.Pointer
 }
 
-// LoadFromFile creates a reloadable policy from a rego file.
-func LoadFromFile(policyPath, policyQuery string) (Policy, error) {
+// LoadFromPath creates a reloadable policy from a rego file.
+func LoadFromPath(policyPath, policyQuery string) (Policy, error) {
 	p := filePolicy{
 		policyPath:  policyPath,
 		policyQuery: policyQuery,
@@ -48,10 +50,25 @@ func LoadFromFile(policyPath, policyQuery string) (Policy, error) {
 
 // Reload transparently reloads the policy.
 func (p *filePolicy) Reload() error {
-	peq, err := rego.New(
-		rego.Query(p.policyQuery),
-		rego.Load([]string{p.policyPath}, nil),
-	).PrepareForEval(context.Background())
+	var peq rego.PreparedEvalQuery
+	var err error
+	if strings.HasSuffix(p.policyPath, ".rego") {
+		// For backwards compatibility with old versions of Ghostunnel,
+		// we load Rego files as v0 policies. This may change in the future.
+		peq, err = rego.New(
+			rego.Query(p.policyQuery),
+			rego.Load([]string{p.policyPath}, nil),
+			rego.SetRegoVersion(ast.RegoV0),
+		).PrepareForEval(context.Background())
+	} else {
+		// In newer version of Ghostunnel, we recommend loading policies
+		// via a bundle. This allows bundling data and policy files as well
+		// specifying the Rego version (v0 or v1) in the bundle manifest.
+		peq, err = rego.New(
+			rego.Query(p.policyQuery),
+			rego.LoadBundle(p.policyPath),
+		).PrepareForEval(context.Background())
+	}
 	if err != nil {
 		return err
 	}

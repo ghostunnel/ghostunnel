@@ -3,13 +3,13 @@
 
 package publicsuffix
 
-const ListVersion = "PSL version 2aa65d (Sat Jan 25 15:41:00 2025)"
+const ListVersion = "PSL version 76dbfc (Thu Mar  6 21:52:52 2025)"
 
-func DefaultRules() [9719]Rule {
+func DefaultRules() [9737]Rule {
 	return r
 }
 
-var r = [9719]Rule{
+var r = [9737]Rule{
 	{1, "ac", 1, false},
 	{1, "com.ac", 2, false},
 	{1, "edu.ac", 2, false},
@@ -5518,6 +5518,7 @@ var r = [9719]Rule{
 	{1, "com.ve", 2, false},
 	{1, "e12.ve", 2, false},
 	{1, "edu.ve", 2, false},
+	{1, "emprende.ve", 2, false},
 	{1, "firm.ve", 2, false},
 	{1, "gob.ve", 2, false},
 	{1, "gov.ve", 2, false},
@@ -6265,7 +6266,6 @@ var r = [9719]Rule{
 	{1, "kaufen", 1, false},
 	{1, "kddi", 1, false},
 	{1, "kerryhotels", 1, false},
-	{1, "kerrylogistics", 1, false},
 	{1, "kerryproperties", 1, false},
 	{1, "kfh", 1, false},
 	{1, "kia", 1, false},
@@ -6315,7 +6315,6 @@ var r = [9719]Rule{
 	{1, "limo", 1, false},
 	{1, "lincoln", 1, false},
 	{1, "link", 1, false},
-	{1, "lipsy", 1, false},
 	{1, "live", 1, false},
 	{1, "living", 1, false},
 	{1, "llc", 1, false},
@@ -6938,6 +6937,7 @@ var r = [9719]Rule{
 	{1, "barsy.ca", 2, true},
 	{2, "compute.estate", 3, true},
 	{2, "alces.network", 3, true},
+	{1, "alibabacloudcs.com", 2, true},
 	{1, "kasserver.com", 2, true},
 	{1, "altervista.org", 2, true},
 	{1, "alwaysdata.net", 2, true},
@@ -7701,6 +7701,7 @@ var r = [9719]Rule{
 	{1, "bitbucket.io", 2, true},
 	{1, "blackbaudcdn.net", 2, true},
 	{1, "of.je", 2, true},
+	{1, "square.site", 2, true},
 	{1, "bluebite.io", 2, true},
 	{1, "boomla.net", 2, true},
 	{1, "boutir.com", 2, true},
@@ -7711,12 +7712,17 @@ var r = [9719]Rule{
 	{1, "square7.de", 2, true},
 	{1, "bplaced.net", 2, true},
 	{1, "square7.net", 2, true},
+	{1, "brave.app", 2, true},
+	{2, "s.brave.app", 4, true},
+	{1, "brave.io", 2, true},
 	{2, "s.brave.io", 4, true},
 	{1, "shop.brendly.hr", 3, true},
 	{1, "shop.brendly.rs", 3, true},
 	{1, "browsersafetymark.io", 2, true},
 	{1, "radio.am", 2, true},
 	{1, "radio.fm", 2, true},
+	{1, "cdn.bubble.io", 3, true},
+	{1, "bubbleapps.io", 2, true},
 	{1, "uk0.bigv.io", 3, true},
 	{1, "dh.bytemark.co.uk", 4, true},
 	{1, "vm.bytemark.co.uk", 4, true},
@@ -7886,6 +7892,7 @@ var r = [9719]Rule{
 	{1, "definima.net", 2, true},
 	{1, "deno.dev", 2, true},
 	{1, "deno-staging.dev", 2, true},
+	{1, "deno.net", 2, true},
 	{1, "dedyn.io", 2, true},
 	{1, "deta.app", 2, true},
 	{1, "deta.dev", 2, true},
@@ -8677,6 +8684,7 @@ var r = [9719]Rule{
 	{1, "in-vpn.net", 2, true},
 	{1, "in-dsl.org", 2, true},
 	{1, "in-vpn.org", 2, true},
+	{1, "oninferno.net", 2, true},
 	{1, "biz.at", 2, true},
 	{1, "info.at", 2, true},
 	{1, "info.cx", 2, true},
@@ -8826,6 +8834,7 @@ var r = [9719]Rule{
 	{1, "webthings.io", 2, true},
 	{1, "krellian.net", 2, true},
 	{1, "oya.to", 2, true},
+	{1, "laravel.cloud", 2, true},
 	{1, "git-repos.de", 2, true},
 	{1, "lcube-server.de", 2, true},
 	{1, "svn-repos.de", 2, true},
@@ -8855,6 +8864,8 @@ var r = [9719]Rule{
 	{2, "user.localcert.dev", 4, true},
 	{1, "localcert.net", 2, true},
 	{1, "localhostcert.net", 2, true},
+	{1, "localtonet.com", 2, true},
+	{2, "localto.net", 3, true},
 	{1, "lodz.pl", 2, true},
 	{1, "pabianice.pl", 2, true},
 	{1, "plock.pl", 2, true},
@@ -8868,6 +8879,8 @@ var r = [9719]Rule{
 	{1, "loginline.site", 2, true},
 	{1, "lohmus.me", 2, true},
 	{1, "servers.run", 2, true},
+	{1, "lovable.app", 2, true},
+	{1, "lovableproject.com", 2, true},
 	{1, "krasnik.pl", 2, true},
 	{1, "leczna.pl", 2, true},
 	{1, "lubartow.pl", 2, true},
@@ -9642,6 +9655,7 @@ var r = [9719]Rule{
 	{1, "unison-services.cloud", 2, true},
 	{1, "virtual-user.de", 2, true},
 	{1, "virtualuser.de", 2, true},
+	{1, "obj.ag", 2, true},
 	{1, "name.pm", 2, true},
 	{1, "sch.tf", 2, true},
 	{1, "biz.wf", 2, true},
@@ -9663,6 +9677,7 @@ var r = [9719]Rule{
 	{1, "2038.io", 2, true},
 	{1, "router.management", 2, true},
 	{1, "v-info.info", 2, true},
+	{1, "deus-canvas.com", 2, true},
 	{1, "voorloper.cloud", 2, true},
 	{2, "vultrobjects.com", 3, true},
 	{1, "wafflecell.com", 2, true},
@@ -9678,6 +9693,7 @@ var r = [9719]Rule{
 	{1, "wp2.host", 2, true},
 	{1, "pdns.page", 2, true},
 	{1, "plesk.page", 2, true},
+	{1, "cpanel.site", 2, true},
 	{1, "wpsquared.site", 2, true},
 	{2, "wadl.top", 3, true},
 	{1, "remotewd.com", 2, true},
@@ -9725,10 +9741,12 @@ var r = [9719]Rule{
 	{1, "za.org", 2, true},
 	{1, "zap.cloud", 2, true},
 	{1, "zeabur.app", 2, true},
+	{2, "zerops.app", 3, true},
 	{1, "bss.design", 2, true},
 	{1, "basicserver.io", 2, true},
 	{1, "virtualserver.io", 2, true},
 	{1, "enterprisecloud.nu", 2, true},
+	{1, "zone.id", 2, true},
 }
 
 func init() {
