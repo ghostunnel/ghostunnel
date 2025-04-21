@@ -33,14 +33,14 @@ if __name__ == "__main__":
         # start ghostunnel
         dir_path = os.path.dirname(os.path.realpath(__file__))
         tmp_dir = mkdtemp()
-        shutil.copyfile(dir_path + '/test-server-allow-opa.rego', tmp_dir + '/policy.rego')
+        shutil.copyfile(dir_path + '/test-server-allow-opa-policy.tar.gz', tmp_dir + '/bundle.tar.gz')
 
         ghostunnel = run_ghostunnel(['server',
                                      '--listen={0}:13001'.format(LOCALHOST),
                                      '--target={0}:13002'.format(LOCALHOST),
                                      '--keystore=server.p12',
                                      '--cacert=root.crt',
-                                     '--allow-policy=' + tmp_dir + '/policy.rego',
+                                     '--allow-policy=' + tmp_dir + '/bundle.tar.gz',
                                      '--allow-query=xxx@invalid',
                                      '--status={0}:{1}'.format(LOCALHOST,
                                                                STATUS_PORT)])

@@ -5,13 +5,13 @@ Spins up a client and tests systemd socket activation.
 """
 
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TlsServer, print_ok, run_ghostunnel, terminate
-from distutils.spawn import find_executable
+from shutil import which
 import sys
 
 if __name__ == "__main__":
     ghostunnel = None
 
-    if not find_executable('systemd-socket-activate'):
+    if not which('systemd-socket-activate'):
         print_ok('skipping systemd socket activation test, no systemd-socket-activate binary found')
         sys.exit(0)
 

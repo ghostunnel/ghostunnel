@@ -5,7 +5,6 @@ Spins up a client and tests systemd socket activation.
 """
 
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TlsServer, print_ok, run_ghostunnel, terminate
-from distutils.spawn import find_executable
 import sys
 
 if __name__ == "__main__":
