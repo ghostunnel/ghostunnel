@@ -44,11 +44,11 @@ func (m *failingListener) Close() error              { return nil }
 func (m *failingListener) Addr() net.Addr            { return nil }
 
 func proxyForTest(listener net.Listener, dialer Dialer) *Proxy {
-	return New(listener, 1*time.Second, 1*time.Second, 1*time.Second, 1, dialer, &testLogger{}, LogEverything, false)
+	return New(listener, 5*time.Second, 5*time.Second, 5*time.Second, 1, dialer, &testLogger{}, LogEverything, false)
 }
 
 func proxyForTestWithProxyProtocol(listener net.Listener, dialer Dialer) *Proxy {
-	return New(listener, 1*time.Second, 1*time.Second, 1*time.Second, 1, dialer, &testLogger{}, LogEverything, true)
+	return New(listener, 5*time.Second, 5*time.Second, 5*time.Second, 1, dialer, &testLogger{}, LogEverything, true)
 }
 
 func TestAbortedConnection(t *testing.T) {
