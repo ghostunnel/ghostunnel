@@ -33,13 +33,13 @@ if __name__ == "__main__":
         # start ghostunnel
         dir_path = os.path.dirname(os.path.realpath(__file__))
         tmp_dir = mkdtemp()
-        shutil.copyfile(dir_path + '/test-client-verify-opa.rego', tmp_dir + '/policy.rego')
+        shutil.copyfile(dir_path + '/test-client-verify-opa-policy.tar.gz', tmp_dir + '/bundle.tar.gz')
 
         ghostunnel = run_ghostunnel(['client',
                                      '--listen={0}:13001'.format(LOCALHOST),
                                      '--target=localhost:13002',
                                      '--keystore=client.p12',
-                                     '--verify-policy=' + tmp_dir + '/policy.rego',
+                                     '--verify-policy=' + tmp_dir + '/bundle.tar.gz',
                                      '--verify-query=data.policy.allow',
                                      '--cacert=root.crt',
                                      '--status={0}:{1}'.format(LOCALHOST,
@@ -64,7 +64,7 @@ if __name__ == "__main__":
             print_ok("other_server correctly rejected")
 
         # Change policy and reload
-        shutil.copyfile(dir_path + '/test-allow-all.rego', tmp_dir + '/policy.rego')
+        shutil.copyfile(dir_path + '/test-allow-all-policy.tar.gz', tmp_dir + '/bundle.tar.gz')
         ghostunnel.send_signal(signal.SIGUSR1)
 
         # wait until reload complete

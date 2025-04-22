@@ -136,24 +136,25 @@ but the backend doesn't require mutual authentication.
 <span style="color:red">Note: This feature is considered experimental and is
 subject to future breaking changes. Please report bugs if you find them!</span>
 
+
 Ghostunnel has support for Open Policy Agent (OPA), both in server and client
-mode. The policy file must be present on disk for Ghostunnel to use it and the
+mode. The policy bundle must be present on disk for Ghostunnel to use it and the
 use of OPA is mutually exclusive with any other `allow` (or `verify`) flags.
-Policy files can be reloaded at runtime much like certificates, with the
+Policy bundles can be reloaded at runtime much like certificates, with the
 `--timed-reload` flag or via `SIGHUP` on a recent release.
 
 To use it in server mode, specify the `--allow-policy` and `--allow-query` flags.
 
 Example:
 ```
-ghostunnel server [...] --allow-policy=policy.rego --allow-query=data.policy.allow
+ghostunnel server [...] --allow-policy=bundle.tar.gz --allow-query=data.policy.allow
 ```
 
 To use it in client mode, specify the `--verify-policy` and `--verify-query` flags.
 
 Example:
 ```
-ghostunnel server [...] --verify-policy=policy.rego --allow-query=data.policy.allow
+ghostunnel server [...] --verify-policy=bundle.tar.gz --allow-query=data.policy.allow
 ```
 
 Inside your policy, you can access the reflected X.509 peer certificate using
@@ -170,9 +171,6 @@ Example ([Playground](https://play.openpolicyagent.org/p/uMcOcUkQPE)):
 package policy
 
 import input
-
-import future.keywords.if
-import future.keywords.in
 
 default allow := false
 
@@ -223,11 +221,16 @@ properties you can match on, and the [Rego
 documentation](https://www.openpolicyagent.org/docs/latest/policy-language/)
 for more about the policy language.
 
-#### Caveats
+#### Notes
 
-* There is no mechanism to load a policy from a remote OPA server. The policy
-  file has to be local, or be retrieved and stored locally out of band by a
+* There is no mechanism to load a policy bundle from a remote OPA server. The policy
+  bundle has to be local, or be retrieved and stored locally out of band by a
   different process.
+* Older versions of Ghostunnel allowed specifying a Rego file rather than a
+  bundle as an argument to the `--allow-policy` and `--verify-policy` flags. This
+  still works, but the policy will be treated as a V0 policy for compatibility
+  versions. It's recommended to specify a bundle so you can set the language
+  version directly in the bundle manifest.
 * By standard OPA convention, we consider a policy to be "allowed" if the query
   is exactly one result with exactly one element that has the value `true`.
 * Policy evaluation timeout is the same as the connection timeout. If a policy
