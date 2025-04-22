@@ -21,6 +21,6 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v7
         with:
-          version: v1.64.5
+          version: v2.1.2
           args: --exclude-dirs-use-default --exclude-use-default
           only-new-issues: true
