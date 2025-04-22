@@ -352,3 +352,7 @@ to the backend using the [PROXY protocol](https://www.haproxy.org/download/1.8/d
 (v2), just pass the `--proxy-protocol` flag on startup. Note that the backend must
 also support the PROXY protocol and must be configured to use it when setting
 this option.
+
+### Landlock Support
+
+Ghostunnel can use [Landlock](https://landlock.io) to limit process privileges on Linux. Landlock can be enabled using the `--use-landlock` flag. When enabled, Ghostunnel will limit its access to files and sockets based on the flags passed at startup. Note that this functionality is still experimental, and does not work with PKCS#11 modules.
