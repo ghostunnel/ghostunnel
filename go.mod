@@ -15,7 +15,7 @@ require (
 	github.com/letsencrypt/pkcs11key/v4 v4.0.0
 	github.com/mholt/acmez v1.2.0
 	github.com/mwitkow/go-http-dialer v0.0.0-20161116154839-378f744fb2b8
-	github.com/open-policy-agent/opa v1.3.0
+	github.com/open-policy-agent/opa v1.4.0
 	github.com/pires/go-proxyproto v0.8.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.22.0
@@ -79,6 +79,7 @@ require (
 	go.opentelemetry.io/otel v1.35.0 // indirect
 	go.opentelemetry.io/otel/metric v1.35.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.35.0 // indirect
+	go.opentelemetry.io/otel/sdk/metric v1.35.0 // indirect
 	go.opentelemetry.io/otel/trace v1.35.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
