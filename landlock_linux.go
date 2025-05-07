@@ -164,7 +164,7 @@ func setupLandlock(logger *log.Logger) error {
 	}
 
 	// Process url.URL flags.
-	for _, url := range []**url.URL{clientConnectProxy} {
+	for _, url := range []**url.URL{clientProxy} {
 		if url == nil || *url == nil {
 			continue
 		}
