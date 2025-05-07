@@ -21,28 +21,19 @@ import (
 	"crypto/tls"
 	"net"
 	"time"
+
+	netproxy "golang.org/x/net/proxy"
 )
-
-type timeoutError struct{}
-
-func (timeoutError) Error() string   { return "tls: DialWithDialer timed out" }
-func (timeoutError) Timeout() bool   { return true }
-func (timeoutError) Temporary() bool { return true }
-
-// Dialer is an interface for dialers. Can be a net.Dialer, http_dialer.HttpTunnel, or a dialer from this package.
-type Dialer interface {
-	DialContext(ctx context.Context, network, address string) (net.Conn, error)
-}
 
 type mtlsDialer struct {
 	config  TLSClientConfig
 	timeout time.Duration
-	dialer  Dialer
+	dialer  netproxy.ContextDialer
 }
 
 // DialerWithCertificate creates a dialer that reloads its certificate (if set) before dialing new connections.
 // If the certificate is nil, the dialer will still work, but it won't supply client certificates on connections.
-func DialerWithCertificate(config TLSClientConfig, timeout time.Duration, dialer Dialer) Dialer {
+func DialerWithCertificate(config TLSClientConfig, timeout time.Duration, dialer netproxy.ContextDialer) netproxy.ContextDialer {
 	return &mtlsDialer{
 		config:  config,
 		timeout: timeout,
@@ -54,13 +45,12 @@ func (d *mtlsDialer) DialContext(ctx context.Context, network, address string) (
 	return dialWithDialer(d.dialer, ctx, d.timeout, network, address, d.config.GetClientConfig())
 }
 
-// Internal copy of tls.DialWithDialer, adapted so it can work with HTTP CONNECT dialers.
+// Internal copy of tls.DialWithDialer, adapted so it can work with proxy dialers.
 // See https://golang.org/pkg/crypto/tls/#DialWithDialer for original implementation.
-func dialWithDialer(dialer Dialer, ctx context.Context, timeout time.Duration, network, addr string, config *tls.Config) (*tls.Conn, error) {
-	errChannel := make(chan error, 2)
-	time.AfterFunc(timeout, func() {
-		errChannel <- timeoutError{}
-	})
+func dialWithDialer(dialer netproxy.ContextDialer, ctx context.Context, timeout time.Duration, network, addr string, config *tls.Config) (*tls.Conn, error) {
+	var cancel context.CancelFunc
+	ctx, cancel = context.WithTimeout(ctx, timeout)
+	defer cancel()
 
 	rawConn, err := dialer.DialContext(ctx, network, addr)
 	if err != nil {
@@ -68,16 +58,9 @@ func dialWithDialer(dialer Dialer, ctx context.Context, timeout time.Duration, n
 	}
 
 	conn := tls.Client(rawConn, config)
-	go func() {
-		errChannel <- conn.Handshake()
-	}()
-
-	err = <-errChannel
-
-	if err != nil {
+	if err := conn.HandshakeContext(ctx); err != nil {
 		rawConn.Close()
 		return nil, err
 	}
-
 	return conn, nil
 }

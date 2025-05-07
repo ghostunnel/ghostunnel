@@ -41,10 +41,11 @@ import (
 	kingpin "github.com/alecthomas/kingpin/v2"
 	graphite "github.com/cyberdelia/go-metrics-graphite"
 	gsyslog "github.com/hashicorp/go-syslog"
-	http_dialer "github.com/mwitkow/go-http-dialer"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	metrics "github.com/rcrowley/go-metrics"
 	sqmetrics "github.com/square/go-sq-metrics"
+	connectproxy "github.com/wrouesnel/go.connect-proxy-scheme"
+	netproxy "golang.org/x/net/proxy"
 
 	prometheusmetrics "github.com/deathowl/go-metrics-prometheus"
 	"github.com/prometheus/client_golang/prometheus"
@@ -99,7 +100,7 @@ var (
 	clientForwardAddress = clientCommand.Flag("target", "Address to forward connections to (must be HOST:PORT).").PlaceHolder("ADDR").Required().String()
 	clientUnsafeListen   = clientCommand.Flag("unsafe-listen", "If set, does not limit listen to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
 	clientServerName     = clientCommand.Flag("override-server-name", "If set, overrides the server name used for hostname verification.").PlaceHolder("NAME").String()
-	clientConnectProxy   = clientCommand.Flag("connect-proxy", "If set, connect to target over given HTTP CONNECT proxy. Must be HTTP/HTTPS URL.").PlaceHolder("URL").URL()
+	clientProxy          = clientCommand.Flag("proxy", "If set, connect to target over given proxy (HTTP CONNECT or SOCKS5). Must be a proxy URL.").Hidden().PlaceHolder("URL").URL()
 	clientAllowedCNs     = clientCommand.Flag("verify-cn", "Allow servers with given common name (can be repeated).").PlaceHolder("CN").Strings()
 	clientAllowedOUs     = clientCommand.Flag("verify-ou", "Allow servers with given organizational unit name (can be repeated).").PlaceHolder("OU").Strings()
 	clientAllowedDNSs    = clientCommand.Flag("verify-dns", "Allow servers with given DNS subject alternative name (can be repeated).").PlaceHolder("DNS").Strings()
@@ -178,6 +179,10 @@ func init() {
 	clientCommand.Flag("verify-dns-san", "").Hidden().StringsVar(clientAllowedDNSs)
 	clientCommand.Flag("verify-ip-san", "").Hidden().IPListVar(clientAllowedIPs)
 	clientCommand.Flag("verify-uri-san", "").Hidden().StringsVar(clientAllowedURIs)
+	clientCommand.Flag("connect-proxy", "").Hidden().URLVar(clientProxy)
+
+	// Register HTTP CONNECT proxy scheme for golang.org/x/net/proxy
+	netproxy.RegisterDialerType("http", connectproxy.ConnectProxy)
 }
 
 var exitFunc = os.Exit
@@ -389,9 +394,6 @@ func clientValidateFlags() error {
 	if !*clientUnsafeListen && !consideredSafe(*clientListenAddress) {
 		return fmt.Errorf("--listen must be unix:PATH, localhost:PORT, systemd:NAME or launchd:NAME (unless --unsafe-listen is set)")
 	}
-	if *clientConnectProxy != nil && (*clientConnectProxy).Scheme != "http" && (*clientConnectProxy).Scheme != "https" {
-		return fmt.Errorf("invalid CONNECT proxy %s, must have HTTP or HTTPS connection scheme", (*clientConnectProxy).String())
-	}
 	if err := validateCipherSuites(); err != nil {
 		return err
 	}
@@ -527,7 +529,7 @@ func run(args []string) error {
 		// on our side if the connection is forwarded through a CONNECT proxy. Hence,
 		// we ignore "no such host" errors when a proxy is set and trust that the
 		// proxy will be able to find the target for us.
-		skipResolve := *clientConnectProxy != nil
+		skipResolve := *clientProxy != nil
 		network, address, host, err := socket.ParseAddress(*clientForwardAddress, skipResolve)
 		if err != nil {
 			logger.Printf("error: invalid target address: %s\n", err)
@@ -842,32 +844,22 @@ func clientBackendDialer(
 
 	config.VerifyPeerCertificate = clientACL.VerifyPeerCertificateClient
 
-	var dialer certloader.Dialer = &net.Dialer{Timeout: *connectTimeout}
+	var dialer netproxy.ContextDialer = &net.Dialer{Timeout: *connectTimeout}
 
-	if *clientConnectProxy != nil {
-		logger.Printf("using HTTP(S) CONNECT proxy %s", (*clientConnectProxy).String())
-
-		// Use HTTP CONNECT proxy to connect to target.
-		proxyConfig, err := buildClientConfig(*enabledCipherSuites)
+	if *clientProxy != nil {
+		logger.Printf("using proxy %s", (*clientProxy).String())
+		proxyDialer, err := netproxy.FromURL(*clientProxy, &net.Dialer{Timeout: *connectTimeout})
 		if err != nil {
+			logger.Printf("error: error configuring proxy: %s\n", err)
 			return nil, nil, err
 		}
-		config.ClientAuth = tls.NoClientCert
 
-		// Read CA bundle for passing to proxy library
-		ca, err := certloader.LoadTrustStore(*caBundlePath)
-		if err != nil {
-			logger.Printf("error: unable to build TLS config: %s\n", err)
-			return nil, nil, err
+		var ok bool
+		dialer, ok = proxyDialer.(netproxy.ContextDialer)
+		if !ok {
+			logger.Printf("unexpected: proxy dialer scheme did not implement context dialing, aborting")
+			return nil, nil, errors.New("unexpected: proxy dialer scheme did not implement context dialing, aborting")
 		}
-		config.RootCAs = ca
-
-		// TODO(cs): The http_dialer package does not expose DialContext,
-		// so we have to figure out an alternative solution.
-		_ = http_dialer.New(
-			*clientConnectProxy,
-			http_dialer.WithDialer(dialer.(*net.Dialer)),
-			http_dialer.WithTls(proxyConfig))
 	}
 
 	clientConfig := mustGetClientConfig(tlsConfigSource, config)

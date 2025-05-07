@@ -44,11 +44,11 @@ func (m *failingListener) Accept() (net.Conn, error) { return nil, errors.New("f
 func (m *failingListener) Close() error              { return nil }
 func (m *failingListener) Addr() net.Addr            { return nil }
 
-func proxyForTest(listener net.Listener, dialer Dialer) *Proxy {
+func proxyForTest(listener net.Listener, dialer DialFunc) *Proxy {
 	return New(listener, 5*time.Second, 5*time.Second, 5*time.Second, 1, dialer, &testLogger{}, LogEverything, false)
 }
 
-func proxyForTestWithProxyProtocol(listener net.Listener, dialer Dialer) *Proxy {
+func proxyForTestWithProxyProtocol(listener net.Listener, dialer DialFunc) *Proxy {
 	return New(listener, 5*time.Second, 5*time.Second, 5*time.Second, 1, dialer, &testLogger{}, LogEverything, true)
 }
 
@@ -81,7 +81,7 @@ func TestMaxConcurrentConns(t *testing.T) {
 	assert.Nil(t, err, "should be able to listen on random port")
 	defer target.Close()
 
-	dialer := func() (net.Conn, error) {
+	dialer := func(_ context.Context) (net.Conn, error) {
 		return net.Dial("tcp", target.Addr().String())
 	}
 

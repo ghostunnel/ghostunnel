@@ -129,7 +129,7 @@ func TestStatusHandleWatchdog(t *testing.T) {
 func TestStatusHandlerNew(t *testing.T) {
 	handler := newStatusHandler(dummyDial, "", "", "", "")
 	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, nil)
+	handler.ServeHTTP(response, &http.Request{})
 
 	if response.Code != 503 {
 		t.Error("status should return 503 if not yet listening")
@@ -144,7 +144,7 @@ func TestStatusHandlerListeningTCP(t *testing.T) {
 	handler := newStatusHandler(dummyDial, "", "", "", "")
 	response := httptest.NewRecorder()
 	handler.Listening()
-	handler.ServeHTTP(response, nil)
+	handler.ServeHTTP(response, &http.Request{})
 
 	if response.Code != 200 {
 		t.Error("status should return 200 once listening")
@@ -159,7 +159,7 @@ func TestStatusHandlerListeningBackendDown(t *testing.T) {
 	handler := newStatusHandler(dummyDialError, "", "", "", "")
 	response := httptest.NewRecorder()
 	handler.Listening()
-	handler.ServeHTTP(response, nil)
+	handler.ServeHTTP(response, &http.Request{})
 
 	if response.Code != 503 {
 		t.Error("status should return 503 if backend is down")
@@ -171,7 +171,7 @@ func TestStatusHandlerReloading(t *testing.T) {
 	response := httptest.NewRecorder()
 	handler.Listening()
 	handler.Reloading()
-	handler.ServeHTTP(response, nil)
+	handler.ServeHTTP(response, &http.Request{})
 
 	if response.Code != 200 {
 		t.Error("status should return 200 during reload")
@@ -183,7 +183,7 @@ func TestStatusHandlerStopping(t *testing.T) {
 	response := httptest.NewRecorder()
 	handler.Listening()
 	handler.Stopping()
-	handler.ServeHTTP(response, nil)
+	handler.ServeHTTP(response, &http.Request{})
 
 	if response.Code != 503 {
 		t.Error("status should return 503 when stopping")
