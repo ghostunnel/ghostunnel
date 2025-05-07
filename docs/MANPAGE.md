@@ -38,11 +38,6 @@ services.
 :   Path to CA bundle file (PEM/X509). Uses system trust store by
     default.
 
-**\--cipher-suites=\"AES,CHACHA\"**
-
-:   Set of cipher suites to enable, comma-separated, in order of
-    preference (AES, CHACHA).
-
 **\--use-workload-api**
 
 :   If true, certificate and root CAs are retrieved via the SPIFFE
@@ -74,6 +69,11 @@ services.
 **\--max-conn-lifetime=0s**
 
 :   Maximum lifetime for connections post handshake, no matter what.
+    Zero means infinite.
+
+**\--max-concurrent-conns=0**
+
+:   Maximum number of concurrent connections to handle in the proxy.
     Zero means infinite.
 
 **\--metrics-graphite=ADDR**
@@ -204,9 +204,9 @@ Server mode (TLS listener -\> plain TCP/UNIX target).
 :   Allow clients with given URI subject alternative name (can be
     repeated).
 
-**\--allow-policy=POLICY**
+**\--allow-policy=BUNDLE**
 
-:   Allow passing the location of an OPA rego file
+:   Allow passing the location of an OPA bundle.
 
 **\--allow-query=QUERY**
 
@@ -285,9 +285,9 @@ Client mode (plain TCP/UNIX listener -\> TLS target).
 :   Allow servers with given URI subject alternative name (can be
     repeated).
 
-**\--verify-policy=POLICY**
+**\--verify-policy=BUNDLE**
 
-:   Allow passing the location of an OPA rego file
+:   Allow passing the location of an OPA bundle.
 
 **\--verify-query=QUERY**
 

@@ -10,6 +10,10 @@ ghostunnel: $(SOURCE_FILES)
 ghostunnel.man: ghostunnel
 	./ghostunnel --help-custom-man > $@
 
+# Man page for docs
+docs/MANPAGE.md: ghostunnel
+	./ghostunnel --help-man | pandoc --from man --to markdown > $@
+
 # Test binary with coverage instrumentation
 ghostunnel.test: $(SOURCE_FILES)
 	go test -c -covermode=count -coverpkg .,./auth,./certloader,./proxy,./wildcard,./socket
