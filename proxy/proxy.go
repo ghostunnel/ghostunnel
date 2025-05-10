@@ -245,7 +245,7 @@ func forceHandshake(ctx context.Context, conn net.Conn) error {
 		defer handshakeTimer.UpdateSince(startTime)
 
 		err := tlsConn.HandshakeContext(ctx)
-		if netErr, ok := err.(net.Error); (ok && netErr.Timeout()) || err == context.DeadlineExceeded {
+		if isTimeoutError(err) {
 			// If we timed out, increment timeout metric
 			handshakeTimeoutCounter.Inc(1)
 		}
@@ -344,7 +344,7 @@ func (p *Proxy) copyData(dst net.Conn, src net.Conn) (written int64) {
 	if err != nil && !isClosedConnectionError(err) {
 		// We don't log individual "read from closed connection" errors, because
 		// we already have a log statement showing that a pipe has been closed.
-		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+		if isTimeoutError(err) {
 			connTimeoutCounter.Inc(1)
 		}
 		p.logConditional(LogConnectionErrors, "error during copy: %s", err)
@@ -375,6 +375,11 @@ func (p *Proxy) logConditional(flag int, msg string, args ...interface{}) {
 	if (p.loggerFlags & flag) > 0 {
 		p.Logger.Printf(msg, args...)
 	}
+}
+
+func isTimeoutError(err error) bool {
+	netErr, ok := err.(net.Error)
+	return (ok && netErr.Timeout()) || err == context.DeadlineExceeded
 }
 
 func isClosedConnectionError(err error) bool {
