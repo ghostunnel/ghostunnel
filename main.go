@@ -17,6 +17,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -40,10 +41,11 @@ import (
 	kingpin "github.com/alecthomas/kingpin/v2"
 	graphite "github.com/cyberdelia/go-metrics-graphite"
 	gsyslog "github.com/hashicorp/go-syslog"
-	http_dialer "github.com/mwitkow/go-http-dialer"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	metrics "github.com/rcrowley/go-metrics"
 	sqmetrics "github.com/square/go-sq-metrics"
+	connectproxy "github.com/wrouesnel/go.connect-proxy-scheme"
+	netproxy "golang.org/x/net/proxy"
 
 	prometheusmetrics "github.com/deathowl/go-metrics-prometheus"
 	"github.com/prometheus/client_golang/prometheus"
@@ -98,7 +100,7 @@ var (
 	clientForwardAddress = clientCommand.Flag("target", "Address to forward connections to (must be HOST:PORT).").PlaceHolder("ADDR").Required().String()
 	clientUnsafeListen   = clientCommand.Flag("unsafe-listen", "If set, does not limit listen to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
 	clientServerName     = clientCommand.Flag("override-server-name", "If set, overrides the server name used for hostname verification.").PlaceHolder("NAME").String()
-	clientConnectProxy   = clientCommand.Flag("connect-proxy", "If set, connect to target over given HTTP CONNECT proxy. Must be HTTP/HTTPS URL.").PlaceHolder("URL").URL()
+	clientProxy          = clientCommand.Flag("proxy", "If set, connect to target over given proxy (HTTP CONNECT or SOCKS5). Must be a proxy URL.").PlaceHolder("URL").URL()
 	clientAllowedCNs     = clientCommand.Flag("verify-cn", "Allow servers with given common name (can be repeated).").PlaceHolder("CN").Strings()
 	clientAllowedOUs     = clientCommand.Flag("verify-ou", "Allow servers with given organizational unit name (can be repeated).").PlaceHolder("OU").Strings()
 	clientAllowedDNSs    = clientCommand.Flag("verify-dns", "Allow servers with given DNS subject alternative name (can be repeated).").PlaceHolder("DNS").Strings()
@@ -177,25 +179,24 @@ func init() {
 	clientCommand.Flag("verify-dns-san", "").Hidden().StringsVar(clientAllowedDNSs)
 	clientCommand.Flag("verify-ip-san", "").Hidden().IPListVar(clientAllowedIPs)
 	clientCommand.Flag("verify-uri-san", "").Hidden().StringsVar(clientAllowedURIs)
+	clientCommand.Flag("connect-proxy", "").Hidden().URLVar(clientProxy)
+
+	// Register HTTP CONNECT proxy scheme for golang.org/x/net/proxy
+	netproxy.RegisterDialerType("http", connectproxy.ConnectProxy)
 }
 
 var exitFunc = os.Exit
 
-// Context groups listening context data together
-type Context struct {
+// Environment groups listening context data together.
+type Environment struct {
 	status          *statusHandler
 	statusHTTP      *http.Server
 	shutdownChannel chan bool
 	shutdownTimeout time.Duration
-	dial            func() (net.Conn, error)
+	dial            proxy.DialFunc
 	metrics         *sqmetrics.SquareMetrics
 	tlsConfigSource certloader.TLSConfigSource
 	regoPolicy      policy.Policy
-}
-
-// Dialer is an interface for dialers (either net.Dialer, or http_dialer.HttpTunnel)
-type Dialer interface {
-	Dial(network, address string) (net.Conn, error)
 }
 
 // Global logger instance
@@ -393,9 +394,6 @@ func clientValidateFlags() error {
 	if !*clientUnsafeListen && !consideredSafe(*clientListenAddress) {
 		return fmt.Errorf("--listen must be unix:PATH, localhost:PORT, systemd:NAME or launchd:NAME (unless --unsafe-listen is set)")
 	}
-	if *clientConnectProxy != nil && (*clientConnectProxy).Scheme != "http" && (*clientConnectProxy).Scheme != "https" {
-		return fmt.Errorf("invalid CONNECT proxy %s, must have HTTP or HTTPS connection scheme", (*clientConnectProxy).String())
-	}
 	if err := validateCipherSuites(); err != nil {
 		return err
 	}
@@ -497,7 +495,7 @@ func run(args []string) error {
 		logger.Printf("using target address %s", *serverForwardAddress)
 
 		status := newStatusHandler(dial, command, *serverListenAddress, *serverForwardAddress, *serverStatusTargetAddress)
-		context := &Context{
+		env := &Environment{
 			status:          status,
 			shutdownChannel: make(chan bool, 1),
 			shutdownTimeout: *processShutdownTimeout,
@@ -505,10 +503,10 @@ func run(args []string) error {
 			metrics:         metrics,
 			tlsConfigSource: tlsConfigSource,
 		}
-		go context.reloadHandler(*timedReload)
+		go env.reloadHandler(*timedReload)
 
 		// Start listening
-		err = serverListen(context)
+		err = serverListen(env)
 		if err != nil {
 			logger.Printf("error from server listen: %s\n", err)
 		}
@@ -531,7 +529,7 @@ func run(args []string) error {
 		// on our side if the connection is forwarded through a CONNECT proxy. Hence,
 		// we ignore "no such host" errors when a proxy is set and trust that the
 		// proxy will be able to find the target for us.
-		skipResolve := *clientConnectProxy != nil
+		skipResolve := *clientProxy != nil
 		network, address, host, err := socket.ParseAddress(*clientForwardAddress, skipResolve)
 		if err != nil {
 			logger.Printf("error: invalid target address: %s\n", err)
@@ -549,7 +547,7 @@ func run(args []string) error {
 		// is for the client /_status endpoint, its target will be a Ghostunnel in
 		// server mode, and thus this should be a (default) TCP check.
 		status := newStatusHandler(dial, command, *clientListenAddress, *clientForwardAddress, "")
-		context := &Context{
+		env := &Environment{
 			status:          status,
 			shutdownChannel: make(chan bool, 1),
 			shutdownTimeout: *processShutdownTimeout,
@@ -558,10 +556,10 @@ func run(args []string) error {
 			tlsConfigSource: tlsConfigSource,
 			regoPolicy:      policy,
 		}
-		go context.reloadHandler(*timedReload)
+		go env.reloadHandler(*timedReload)
 
 		// Start listening
-		err = clientListen(context)
+		err = clientListen(env)
 		if err != nil {
 			logger.Printf("error from client listen: %s\n", err)
 		}
@@ -576,7 +574,7 @@ func run(args []string) error {
 // allows us to have multiple sockets listening on the same port and accept
 // connections. This is useful for the purpose of replacing certificates
 // in-place without having to take downtime, e.g. if a certificate is expiring.
-func serverListen(context *Context) error {
+func serverListen(env *Environment) error {
 	config, err := buildServerConfig(*enabledCipherSuites)
 	if err != nil {
 		logger.Printf("error trying to read CA bundle: %s", err)
@@ -598,7 +596,7 @@ func serverListen(context *Context) error {
 			return err
 		}
 
-		context.regoPolicy = regoPolicy
+		env.regoPolicy = regoPolicy
 	}
 
 	serverACL := auth.ACL{
@@ -624,7 +622,7 @@ func serverListen(context *Context) error {
 		return err
 	}
 
-	serverConfig := mustGetServerConfig(context.tlsConfigSource, config)
+	serverConfig := mustGetServerConfig(env.tlsConfigSource, config)
 
 	p := proxy.New(
 		certloader.NewListener(listener, serverConfig),
@@ -632,14 +630,14 @@ func serverListen(context *Context) error {
 		*closeTimeout,
 		*maxConnLifetime,
 		int64(*maxConcurrentConns),
-		context.dial,
+		env.dial,
 		logger,
 		proxyLoggerFlags(*quiet),
 		*serverProxyProtocol,
 	)
 
 	if *statusAddress != "" {
-		err := context.serveStatus()
+		err := env.serveStatus()
 		if err != nil {
 			logger.Printf("error serving /_status: %s", err)
 			return err
@@ -650,16 +648,16 @@ func serverListen(context *Context) error {
 
 	go p.Accept()
 
-	context.status.Listening()
-	context.status.HandleWatchdog()
-	context.signalHandler(p)
+	env.status.Listening()
+	env.status.HandleWatchdog()
+	env.signalHandler(p)
 	p.Wait()
 
 	return nil
 }
 
 // Open listening socket in client mode.
-func clientListen(context *Context) error {
+func clientListen(env *Environment) error {
 	listener, err := socket.ParseAndOpen(*clientListenAddress)
 	if err != nil {
 		logger.Printf("error opening socket: %s", err)
@@ -677,14 +675,14 @@ func clientListen(context *Context) error {
 		*closeTimeout,
 		*maxConnLifetime,
 		int64(*maxConcurrentConns),
-		context.dial,
+		env.dial,
 		logger,
 		proxyLoggerFlags(*quiet),
 		false,
 	)
 
 	if *statusAddress != "" {
-		err := context.serveStatus()
+		err := env.serveStatus()
 		if err != nil {
 			logger.Printf("error serving /_status: %s", err)
 			return err
@@ -695,22 +693,22 @@ func clientListen(context *Context) error {
 
 	go p.Accept()
 
-	context.status.Listening()
-	context.status.HandleWatchdog()
-	context.signalHandler(p)
+	env.status.Listening()
+	env.status.HandleWatchdog()
+	env.signalHandler(p)
 	p.Wait()
 
 	return nil
 }
 
 // Serve /_status (if configured)
-func (context *Context) serveStatus() error {
+func (env *Environment) serveStatus() error {
 	promHandler := promhttp.Handler()
 
 	mux := http.NewServeMux()
-	mux.Handle("/_status", context.status)
+	mux.Handle("/_status", env.status)
 	mux.HandleFunc("/_metrics/json", func(w http.ResponseWriter, r *http.Request) {
-		context.metrics.ServeHTTP(w, r)
+		env.metrics.ServeHTTP(w, r)
 	})
 	mux.HandleFunc("/_metrics/prometheus", func(w http.ResponseWriter, r *http.Request) {
 		promHandler.ServeHTTP(w, r)
@@ -719,7 +717,7 @@ func (context *Context) serveStatus() error {
 		params := r.URL.Query()
 		format, ok := params["format"]
 		if !ok || format[0] != "prometheus" {
-			context.metrics.ServeHTTP(w, r)
+			env.metrics.ServeHTTP(w, r)
 			return
 		}
 		promHandler.ServeHTTP(w, r)
@@ -734,7 +732,7 @@ func (context *Context) serveStatus() error {
 
 			logger.Printf("shutdown was requested via status endpoint")
 
-			context.shutdownChannel <- true
+			env.shutdownChannel <- true
 
 			w.WriteHeader(http.StatusOK)
 		})
@@ -761,25 +759,25 @@ func (context *Context) serveStatus() error {
 		return err
 	}
 
-	if network != "unix" && https && context.tlsConfigSource.CanServe() {
+	if network != "unix" && https && env.tlsConfigSource.CanServe() {
 		config, err := buildServerConfig(*enabledCipherSuites)
 		if err != nil {
 			return err
 		}
 		config.ClientAuth = tls.NoClientCert
 
-		serverConfig := mustGetServerConfig(context.tlsConfigSource, config)
+		serverConfig := mustGetServerConfig(env.tlsConfigSource, config)
 		listener = certloader.NewListener(listener, serverConfig)
 	}
 
-	context.statusHTTP = &http.Server{
+	env.statusHTTP = &http.Server{
 		Handler:           mux,
 		ErrorLog:          logger,
 		ReadHeaderTimeout: *connectTimeout,
 	}
 
 	go func() {
-		err := context.statusHTTP.Serve(listener)
+		err := env.statusHTTP.Serve(listener)
 		if err != nil {
 			logger.Printf("error serving status port: %s", err)
 		}
@@ -789,19 +787,24 @@ func (context *Context) serveStatus() error {
 }
 
 // Get backend dialer function in server mode (connecting to a unix socket or tcp port)
-func serverBackendDialer() (func() (net.Conn, error), error) {
+func serverBackendDialer() (proxy.DialFunc, error) {
 	backendNet, backendAddr, _, err := socket.ParseAddress(*serverForwardAddress, false)
 	if err != nil {
 		return nil, err
 	}
 
-	return func() (net.Conn, error) {
-		return net.DialTimeout(backendNet, backendAddr, *connectTimeout)
+	return func(ctx context.Context) (net.Conn, error) {
+		d := net.Dialer{Timeout: *connectTimeout}
+		return d.DialContext(ctx, backendNet, backendAddr)
 	}, nil
 }
 
 // Get backend dialer function in client mode (connecting to a TLS port)
-func clientBackendDialer(tlsConfigSource certloader.TLSConfigSource, network, address, host string) (func() (net.Conn, error), policy.Policy, error) {
+func clientBackendDialer(
+	tlsConfigSource certloader.TLSConfigSource,
+	network, address, host string,
+) (proxy.DialFunc, policy.Policy, error) {
+
 	config, err := buildClientConfig(*enabledCipherSuites)
 	if err != nil {
 		return nil, nil, err
@@ -841,35 +844,30 @@ func clientBackendDialer(tlsConfigSource certloader.TLSConfigSource, network, ad
 
 	config.VerifyPeerCertificate = clientACL.VerifyPeerCertificateClient
 
-	var dialer Dialer = &net.Dialer{Timeout: *connectTimeout}
+	var dialer netproxy.ContextDialer = &net.Dialer{Timeout: *connectTimeout}
 
-	if *clientConnectProxy != nil {
-		logger.Printf("using HTTP(S) CONNECT proxy %s", (*clientConnectProxy).String())
-
-		// Use HTTP CONNECT proxy to connect to target.
-		proxyConfig, err := buildClientConfig(*enabledCipherSuites)
+	if *clientProxy != nil {
+		logger.Printf("using proxy %s", (*clientProxy).String())
+		proxyDialer, err := netproxy.FromURL(*clientProxy, &net.Dialer{Timeout: *connectTimeout})
 		if err != nil {
+			logger.Printf("error: error configuring proxy: %s\n", err)
 			return nil, nil, err
 		}
-		config.ClientAuth = tls.NoClientCert
 
-		// Read CA bundle for passing to proxy library
-		ca, err := certloader.LoadTrustStore(*caBundlePath)
-		if err != nil {
-			logger.Printf("error: unable to build TLS config: %s\n", err)
-			return nil, nil, err
+		var ok bool
+		dialer, ok = proxyDialer.(netproxy.ContextDialer)
+		if !ok {
+			logger.Printf("unexpected: proxy dialer scheme did not implement context dialing, aborting")
+			return nil, nil, errors.New("unexpected: proxy dialer scheme did not implement context dialing, aborting")
 		}
-		config.RootCAs = ca
-
-		dialer = http_dialer.New(
-			*clientConnectProxy,
-			http_dialer.WithDialer(dialer.(*net.Dialer)),
-			http_dialer.WithTls(proxyConfig))
 	}
 
 	clientConfig := mustGetClientConfig(tlsConfigSource, config)
 	d := certloader.DialerWithCertificate(clientConfig, *connectTimeout, dialer)
-	return func() (net.Conn, error) { return d.Dial(network, address) }, regoPolicy, nil
+	return func(ctx context.Context) (net.Conn, error) {
+			return d.DialContext(ctx, network, address)
+		},
+		regoPolicy, nil
 }
 
 func proxyLoggerFlags(flags []string) int {

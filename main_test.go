@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
-	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -344,12 +343,6 @@ func TestClientFlagValidation(t *testing.T) {
 	*clientListenAddress = "127.0.0.1:8080"
 	err = clientValidateFlags()
 	assert.NotNil(t, err, "invalid cipher suite option should be rejected")
-
-	invalidURL, _ := url.Parse("ftp://invalid")
-	*enabledCipherSuites = "AES"
-	*clientConnectProxy = invalidURL
-	err = clientValidateFlags()
-	assert.NotNil(t, err, "invalid connect proxy option should be rejected")
 
 	*clientDisableAuth = false
 	*keystorePath = ""

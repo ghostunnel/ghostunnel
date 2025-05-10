@@ -262,10 +262,10 @@ Client mode (plain TCP/UNIX listener -\> TLS target).
 
 :   If set, overrides the server name used for hostname verification.
 
-**\--connect-proxy=URL**
+**\--proxy=URL**
 
-:   If set, connect to target over given HTTP CONNECT proxy. Must be
-    HTTP/HTTPS URL.
+:   If set, connect to target over given proxy (HTTP CONNECT or SOCKS5).
+    Must be a proxy URL.
 
 **\--verify-cn=CN**
 

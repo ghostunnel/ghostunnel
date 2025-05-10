@@ -18,7 +18,10 @@
 
 package certloader
 
-import "errors"
+import (
+	"errors"
+	"log"
+)
 
 // SupportsPKCS11 returns true or false, depending on whether the binary
 // was built with PKCS11 support or not (requires CGO to build).
@@ -27,6 +30,6 @@ func SupportsPKCS11() bool {
 }
 
 // CertificateFromPKCS11Module creates a reloadable certificate from a PKCS#11 module.
-func CertificateFromPKCS11Module(certificatePath, caBundlePath, modulePath, tokenLabel, pin string) (Certificate, error) {
+func CertificateFromPKCS11Module(certificatePath, caBundlePath, modulePath, tokenLabel, pin string, logger *log.Logger) (Certificate, error) {
 	return nil, errors.New("not supported")
 }
