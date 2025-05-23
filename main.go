@@ -122,6 +122,7 @@ var (
 	// Deprecated cipher suite flags
 	enabledCipherSuites     = app.Flag("cipher-suites", "Set of cipher suites to enable, comma-separated, in order of preference (AES, CHACHA).").Hidden().Default("AES,CHACHA").String()
 	allowUnsafeCipherSuites = app.Flag("allow-unsafe-cipher-suites", "Allow cipher suites deemed to be unsafe to be enabled via the cipher-suites flag.").Hidden().Default("false").Bool()
+	maxTLSVersion           = app.Flag("max-tls-version", "Maximum SSL/TLS version to use (TLS1.2, TLS1.3). If unset, uses the Go default.").Default("").Hidden().String()
 
 	// Reloading and timeouts
 	timedReload            = app.Flag("timed-reload", "Reload keystores every given interval (e.g. 300s), refresh listener/client on changes.").PlaceHolder("DURATION").Duration()
@@ -575,7 +576,7 @@ func run(args []string) error {
 // connections. This is useful for the purpose of replacing certificates
 // in-place without having to take downtime, e.g. if a certificate is expiring.
 func serverListen(env *Environment) error {
-	config, err := buildServerConfig(*enabledCipherSuites)
+	config, err := buildServerConfig(*enabledCipherSuites, *maxTLSVersion)
 	if err != nil {
 		logger.Printf("error trying to read CA bundle: %s", err)
 		return err
@@ -760,7 +761,7 @@ func (env *Environment) serveStatus() error {
 	}
 
 	if network != "unix" && https && env.tlsConfigSource.CanServe() {
-		config, err := buildServerConfig(*enabledCipherSuites)
+		config, err := buildServerConfig(*enabledCipherSuites, *maxTLSVersion)
 		if err != nil {
 			return err
 		}
@@ -805,7 +806,7 @@ func clientBackendDialer(
 	network, address, host string,
 ) (proxy.DialFunc, policy.Policy, error) {
 
-	config, err := buildClientConfig(*enabledCipherSuites)
+	config, err := buildClientConfig(*enabledCipherSuites, *maxTLSVersion)
 	if err != nil {
 		return nil, nil, err
 	}

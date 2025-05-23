@@ -128,33 +128,33 @@ class RootCert:
         os.rename("{0}_temp.crt".format(name), "{0}.crt".format(name))
         call('chmod 600 {0}.key'.format(name), shell=True)
 
-    def create_signed_cert(self, ou, san="IP:127.0.0.1,IP:::1,DNS:localhost"):
-        print_ok("generating {0}.key, {0}.crt, {0}.p12".format(ou))
+    def create_signed_cert(self, cn_and_ou, san="IP:127.0.0.1,IP:::1,DNS:localhost"):
+        print_ok("generating {0}.key, {0}.crt, {0}.p12".format(cn_and_ou))
         fd, openssl_config = mkstemp(dir='.')
         os.write(fd, "extendedKeyUsage=clientAuth,serverAuth\n".encode('utf-8'))
-        os.write(fd, "subjectAltName = {0}".format(san).encode('utf-8'))
-        call("openssl genrsa -out {0}.key 2048".format(ou),
+        os.write(fd, "subjectAltName = {0},DNS:{1}".format(san, cn_and_ou).encode('utf-8'))
+        call("openssl genrsa -out {0}.key 2048".format(cn_and_ou),
              shell=True, stderr=FNULL)
         call(
-            "openssl req -new -key {0}.key -out {0}.csr -subj /C=US/ST=CA/O=ghostunnel/OU={0}".format(ou),
+            "openssl req -new -key {0}.key -out {0}.csr -subj /CN={0}/C=US/ST=CA/O=ghostunnel/OU={0}".format(cn_and_ou),
             shell=True,
             stderr=FNULL)
-        call("chmod 600 {0}.key".format(ou), shell=True)
+        call("chmod 600 {0}.key".format(cn_and_ou), shell=True)
         call(
             "openssl x509 -req -in {0}.csr -CA {1}.crt -CAkey {1}.key -CAcreateserial -out {0}_temp.crt -days 5 -extfile {2}".format(
-                ou,
+                cn_and_ou,
                 self.name,
                 openssl_config),
             shell=True,
             stderr=FNULL)
         call(
-            "openssl pkcs12 -export -out {0}_temp.p12 -in {0}_temp.crt -inkey {0}.key -password pass:".format(ou),
+            "openssl pkcs12 -export -out {0}_temp.p12 -in {0}_temp.crt -inkey {0}.key -password pass:".format(cn_and_ou),
             shell=True)
-        os.rename("{0}_temp.crt".format(ou), "{0}.crt".format(ou))
-        os.rename("{0}_temp.p12".format(ou), "{0}.p12".format(ou))
+        os.rename("{0}_temp.crt".format(cn_and_ou), "{0}.crt".format(cn_and_ou))
+        os.rename("{0}_temp.p12".format(cn_and_ou), "{0}.p12".format(cn_and_ou))
         os.close(fd)
         os.remove(openssl_config)
-        self.leaf_certs.append(ou)
+        self.leaf_certs.append(cn_and_ou)
 
     def __del__(self):
         RootCert.cleanup_certs([self.name])
@@ -250,49 +250,39 @@ class TcpServer(MySocket):
 
 
 class TlsClient(MySocket):
-    def __init__(self, cert, ca, port):
+    def __init__(self, cert, ca, port, min_version=None, max_version=None):
         super().__init__()
         self.cert = cert
         self.ca = ca
         self.port = port
-        self.tls_listener = None
+        self.min_version = min_version
+        self.max_version = max_version
 
     def connect(self, attempts=1, peer=None):
         for _ in range(0, attempts):
             try:
+                ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+                ctx.verify_mode = ssl.CERT_REQUIRED
+                if self.ca:
+                    ctx.load_verify_locations(cafile=self.ca + '.crt')
+                if self.cert:
+                    ctx.load_cert_chain(self.cert + '.crt', self.cert + '.key')
+                if self.min_version is not None:
+                    ctx.minimum_version = self.min_version
+                if self.max_version is not None:
+                    ctx.maximum_version = self.max_version
+
+                # First create TCP connection
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.settimeout(TIMEOUT)
-                if self.cert is not None:
-                    self.socket = wrap_socket(sock,
-                                                  keyfile='{0}.key'.format(
-                                                      self.cert),
-                                                  certfile='{0}.crt'.format(
-                                                      self.cert),
-                                                  ca_certs='{0}.crt'.format(
-                                                      self.ca),
-                                                  cert_reqs=ssl.CERT_REQUIRED)
-                else:
-                    self.socket = wrap_socket(sock,
-                                                  ca_certs='{0}.crt'.format(
-                                                      self.ca),
-                                                  cert_reqs=ssl.CERT_REQUIRED)
+                self.socket = ctx.wrap_socket(sock, server_hostname=peer if peer else LOCALHOST)
                 self.socket.connect((LOCALHOST, self.port))
-
-                if peer is not None:
-                    if self.socket.getpeercert()['subject'][3][0][1] == peer:
-                        return self
-                    else:
-                        print("Did not connect to expected peer: {0}".format(
-                            self.socket.getpeercert()))
-                else:
-                    return self
+                return
             except Exception as e:
-                print(e)
-                if attempts == 1:
-                    raise e
-            print("Trying to connect to {0}...".format(self.port))
-            time.sleep(1)
-        raise Exception("did not connect to peer")
+                print('connection attempt {0} failed, error: {1}'.format(_, e))
+                time.sleep(1)
+
+        raise Exception("connection failed after {0} attempts".format(attempts))
 
 
 class TlsServer(MySocket):
@@ -330,10 +320,11 @@ class TlsServer(MySocket):
         self.tls_listener.close()
 
     def validate_client_cert(self, ou):
-        if self.socket.getpeercert()['subject'][3][0][1] == ou:
+        if self.socket.getpeercert()['subject'][0][0][1] == ou:
             return
-        raise Exception("did not connect to expected peer: ",
-                        self.socket.getpeercert())
+        raise Exception("did not connect to expected peer: got ",
+                        self.socket.getpeercert()[0][0][1],
+                        ", wanted: ", ou)
 
     def cleanup(self):
         super().cleanup()
@@ -509,6 +500,8 @@ class SocketPair():
 
     def validate_tunnel_ou(self, ou, msg):
         peercert = self.client.get_socket().getpeercert()
-        if peercert['subject'][3][0][1] != ou:
-            raise Exception("did not connect to expected peer: ", peercert)
+        if peercert['subject'][0][0][1] != ou:
+            raise Exception("did not connect to expected peer: got ",
+                            peercert['subject'][0][0][1],
+                            ", wanted: ", ou)
         print_ok(msg)
