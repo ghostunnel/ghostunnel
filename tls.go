@@ -91,8 +91,20 @@ func hasKeychainIdentity() bool {
 	return (keychainIdentity != nil && *keychainIdentity != "") || (keychainIssuer != nil && *keychainIssuer != "")
 }
 
+// parseTLSVersion converts a TLS version string to the corresponding crypto/tls constant
+func parseTLSVersion(version string) (uint16, error) {
+	switch strings.ToUpper(version) {
+	case "TLS1.2":
+		return tls.VersionTLS12, nil
+	case "TLS1.3":
+		return tls.VersionTLS13, nil
+	default:
+		return 0, fmt.Errorf("unsupported TLS version: %s", version)
+	}
+}
+
 // buildConfig builds a generic tls.Config
-func buildConfig(enabledCipherSuites string) (*tls.Config, error) {
+func buildConfig(enabledCipherSuites string, maxTLSVersion string) (*tls.Config, error) {
 	// List of cipher suite preferences:
 	// * We list ECDSA ahead of RSA to prefer ECDSA for multi-cert setups.
 	// * We list AES-128 ahead of AES-256 for performance reasons.
@@ -111,23 +123,33 @@ func buildConfig(enabledCipherSuites string) (*tls.Config, error) {
 		suites = append(suites, ciphers...)
 	}
 
-	return &tls.Config{
+	config := &tls.Config{
 		PreferServerCipherSuites: true,
 		MinVersion:               tls.VersionTLS12,
 		CipherSuites:             suites,
-	}, nil
+	}
+
+	if maxTLSVersion != "" {
+		maxVer, err := parseTLSVersion(maxTLSVersion)
+		if err != nil {
+			return nil, fmt.Errorf("invalid max TLS version: %v", err)
+		}
+		config.MaxVersion = maxVer
+	}
+
+	return config, nil
 }
 
 // buildClientConfig builds a tls.Config for clients
-func buildClientConfig(enabledCipherSuites string) (*tls.Config, error) {
+func buildClientConfig(enabledCipherSuites string, maxTLSVersion string) (*tls.Config, error) {
 	// At the moment, we don't apply any extra settings on top of the generic
 	// config for client contexts
-	return buildConfig(enabledCipherSuites)
+	return buildConfig(enabledCipherSuites, maxTLSVersion)
 }
 
 // buildServerConfig builds a tls.Config for servers
-func buildServerConfig(enabledCipherSuites string) (*tls.Config, error) {
-	config, err := buildConfig(enabledCipherSuites)
+func buildServerConfig(enabledCipherSuites string, maxTLSVersion string) (*tls.Config, error) {
+	config, err := buildConfig(enabledCipherSuites, maxTLSVersion)
 	if err != nil {
 		return nil, err
 	}
