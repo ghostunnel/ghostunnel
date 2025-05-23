@@ -210,12 +210,17 @@ func TestBuildConfig(t *testing.T) {
 	defer os.Remove(tmpKeystoreSeparateCert.Name())
 	defer os.Remove(tmpKeystoreSeparateKey.Name())
 
-	_, err = buildConfig("")
+	_, err = buildConfig("", "")
 	assert.NotNil(t, err, "should fail to build config with no cipher suites")
 
-	conf, err := buildConfig("AES,CHACHA")
+	conf, err := buildConfig("AES,CHACHA", "")
 	assert.Nil(t, err, "should be able to build TLS config")
 	assert.True(t, conf.MinVersion == tls.VersionTLS12, "must have correct TLS min version")
+	assert.Equal(t, uint16(0), conf.MaxVersion, "should not set MaxVersion when maxTLSVersion is empty")
+
+	conf, err = buildConfig("AES,CHACHA", "TLS1.3")
+	assert.Nil(t, err, "should be able to build TLS config")
+	assert.True(t, conf.MaxVersion == tls.VersionTLS13, "must have correct TLS max version")
 
 	logger := log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
 	cert, err := buildCertificate("", "", "", "", tmpKeystoreSeparateCert.Name(), logger)
@@ -244,28 +249,28 @@ func TestBuildConfig(t *testing.T) {
 }
 
 func TestCipherSuitePreference(t *testing.T) {
-	_, err := buildConfig("XYZ")
+	_, err := buildConfig("XYZ", "TLS1.3")
 	assert.NotNil(t, err, "should not be able to build TLS config with invalid cipher suite option")
 
-	_, err = buildServerConfig("XYZ")
-	assert.NotNil(t, err, "should not be able to build TLS config with invalid cipher suite option")
+	_, err = buildServerConfig("XYZ", "TLS1.3")
+	assert.NotNil(t, err, "should not be able to build server TLS config with invalid cipher suite option")
 
-	_, err = buildConfig("")
+	_, err = buildConfig("", "TLS1.3")
 	assert.NotNil(t, err, "should not be able to build TLS config wihout cipher suite selection")
 
-	conf, err := buildConfig("CHACHA,AES")
+	conf, err := buildConfig("CHACHA,AES", "TLS1.3")
 	assert.Nil(t, err, "should be able to build TLS config")
 	assert.True(t, conf.CipherSuites[0] == tls.TLS_CHACHA20_POLY1305_SHA256, "expecting TLS 1.3 ChaCha20")
 
-	conf, err = buildConfig("AES,CHACHA")
+	conf, err = buildConfig("AES,CHACHA", "TLS1.3")
 	assert.Nil(t, err, "should be able to build TLS config")
 	assert.True(t, conf.CipherSuites[0] == tls.TLS_AES_128_GCM_SHA256, "expecting TLS 1.3 AES")
 
-	_, err = buildConfig("AES,CHACHA,UNSAFE-AZURE")
+	_, err = buildConfig("AES,CHACHA,UNSAFE-AZURE", "TLS1.3")
 	assert.NotNil(t, err, "should not be able to build TLS config with unsafe cipher suite without flag")
 
 	*allowUnsafeCipherSuites = true
-	conf, err = buildConfig("UNSAFE-AZURE")
+	conf, err = buildConfig("UNSAFE-AZURE", "TLS1.3")
 	assert.Nil(t, err, "should be able to build TLS config")
 	assert.True(t, conf.CipherSuites[0] == tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256, "expecting AES")
 	*allowUnsafeCipherSuites = false
