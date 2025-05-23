@@ -181,6 +181,32 @@ hHV17et3tJKiSuKwz1wSwx7J5hxxPB38+GhfstzSde5LwuAFTfAn
 
 var testKeystorePassword = "password"
 
+func TestParseTLSVersion(t *testing.T) {
+	tests := []struct {
+		version    string
+		expected   uint16
+		shouldFail bool
+	}{
+		{"TLS1.2", tls.VersionTLS12, false},
+		{"TLS1.3", tls.VersionTLS13, false},
+		{"SSL3.0", 0, true},
+		{"TLS1.0", 0, true},
+		{"TLS1.1", 0, true},
+		{"invalid", 0, true},
+		{"", 0, true},
+	}
+
+	for _, test := range tests {
+		version, err := parseTLSVersion(test.version)
+		if test.shouldFail {
+			assert.NotNil(t, err, "parseTLSVersion(%s) should fail", test.version)
+		} else {
+			assert.Nil(t, err, "parseTLSVersion(%s) should not fail", test.version)
+			assert.Equal(t, test.expected, version, "parseTLSVersion(%s) returned wrong version", test.version)
+		}
+	}
+}
+
 func TestBuildConfig(t *testing.T) {
 	tmpKeystore, err := os.CreateTemp("", "ghostunnel-test")
 	panicOnError(err)
@@ -221,6 +247,10 @@ func TestBuildConfig(t *testing.T) {
 	conf, err = buildConfig("AES,CHACHA", "TLS1.3")
 	assert.Nil(t, err, "should be able to build TLS config")
 	assert.True(t, conf.MaxVersion == tls.VersionTLS13, "must have correct TLS max version")
+
+	_, err = buildConfig("AES,CHACHA", "invalid")
+	assert.NotNil(t, err, "should fail to build config with invalid TLS version")
+	assert.Contains(t, err.Error(), "invalid max TLS version", "error should mention invalid TLS version")
 
 	logger := log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
 	cert, err := buildCertificate("", "", "", "", tmpKeystoreSeparateCert.Name(), logger)
