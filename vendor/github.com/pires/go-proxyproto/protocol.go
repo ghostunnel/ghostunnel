@@ -28,7 +28,7 @@ var (
 // If the connection is using the protocol, the RemoteAddr() will return
 // the correct client address. ReadHeaderTimeout will be applied to all
 // connections in order to prevent blocking operations. If no ReadHeaderTimeout
-// is set, a default of 200ms will be used. This can be disabled by setting the
+// is set, a default of 10s will be used. This can be disabled by setting the
 // timeout to < 0.
 //
 // Only one of Policy or ConnPolicy should be provided. If both are provided then
