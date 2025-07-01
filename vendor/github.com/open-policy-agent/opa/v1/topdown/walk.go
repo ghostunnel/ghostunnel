@@ -30,7 +30,7 @@ func walk(filter, path *ast.Array, input *ast.Term, iter func(*ast.Term) error) 
 			pathCopy = ast.InternedEmptyArrayValue
 		} else {
 			// Shallow copy, as while the array is modified, the elements are not
-			pathCopy = path.Slice(0, path.Len())
+			pathCopy = copyShallow(path)
 		}
 
 		// TODO(ae): I'd *really* like these terms to be retrieved from a sync.Pool, and
@@ -48,8 +48,7 @@ func walk(filter, path *ast.Array, input *ast.Term, iter func(*ast.Term) error) 
 		filter = filter.Slice(1, -1)
 		if key.IsGround() {
 			if term := input.Get(key); term != nil {
-				path = pathAppend(path, key)
-				return walk(filter, path, term, iter)
+				return walk(filter, pathAppend(path, key), term, iter)
 			}
 			return nil
 		}
@@ -58,7 +57,7 @@ func walk(filter, path *ast.Array, input *ast.Term, iter func(*ast.Term) error) 
 	switch v := input.Value.(type) {
 	case *ast.Array:
 		for i := range v.Len() {
-			if err := walk(filter, pathAppend(path, ast.InternedIntNumberTerm(i)), v.Elem(i), iter); err != nil {
+			if err := walk(filter, pathAppend(path, ast.InternedTerm(i)), v.Elem(i), iter); err != nil {
 				return err
 			}
 		}
@@ -90,7 +89,7 @@ func walkNoPath(input *ast.Term, iter func(*ast.Term) error) error {
 	}
 
 	inputArray := input.Value.(*ast.Array)
-	value := inputArray.Get(ast.InternedIntNumberTerm(1)).Value
+	value := inputArray.Get(ast.InternedTerm(1)).Value
 
 	switch v := value.(type) {
 	case ast.Object:
@@ -147,6 +146,16 @@ func pathIsWildcard(operands []*ast.Term) bool {
 		}
 	}
 	return false
+}
+
+func copyShallow(arr *ast.Array) *ast.Array {
+	cpy := make([]*ast.Term, 0, arr.Len())
+
+	arr.Foreach(func(elem *ast.Term) {
+		cpy = append(cpy, elem)
+	})
+
+	return ast.NewArray(cpy...)
 }
 
 func init() {
