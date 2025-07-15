@@ -51,15 +51,6 @@ func (l *extraSubjectAttribs) CheckApplies(c *x509.Certificate) bool {
 	return util.IsEV(c.PolicyIdentifiers) && util.IsSubscriberCert(c)
 }
 
-/*
- * We also include the OU attribute here, even though it is now banned, because this lint
- * deals with a more general requirement that came into force long before the OU ban,
- * and there is already another lint that deals with the OU attribute specifically.
- *
- * The organizationIdentifier attribute is only permitted starting from 21-may-2019 (EVGL 1.7.0),
- * which is slightly after SC16 came into force, however any certificates that contain this
- * attribute and were issued before that date have long since expired, so it makes no difference.
- */
 var allowedAttribs = map[string]bool{
 	"1.3.6.1.4.1.311.60.2.1.1": true, // joiLocalityName
 	"1.3.6.1.4.1.311.60.2.1.2": true, // joiStateOrProvinceName
@@ -71,9 +62,20 @@ var allowedAttribs = map[string]bool{
 	"2.5.4.8":                  true, // stateOrProvinceName
 	"2.5.4.9":                  true, // streetAddress
 	"2.5.4.10":                 true, // organizationName
-	"2.5.4.15":                 true, // businessCategory
-	"2.5.4.17":                 true, // postalCode
-	"2.5.4.97":                 true, // organizationIdentifier
+	/*
+	 * We also include the OU attribute here, even though it is now banned, because this lint
+	 * deals with a more general requirement that came into force long before the OU ban,
+	 * and there is already another lint that deals with the OU attribute specifically.
+	 */
+	"2.5.4.11": true, // organizationUnitName
+	"2.5.4.15": true, // businessCategory
+	"2.5.4.17": true, // postalCode
+	/*
+	 * The organizationIdentifier attribute is only permitted starting from 21-may-2019 (EVGL 1.7.0),
+	 * which is slightly after SC16 came into force, however any certificates that contain this
+	 * attribute and were issued before that date have long since expired, so it makes no difference.
+	 */
+	"2.5.4.97": true, // organizationIdentifier
 }
 
 func (l *extraSubjectAttribs) Execute(c *x509.Certificate) *lint.LintResult {

@@ -37,6 +37,7 @@ var (
 	RFC4630Date                = time.Date(2006, time.August, 1, 0, 0, 0, 0, time.UTC)
 	RFC5280Date                = time.Date(2008, time.May, 1, 0, 0, 0, 0, time.UTC)
 	RFC6818Date                = time.Date(2013, time.January, 1, 0, 0, 0, 0, time.UTC)
+	RFC6960Date                = time.Date(2013, time.June, 1, 0, 0, 0, 0, time.UTC)
 	RFC6962Date                = time.Date(2013, time.June, 1, 0, 0, 0, 0, time.UTC)
 	RFC8813Date                = time.Date(2020, time.August, 1, 0, 0, 0, 0, time.UTC)
 	CABEffectiveDate           = time.Date(2012, time.July, 1, 0, 0, 0, 0, time.UTC)
