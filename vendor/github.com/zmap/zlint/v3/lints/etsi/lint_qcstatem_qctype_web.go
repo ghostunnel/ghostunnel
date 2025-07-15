@@ -1,5 +1,5 @@
 /*
- * ZLint Copyright 2024 Regents of the University of Michigan
+ * ZLint Copyright 2025 Regents of the University of Michigan
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy
@@ -26,7 +26,7 @@ type qcStatemQctypeWeb struct{}
 func init() {
 	lint.RegisterCertificateLint(&lint.CertificateLint{
 		LintMetadata: lint.LintMetadata{
-			Name:          "w_qcstatem_qctype_web",
+			Name:          "e_qcstatem_qctype_web",
 			Description:   "Checks that a QC Statement of the type Id-etsi-qcs-QcType features at least the type IdEtsiQcsQctWeb",
 			Citation:      "ETSI EN 319 412 - 5 V2.2.1 (2017 - 11) / Section 4.2.3",
 			Source:        lint.EtsiEsi,
@@ -49,7 +49,7 @@ func (l *qcStatemQctypeWeb) CheckApplies(c *x509.Certificate) bool {
 		return false
 	}
 	if util.ParseQcStatem(util.GetExtFromCert(c, util.QcStateOid).Value, *l.getStatementOid()).IsPresent() {
-		return true
+		return util.IsServerAuthCert(c)
 	}
 	return false
 }
@@ -57,33 +57,31 @@ func (l *qcStatemQctypeWeb) CheckApplies(c *x509.Certificate) bool {
 func (l *qcStatemQctypeWeb) Execute(c *x509.Certificate) *lint.LintResult {
 
 	errString := ""
-	wrnString := ""
 	ext := util.GetExtFromCert(c, util.QcStateOid)
 	s := util.ParseQcStatem(ext.Value, *l.getStatementOid())
 	errString += s.GetErrorInfo()
-	if len(errString) == 0 {
-		qcType := s.(util.Etsi423QcType)
-		if len(qcType.TypeOids) == 0 {
-			errString += "no QcType present, sequence of OIDs is empty"
-		}
-		found := false
-		for _, t := range qcType.TypeOids {
 
-			if t.Equal(util.IdEtsiQcsQctWeb) {
-				found = true
-			}
+	if len(errString) != 0 {
+		return &lint.LintResult{Status: lint.Error, Details: errString}
+	}
+
+	qcType := s.(util.Etsi423QcType)
+	if len(qcType.TypeOids) == 0 {
+		errString += "no QcType present, sequence of OIDs is empty"
+	}
+	found := false
+	for _, t := range qcType.TypeOids {
+
+		if t.Equal(util.IdEtsiQcsQctWeb) {
+			found = true
 		}
-		if !found {
-			wrnString += "etsi Type does not indicate certificate as a 'web' certificate"
-		}
+	}
+	if !found {
+		errString += "etsi Type does not indicate certificate as a 'web' certificate"
 	}
 
 	if len(errString) == 0 {
-		if len(wrnString) == 0 {
-			return &lint.LintResult{Status: lint.Pass}
-		} else {
-			return &lint.LintResult{Status: lint.Warn, Details: wrnString}
-		}
+		return &lint.LintResult{Status: lint.Pass}
 	} else {
 		return &lint.LintResult{Status: lint.Error, Details: errString}
 	}
