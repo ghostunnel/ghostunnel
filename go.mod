@@ -74,7 +74,7 @@ require (
 	github.com/prometheus/procfs v0.17.0 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/tchap/go-patricia/v2 v2.3.3 // indirect
-	github.com/ulikunitz/xz v0.5.12 // indirect
+	github.com/ulikunitz/xz v0.5.14 // indirect
 	github.com/vektah/gqlparser/v2 v2.5.30 // indirect
 	github.com/weppos/publicsuffix-go v0.40.3-0.20250708083804-25ff8f86d8b3 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
