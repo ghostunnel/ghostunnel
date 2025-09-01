@@ -23,7 +23,7 @@ jobs:
           go-version: ${{ matrix.version }}
         id: go
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Build binary
@@ -57,7 +57,7 @@ jobs:
           go-version: ${{ matrix.version }}
         id: go
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Build binary
@@ -97,7 +97,7 @@ jobs:
           go-version: ${{ matrix.version }}
         id: go
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Build binary
@@ -118,7 +118,7 @@ jobs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Create release
@@ -147,7 +147,7 @@ jobs:
         - { os: 'darwin', arch: 'universal' }
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Download artifact
@@ -175,7 +175,7 @@ jobs:
         - { os: 'windows', arch: 'amd64' }
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Download artifact

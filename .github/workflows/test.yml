@@ -22,7 +22,7 @@ jobs:
           go-version: ${{ matrix.version }}
         id: go
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Build binary
         run: make ghostunnel
       - name: Run tests
@@ -37,7 +37,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Run tests 
         run: GO_VERSION=${{ matrix.version }} make docker-test
       - name: Codecov upload
@@ -72,7 +72,7 @@ jobs:
       - name: Install gocovmerge
         run: go install github.com/wadey/gocovmerge@latest
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Run tests
         run: make test
       - name: Codecov upload
