@@ -561,7 +561,6 @@ func (e *eval) fmtVarTerm() string {
 }
 
 func (e *eval) evalNot(iter evalIterator) error {
-
 	expr := e.query[e.index]
 
 	if e.unknown(expr, e.bindings) {
@@ -1647,12 +1646,11 @@ func (e *eval) getRules(ref ast.Ref, args []*ast.Term) (*ast.IndexResult, error)
 
 	var result *ast.IndexResult
 	var err error
+	resolver.e = e
 	if e.indexing {
-		resolver.e = e
 		resolver.args = args
 		result, err = index.Lookup(resolver)
 	} else {
-		resolver.e = e
 		result, err = index.AllRules(resolver)
 	}
 	if err != nil {
@@ -4106,8 +4104,7 @@ func canInlineNegation(safe ast.VarSet, queries []ast.Body) bool {
 					SkipClosures:    true,
 				})
 				vis.Walk(expr)
-				unsafe := vis.Vars().Diff(safe).Diff(ast.ReservedVars)
-				if len(unsafe) > 0 {
+				if vis.Vars().Diff(safe).DiffCount(ast.ReservedVars) > 0 {
 					return false
 				}
 			}
