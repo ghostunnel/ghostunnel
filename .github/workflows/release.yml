@@ -151,7 +151,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Download artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: ghostunnel-${{ matrix.target.os }}-${{ matrix.target.arch }}
           path: dist
@@ -179,7 +179,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Download artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: ghostunnel-${{ matrix.target.os }}-${{ matrix.target.arch }}.exe
           path: dist
