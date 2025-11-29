@@ -86,7 +86,11 @@ var ReservedVars = NewVarSet(
 )
 
 // Wildcard represents the wildcard variable as defined in the language.
-var Wildcard = &Term{Value: Var("_")}
+var (
+	WildcardString       = "_"
+	WildcardValue  Value = Var(WildcardString)
+	Wildcard             = &Term{Value: WildcardValue}
+)
 
 // WildcardPrefix is the special character that all wildcard variables are
 // prefixed with when the statement they are contained in is parsed.
@@ -375,8 +379,10 @@ func (mod *Module) String() string {
 	appendAnnotationStrings := func(buf []string, node Node) []string {
 		if as, ok := byNode[node]; ok {
 			for i := range as {
-				buf = append(buf, "# METADATA")
-				buf = append(buf, "# "+as[i].String())
+				buf = append(buf,
+					"# METADATA",
+					"# "+as[i].String(),
+				)
 			}
 		}
 		return buf
@@ -726,6 +732,7 @@ func (rule *Rule) SetLoc(loc *Location) {
 
 // Path returns a ref referring to the document produced by this rule. If rule
 // is not contained in a module, this function panics.
+//
 // Deprecated: Poor handling of ref rules. Use `(*Rule).Ref()` instead.
 func (rule *Rule) Path() Ref {
 	if rule.Module == nil {
@@ -1050,10 +1057,10 @@ func (head *Head) MarshalJSON() ([]byte, error) {
 
 // Vars returns a set of vars found in the head.
 func (head *Head) Vars() VarSet {
-	vis := &VarVisitor{vars: VarSet{}}
+	vis := NewVarVisitor()
 	// TODO: improve test coverage for this.
 	if head.Args != nil {
-		vis.Walk(head.Args)
+		vis.WalkArgs(head.Args)
 	}
 	if head.Key != nil {
 		vis.Walk(head.Key)
@@ -1062,7 +1069,7 @@ func (head *Head) Vars() VarSet {
 		vis.Walk(head.Value)
 	}
 	if len(head.Reference) > 0 {
-		vis.Walk(head.Reference[1:])
+		vis.WalkRef(head.Reference[1:])
 	}
 	return vis.vars
 }
@@ -1119,8 +1126,8 @@ func (a Args) SetLoc(loc *Location) {
 
 // Vars returns a set of vars that appear in a.
 func (a Args) Vars() VarSet {
-	vis := &VarVisitor{vars: VarSet{}}
-	vis.Walk(a)
+	vis := NewVarVisitor()
+	vis.WalkArgs(a)
 	return vis.vars
 }
 
@@ -1243,7 +1250,7 @@ func (body Body) String() string {
 // control which vars are included.
 func (body Body) Vars(params VarVisitorParams) VarSet {
 	vis := NewVarVisitor().WithParams(params)
-	vis.Walk(body)
+	vis.WalkBody(body)
 	return vis.Vars()
 }
 
@@ -1763,7 +1770,7 @@ func (q *Every) Compare(other *Every) int {
 // KeyValueVars returns the key and val arguments of an `every`
 // expression, if they are non-nil and not wildcards.
 func (q *Every) KeyValueVars() VarSet {
-	vis := &VarVisitor{vars: VarSet{}}
+	vis := NewVarVisitor()
 	if q.Key != nil {
 		vis.Walk(q.Key)
 	}

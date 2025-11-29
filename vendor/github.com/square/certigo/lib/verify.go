@@ -1,22 +1,22 @@
-/*-
- * Copyright 2016 Square Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2025 Block, Inc.
+// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package lib
 
 import (
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
@@ -26,8 +26,6 @@ import (
 	"os"
 	"strings"
 	"time"
-
-	"crypto/tls"
 
 	"golang.org/x/crypto/ocsp"
 )
@@ -86,7 +84,7 @@ func caBundle(caPath string) (*x509.CertPool, error) {
 
 	caFile, err := os.Open(caPath)
 	if err != nil {
-		return nil, fmt.Errorf("error opening CA bundle %s: %s\n", caPath, err)
+		return nil, fmt.Errorf("error opening CA bundle %s: %w", caPath, err)
 	}
 
 	bundle := x509.NewCertPool()
@@ -99,14 +97,14 @@ func caBundle(caPath string) (*x509.CertPool, error) {
 		},
 		func(cert *x509.Certificate, format string, err error) error {
 			if err != nil {
-				return fmt.Errorf("error parsing CA bundle: %s\n", err)
+				return fmt.Errorf("error parsing CA bundle: %w", err)
 			} else {
 				bundle.AddCert(cert)
 			}
 			return nil
 		})
 	if err != nil {
-		return nil, fmt.Errorf("error parsing CA bundle: %s\n", err)
+		return nil, fmt.Errorf("error parsing CA bundle: %w", err)
 	}
 	return bundle, nil
 }
@@ -129,7 +127,7 @@ func VerifyChain(certs []*x509.Certificate, ocspStaple []byte, expectedName, caP
 
 	roots, err := caBundle(caPath)
 	if err != nil {
-		result.Error = fmt.Sprintf("%s", err)
+		result.Error = err.Error() + "\n"
 		return result
 	}
 	// expectedName could be a hostname or could be a SPIFFE ID (spiffe://...)
@@ -149,7 +147,7 @@ func VerifyChain(certs []*x509.Certificate, ocspStaple []byte, expectedName, caP
 
 	chains, err := certs[0].Verify(opts)
 	if err != nil {
-		result.Error = fmt.Sprintf("%s", err)
+		result.Error = err.Error()
 		return result
 	}
 
@@ -158,7 +156,7 @@ func VerifyChain(certs []*x509.Certificate, ocspStaple []byte, expectedName, caP
 		// SPIFFE ID. We thus perform this check explicitly here.
 		err = verifyCertificateSPIFFEIDMatch(certs[0], expectedName)
 		if err != nil {
-			result.Error = fmt.Sprintf("%s", err)
+			result.Error = err.Error()
 			return result
 		}
 	}
@@ -204,8 +202,8 @@ func fmtCert(cert simpleVerifyCert) string {
 
 func PrintVerifyResult(out io.Writer, result SimpleVerification) {
 	if result.Error != "" {
-		fmt.Fprintf(out, red.SprintfFunc()("Failed to verify certificate chain:\n"))
-		fmt.Fprintf(out, "\t%s\n", result.Error)
+		_, _ = fmt.Fprint(out, red.SprintlnFunc()("Failed to verify certificate chain:"))
+		_, _ = fmt.Fprintf(out, "\t%s\n", result.Error)
 		return
 	}
 
@@ -214,22 +212,22 @@ func PrintVerifyResult(out io.Writer, result SimpleVerification) {
 }
 
 func printCertificateChains(out io.Writer, result SimpleVerification) {
-	fmt.Fprintf(out, green.SprintfFunc()("Found %d valid certificate chain(s):\n", len(result.Chains)))
+	_, _ = fmt.Fprint(out, green.SprintfFunc()("Found %d valid certificate chain(s):\n", len(result.Chains)))
 	for i, chain := range result.Chains {
-		fmt.Fprintf(out, "[%d] %s\n", i, fmtCert(chain[0]))
+		_, _ = fmt.Fprintf(out, "[%d] %s\n", i, fmtCert(chain[0]))
 		for j, cert := range chain {
 			if j == 0 {
 				continue
 			}
-			fmt.Fprintf(out, "\t=> %s\n", fmtCert(cert))
+			_, _ = fmt.Fprintf(out, "\t=> %s\n", fmtCert(cert))
 		}
 	}
 }
 
 func printOCSPStatus(out io.Writer, result SimpleVerification) {
 	if result.OCSPError != "" {
-		fmt.Fprintf(out, red.SprintfFunc()("Certificate has OCSP extension, but was unable to check status:\n"))
-		fmt.Fprintf(out, "\t%s\n\n", result.OCSPError)
+		_, _ = fmt.Fprint(out, red.SprintlnFunc()("Certificate has OCSP extension, but was unable to check status:"))
+		_, _ = fmt.Fprintf(out, "\t%s\n\n", result.OCSPError)
 		return
 	}
 
@@ -249,8 +247,8 @@ func printOCSPStatus(out io.Writer, result SimpleVerification) {
 			wasStapled = " (was stapled)"
 		}
 
-		fmt.Fprintf(out, color.SprintfFunc()("Checked OCSP status for certificate%s, got:", wasStapled))
-		fmt.Fprintf(out, "\n\t%s (last update: %s)", status, result.OCSPStatus.ProducedAt.Format(time.RFC822))
+		_, _ = fmt.Fprint(out, color.SprintfFunc()("Checked OCSP status for certificate%s, got:", wasStapled))
+		_, _ = fmt.Fprintf(out, "\n\t%s (last update: %s)", status, result.OCSPStatus.ProducedAt.Format(time.RFC822))
 
 		if result.OCSPStatus.Status == ocsp.Revoked {
 			reason, ok := revocationReasonDescription[result.OCSPStatus.RevocationReason]
@@ -258,10 +256,10 @@ func printOCSPStatus(out io.Writer, result SimpleVerification) {
 				reason = "Unknown"
 			}
 
-			fmt.Fprintf(out, "\n\tWas revoked at %s due to: %s", result.OCSPStatus.RevokedAt.Format(time.RFC822), reason)
+			_, _ = fmt.Fprintf(out, "\n\tWas revoked at %s due to: %s", result.OCSPStatus.RevokedAt.Format(time.RFC822), reason)
 		}
 
-		fmt.Fprintf(out, "\n\n")
+		_, _ = fmt.Fprint(out, "\n\n")
 	}
 }
 
@@ -301,17 +299,17 @@ func verifySPIFFEIDMatch(expected string, actual string) error {
 
 	// Verify both have "spiffe" as the scheme (case-insensitive)
 	if !strings.HasPrefix(strings.ToLower(expected), "spiffe://") {
-		return fmt.Errorf("Expected scheme is not \"spiffe\"")
+		return fmt.Errorf("expected scheme is not \"spiffe\"")
 	}
 	if !strings.HasPrefix(strings.ToLower(actual), "spiffe://") {
-		return fmt.Errorf("Actual scheme is not \"spiffe\"")
+		return fmt.Errorf("actual scheme is not \"spiffe\"")
 	}
 
 	// Verify that everything after the scheme equals in a case-sensitive way
 	expectedRemainder := expected[len("spiffe://"):]
 	actualRemainder := actual[len("spiffe://"):]
 	if expectedRemainder != actualRemainder {
-		return fmt.Errorf("Trust domain and/or path do not match")
+		return fmt.Errorf("trust domain and/or path do not match")
 	}
 
 	// They match

@@ -32,6 +32,7 @@ import (
 	"github.com/open-policy-agent/opa/v1/rego"
 	"github.com/open-policy-agent/opa/v1/storage"
 	"github.com/open-policy-agent/opa/v1/storage/inmem"
+	"github.com/open-policy-agent/opa/v1/util"
 )
 
 const (
@@ -81,6 +82,7 @@ type Compiler struct {
 	bvc                          *bundle.VerificationConfig // represents the key configuration used to verify a signed bundle
 	bsc                          *bundle.SigningConfig      // represents the key configuration used to generate a signed bundle
 	keyID                        string                     // represents the name of the default key used to verify a signed bundle
+	enableBundleLazyLoadingMode  bool                       // bundle lazy loading mode
 	metadata                     *map[string]any            // represents additional data included in .manifest file
 	fsys                         fs.FS                      // file system to use when loading paths
 	ns                           string
@@ -213,6 +215,12 @@ func (c *Compiler) WithBundleSigningConfig(config *bundle.SigningConfig) *Compil
 // If provided, the "keyid" claim in the bundle signature, will be set to this value
 func (c *Compiler) WithBundleVerificationKeyID(keyID string) *Compiler {
 	c.keyID = keyID
+	return c
+}
+
+// WithBundleLazyLoadingMode sets the additional data to be included in .manifest
+func (c *Compiler) WithBundleLazyLoadingMode(mode bool) *Compiler {
+	c.enableBundleLazyLoadingMode = mode
 	return c
 }
 
@@ -486,6 +494,7 @@ func (c *Compiler) initBundle(usePath bool) error {
 		c.asBundle,
 		c.bvc,
 		false,
+		c.enableBundleLazyLoadingMode,
 		c.useRegoAnnotationEntrypoints,
 		c.followSymlinks,
 		c.capabilities,
@@ -741,7 +750,7 @@ func (c *Compiler) compileWasm(ctx context.Context) error {
 		}
 
 		c.bundle.Manifest.WasmResolvers = append(c.bundle.Manifest.WasmResolvers, bundle.WasmResolver{
-			Module:      "/" + strings.TrimLeft(modulePath, "/"),
+			Module:      util.WithPrefix(modulePath, "/"),
 			Entrypoint:  entrypointPath,
 			Annotations: annotations,
 		})
@@ -1260,11 +1269,12 @@ func compile(c *ast.Capabilities, b *bundle.Bundle, dbg debug.Debug, enablePrint
 		return nil, compiler.Errors
 	}
 
-	minVersion, ok := compiler.Required.MinimumCompatibleVersion()
-	if !ok {
-		dbg.Printf("could not determine minimum compatible version!")
-	} else {
-		dbg.Printf("minimum compatible version: %v", minVersion)
+	if dbg.Writer() != io.Discard {
+		if minVersion, ok := compiler.Required.MinimumCompatibleVersion(); !ok {
+			dbg.Printf("could not determine minimum compatible version!")
+		} else {
+			dbg.Printf("minimum compatible version: %v", minVersion)
+		}
 	}
 
 	return compiler, nil

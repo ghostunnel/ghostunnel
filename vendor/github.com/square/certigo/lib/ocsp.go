@@ -1,18 +1,17 @@
-/*-
- * Copyright 2018 Square Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2025 Block, Inc.
+// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package lib
 
@@ -114,7 +113,7 @@ func fetchOCSP(cert, issuer *x509.Certificate) ([]byte, error) {
 	var lastError error
 	for _, server := range cert.OCSPServer {
 		// We try both GET and POST requests, because some servers are janky.
-		reqs := []*http.Request{}
+		var reqs []*http.Request
 		if len(encoded) < 255 {
 			// GET only supported for requests with small payloads, so we can stash
 			// them in the path. RFC says 255 bytes encoded, but doesn't mention if that
@@ -137,23 +136,24 @@ func fetchOCSP(cert, issuer *x509.Certificate) ([]byte, error) {
 		reqs = append(reqs, req)
 
 		for _, req := range reqs {
-			resp, err := ocspHttpClient.Do(req)
+			body, err := func() ([]byte, error) {
+				resp, err := ocspHttpClient.Do(req)
+				if err != nil {
+					return nil, err
+				}
+				defer func() { _ = resp.Body.Close() }()
+
+				if resp.StatusCode != http.StatusOK {
+					return nil, fmt.Errorf("unexpected status code, got: %s", resp.Status)
+				}
+
+				return io.ReadAll(resp.Body)
+			}()
 			if err != nil {
 				lastError = err
 				continue
 			}
 
-			if resp.StatusCode != http.StatusOK {
-				lastError = fmt.Errorf("unexpected status code, got: %s", resp.Status)
-				continue
-			}
-
-			body, err := io.ReadAll(resp.Body)
-			defer resp.Body.Close()
-			if err != nil {
-				lastError = err
-				continue
-			}
 			return body, nil
 		}
 	}
@@ -169,7 +169,10 @@ func buildOCSPwithPOST(server string, encoded []byte) (*http.Request, error) {
 
 	req.Header.Add("Content-Type", "application/ocsp-request")
 	req.Header.Add("Accept", "application/ocsp-response")
-	req.Write(bytes.NewBuffer(encoded))
+	err = req.Write(bytes.NewBuffer(encoded))
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }

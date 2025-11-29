@@ -230,7 +230,8 @@ func pbes2CipherFor(algorithm pkix.AlgorithmIdentifier, password []byte) (cipher
 		prf = sha512.New
 	case kdfParams.Prf.Algorithm.Equal(oidHmacWithSHA1):
 		prf = sha1.New
-	case kdfParams.Prf.Algorithm.Equal(asn1.ObjectIdentifier([]int{})):
+	case kdfParams.Prf.Algorithm == nil:
+		// Algorithm not specified; defaults to SHA1 according to ASN1 definition
 		prf = sha1.New
 	default:
 		return nil, nil, NotImplementedError("pbes2 prf " + kdfParams.Prf.Algorithm.String() + " is not supported")

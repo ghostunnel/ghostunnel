@@ -36,11 +36,12 @@ the Subject field.
 func init() {
 	lint.RegisterCertificateLint(&lint.CertificateLint{
 		LintMetadata: lint.LintMetadata{
-			Name:          "e_cab_iv_requires_personal_name",
-			Description:   "If certificate policy 2.23.140.1.2.3 is included, either organizationName or givenName and surname MUST be included in subject",
-			Citation:      "BRs: 7.1.6.4",
-			Source:        lint.CABFBaselineRequirements,
-			EffectiveDate: util.CABV131Date,
+			Name:            "e_cab_iv_requires_personal_name",
+			Description:     "If certificate policy 2.23.140.1.2.3 is included, either organizationName or givenName and surname MUST be included in subject",
+			Citation:        "BRs: 7.1.6.4",
+			Source:          lint.CABFBaselineRequirements,
+			EffectiveDate:   util.CABV131Date,
+			IneffectiveDate: util.CABFBRs_2_0_0_Date,
 		},
 		Lint: NewCertPolicyRequiresPersonalName,
 	})

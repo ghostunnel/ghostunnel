@@ -1,3 +1,18 @@
+// Copyright 2025 Block, Inc.
+// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package lib
 
 import (
@@ -10,7 +25,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/Masterminds/sprig"
+	"github.com/Masterminds/sprig/v3"
 	"github.com/fatih/color"
 )
 
@@ -94,8 +109,12 @@ func EncodeTLSInfoToText(tcs *tls.ConnectionState, cri *tls.CertificateRequestIn
 		// Should never happen
 		panic(err)
 	}
-	w.Flush()
-	return string(buffer.Bytes())
+	err = w.Flush()
+	if err != nil {
+		// Should never happen
+		panic(err)
+	}
+	return buffer.String()
 }
 
 // EncodeTLSToObject returns a JSON-marshallable description of a TLS connection
@@ -157,7 +176,6 @@ var qualityColors = map[uint8]*color.Color{
 }
 
 var tlsVersions = map[uint16]description{
-	tls.VersionSSL30: {"SSL 3.0", "ssl_3_0", insecure},
 	tls.VersionTLS10: {"TLS 1.0", "tls_1_0", insecure},
 	tls.VersionTLS11: {"TLS 1.1", "tls_1_1", ok},
 	tls.VersionTLS12: {"TLS 1.2", "tls_1_2", good},
