@@ -18,12 +18,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
       - name: Set up toolchain
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.version }}
         id: go
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Build binary
@@ -34,12 +34,12 @@ jobs:
           CGO_ENABLED=1 GOARCH=arm64 CC=aarch64-linux-gnu-gcc make VERSION=$GITHUB_REF_NAME ghostunnel
           mv ghostunnel ghostunnel-linux-arm64
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ghostunnel-linux-amd64
           path: ghostunnel-linux-amd64
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ghostunnel-linux-arm64
           path: ghostunnel-linux-arm64
@@ -52,12 +52,12 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Set up toolchain
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.version }}
         id: go
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Build binary
@@ -69,17 +69,17 @@ jobs:
           mv ghostunnel ghostunnel-darwin-arm64
           lipo -create -output ghostunnel-darwin-universal ghostunnel-darwin-amd64 ghostunnel-darwin-arm64
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ghostunnel-darwin-amd64
           path: ghostunnel-darwin-amd64
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ghostunnel-darwin-arm64
           path: ghostunnel-darwin-arm64
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ghostunnel-darwin-universal
           path: ghostunnel-darwin-universal
@@ -92,12 +92,12 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Set up toolchain
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.version }}
         id: go
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Build binary
@@ -105,7 +105,7 @@ jobs:
           make VERSION=$GITHUB_REF_NAME ghostunnel
           mv ghostunnel ghostunnel-windows-amd64.exe
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ghostunnel-windows-amd64.exe
           path: ghostunnel-windows-amd64.exe
@@ -118,7 +118,7 @@ jobs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Create release
@@ -147,11 +147,11 @@ jobs:
         - { os: 'darwin', arch: 'universal' }
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Download artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: ghostunnel-${{ matrix.target.os }}-${{ matrix.target.arch }}
           path: dist
@@ -175,11 +175,11 @@ jobs:
         - { os: 'windows', arch: 'amd64' }
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Download artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: ghostunnel-${{ matrix.target.os }}-${{ matrix.target.arch }}.exe
           path: dist
