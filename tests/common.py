@@ -23,13 +23,6 @@ def run_ghostunnel(args, stdout=sys.stdout.buffer, stderr=sys.stderr.buffer, pre
     if not any('close-timeout' in f for f in args):
         args.append('--close-timeout=1s')
 
-    # Enable landlock in integration tests, unless we're using PKCS11 modules.
-    # Because PKCS11 modules are arbitrary SO files they can do anything at
-    # runtime, and we can't guarantee that our landlock rules will work for
-    # them.
-    if not any('pkcs11-module' in f for f in args) and platform.system() == "Linux":
-        args.append('--use-landlock')
-
     # Pass args through env var into integration test hook
     env = os.environ.copy()
     env["SYSTEMD_LOG_TARGET"] = "console"
