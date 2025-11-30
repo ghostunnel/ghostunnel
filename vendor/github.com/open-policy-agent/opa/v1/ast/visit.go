@@ -8,6 +8,7 @@ package ast
 // can return a Visitor w which will be used to visit the children of the AST
 // element v. If the Visit function returns nil, the children will not be
 // visited.
+//
 // Deprecated: use GenericVisitor or another visitor implementation
 type Visitor interface {
 	Visit(v any) (w Visitor)
@@ -15,6 +16,7 @@ type Visitor interface {
 
 // BeforeAndAfterVisitor wraps Visitor to provide hooks for being called before
 // and after the AST has been visited.
+//
 // Deprecated: use GenericVisitor or another visitor implementation
 type BeforeAndAfterVisitor interface {
 	Visitor
@@ -24,6 +26,7 @@ type BeforeAndAfterVisitor interface {
 
 // Walk iterates the AST by calling the Visit function on the Visitor
 // v for x before recursing.
+//
 // Deprecated: use GenericVisitor.Walk
 func Walk(v Visitor, x any) {
 	if bav, ok := v.(BeforeAndAfterVisitor); !ok {
@@ -37,6 +40,7 @@ func Walk(v Visitor, x any) {
 
 // WalkBeforeAndAfter iterates the AST by calling the Visit function on the
 // Visitor v for x before recursing.
+//
 // Deprecated: use GenericVisitor.Walk
 func WalkBeforeAndAfter(v BeforeAndAfterVisitor, x any) {
 	Walk(v, x)
@@ -563,10 +567,35 @@ func NewVarVisitor() *VarVisitor {
 	}
 }
 
+// Clear resets the visitor to its initial state, and returns it for chaining.
+func (vis *VarVisitor) Clear() *VarVisitor {
+	vis.params = VarVisitorParams{}
+	clear(vis.vars)
+
+	return vis
+}
+
+// ClearOrNew returns a new VarVisitor if vis is nil, or else a cleared VarVisitor.
+func (vis *VarVisitor) ClearOrNew() *VarVisitor {
+	if vis == nil {
+		return NewVarVisitor()
+	}
+	return vis.Clear()
+}
+
 // WithParams sets the parameters in params on vis.
 func (vis *VarVisitor) WithParams(params VarVisitorParams) *VarVisitor {
 	vis.params = params
 	return vis
+}
+
+// Add adds a variable v to the visitor's set of variables.
+func (vis *VarVisitor) Add(v Var) {
+	if vis.vars == nil {
+		vis.vars = NewVarSet(v)
+	} else {
+		vis.vars.Add(v)
+	}
 }
 
 // Vars returns a VarSet that contains collected vars.
@@ -661,7 +690,7 @@ func (vis *VarVisitor) visit(v any) bool {
 		}
 	}
 	if v, ok := v.(Var); ok {
-		vis.vars.Add(v)
+		vis.Add(v)
 	}
 	return false
 }
@@ -687,58 +716,55 @@ func (vis *VarVisitor) Walk(x any) {
 			vis.Walk(x.Comments[i])
 		}
 	case *Package:
-		vis.Walk(x.Path)
+		vis.WalkRef(x.Path)
 	case *Import:
 		vis.Walk(x.Path)
-		vis.Walk(x.Alias)
+		if x.Alias != "" {
+			vis.Add(x.Alias)
+		}
 	case *Rule:
 		vis.Walk(x.Head)
-		vis.Walk(x.Body)
+		vis.WalkBody(x.Body)
 		if x.Else != nil {
 			vis.Walk(x.Else)
 		}
 	case *Head:
 		if len(x.Reference) > 0 {
-			vis.Walk(x.Reference)
+			vis.WalkRef(x.Reference)
 		} else {
-			vis.Walk(x.Name)
+			vis.Add(x.Name)
 			if x.Key != nil {
 				vis.Walk(x.Key)
 			}
 		}
-		vis.Walk(x.Args)
-
+		vis.WalkArgs(x.Args)
 		if x.Value != nil {
 			vis.Walk(x.Value)
 		}
 	case Body:
-		for i := range x {
-			vis.Walk(x[i])
-		}
+		vis.WalkBody(x)
 	case Args:
-		for i := range x {
-			vis.Walk(x[i])
-		}
+		vis.WalkArgs(x)
 	case *Expr:
 		switch ts := x.Terms.(type) {
 		case *Term, *SomeDecl, *Every:
 			vis.Walk(ts)
 		case []*Term:
 			for i := range ts {
-				vis.Walk(ts[i])
+				vis.Walk(ts[i].Value)
 			}
 		}
 		for i := range x.With {
 			vis.Walk(x.With[i])
 		}
 	case *With:
-		vis.Walk(x.Target)
-		vis.Walk(x.Value)
+		vis.Walk(x.Target.Value)
+		vis.Walk(x.Value.Value)
 	case *Term:
 		vis.Walk(x.Value)
 	case Ref:
 		for i := range x {
-			vis.Walk(x[i])
+			vis.Walk(x[i].Value)
 		}
 	case *object:
 		x.Foreach(func(k, _ *Term) {
@@ -755,29 +781,56 @@ func (vis *VarVisitor) Walk(x any) {
 			vis.Walk(xSlice[i])
 		}
 	case *ArrayComprehension:
-		vis.Walk(x.Term)
-		vis.Walk(x.Body)
+		vis.Walk(x.Term.Value)
+		vis.WalkBody(x.Body)
 	case *ObjectComprehension:
-		vis.Walk(x.Key)
-		vis.Walk(x.Value)
-		vis.Walk(x.Body)
+		vis.Walk(x.Key.Value)
+		vis.Walk(x.Value.Value)
+		vis.WalkBody(x.Body)
 	case *SetComprehension:
-		vis.Walk(x.Term)
-		vis.Walk(x.Body)
+		vis.Walk(x.Term.Value)
+		vis.WalkBody(x.Body)
 	case Call:
 		for i := range x {
-			vis.Walk(x[i])
+			vis.Walk(x[i].Value)
 		}
 	case *Every:
 		if x.Key != nil {
-			vis.Walk(x.Key)
+			vis.Walk(x.Key.Value)
 		}
 		vis.Walk(x.Value)
 		vis.Walk(x.Domain)
-		vis.Walk(x.Body)
+		vis.WalkBody(x.Body)
 	case *SomeDecl:
 		for i := range x.Symbols {
 			vis.Walk(x.Symbols[i])
 		}
+	}
+}
+
+// WalkArgs exists only to avoid the allocation cost of boxing Args to `any` in the VarVisitor.
+// Use it when you know beforehand that the type to walk is Args.
+func (vis *VarVisitor) WalkArgs(x Args) {
+	for i := range x {
+		vis.Walk(x[i].Value)
+	}
+}
+
+// WalkRef exists only to avoid the allocation cost of boxing Ref to `any` in the VarVisitor.
+// Use it when you know beforehand that the type to walk is a Ref.
+func (vis *VarVisitor) WalkRef(ref Ref) {
+	if vis.params.SkipRefHead {
+		ref = ref[1:]
+	}
+	for _, term := range ref {
+		vis.Walk(term.Value)
+	}
+}
+
+// WalkBody exists only to avoid the allocation cost of boxing Body to `any` in the VarVisitor.
+// Use it when you know beforehand that the type to walk is a Body.
+func (vis *VarVisitor) WalkBody(body Body) {
+	for _, expr := range body {
+		vis.Walk(expr)
 	}
 }

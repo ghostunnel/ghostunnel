@@ -1,26 +1,22 @@
-/*-
- * Copyright 2016 Square Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2025 Block, Inc.
+// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package lib
 
 import (
 	"bytes"
-	"crypto/dsa"
-	"crypto/ecdsa"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -266,7 +262,7 @@ func createSimpleCertificate(name string, cert *x509.Certificate) simpleCertific
 		out.URINames = append(out.URINames, uri.String())
 	}
 
-	out.Warnings = certLints(cert, out.URINames)
+	out.Warnings = certLints(cert)
 
 	if cert.BasicConstraintsValid {
 		out.BasicConstraints = &basicConstraints{
@@ -380,25 +376,11 @@ func algString(algo x509.SignatureAlgorithm) string {
 	return strconv.Itoa(int(algo))
 }
 
-// decodeKey returns the algorithm and key size for a public key.
-func decodeKey(publicKey interface{}) (string, int) {
-	switch pk := publicKey.(type) {
-	case *dsa.PublicKey:
-		return "DSA", pk.P.BitLen()
-	case *ecdsa.PublicKey:
-		return "ECDSA", pk.Curve.Params().BitSize
-	case *rsa.PublicKey:
-		return "RSA", pk.N.BitLen()
-	default:
-		return "", 0
-	}
-}
-
 var lintRegistryOnce sync.Once
 var lintRegistry lint.Registry
 
 // certLints prints a list of lints to show common mistakes in certs.
-func certLints(cert *x509.Certificate, uriNames []string) (lints []string) {
+func certLints(cert *x509.Certificate) (lints []string) {
 	parsed, err := zx509.ParseCertificate(cert.Raw)
 	if err != nil {
 		lints = append(lints, fmt.Sprintf("Failed to parse certificate: %v", err))
@@ -408,6 +390,8 @@ func certLints(cert *x509.Certificate, uriNames []string) (lints []string) {
 	lintRegistryOnce.Do(func() {
 		registry, err := lint.GlobalRegistry().Filter(lint.FilterOptions{
 			IncludeSources: []lint.LintSource{lint.RFC5280, lint.Community},
+			// TODO: re-enable once linter is fixed: https://github.com/zmap/zlint/issues/593
+			ExcludeNames: []string{"e_key_usage_and_extended_key_usage_inconsistent"},
 		})
 		if err != nil {
 			log.Fatalf("Failed to filter lint registry: %v", err)
@@ -418,9 +402,9 @@ func certLints(cert *x509.Certificate, uriNames []string) (lints []string) {
 	zLints := zlint.LintCertificateEx(parsed, lintRegistry)
 	for lintName, lintResult := range zLints.Results {
 		if lintResult.Status >= lint.Warn {
-			lint := lintRegistry.ByName(lintName)
+			l := lintRegistry.ByName(lintName)
 			lints = append(lints, fmt.Sprintf("%s: [%s] %s", strings.ToUpper(lintResult.Status.String()),
-				lint.Source, lint.Description))
+				l.Source, l.Description))
 		}
 	}
 	sort.Strings(lints)

@@ -1,18 +1,17 @@
-/*-
- * Copyright 2016 Square Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2025 Block, Inc.
+// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package lib
 
@@ -33,9 +32,10 @@ import (
 	"reflect"
 	"strings"
 
+	"software.sslmate.com/src/go-pkcs12"
+
 	"github.com/square/certigo/jceks"
 	"github.com/square/certigo/pkcs7"
-	"software.sslmate.com/src/go-pkcs12"
 )
 
 const (
@@ -66,6 +66,7 @@ var badSignatureAlgorithms = [...]x509.SignatureAlgorithm{
 	x509.ECDSAWithSHA1,
 }
 
+// TODO: replace misuse of error type in future version (errors should not act as multi-line output templates)
 func errorFromErrors(errs []error) error {
 	if len(errs) == 0 {
 		return nil
@@ -109,7 +110,7 @@ func ReadAsPEMFromFiles(files []*os.File, format string, password func(string) s
 // PKCS12/JCEKS keystores. All inputs will be converted to PEM blocks and
 // passed to the callback.
 func ReadAsPEM(readers []io.Reader, format string, password func(string) string, callback func(*pem.Block, string) error) error {
-	errs := []error{}
+	var errs []error
 	for _, r := range readers {
 		reader := bufio.NewReaderSize(r, 4)
 		format, err := formatForFile(reader, "", format)
@@ -130,7 +131,7 @@ func ReadAsPEM(readers []io.Reader, format string, password func(string) string,
 // or PKCS7 envelopes, or PKCS12/JCEKS keystores. All inputs will be converted
 // to X.509 certificates (private keys are skipped) and passed to the callback.
 func ReadAsX509FromFiles(files []*os.File, format string, password func(string) string, callback func(*x509.Certificate, string, error) error) error {
-	errs := []error{}
+	var errs []error
 	for _, file := range files {
 		reader := bufio.NewReaderSize(file, 4)
 		format, err := formatForFile(reader, file.Name(), format)
@@ -151,7 +152,7 @@ func ReadAsX509FromFiles(files []*os.File, format string, password func(string) 
 // envelopes, or PKCS12/JCEKS keystores. All inputs will be converted to X.509
 // certificates (private keys are skipped) and passed to the callback.
 func ReadAsX509(readers []io.Reader, format string, password func(string) string, callback func(*x509.Certificate, string, error) error) error {
-	errs := []error{}
+	var errs []error
 	for _, r := range readers {
 		reader := bufio.NewReaderSize(r, 4)
 		format, err := formatForFile(reader, "", format)
@@ -212,7 +213,7 @@ func readCertsFromStream(reader io.Reader, filename string, format string, passw
 	case "DER":
 		data, err := io.ReadAll(reader)
 		if err != nil {
-			return fmt.Errorf("unable to read input: %s\n", err)
+			return fmt.Errorf("unable to read input: %s\n", err) //nolint:staticcheck // See errorFromErrors
 		}
 		x509Certs, err0 := x509.ParseCertificates(data)
 		if err0 == nil {
@@ -234,14 +235,20 @@ func readCertsFromStream(reader io.Reader, filename string, format string, passw
 			}
 			return nil
 		}
+		//nolint:staticcheck // See errorFromErrors
 		return fmt.Errorf("unable to parse certificates from DER data\n* X.509 parser gave: %s\n* PKCS7 parser gave: %s\n", err0, err1)
 	case "PKCS12":
 		data, err := io.ReadAll(reader)
 		if err != nil {
-			return fmt.Errorf("unable to read input: %s\n", err)
+			return fmt.Errorf("unable to read input: %s\n", err) //nolint:staticcheck // See errorFromErrors
 		}
-		blocks, err := pkcs12.ToPEM(data, password(""))
-		if err != nil || len(blocks) == 0 {
+		blocks, err := pkcs12ToPemBlocks(data, password(""))
+		if err != nil {
+			//nolint:staticcheck // See errorFromErrors
+			return fmt.Errorf("unable to read keystore: %s\n", err)
+		}
+		if len(blocks) == 0 {
+			//nolint:staticcheck // See errorFromErrors
 			return fmt.Errorf("keystore appears to be empty or password was incorrect\n")
 		}
 		for _, block := range blocks {
@@ -255,7 +262,7 @@ func readCertsFromStream(reader io.Reader, filename string, format string, passw
 	case "JCEKS":
 		keyStore, err := jceks.LoadFromReader(reader, []byte(password("")))
 		if err != nil {
-			return fmt.Errorf("unable to parse keystore: %s\n", err)
+			return fmt.Errorf("unable to parse keystore: %s\n", err) //nolint:staticcheck // See errorFromErrors
 		}
 		for _, alias := range keyStore.ListCerts() {
 			cert, _ := keyStore.GetCert(alias)
@@ -267,6 +274,7 @@ func readCertsFromStream(reader io.Reader, filename string, format string, passw
 		for _, alias := range keyStore.ListPrivateKeys() {
 			key, certs, err := keyStore.GetPrivateKeyAndCerts(alias, []byte(password(alias)))
 			if err != nil {
+				//nolint:staticcheck // See errorFromErrors
 				return fmt.Errorf("unable to parse keystore: %s\n", err)
 			}
 
@@ -274,7 +282,7 @@ func readCertsFromStream(reader io.Reader, filename string, format string, passw
 
 			block, err := keyToPem(key, mergedHeaders)
 			if err != nil {
-				return fmt.Errorf("problem reading key: %s\n", err)
+				return fmt.Errorf("problem reading key: %s\n", err) //nolint:staticcheck // See errorFromErrors
 			}
 
 			if err := callback(block, format); err != nil {
@@ -289,7 +297,7 @@ func readCertsFromStream(reader io.Reader, filename string, format string, passw
 		}
 		return nil
 	}
-	return fmt.Errorf("unknown file type '%s'\n", format)
+	return fmt.Errorf("unknown file type '%s'\n", format) //nolint:staticcheck // See errorFromErrors
 }
 
 func mergeHeaders(baseHeaders, extraHeaders map[string]string) (headers map[string]string) {
@@ -333,6 +341,7 @@ func keyToPem(key crypto.PrivateKey, headers map[string]string) (*pem.Block, err
 	case *ecdsa.PrivateKey:
 		raw, err := x509.MarshalECPrivateKey(k)
 		if err != nil {
+			//nolint:staticcheck // See errorFromErrors
 			return nil, fmt.Errorf("error marshaling key: %s\n", reflect.TypeOf(key))
 		}
 		return &pem.Block{
@@ -341,7 +350,40 @@ func keyToPem(key crypto.PrivateKey, headers map[string]string) (*pem.Block, err
 			Headers: headers,
 		}, nil
 	}
+	//nolint:staticcheck // See errorFromErrors
 	return nil, fmt.Errorf("unknown key type: %s\n", reflect.TypeOf(key))
+}
+
+// pkcs12ToPemBlocks converts all PKCS#12 safe bags in data to PEM blocks.
+func pkcs12ToPemBlocks(data []byte, password string) ([]*pem.Block, error) {
+	// pkcs12.ToPEM is deprecated because it returns "PRIVATE KEY" PEM blocks that are not in PKCS#8 format, but rather
+	// in a format specific to the key type. However, the pkcs12 package does not provide an equivalent replacement:
+	// there is no other way to preserve the order of the safe bag contents or to preserve "friendlyName", "localKeyId",
+	// and "Microsoft CSP Name" attributes that may be present in the PKCS#12 data. Therefore, this function calls the
+	// deprecated function and then attempts to fix the invalid PEM blocks by giving them appropriate block types.
+	//nolint:staticcheck // See comment
+	blocks, err := pkcs12.ToPEM(data, password)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse PKCS#12 data: %w", err)
+	}
+	for _, block := range blocks {
+		if block.Type != "PRIVATE KEY" {
+			continue
+		}
+		if _, parseErr := x509.ParseECPrivateKey(block.Bytes); parseErr == nil {
+			block.Type = "EC PRIVATE KEY"
+			continue
+		}
+		if _, parseErr := x509.ParsePKCS1PrivateKey(block.Bytes); parseErr == nil {
+			block.Type = "RSA PRIVATE KEY"
+			continue
+		}
+
+		//nolint:staticcheck // See errorFromErrors
+		return nil, fmt.Errorf("PKCS#12 conversion produced unknown private key type\n")
+	}
+
+	return blocks, nil
 }
 
 // formatForFile returns the file format (either from flags or
@@ -361,7 +403,7 @@ func formatForFile(file *bufio.Reader, filename, format string) (string, error) 
 	// Third, attempt to guess based on first 4 bytes of input
 	data, err := file.Peek(4)
 	if err != nil {
-		return "", fmt.Errorf("unable to read file: %s\n", err)
+		return "", fmt.Errorf("unable to read file: %s\n", err) //nolint:staticcheck // See errorFromErrors
 	}
 
 	// Heuristics for guessing -- best effort.

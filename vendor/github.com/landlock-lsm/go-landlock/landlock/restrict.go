@@ -31,6 +31,9 @@ func downgrade(c Config, rules []Rule, abi abiInfo) (Config, []Rule) {
 
 // restrict is the actual implementation which sets up Landlock.
 func restrict(c Config, rules ...Rule) error {
+	// Work around https://github.com/landlock-lsm/go-landlock/issues/39
+	rules = maybeWorkaroundBug39(c, rules)
+
 	// Check validity of rules early.
 	for _, rule := range rules {
 		if !rule.compatibleWithConfig(c) {

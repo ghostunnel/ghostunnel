@@ -599,7 +599,11 @@ func (cfg *Config) handshakeMaintenance(ctx context.Context, hello *tls.ClientHe
 		if err != nil {
 			// An error with OCSP stapling is not the end of the world, and in fact, is
 			// quite common considering not all certs have issuer URLs that support it.
-			logger.Warn("stapling OCSP", zap.Error(err))
+			if errors.Is(err, ErrNoOCSPServerSpecified) {
+				logger.Debug("stapling OCSP", zap.Error(err))
+			} else {
+				logger.Warn("stapling OCSP", zap.Error(err))
+			}
 		} else {
 			logger.Debug("successfully stapled new OCSP response",
 				zap.Int("ocsp_status", cert.ocsp.Status),
@@ -849,7 +853,7 @@ func (cfg *Config) getCertFromAnyCertManager(ctx context.Context, hello *tls.Cli
 // solving). True is returned if the challenge is being solved distributed (there
 // is no semantic difference with distributed solving; it is mainly for logging).
 func (cfg *Config) getTLSALPNChallengeCert(clientHello *tls.ClientHelloInfo) (*tls.Certificate, bool, error) {
-	chalData, distributed, err := cfg.getChallengeInfo(clientHello.Context(), clientHello.ServerName)
+	chalData, distributed, err := cfg.getACMEChallengeInfo(clientHello.Context(), clientHello.ServerName, true)
 	if err != nil {
 		return nil, distributed, err
 	}
