@@ -23,6 +23,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -366,13 +367,18 @@ func TestServerBackendDialerError(t *testing.T) {
 }
 
 func TestInvalidCABundle(t *testing.T) {
-	err := run([]string{
+	cmd := []string{
 		"server",
 		"--cacert", "/dev/null",
 		"--target", "localhost:8080",
 		"--keystore", "keystore.p12",
 		"--listen", "localhost:8080",
-	})
+	}
+	if runtime.GOOS == "linux" {
+		// Disable landlock so we don't inadvertendly affect later unit tests.
+		cmd = append(cmd, "--disable-landlock")
+	}
+	err := run(cmd)
 	assert.NotNil(t, err, "invalid CA bundle should exit with error")
 }
 

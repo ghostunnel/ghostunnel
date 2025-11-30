@@ -462,6 +462,7 @@ func run(args []string) error {
 	if *metricsURL != "" {
 		logger.Printf("metrics enabled; reporting metrics via POST to %s", *metricsURL)
 	}
+
 	// Always enable prometheus registry. The overhead should be quite minimal as an in-mem map is updated
 	// with the values.
 	pClient := prometheusmetrics.NewPrometheusProvider(metrics.DefaultRegistry, *metricsPrefix, "", prometheus.DefaultRegisterer, 1*time.Second)
