@@ -138,11 +138,12 @@ var (
 	metricsPrefix   = app.Flag("metrics-prefix", fmt.Sprintf("Set prefix string for all reported metrics (default: %s).", defaultMetricsPrefix)).PlaceHolder("PREFIX").Default(defaultMetricsPrefix).String()
 	metricsInterval = app.Flag("metrics-interval", "Collect (and post/send) metrics every specified interval.").Default("30s").Duration()
 
-	// Status & logging
+	// Status, logging & other
 	statusAddress  = app.Flag("status", "Enable serving /_status and /_metrics on given HOST:PORT (or unix:SOCKET).").PlaceHolder("ADDR").String()
 	enableProf     = app.Flag("enable-pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
 	enableShutdown = app.Flag("enable-shutdown", "Enable serving a /_shutdown endpoint alongside /_status to allow terminating via HTTP.").Default("false").Bool()
 	quiet          = app.Flag("quiet", "Silence log messages (can be all, conns, conn-errs, handshake-errs; repeat flag for more than one)").Default("").Enums("", "all", "conns", "handshake-errs", "conn-errs")
+	skipResolve    = app.Flag("skip-resolve", "Skip resolving target host on startup (useful to start Ghostunnel before network is up).").Default("false").Bool()
 
 	// Man page /help
 	_ = app.Flag("help-custom-man", "Generate a man page.").Hidden().PreAction(generateManPage).Bool()
@@ -541,8 +542,8 @@ func run(args []string) error {
 		// on our side if the connection is forwarded through a CONNECT proxy. Hence,
 		// we ignore "no such host" errors when a proxy is set and trust that the
 		// proxy will be able to find the target for us.
-		skipResolve := *clientProxy != nil
-		network, address, host, err := socket.ParseAddress(*clientForwardAddress, skipResolve)
+		skipRes := *skipResolve || *clientProxy != nil
+		network, address, host, err := socket.ParseAddress(*clientForwardAddress, skipRes)
 		if err != nil {
 			logger.Printf("error: invalid target address: %s\n", err)
 			return err
@@ -760,7 +761,7 @@ func (env *Environment) serveStatus() error {
 
 	https, addr := socket.ParseHTTPAddress(*statusAddress)
 
-	network, address, _, err := socket.ParseAddress(addr, false)
+	network, address, _, err := socket.ParseAddress(addr, true)
 	if err != nil {
 		return err
 	}
@@ -800,7 +801,7 @@ func (env *Environment) serveStatus() error {
 
 // Get backend dialer function in server mode (connecting to a unix socket or tcp port)
 func serverBackendDialer() (proxy.DialFunc, error) {
-	backendNet, backendAddr, _, err := socket.ParseAddress(*serverForwardAddress, false)
+	backendNet, backendAddr, _, err := socket.ParseAddress(*serverForwardAddress, *skipResolve)
 	if err != nil {
 		return nil, err
 	}

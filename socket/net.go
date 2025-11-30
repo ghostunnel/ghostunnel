@@ -52,15 +52,12 @@ func ParseAddress(input string, skipResolve bool) (network, address, host string
 		return
 	}
 
+	network, address = "tcp", input
 	if !skipResolve {
 		// Make sure target address resolves, unless requested otherwise.
 		_, err = net.ResolveTCPAddr("tcp", input)
-		if err != nil {
-			return
-		}
 	}
 
-	network, address = "tcp", input
 	return
 }
 
