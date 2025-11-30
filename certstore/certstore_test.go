@@ -12,7 +12,6 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"crypto/x509"
-	"runtime"
 	"testing"
 
 	"github.com/github/smimesign/fakeca"
@@ -28,11 +27,6 @@ func TestImportDeleteECDSA(t *testing.T) {
 
 // ImportDeleteHelper is an abstraction for testing identity Import()/Delete().
 func ImportDeleteHelper(t *testing.T, i *fakeca.Identity) {
-	if runtime.GOOS == "windows" {
-		t.Skip("FIXME: Windows runners in Github fail this test due to issues with their OpenSSL installation")
-		return
-	}
-
 	withStore(t, func(store Store) {
 		// Import an identity
 		if err := store.Import(i.PFX("asdf"), "asdf"); err != nil {
