@@ -17,7 +17,6 @@ import (
 	"crypto/sha256"
 	_ "crypto/sha512"
 	"io"
-	"os"
 	"strings"
 	"unicode"
 
@@ -37,25 +36,12 @@ import (
 	"time"
 
 	"github.com/weppos/publicsuffix-go/publicsuffix"
-	"golang.org/x/crypto/ed25519"
-
 	"github.com/zmap/zcrypto/dsa"
 	"github.com/zmap/zcrypto/encoding/asn1"
 	"github.com/zmap/zcrypto/x509/ct"
 	"github.com/zmap/zcrypto/x509/pkix"
+	"golang.org/x/crypto/ed25519"
 )
-
-func init() {
-	// Go's crypto/rsa package by default rejects RSA keys smaller than 1024, we'll disable this check to allow
-	// handshakes with servers using 512-bit RSA keys.
-	if !strings.Contains(os.Getenv("GODEBUG"), "rsa1024min=0") {
-		if os.Getenv("GODEBUG") == "" {
-			os.Setenv("GODEBUG", "rsa1024min=0")
-		} else {
-			os.Setenv("GODEBUG", os.Getenv("GODEBUG")+",rsa1024min=0")
-		}
-	}
-}
 
 // pkixPublicKey reflects a PKIX public key structure. See SubjectPublicKeyInfo
 // in RFC 3280.
@@ -102,10 +88,9 @@ func marshalPublicKey(pub interface{}) (publicKeyBytes []byte, publicKeyAlgorith
 		publicKeyAlgorithm.Parameters = asn1.NullRawValue
 	case *ecdsa.PublicKey:
 		publicKeyBytes = elliptic.Marshal(pub.Curve, pub.X, pub.Y)
-		var oid asn1.ObjectIdentifier
-		oid, err = oidFromNamedCurve(pub.Curve)
-		if err != nil {
-			return nil, pkix.AlgorithmIdentifier{}, err
+		oid, ok := oidFromNamedCurve(pub.Curve)
+		if !ok {
+			return nil, pkix.AlgorithmIdentifier{}, errors.New("x509: unsupported elliptic curve")
 		}
 		publicKeyAlgorithm.Algorithm = oidPublicKeyECDSA
 		var paramBytes []byte
@@ -522,10 +507,9 @@ func GetSignatureAlgorithmFromAI(ai pkix.AlgorithmIdentifier) SignatureAlgorithm
 //	id-ecPublicKey OBJECT IDENTIFIER ::= {
 //	      iso(1) member-body(2) us(840) ansi-X9-62(10045) keyType(2) 1 }
 var (
-	oidPublicKeyRSA     = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 1}
-	oidPublicKeyDSA     = asn1.ObjectIdentifier{1, 2, 840, 10040, 4, 1}
-	oidPublicKeyECDSA   = asn1.ObjectIdentifier{1, 2, 840, 10045, 2, 1}
-	oidPublicKeyEd25519 = oidSignatureEd25519
+	oidPublicKeyRSA   = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 1}
+	oidPublicKeyDSA   = asn1.ObjectIdentifier{1, 2, 840, 10040, 4, 1}
+	oidPublicKeyECDSA = asn1.ObjectIdentifier{1, 2, 840, 10045, 2, 1}
 )
 
 func getPublicKeyAlgorithmFromOID(oid asn1.ObjectIdentifier) PublicKeyAlgorithm {
@@ -575,33 +559,33 @@ var (
 	oidKeyEd25519 = asn1.ObjectIdentifier{1, 3, 101, 112}
 )
 
-func namedCurveFromOID(oid asn1.ObjectIdentifier) (elliptic.Curve, error) {
+func namedCurveFromOID(oid asn1.ObjectIdentifier) elliptic.Curve {
 	switch {
 	case oid.Equal(oidNamedCurveP224):
-		return elliptic.P224(), nil
+		return elliptic.P224()
 	case oid.Equal(oidNamedCurveP256):
-		return elliptic.P256(), nil
+		return elliptic.P256()
 	case oid.Equal(oidNamedCurveP384):
-		return elliptic.P384(), nil
+		return elliptic.P384()
 	case oid.Equal(oidNamedCurveP521):
-		return elliptic.P521(), nil
+		return elliptic.P521()
 	}
-	return nil, ErrUnsupportedEllipticCurve
+	return nil
 }
 
-func oidFromNamedCurve(curve elliptic.Curve) (asn1.ObjectIdentifier, error) {
+func oidFromNamedCurve(curve elliptic.Curve) (asn1.ObjectIdentifier, bool) {
 	switch curve {
 	case elliptic.P224():
-		return oidNamedCurveP224, nil
+		return oidNamedCurveP224, true
 	case elliptic.P256():
-		return oidNamedCurveP256, nil
+		return oidNamedCurveP256, true
 	case elliptic.P384():
-		return oidNamedCurveP384, nil
+		return oidNamedCurveP384, true
 	case elliptic.P521():
-		return oidNamedCurveP521, nil
+		return oidNamedCurveP521, true
 	}
 
-	return nil, ErrUnsupportedEllipticCurve
+	return nil, false
 }
 
 // KeyUsage represents the set of actions that are valid for a given key. It's
@@ -837,8 +821,6 @@ type Certificate struct {
 	ParsedExplicitTexts         [][]string
 	ParsedNoticeRefOrganization [][]string
 
-	UserNotices [][]UserNotice
-
 	// Name constraints
 	NameConstraintsCritical bool // if true then the name constraints are marked critical.
 	PermittedDNSNames       []GeneralSubtreeString
@@ -881,9 +863,8 @@ type Certificate struct {
 
 	IsPrecert bool
 
-	// ValidSignature is true if the certificate was signed by any roots or
-	// intermediates given in a call to (*Certificate).Verify().
-	ValidSignature bool
+	// Internal
+	validSignature bool
 
 	// CT
 	SignedCertificateTimestampList []*ct.SignedCertificateTimestamp
@@ -958,10 +939,6 @@ func (c *Certificate) GetParsedSubjectCommonName(invalidateCache bool) ParsedDom
 // ErrUnsupportedAlgorithm results from attempting to perform an operation that
 // involves algorithms that are not currently implemented.
 var ErrUnsupportedAlgorithm = errors.New("x509: cannot verify signature: algorithm unimplemented")
-
-// ErrUnsupportedEllipticCurve results from attempting to perform an operation that
-// involves elliptic curves that are not currently implemented.
-var ErrUnsupportedEllipticCurve = errors.New("x509: unsupported elliptic curve")
 
 // An InsecureAlgorithmError
 type InsecureAlgorithmError SignatureAlgorithm
@@ -1197,11 +1174,6 @@ type userNotice struct {
 	ExplicitText asn1.RawValue   `asn1:"optional"`
 }
 
-type UserNotice struct {
-	ExplicitText    *string
-	NoticeReference *NoticeReference
-}
-
 type noticeReference struct {
 	Organization  asn1.RawValue
 	NoticeNumbers []int
@@ -1388,9 +1360,9 @@ func parsePublicKey(algo PublicKeyAlgorithm, keyData *publicKeyInfo) (interface{
 		if len(rest) != 0 {
 			return nil, errors.New("x509: trailing data after ECDSA parameters")
 		}
-		namedCurve, err := namedCurveFromOID(*namedCurveOID)
-		if err != nil {
-			return nil, err
+		namedCurve := namedCurveFromOID(*namedCurveOID)
+		if namedCurve == nil {
+			return nil, errors.New("x509: unsupported elliptic curve")
 		}
 		x, y := elliptic.Unmarshal(namedCurve, asn1Data)
 		if x == nil {
@@ -1684,7 +1656,6 @@ func parseCertificate(in *certificate) (*Certificate, error) {
 	out.SubjectUniqueId = in.TBSCertificate.SubjectUniqueId
 
 	out.ExtensionsMap = make(map[string]pkix.Extension, len(in.TBSCertificate.Extensions))
-
 	for _, e := range in.TBSCertificate.Extensions {
 		out.Extensions = append(out.Extensions, e)
 		out.ExtensionsMap[e.Id.String()] = e
@@ -1723,9 +1694,6 @@ func parseCertificate(in *certificate) (*Certificate, error) {
 					out.URIs, out.DirectoryNames, out.EDIPartyNames,
 					out.IPAddresses, out.RegisteredIDs, out.FailedToParseNames, err = parseGeneralNames(e.Value)
 				if err != nil {
-					if asn1.AllowPermissiveParsing {
-						continue
-					}
 					return nil, err
 				}
 
@@ -1739,9 +1707,6 @@ func parseCertificate(in *certificate) (*Certificate, error) {
 					out.IANURIs, out.IANDirectoryNames, out.IANEDIPartyNames,
 					out.IANIPAddresses, out.IANRegisteredIDs, out.FailedToParseNames, err = parseGeneralNames(e.Value)
 				if err != nil {
-					if asn1.AllowPermissiveParsing {
-						continue
-					}
 					return nil, err
 				}
 
@@ -1766,9 +1731,6 @@ func parseCertificate(in *certificate) (*Certificate, error) {
 
 				var constraints nameConstraints
 				_, err := asn1.Unmarshal(e.Value, &constraints)
-				if err != nil && asn1.AllowPermissiveParsing {
-					continue
-				}
 				if err != nil {
 					return nil, err
 				}
@@ -1788,9 +1750,6 @@ func parseCertificate(in *certificate) (*Certificate, error) {
 					case 4:
 						var rawdn pkix.RDNSequence
 						if _, err := asn1.Unmarshal(subtree.Value.Bytes, &rawdn); err != nil {
-							if asn1.AllowPermissiveParsing {
-								continue
-							}
 							return out, err
 						}
 						var dn pkix.Name
@@ -1800,9 +1759,6 @@ func parseCertificate(in *certificate) (*Certificate, error) {
 						var ediName pkix.EDIPartyName
 						_, err = asn1.UnmarshalWithParams(subtree.Value.FullBytes, &ediName, "tag:5")
 						if err != nil {
-							if asn1.AllowPermissiveParsing {
-								continue
-							}
 							return out, err
 						}
 						out.PermittedEdiPartyNames = append(out.PermittedEdiPartyNames, GeneralSubtreeEdi{Data: ediName, Max: subtree.Max, Min: subtree.Min})
@@ -1825,9 +1781,6 @@ func parseCertificate(in *certificate) (*Certificate, error) {
 						var id asn1.ObjectIdentifier
 						_, err = asn1.UnmarshalWithParams(subtree.Value.FullBytes, &id, "tag:8")
 						if err != nil {
-							if asn1.AllowPermissiveParsing {
-								continue
-							}
 							return out, err
 						}
 						out.PermittedRegisteredIDs = append(out.PermittedRegisteredIDs, GeneralSubtreeOid{Data: id, Max: subtree.Max, Min: subtree.Min})
@@ -1844,9 +1797,6 @@ func parseCertificate(in *certificate) (*Certificate, error) {
 					case 4:
 						var rawdn pkix.RDNSequence
 						if _, err := asn1.Unmarshal(subtree.Value.Bytes, &rawdn); err != nil {
-							if asn1.AllowPermissiveParsing {
-								continue
-							}
 							return out, err
 						}
 						var dn pkix.Name
@@ -1856,9 +1806,6 @@ func parseCertificate(in *certificate) (*Certificate, error) {
 						var ediName pkix.EDIPartyName
 						_, err = asn1.Unmarshal(subtree.Value.Bytes, &ediName)
 						if err != nil {
-							if asn1.AllowPermissiveParsing {
-								continue
-							}
 							return out, err
 						}
 						out.ExcludedEdiPartyNames = append(out.ExcludedEdiPartyNames, GeneralSubtreeEdi{Data: ediName, Max: subtree.Max, Min: subtree.Min})
@@ -1881,9 +1828,6 @@ func parseCertificate(in *certificate) (*Certificate, error) {
 						var id asn1.ObjectIdentifier
 						_, err = asn1.Unmarshal(subtree.Value.Bytes, &id)
 						if err != nil {
-							if asn1.AllowPermissiveParsing {
-								continue
-							}
 							return out, err
 						}
 						out.ExcludedRegisteredIDs = append(out.ExcludedRegisteredIDs, GeneralSubtreeOid{Data: id, Max: subtree.Max, Min: subtree.Min})
@@ -1907,9 +1851,6 @@ func parseCertificate(in *certificate) (*Certificate, error) {
 
 				var cdp []distributionPoint
 				_, err := asn1.Unmarshal(e.Value, &cdp)
-				if err != nil && asn1.AllowPermissiveParsing {
-					continue
-				}
 				if err != nil {
 					return nil, err
 				}
@@ -1930,9 +1871,6 @@ func parseCertificate(in *certificate) (*Certificate, error) {
 					for len(dpName) > 0 {
 						dpName, err = asn1.Unmarshal(dpName, &n)
 						if err != nil {
-							if asn1.AllowPermissiveParsing {
-								continue
-							}
 							return nil, err
 						}
 						if n.Tag == 6 {
@@ -1947,9 +1885,6 @@ func parseCertificate(in *certificate) (*Certificate, error) {
 				var a authKeyId
 				_, err = asn1.Unmarshal(e.Value, &a)
 				if err != nil {
-					if asn1.AllowPermissiveParsing {
-						continue
-					}
 					return nil, err
 				}
 				out.AuthorityKeyId = a.Id
@@ -1987,9 +1922,6 @@ func parseCertificate(in *certificate) (*Certificate, error) {
 				// RFC 5280, 4.2.1.2
 				var keyid []byte
 				_, err = asn1.Unmarshal(e.Value, &keyid)
-				if err != nil && asn1.AllowPermissiveParsing {
-					continue
-				}
 				if err != nil {
 					return nil, err
 				}
@@ -2000,9 +1932,6 @@ func parseCertificate(in *certificate) (*Certificate, error) {
 				// RFC 5280 4.2.1.4: Certificate Policies
 				var policies []policyInformation
 				if _, err = asn1.Unmarshal(e.Value, &policies); err != nil {
-					if asn1.AllowPermissiveParsing {
-						continue
-					}
 					return nil, err
 				}
 				out.PolicyIdentifiers = make([]asn1.ObjectIdentifier, len(policies))
@@ -2013,7 +1942,6 @@ func parseCertificate(in *certificate) (*Certificate, error) {
 				out.ParsedExplicitTexts = make([][]string, len(policies))
 				out.ParsedNoticeRefOrganization = make([][]string, len(policies))
 				out.CPSuri = make([][]string, len(policies))
-				out.UserNotices = make([][]UserNotice, len(policies))
 
 				for i, policy := range policies {
 					out.PolicyIdentifiers[i] = policy.Policy
@@ -2022,7 +1950,6 @@ func parseCertificate(in *certificate) (*Certificate, error) {
 						out.QualifierId[i] = append(out.QualifierId[i], qualifier.PolicyQualifierId)
 						userNoticeOID := asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 2, 2}
 						cpsURIOID := asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 2, 1}
-
 						if qualifier.PolicyQualifierId.Equal(userNoticeOID) {
 							var un userNotice
 							_, err := asn1.Unmarshal(qualifier.Qualifier.FullBytes, &un)
@@ -2030,27 +1957,15 @@ func parseCertificate(in *certificate) (*Certificate, error) {
 								return nil, err
 							}
 							if err == nil {
-								groupUserNotice := UserNotice{}
 								if len(un.ExplicitText.Bytes) != 0 {
 									out.ExplicitTexts[i] = append(out.ExplicitTexts[i], un.ExplicitText)
-									parsed := string(un.ExplicitText.Bytes)
-									out.ParsedExplicitTexts[i] = append(out.ParsedExplicitTexts[i], parsed)
-
-									groupUserNotice.ExplicitText = &parsed
+									out.ParsedExplicitTexts[i] = append(out.ParsedExplicitTexts[i], string(un.ExplicitText.Bytes))
 								}
-
 								if un.NoticeRef.Organization.Bytes != nil || un.NoticeRef.NoticeNumbers != nil {
 									out.NoticeRefOrgnization[i] = append(out.NoticeRefOrgnization[i], un.NoticeRef.Organization)
 									out.NoticeRefNumbers[i] = append(out.NoticeRefNumbers[i], un.NoticeRef.NoticeNumbers)
 									out.ParsedNoticeRefOrganization[i] = append(out.ParsedNoticeRefOrganization[i], string(un.NoticeRef.Organization.Bytes))
-
-									groupUserNotice.NoticeReference = &NoticeReference{
-										Organization:  string(un.NoticeRef.Organization.Bytes),
-										NoticeNumbers: un.NoticeRef.NoticeNumbers,
-									}
 								}
-
-								out.UserNotices[i] = append(out.UserNotices[i], groupUserNotice)
 							}
 						}
 						if qualifier.PolicyQualifierId.Equal(cpsURIOID) {
@@ -2086,9 +2001,6 @@ func parseCertificate(in *certificate) (*Certificate, error) {
 			// RFC 5280 4.2.2.1: Authority Information Access
 			var aia []authorityInfoAccess
 			if _, err = asn1.Unmarshal(e.Value, &aia); err != nil {
-				if asn1.AllowPermissiveParsing {
-					continue
-				}
 				return nil, err
 			}
 
@@ -2105,9 +2017,6 @@ func parseCertificate(in *certificate) (*Certificate, error) {
 			}
 		} else if e.Id.Equal(oidExtensionSignedCertificateTimestampList) {
 			err := parseSignedCertificateTimestampList(out, e)
-			if err != nil && asn1.AllowPermissiveParsing {
-				continue
-			}
 			if err != nil {
 				return nil, err
 			}
@@ -2123,9 +2032,6 @@ func parseCertificate(in *certificate) (*Certificate, error) {
 		} else if e.Id.Equal(oidBRTorServiceDescriptor) {
 			descs, err := parseTorServiceDescriptorSyntax(e)
 			if err != nil {
-				if asn1.AllowPermissiveParsing {
-					continue
-				}
 				return nil, err
 			}
 			out.TorServiceDescriptors = descs
@@ -2133,9 +2039,6 @@ func parseCertificate(in *certificate) (*Certificate, error) {
 			cabf := CABFOrganizationIDASN{}
 			_, err := asn1.Unmarshal(e.Value, &cabf)
 			if err != nil {
-				if asn1.AllowPermissiveParsing {
-					continue
-				}
 				return nil, err
 			}
 			out.CABFOrganizationIdentifier = &CABFOrganizationIdentifier{
@@ -2148,16 +2051,10 @@ func parseCertificate(in *certificate) (*Certificate, error) {
 			rawStatements := QCStatementsASN{}
 			_, err := asn1.Unmarshal(e.Value, &rawStatements.QCStatements)
 			if err != nil {
-				if asn1.AllowPermissiveParsing {
-					continue
-				}
 				return nil, err
 			}
 			qcStatements := QCStatements{}
 			if err := qcStatements.Parse(&rawStatements); err != nil {
-				if asn1.AllowPermissiveParsing {
-					continue
-				}
 				return nil, err
 			}
 			out.QCStatements = &qcStatements

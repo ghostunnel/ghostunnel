@@ -91,7 +91,6 @@ type CertificatePoliciesData struct {
 	ExplicitTexts         [][]string
 	NoticeRefOrganization [][]string
 	NoticeRefNumbers      [][]NoticeNumber
-	UserNotices           [][]UserNotice
 }
 
 func (cp *CertificatePoliciesData) MarshalJSON() ([]byte, error) {
@@ -253,7 +252,6 @@ func (nc *NameConstraints) UnmarshalJSON(b []byte) error {
 	if err != nil {
 		return err
 	}
-	nc.Critical = ncJson.Critical
 	for _, dns := range ncJson.PermittedDNSNames {
 		nc.PermittedDNSNames = append(nc.PermittedDNSNames, GeneralSubtreeString{Data: dns})
 	}
@@ -322,7 +320,6 @@ func (nc *NameConstraints) UnmarshalJSON(b []byte) error {
 
 func (nc NameConstraints) MarshalJSON() ([]byte, error) {
 	var out NameConstraintsJSON
-	out.Critical = nc.Critical
 	for _, dns := range nc.PermittedDNSNames {
 		out.PermittedDNSNames = append(out.PermittedDNSNames, dns.Data)
 	}
@@ -730,7 +727,7 @@ type CABFOrganizationIdentifier struct {
 	Reference string `json:"reference,omitempty"`
 }
 
-func (c *Certificate) JsonifyExtensions() (*CertificateExtensions, UnknownCertificateExtensions) {
+func (c *Certificate) jsonifyExtensions() (*CertificateExtensions, UnknownCertificateExtensions) {
 	exts := new(CertificateExtensions)
 	unk := make([]pkix.Extension, 0, 2)
 	for _, e := range c.Extensions {
@@ -774,6 +771,7 @@ func (c *Certificate) JsonifyExtensions() (*CertificateExtensions, UnknownCertif
 			exts.NameConstraints.PermittedDirectoryNames = c.PermittedDirectoryNames
 			exts.NameConstraints.PermittedEdiPartyNames = c.PermittedEdiPartyNames
 			exts.NameConstraints.PermittedRegisteredIDs = c.PermittedRegisteredIDs
+
 			exts.NameConstraints.ExcludedEmailAddresses = c.ExcludedEmailAddresses
 			exts.NameConstraints.ExcludedDNSNames = c.ExcludedDNSNames
 			exts.NameConstraints.ExcludedURIs = c.ExcludedURIs
@@ -797,7 +795,6 @@ func (c *Certificate) JsonifyExtensions() (*CertificateExtensions, UnknownCertif
 			exts.CertificatePolicies.ExplicitTexts = c.ParsedExplicitTexts
 			exts.CertificatePolicies.QualifierId = c.QualifierId
 			exts.CertificatePolicies.CPSUri = c.CPSuri
-			exts.CertificatePolicies.UserNotices = c.UserNotices
 
 		} else if e.Id.Equal(oidExtAuthorityInfoAccess) {
 			exts.AuthorityInfoAccess = new(AuthorityInfoAccess)
