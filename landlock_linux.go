@@ -20,7 +20,7 @@ package main
 
 import (
 	"errors"
-	"log"
+	"fmt"
 	"net"
 	"net/url"
 	"os"
@@ -46,7 +46,7 @@ func addLandlockTestPaths(paths []string) {
 
 // setupLandlock processes flags given to the process and generates an
 // appropriate landlock rule configuration to limit our privileges.
-func setupLandlock(logger *log.Logger) error {
+func setupLandlock() error {
 	fsRules := []landlock.Rule{}
 	fsRules = append(fsRules, testRules...)
 
@@ -90,7 +90,7 @@ func setupLandlock(logger *log.Logger) error {
 
 		rule, err := ruleFromStringAddress(*addr, landlock.BindTCP)
 		if err != nil {
-			logger.Printf("error processing argument '%s' for landlock rule", *addr)
+			return fmt.Errorf("error processing argument '%s' for landlock rule: %v", *addr, err)
 		}
 		if rule != nil {
 			netRules = append(netRules, rule)
@@ -110,7 +110,7 @@ func setupLandlock(logger *log.Logger) error {
 
 		rule, err := ruleFromStringAddress(*addr, landlock.ConnectTCP)
 		if err != nil {
-			logger.Printf("error processing argument '%s' for landlock rule", *addr)
+			return fmt.Errorf("error processing argument '%s' for landlock rule: %v", *addr, err)
 		}
 		if rule != nil {
 			netRules = append(netRules, rule)
@@ -156,7 +156,7 @@ func setupLandlock(logger *log.Logger) error {
 
 		rule, err := ruleFromTCPAddress(*addr, landlock.ConnectTCP)
 		if err != nil {
-			logger.Printf("error processing argument '%s' for landlock rule", *addr)
+			return fmt.Errorf("error processing argument '%s' for landlock rule: %v", *addr, err)
 		}
 		if rule != nil {
 			netRules = append(netRules, rule)
@@ -171,7 +171,7 @@ func setupLandlock(logger *log.Logger) error {
 
 		rule, err := ruleFromURL(*url, landlock.ConnectTCP)
 		if err != nil {
-			logger.Printf("error processing argument '%s' for landlock rule", *url)
+			return fmt.Errorf("error processing argument '%s' for landlock rule: %v", *url, err)
 		}
 		if rule != nil {
 			netRules = append(netRules, rule)
@@ -185,14 +185,9 @@ func setupLandlock(logger *log.Logger) error {
 	config := landlock.V4
 	err := config.RestrictPaths(fsRules...)
 	if err != nil {
-		logger.Printf("warning: unable to set up landlock filesystem rules: %v", err)
 		return err
 	}
-	err = config.RestrictNet(netRules...)
-	if err != nil {
-		logger.Printf("warning: unable to set up landlock network rules: %v", err)
-	}
-	return err
+	return config.RestrictNet(netRules...)
 }
 
 func ruleFromStringAddress(addr string, ruleFromPort portRuleFunc) (landlock.Rule, error) {

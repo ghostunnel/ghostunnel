@@ -355,4 +355,4 @@ this option.
 
 ### Landlock Support
 
-Ghostunnel can use [Landlock](https://landlock.io) to limit process privileges on Linux. Landlock can be enabled using the `--use-landlock` flag. When enabled, Ghostunnel will limit its access to files and sockets based on the flags passed at startup. Note that this functionality is still experimental, and does not work with PKCS#11 modules.
+Ghostunnel can use [Landlock](https://landlock.io) to limit process privileges on Linux. Landlock is enabled by default (in best-effort mode) on v1.9.0 or later. On Ghostunnel v1.8.x, Landlock can enabled using the `--use-landlock` flag. When enabled, Ghostunnel will limit its access to files and sockets based on the flags passed at startup. Note that Landlock does not work with PKCS#11 modules and is disabled if PKCS#11 is used (as PKCS#11 modules are opaque to us we can't craft workable Landlock rules for them).

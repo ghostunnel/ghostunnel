@@ -64,7 +64,7 @@ var (
 	pkcs11Module         *string //nolint:golint,unused
 	pkcs11TokenLabel     *string //nolint:golint,unused
 	pkcs11PIN            *string //nolint:golint,unused
-	useLandlock          *bool   //nolint:golint,unused
+	disableLandlock      *bool   //nolint:golint,unused
 )
 
 // Main flags (always supported)
@@ -170,7 +170,11 @@ func init() {
 	}
 
 	if runtime.GOOS == "linux" {
-		useLandlock = app.Flag("use-landlock", "If true, will use landlock to limit file and socket access on supported kernels.").Bool()
+		// Deprecated flag: Landlock is now enabled by default.
+		app.Flag("use-landlock", "").Hidden().Bool()
+
+		// Flag to disable use of landlock if necessary. Note that landlock is automatically disabled when PKCS#11 is used.
+		disableLandlock = app.Flag("disable-landlock", "Disable the best-effort landlock sandboxing.").Bool()
 	}
 
 	// Aliases for flags that were renamed to be backwards-compatible
@@ -249,9 +253,6 @@ func validateFlags(app *kingpin.Application) error {
 	}
 	if *connectTimeout == 0 {
 		return fmt.Errorf("--connect-timeout duration must not be zero")
-	}
-	if pkcs11Module != nil && *pkcs11Module != "" && useLandlock != nil && *useLandlock {
-		return fmt.Errorf("--use-landlock is not compatible with --pkcs11-module")
 	}
 	return nil
 }
@@ -434,14 +435,23 @@ func run(args []string) error {
 	logger.Printf("starting ghostunnel in %s mode", command)
 
 	// Landlock
-	if useLandlock != nil && *useLandlock {
+	hasPKCS11 := pkcs11Module != nil && *pkcs11Module != ""
+	hasLandlock := runtime.GOOS == "linux" && !*disableLandlock
+
+	if hasPKCS11 && hasLandlock {
+		logger.Printf("note: using pkcs11, skipping landlock setup (landlock is not compatible with pkcs11)")
+	}
+	if !hasPKCS11 && hasLandlock {
 		logger.Printf("setting up landlock rules to limit process privileges")
 
-		// Ignore landlock errors (for now). Landlock is a relatively new feature
-		// and not supported on older kernels (net rules were added in v6.7, Jan
-		// 2024). We may change this in a future version of Ghostunnel as we get
-		// more comfortable with Landlock.
-		_ = setupLandlock(logger)
+		// Continue even if landlock errs out. Landlock is a new-ish feature and
+		// not supported on older kernels (net rules were added in v6.7, Jan 2024).
+		// We may change this in a future version of Ghostunnel as we get more
+		// comfortable with Landlock.
+		err := setupLandlock()
+		if err != nil {
+			logger.Printf("warning: unable to set up landlock: %v", err)
+		}
 	}
 
 	// Metrics
@@ -452,6 +462,7 @@ func run(args []string) error {
 	if *metricsURL != "" {
 		logger.Printf("metrics enabled; reporting metrics via POST to %s", *metricsURL)
 	}
+
 	// Always enable prometheus registry. The overhead should be quite minimal as an in-mem map is updated
 	// with the values.
 	pClient := prometheusmetrics.NewPrometheusProvider(metrics.DefaultRegistry, *metricsPrefix, "", prometheus.DefaultRegisterer, 1*time.Second)

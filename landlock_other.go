@@ -18,10 +18,8 @@
 
 package main
 
-import "log"
-
 func addLandlockTestPaths(paths []string) {}
 
-func setupLandlock(logger *log.Logger) error {
+func setupLandlock() error {
 	return nil
 }
