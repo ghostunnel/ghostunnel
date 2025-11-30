@@ -220,7 +220,7 @@ func TestStatusTargetHTTP2XX(t *testing.T) {
 	statusResp, statusRespCode := statusTargetWithResponseStatusCode(200)
 
 	if !statusResp.Ok || statusResp.BackendStatus != "ok" || statusRespCode != 200 {
-		t.Error("status should return 200 when status backend returns 200")
+		t.Error("status should return 200 when status backend returns 200, but got:", statusResp, statusRespCode)
 	}
 }
 
@@ -228,7 +228,7 @@ func TestStatusTargetHTTPNon2XX(t *testing.T) {
 	statusResp, statusRespCode := statusTargetWithResponseStatusCode(503)
 
 	if statusResp.Ok || statusResp.BackendStatus == "ok" || statusRespCode != 503 {
-		t.Error("status should return 503 when status backend returns something other than 200")
+		t.Error("status should return 503 when status backend returns something other than 200, but got:", statusResp, statusRespCode)
 	}
 }
 
@@ -236,7 +236,7 @@ func TestStatusTargetHTTPWithError(t *testing.T) {
 	statusResp, statusRespCode := statusTargetWithResponseStatusCode(-1)
 
 	if statusResp.Ok || statusResp.BackendStatus == "ok" || statusRespCode != 503 {
-		t.Error("status should return 503 when status backend returns something other than 200")
+		t.Error("status should return 503 when status backend returns something other than 200, but got:", statusResp, statusRespCode)
 	}
 }
 
@@ -262,7 +262,10 @@ func statusTargetWithResponseStatusCode(code int) (statusResponse, int) {
 	res := response.Result()
 	defer res.Body.Close()
 
-	data, _ := io.ReadAll(res.Body)
+	data, err := io.ReadAll(res.Body)
+	if err != nil {
+		panic(err)
+	}
 
 	statusResp := statusResponse{}
 	_ = json.Unmarshal(data, &statusResp)
