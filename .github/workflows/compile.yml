@@ -30,7 +30,7 @@ jobs:
     name: Build (Linux)
     strategy:
       matrix:
-        version: [1.24.x]
+        version: [1.25.x]
         os: [ubuntu-22.04, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     steps:
@@ -70,7 +70,7 @@ jobs:
     name: Build (MacOS)
     strategy:
       matrix:
-        version: [1.24.x]
+        version: [1.25.x]
     runs-on: macos-latest
     steps:
       - name: Set up toolchain
@@ -111,7 +111,7 @@ jobs:
     name: Build (Windows)
     strategy:
       matrix:
-        version: [1.24.x]
+        version: [1.25.x]
     runs-on: windows-latest
     steps:
       - name: Set up toolchain
