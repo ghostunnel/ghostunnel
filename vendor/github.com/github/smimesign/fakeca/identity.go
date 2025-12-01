@@ -9,6 +9,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 )
 
@@ -133,12 +134,17 @@ func toPKCS8(priv interface{}) []byte {
 
 	cmd.Stdin = bytes.NewReader(toDER(priv))
 
-	out := new(bytes.Buffer)
-	cmd.Stdout = out
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
 
 	if err := cmd.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		fmt.Fprintf(os.Stderr, "%s\n", string(stdout.Bytes()))
+		fmt.Fprintf(os.Stderr, "%s\n", string(stderr.Bytes()))
 		panic(err)
 	}
 
-	return out.Bytes()
+	return stdout.Bytes()
 }
