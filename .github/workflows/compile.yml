@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Set up buildx command
@@ -44,7 +44,7 @@ jobs:
           go-version: ${{ matrix.version }}
         id: go
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 100
           fetch-tags: true
@@ -79,7 +79,7 @@ jobs:
           go-version: ${{ matrix.version }}
         id: go
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 100
           fetch-tags: true
@@ -120,7 +120,7 @@ jobs:
           go-version: ${{ matrix.version }}
         id: go
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 100
           fetch-tags: true
