@@ -36,6 +36,7 @@ import (
 	"github.com/ghostunnel/ghostunnel/policy"
 	"github.com/ghostunnel/ghostunnel/proxy"
 	"github.com/ghostunnel/ghostunnel/socket"
+	"github.com/ghostunnel/ghostunnel/srv"
 	"github.com/ghostunnel/ghostunnel/wildcard"
 
 	kingpin "github.com/alecthomas/kingpin/v2"
@@ -74,7 +75,7 @@ var (
 	// Server flags
 	serverCommand             = app.Command("server", "Server mode (TLS listener -> plain TCP/UNIX target).")
 	serverListenAddress       = serverCommand.Flag("listen", "Address and port to listen on (can be HOST:PORT, unix:PATH, systemd:NAME or launchd:NAME).").PlaceHolder("ADDR").Required().String()
-	serverForwardAddress      = serverCommand.Flag("target", "Address to forward connections to (can be HOST:PORT or unix:PATH).").PlaceHolder("ADDR").Required().String()
+	serverForwardAddress      = serverCommand.Flag("target", "Address to forward connections to (can be HOST:PORT, unix:PATH, srv:NAME, systemd:NAME or launchd:NAME).").PlaceHolder("ADDR").Required().String()
 	serverStatusTargetAddress = serverCommand.Flag("target-status", "Address to target for status checking downstream healthchecks. Defaults to a TCP healthcheck if this flag is not passed.").Default("").String()
 	serverProxyProtocol       = serverCommand.Flag("proxy-protocol", "Enable PROXY protocol v2 to signal connection info to backend").Bool()
 	serverUnsafeTarget        = serverCommand.Flag("unsafe-target", "If set, does not limit target to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
@@ -97,7 +98,7 @@ var (
 	clientCommand       = app.Command("client", "Client mode (plain TCP/UNIX listener -> TLS target).")
 	clientListenAddress = clientCommand.Flag("listen", "Address and port to listen on (can be HOST:PORT, unix:PATH, systemd:NAME or launchd:NAME).").PlaceHolder("ADDR").Required().String()
 	// Note: can't use .TCP() for clientForwardAddress because we need to set the original string in tls.Config.ServerName.
-	clientForwardAddress = clientCommand.Flag("target", "Address to forward connections to (must be HOST:PORT).").PlaceHolder("ADDR").Required().String()
+	clientForwardAddress = clientCommand.Flag("target", "Address to forward connections to (must be HOST:PORT, unix:PATH, srv:NAME, systemd:NAME or launchd:NAME).").PlaceHolder("ADDR").Required().String()
 	clientUnsafeListen   = clientCommand.Flag("unsafe-listen", "If set, does not limit listen to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
 	clientServerName     = clientCommand.Flag("override-server-name", "If set, overrides the server name used for hostname verification.").PlaceHolder("NAME").String()
 	clientProxy          = clientCommand.Flag("proxy", "If set, connect to target over given proxy (HTTP CONNECT or SOCKS5). Must be a proxy URL.").PlaceHolder("URL").URL()
@@ -344,6 +345,7 @@ func serverValidateFlags() error {
 	if *serverDisableAuth && (*serverAllowAll || hasAccessFlags || hasOPAFlags) {
 		return errors.New("--disable-authentication is mutually exclusive with other access control flags")
 	}
+	// Validate target/target-srv flags
 	if !*serverUnsafeTarget && !consideredSafe(*serverForwardAddress) {
 		return errors.New("--target must be unix:PATH or localhost:PORT (unless --unsafe-target is set)")
 	}
@@ -548,7 +550,8 @@ func run(args []string) error {
 			logger.Printf("error: invalid target address: %s\n", err)
 			return err
 		}
-		logger.Printf("using target address %s", *clientForwardAddress)
+		targetDisplay := *clientForwardAddress
+		logger.Printf("using target %s", targetDisplay)
 
 		dial, policy, err := clientBackendDialer(tlsConfigSource, network, address, host)
 		if err != nil {
@@ -559,7 +562,7 @@ func run(args []string) error {
 		// NOTE: We don't provide a target status address here because this handler
 		// is for the client /_status endpoint, its target will be a Ghostunnel in
 		// server mode, and thus this should be a (default) TCP check.
-		status := newStatusHandler(dial, command, *clientListenAddress, *clientForwardAddress, "")
+		status := newStatusHandler(dial, command, *clientListenAddress, targetDisplay, "")
 		env := &Environment{
 			status:          status,
 			shutdownChannel: make(chan bool, 1),
@@ -799,11 +802,56 @@ func (env *Environment) serveStatus() error {
 	return nil
 }
 
+// parseSRVTarget parses an SRV target string in the format "_SERVICE._PROTO.NAME"
+// and returns the service, protocol, and name components.
+func parseSRVTarget(srvTarget string) (service, proto, name string, err error) {
+	// SRV format: _service._proto.name (e.g., _https._tcp.example.com)
+	parts := strings.Split(srvTarget, ".")
+	if len(parts) < 3 {
+		return "", "", "", fmt.Errorf("invalid SRV target format: expected _SERVICE._PROTO.NAME, got %s", srvTarget)
+	}
+
+	// First part should be the service (e.g., "_https")
+	service = parts[0]
+	if !strings.HasPrefix(service, "_") {
+		return "", "", "", fmt.Errorf("invalid SRV target format: service must start with underscore, got %s", service)
+	}
+
+	// Second part should be the protocol (e.g., "_tcp")
+	proto = parts[1]
+	if !strings.HasPrefix(proto, "_") {
+		return "", "", "", fmt.Errorf("invalid SRV target format: protocol must start with underscore, got %s", proto)
+	}
+
+	// Everything else is the domain name
+	name = strings.Join(parts[2:], ".")
+	if name == "" {
+		return "", "", "", fmt.Errorf("invalid SRV target format: domain name cannot be empty")
+	}
+
+	return service, proto, name, nil
+}
+
 // Get backend dialer function in server mode (connecting to a unix socket or tcp port)
 func serverBackendDialer() (proxy.DialFunc, error) {
 	backendNet, backendAddr, _, err := socket.ParseAddress(*serverForwardAddress, *skipResolve)
 	if err != nil {
 		return nil, err
+	}
+
+	if backendNet == "srv" {
+		service, proto, name, err := parseSRVTarget(backendAddr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid SRV target: %w", err)
+		}
+
+		baseDialer := &net.Dialer{Timeout: *connectTimeout}
+		dial, err := srv.BuildSRVDialer(service, proto, name, baseDialer, *connectTimeout)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build SRV dialer: %w", err)
+		}
+		logger.Printf("using SRV target %s", *serverForwardAddress)
+		return dial, nil
 	}
 
 	return func(ctx context.Context) (net.Conn, error) {
@@ -823,11 +871,26 @@ func clientBackendDialer(
 		return nil, nil, err
 	}
 
-	if *clientServerName == "" {
-		config.ServerName = host
-	} else {
-		config.ServerName = *clientServerName
+	targetIsSRV := network == "srv"
+	var service, proto, srvName string
+	if targetIsSRV {
+		service, proto, srvName, err = parseSRVTarget(address)
+		if err != nil {
+			return nil, nil, fmt.Errorf("invalid SRV target: %w", err)
+		}
 	}
+
+	// Determine server name for TLS
+	var serverName string
+	switch {
+	case *clientServerName != "":
+		serverName = *clientServerName
+	case targetIsSRV:
+		serverName = srvName
+	default:
+		serverName = host
+	}
+	config.ServerName = serverName
 
 	allowedURIs, err := wildcard.CompileList(*clientAllowedURIs)
 	if err != nil {
@@ -857,7 +920,7 @@ func clientBackendDialer(
 
 	config.VerifyPeerCertificate = clientACL.VerifyPeerCertificateClient
 
-	var dialer netproxy.ContextDialer = &net.Dialer{Timeout: *connectTimeout}
+	var baseDialer netproxy.ContextDialer = &net.Dialer{Timeout: *connectTimeout}
 
 	if *clientProxy != nil {
 		logger.Printf("using proxy %s", (*clientProxy).String())
@@ -868,7 +931,7 @@ func clientBackendDialer(
 		}
 
 		var ok bool
-		dialer, ok = proxyDialer.(netproxy.ContextDialer)
+		baseDialer, ok = proxyDialer.(netproxy.ContextDialer)
 		if !ok {
 			logger.Printf("unexpected: proxy dialer scheme did not implement context dialing, aborting")
 			return nil, nil, errors.New("unexpected: proxy dialer scheme did not implement context dialing, aborting")
@@ -876,7 +939,30 @@ func clientBackendDialer(
 	}
 
 	clientConfig := mustGetClientConfig(tlsConfigSource, config)
-	d := certloader.DialerWithCertificate(clientConfig, *connectTimeout, dialer)
+
+	if targetIsSRV {
+		srvDial, err := srv.BuildSRVDialer(service, proto, srvName, baseDialer, *connectTimeout)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to build SRV dialer: %w", err)
+		}
+
+		return func(ctx context.Context) (net.Conn, error) {
+				rawConn, err := srvDial(ctx)
+				if err != nil {
+					return nil, err
+				}
+
+				tlsConn := tls.Client(rawConn, clientConfig.GetClientConfig())
+				if err := tlsConn.HandshakeContext(ctx); err != nil {
+					rawConn.Close()
+					return nil, err
+				}
+				return tlsConn, nil
+			},
+			regoPolicy, nil
+	}
+
+	d := certloader.DialerWithCertificate(clientConfig, *connectTimeout, baseDialer)
 	return func(ctx context.Context) (net.Conn, error) {
 			return d.DialContext(ctx, network, address)
 		},

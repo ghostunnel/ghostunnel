@@ -35,6 +35,12 @@ func ParseAddress(input string, skipResolve bool) (network, address, host string
 		return
 	}
 
+	if strings.HasPrefix(input, "srv:") {
+		network = "srv"
+		address = input[4:]
+		return
+	}
+
 	if strings.HasPrefix(input, "systemd:") {
 		network = "systemd"
 		address = input[8:]
