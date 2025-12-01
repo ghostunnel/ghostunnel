@@ -19,8 +19,7 @@ jobs:
         with:
           go-version: ${{ matrix.version }}
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v9
         with:
-          version: v1.64.5
-          args: --exclude-dirs-use-default --exclude-use-default
+          version: v2.6
           only-new-issues: true
