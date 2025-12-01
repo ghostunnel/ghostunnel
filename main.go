@@ -37,6 +37,7 @@ import (
 	"github.com/ghostunnel/ghostunnel/policy"
 	"github.com/ghostunnel/ghostunnel/proxy"
 	"github.com/ghostunnel/ghostunnel/socket"
+	"github.com/ghostunnel/ghostunnel/srv"
 	"github.com/ghostunnel/ghostunnel/wildcard"
 
 	kingpin "github.com/alecthomas/kingpin/v2"
@@ -75,7 +76,7 @@ var (
 	// Server flags
 	serverCommand             = app.Command("server", "Server mode (TLS listener -> plain TCP/UNIX target).")
 	serverListenAddress       = serverCommand.Flag("listen", "Address and port to listen on (can be HOST:PORT, unix:PATH, systemd:NAME or launchd:NAME).").PlaceHolder("ADDR").Required().String()
-	serverForwardAddress      = serverCommand.Flag("target", "Address to forward connections to (can be HOST:PORT or unix:PATH).").PlaceHolder("ADDR").Required().String()
+	serverForwardAddress      = serverCommand.Flag("target", "Address to forward connections to (can be HOST:PORT, unix:PATH, srv:NAME, systemd:NAME or launchd:NAME).").PlaceHolder("ADDR").Required().String()
 	serverStatusTargetAddress = serverCommand.Flag("target-status", "Address to target for status checking downstream healthchecks. Defaults to a TCP healthcheck if this flag is not passed.").Default("").String()
 	serverProxyProtocol       = serverCommand.Flag("proxy-protocol", "Enable PROXY protocol v2 (connection info only, equivalent to --proxy-protocol-mode=conn).").Bool()
 	serverProxyProtocolMode   = serverCommand.Flag("proxy-protocol-mode", "PROXY protocol v2 mode: conn (connection info only), tls (add TLS version/ALPN/SNI metadata), tls-full (add TLS metadata and client certificate). Mutually exclusive with --proxy-protocol.").Enum("conn", "tls", "tls-full")
@@ -99,7 +100,7 @@ var (
 	clientCommand       = app.Command("client", "Client mode (plain TCP/UNIX listener -> TLS target).")
 	clientListenAddress = clientCommand.Flag("listen", "Address and port to listen on (can be HOST:PORT, unix:PATH, systemd:NAME or launchd:NAME).").PlaceHolder("ADDR").Required().String()
 	// Note: can't use .TCP() for clientForwardAddress because we need to set the original string in tls.Config.ServerName.
-	clientForwardAddress = clientCommand.Flag("target", "Address to forward connections to (must be HOST:PORT).").PlaceHolder("ADDR").Required().String()
+	clientForwardAddress = clientCommand.Flag("target", "Address to forward connections to (must be HOST:PORT, unix:PATH, or srv:NAME).").PlaceHolder("ADDR").Required().String()
 	clientUnsafeListen   = clientCommand.Flag("unsafe-listen", "If set, does not limit listen to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
 	clientServerName     = clientCommand.Flag("override-server-name", "If set, overrides the server name used for hostname verification.").PlaceHolder("NAME").String()
 	clientProxy          = clientCommand.Flag("proxy", "If set, connect to target over given proxy (HTTP CONNECT or SOCKS5). Must be a proxy URL.").PlaceHolder("URL").URL()
@@ -261,6 +262,8 @@ func validateFlags(app *kingpin.Application) error {
 }
 
 // Validates that addr is "safe" and does not need --unsafe-listen (or --unsafe-target).
+// SRV targets are intentionally not considered safe: they typically resolve to
+// remote hosts, so forwarding plaintext to them should require --unsafe-target.
 func consideredSafe(addr string) bool {
 	safePrefixes := []string{
 		"unix:",
@@ -900,9 +903,19 @@ func serverBackendDialer() (proxy.DialFunc, error) {
 		return nil, err
 	}
 
+	var transport netproxy.ContextDialer = &net.Dialer{Timeout: *connectTimeout}
+	if backendNet == "srv" {
+		srvDialer, err := srv.NewDialer(backendAddr, transport)
+		if err != nil {
+			return nil, fmt.Errorf("invalid SRV target: %w", err)
+		}
+		transport = srvDialer
+	}
+
 	return func(ctx context.Context) (net.Conn, error) {
-		d := net.Dialer{Timeout: *connectTimeout}
-		return d.DialContext(ctx, backendNet, backendAddr)
+		ctx, cancel := context.WithTimeout(ctx, *connectTimeout)
+		defer cancel()
+		return transport.DialContext(ctx, backendNet, backendAddr)
 	}, nil
 }
 
@@ -917,10 +930,18 @@ func clientBackendDialer(
 		return nil, nil, err
 	}
 
-	if *clientServerName == "" {
-		config.ServerName = host
-	} else {
+	targetIsSRV := network == "srv"
+
+	// Determine server name for TLS. For SRV targets we strip the
+	// _service._proto. prefix so the SNI/verification host matches the
+	// service domain rather than the underscored DNS query name.
+	switch {
+	case *clientServerName != "":
 		config.ServerName = *clientServerName
+	case targetIsSRV:
+		config.ServerName = srv.BareName(address)
+	default:
+		config.ServerName = host
 	}
 
 	allowedURIs, err := wildcard.CompileList(*clientAllowedURIs)
@@ -951,7 +972,7 @@ func clientBackendDialer(
 
 	config.VerifyPeerCertificate = clientACL.VerifyPeerCertificateClient
 
-	var dialer netproxy.ContextDialer = &net.Dialer{Timeout: *connectTimeout}
+	var transport netproxy.ContextDialer = &net.Dialer{Timeout: *connectTimeout}
 
 	if *clientProxy != nil {
 		logger.Printf("using proxy %s", (*clientProxy).String())
@@ -962,20 +983,29 @@ func clientBackendDialer(
 		}
 
 		var ok bool
-		dialer, ok = proxyDialer.(netproxy.ContextDialer)
+		transport, ok = proxyDialer.(netproxy.ContextDialer)
 		if !ok {
 			logger.Printf("unexpected: proxy dialer scheme did not implement context dialing, aborting")
 			return nil, nil, errors.New("unexpected: proxy dialer scheme did not implement context dialing, aborting")
 		}
 	}
 
+	if targetIsSRV {
+		srvDialer, err := srv.NewDialer(address, transport)
+		if err != nil {
+			return nil, nil, fmt.Errorf("invalid SRV target: %w", err)
+		}
+		transport = srvDialer
+	}
+
 	clientConfig, err := getClientConfig(tlsConfigSource, config)
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to get client TLS config: %w", err)
 	}
-	d := certloader.DialerWithCertificate(clientConfig, *connectTimeout, dialer)
+
+	tlsDialer := certloader.DialerWithCertificate(clientConfig, *connectTimeout, transport)
 	return func(ctx context.Context) (net.Conn, error) {
-			return d.DialContext(ctx, network, address)
+			return tlsDialer.DialContext(ctx, network, address)
 		},
 		regoPolicy, nil
 }

@@ -68,6 +68,17 @@ func TestParseAddress(t *testing.T) {
 		t.Errorf("unexpected host: %s", host)
 	}
 
+	network, address, host, _ = ParseAddress("srv:_https._tcp.example.com", false)
+	if network != "srv" {
+		t.Errorf("unexpected network: %s", network)
+	}
+	if address != "_https._tcp.example.com" {
+		t.Errorf("unexpected address: %s", address)
+	}
+	if host != "" {
+		t.Errorf("unexpected host: %s", host)
+	}
+
 	_, _, _, err := ParseAddress("localhost", false)
 	assert.NotNil(t, err, "was able to parse invalid host/port")
 

@@ -17,6 +17,7 @@
 package socket
 
 import (
+	"errors"
 	"net"
 	"strings"
 
@@ -25,13 +26,20 @@ import (
 
 // ParseAddress parses a string representing a TCP address or UNIX socket
 // for our backend target. The input can be of the form "HOST:PORT" for
-// a TCP socket, "unix:PATH" for a UNIX socket, and "systemd:NAME" or
+// a TCP socket, "unix:PATH" for a UNIX socket, "systemd:NAME" or
 // "launchd:NAME" for a socket provided by launchd/systemd for socket
-// activation.
+// activation, or "srv:NAME" for a target resolved via DNS SRV lookup
+// (where NAME is a fully-qualified SRV name like "_https._tcp.example.com").
 func ParseAddress(input string, skipResolve bool) (network, address, host string, err error) {
 	if strings.HasPrefix(input, "launchd:") {
 		network = "launchd"
 		address = input[8:]
+		return
+	}
+
+	if strings.HasPrefix(input, "srv:") {
+		network = "srv"
+		address = input[4:]
 		return
 	}
 
@@ -98,6 +106,8 @@ func ParseHTTPAddress(input string) (https bool, address string) {
 // set and needs to match the address string.
 func Open(network, address string) (net.Listener, error) {
 	switch network {
+	case "srv":
+		return nil, errors.New("srv: addresses can only be used as a target, not for listening")
 	case "launchd":
 		return launchdSocket(address)
 	case "systemd":
