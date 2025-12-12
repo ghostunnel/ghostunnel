@@ -60,9 +60,14 @@ Getting Started
 To get started and play around with the Ghostunnel you will need X.509 client
 and server certificates. If you don't already maintain a PKI, a good way to get
 started is to use a package like [cloudflare/cfssl](https://github.com/cloudflare/cfssl).
-If you only need some test certificates for playing around with the tunnel you
-can find some pre-generated ones in the `test-keys` directory (alongside instructions
-on how to generate new ones with OpenSSL).
+
+For testing and development purposes, you can generate test certificates using:
+
+    # Generate test certificates and keys
+    mage testKeys
+
+This will create a `test-keys` directory with all the necessary certificates and keys
+for testing. **Note: These are test certificates only and should NOT be used in production.**
 
 ### Install
 
@@ -75,10 +80,7 @@ compatibility for specific OS versions, we recommend building yourself.
 To build Ghostunnel, simply run:
 
     # Compile binary
-    make ghostunnel
-
-    # Generate man page
-    make ghostunnel.man
+    mage build 
 
 Note that Ghostunnel requires Go 1.22 or later to build, and CGO is required.
 
@@ -94,11 +96,11 @@ modules][gomod] for managing vendored dependencies.
 To run tests:
 
     # Option 1: run unit & integration tests locally
-    make test
+    mage test
 
     # Option 2: run unit & integration tests in a Docker container
     # This also runs PKCS#11 integration tests using SoftHSM in the container
-    make docker-test
+    mage dockerTest
 
     # Open coverage information in browser
     go tool cover -html coverage/all.profile
@@ -152,6 +154,10 @@ disjunction (OR), meaning clients can connect as long as any of the flags
 matches (see [ACCESS-FLAGS](docs/ACCESS-FLAGS.md) for more information). In
 this example, we assume that the CN of the client cert we want to accept
 connections from is `client`.
+
+**Note:** Before running the examples below, make sure you have generated the test
+certificates by running `mage testKeys` (see the [Getting Started](#getting-started)
+section above).
 
 Start a backend server:
 
