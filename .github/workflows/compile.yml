@@ -25,6 +25,8 @@ jobs:
         run: 'docker buildx build -f Dockerfile-alpine .'
       - name: Build container (debian)
         run: 'docker buildx build -f Dockerfile-debian .'
+      - name: Build container (distroless)
+        run: 'docker buildx build -f Dockerfile-distroless .'
 
   build-linux:
     name: Build (Linux)

@@ -16,7 +16,7 @@ COPY . /go/src/github.com/ghostunnel/ghostunnel
 
 # Build
 RUN cd /go/src/github.com/ghostunnel/ghostunnel && \
-    GO111MODULE=on make clean ghostunnel && \
+    make clean ghostunnel && \
     cp ghostunnel /usr/bin/ghostunnel
 
 # Create a multi-stage build with the binary
