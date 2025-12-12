@@ -12,14 +12,18 @@ FROM golang:${GO_VERSION}
 
 # Install build dependencies
 RUN apt-get update && \
-    apt-get install -y build-essential python3-minimal netcat-traditional softhsm2 rsyslog git </dev/null && \
+    apt-get install -y build-essential python3-minimal netcat-traditional softhsm2 rsyslog git openssl </dev/null && \
     mkdir -p /etc/softhsm /var/lib/softhsm/tokens /go/src/github.com/ghostunnel/ghostunnel && \
     go install github.com/wadey/gocovmerge@latest && \
-    go install golang.org/x/tools/cmd/cover@latest
+    go install golang.org/x/tools/cmd/cover@latest && \
+    go install github.com/magefile/mage@latest
 
 WORKDIR /go/src/github.com/ghostunnel/ghostunnel
 
 ENV GO111MODULE=on
+
+# Copy source code
+COPY . /go/src/github.com/ghostunnel/ghostunnel
 
 # Setup SoftHSM for testing PKCS11 support
 # Instruct PKCS11 integration test to run
@@ -33,5 +37,8 @@ ENV GHOSTUNNEL_TEST_PKCS11_PIN=1234
 # Set SoftHSM config file
 ENV SOFTHSM2_CONF=/etc/softhsm/softhsm2.conf
 
-ENTRYPOINT ["/usr/bin/make"]
-CMD ["clean", "softhsm-import", "test"]
+# Add GOPATH/bin to PATH for mage (default GOPATH in golang images is /go)
+ENV PATH=$PATH:/go/bin
+
+ENTRYPOINT ["mage"]
+CMD ["-v", "test:softhsmimport", "test:all"]

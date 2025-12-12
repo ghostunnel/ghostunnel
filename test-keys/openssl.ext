@@ -1,9 +1,0 @@
-[root]
-keyUsage=critical, keyCertSign
-basicConstraints=critical, CA:TRUE, pathlen:0
-[server]
-extendedKeyUsage = serverAuth
-subjectAltName = IP:127.0.0.1,IP:::1,DNS:localhost,URI:spiffe://ghostunnel/server
-[client]
-extendedKeyUsage = clientAuth
-subjectAltName = IP:127.0.0.1,IP:::1,DNS:localhost,URI:spiffe://ghostunnel/client
