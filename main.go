@@ -416,7 +416,7 @@ func main() {
 func run(args []string) error {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	app.Version(fmt.Sprintf("rev %s built with %s", version, runtime.Version()))
+	app.Version(fmt.Sprintf("rev %s built with %s (pkcs11: %v, keychain: %v)", version, runtime.Version(), certloader.SupportsPKCS11(), certloader.SupportsKeychain()))
 	app.Validate(validateFlags)
 	app.UsageTemplate(kingpin.LongHelpTemplate)
 	command := kingpin.MustParse(app.Parse(args))
