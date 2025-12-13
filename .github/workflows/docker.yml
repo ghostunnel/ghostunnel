@@ -39,6 +39,6 @@ jobs:
           install-only: true
           version: v1.14.0
       - name: Build and publish containers
-        run: mage dockerRelease
+        run: mage docker:push
         env:
           GITHUB_REF: ${{ github.ref }}

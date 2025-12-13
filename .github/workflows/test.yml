@@ -30,15 +30,13 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: '3.11.x'
-      - name: Install gocovmerge
-        run: go install github.com/wadey/gocovmerge@latest
       - name: Set up Mage
         uses: magefile/mage-action@v3
         with:
           install-only: true
           version: v1.14.0
       - name: Run tests
-        run: mage test
+        run: mage -v test:all
       - name: Codecov upload
         if: ${{ github.actor != 'dependabot[bot]' && matrix.os != 'windows-latest' }}
         uses: codecov/codecov-action@v5
@@ -71,7 +69,7 @@ jobs:
           install-only: true
           version: v1.14.0
       - name: Run tests in Docker
-        run: GO_VERSION=${{ matrix.version }} mage dockerTest
+        run: GO_VERSION=${{ matrix.version }} mage -v docker:test
       - name: Codecov upload
         uses: codecov/codecov-action@v5
         if: ${{ github.actor != 'dependabot[bot]' }}

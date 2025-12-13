@@ -106,10 +106,10 @@ jobs:
           version: v1.14.0
       - name: Build binary
         run: |
-          CGO_ENABLED=1 GOARCH=amd64 mage build
+          CGO_ENABLED=1 GOARCH=amd64 mage -v go:build
           mv ghostunnel ghostunnel-darwin-amd64
           mage clean
-          CGO_ENABLED=1 GOARCH=arm64 mage build
+          CGO_ENABLED=1 GOARCH=arm64 mage -v go:build
           mv ghostunnel ghostunnel-darwin-arm64
           lipo -create -output ghostunnel-darwin-universal ghostunnel-darwin-amd64 ghostunnel-darwin-arm64
       - name: Upload artifact
@@ -151,7 +151,7 @@ jobs:
           install-only: true
           version: v1.14.0
       - name: Build binary
-        run: mage build
+        run: mage -v go:build
       - name: Upload artifact
         uses: actions/upload-artifact@v5
         with:

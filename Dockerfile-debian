@@ -18,7 +18,7 @@ COPY . /go/src/github.com/ghostunnel/ghostunnel
 RUN cd /go/src/github.com/ghostunnel/ghostunnel && \
     go install github.com/magefile/mage@latest && \
     export PATH=$PATH:$(go env GOPATH)/bin && \
-    mage clean build && \
+    mage git:clean go:build && \
     cp ghostunnel /usr/bin/ghostunnel
 
 # Create a multi-stage build with the binary
