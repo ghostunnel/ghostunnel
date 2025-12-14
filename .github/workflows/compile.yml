@@ -16,15 +16,26 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+      - name: Set up emulation
+        uses: docker/setup-qemu-action@v3
       - name: Set up buildx command
         id: buildx
         uses: docker/setup-buildx-action@v3
         with:
           install: true
-      - name: Build container (alpine)
-        run: 'docker buildx build -f Dockerfile-alpine .'
-      - name: Build container (debian)
-        run: 'docker buildx build -f Dockerfile-debian .'
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.x'
+      - name: Set up Mage
+        uses: magefile/mage-action@v3
+        with:
+          install-only: true
+          version: v1.14.0
+      - name: Build and publish containers
+        run: mage dockerBuild
+        env:
+          GITHUB_REF: ${{ github.ref }}
 
   build-linux:
     name: Build (Linux)
@@ -48,12 +59,17 @@ jobs:
         with:
           fetch-depth: 100
           fetch-tags: true
+      - name: Set up Mage
+        uses: magefile/mage-action@v3
+        with:
+          install-only: true
+          version: v1.14.0
       - name: Build binary
         run: |
-          CGO_ENABLED=1 GOARCH=amd64 make ghostunnel
+          CGO_ENABLED=1 GOARCH=amd64 mage build
           mv ghostunnel ghostunnel-linux-amd64
-          make clean
-          CGO_ENABLED=1 GOARCH=arm64 CC=aarch64-linux-gnu-gcc make ghostunnel
+          mage clean
+          CGO_ENABLED=1 GOARCH=arm64 CC=aarch64-linux-gnu-gcc mage build
           mv ghostunnel ghostunnel-linux-arm64
       - name: Upload artifact
         uses: actions/upload-artifact@v5
@@ -83,12 +99,17 @@ jobs:
         with:
           fetch-depth: 100
           fetch-tags: true
+      - name: Set up Mage
+        uses: magefile/mage-action@v3
+        with:
+          install-only: true
+          version: v1.14.0
       - name: Build binary
         run: |
-          CGO_ENABLED=1 GOARCH=amd64 make ghostunnel
+          CGO_ENABLED=1 GOARCH=amd64 mage -v go:build
           mv ghostunnel ghostunnel-darwin-amd64
-          make clean
-          CGO_ENABLED=1 GOARCH=arm64 make ghostunnel
+          mage clean
+          CGO_ENABLED=1 GOARCH=arm64 mage -v go:build
           mv ghostunnel ghostunnel-darwin-arm64
           lipo -create -output ghostunnel-darwin-universal ghostunnel-darwin-amd64 ghostunnel-darwin-arm64
       - name: Upload artifact
@@ -124,8 +145,13 @@ jobs:
         with:
           fetch-depth: 100
           fetch-tags: true
+      - name: Set up Mage
+        uses: magefile/mage-action@v3
+        with:
+          install-only: true
+          version: v1.14.0
       - name: Build binary
-        run: make ghostunnel
+        run: mage -v go:build
       - name: Upload artifact
         uses: actions/upload-artifact@v5
         with:
