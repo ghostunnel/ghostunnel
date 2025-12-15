@@ -12,8 +12,9 @@ and verifies them using SPIFFE authentication.
 
 To enable workload API support, use the `--use-workload-api` flag. By default,
 the location of the SPIFFE Workload API socket is picked up from the
-`SPIFFE_ENDPOINT_SOCKET` environment variable. The `--workload-api-addr` flag
-can be used to explicitly set the address, like so:
+`SPIFFE_ENDPOINT_SOCKET` environment variable. If you prefer to specify this via
+flag, the `--workload-api-addr` flag can be used to explicitly set the address,
+like so:
 
 UNIX: 
 ```
