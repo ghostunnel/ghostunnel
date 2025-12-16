@@ -199,7 +199,11 @@ func (s *statusHandler) checkBackendStatus(ctx context.Context) error {
 	// If a statusTargetAddress was supplied attempt a HTTP status check.
 	// Otherwise, fallback to a raw TCP status check.
 	if s.statusTargetAddress != "" {
-		resp, err := s.client.Get(s.statusTargetAddress)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.statusTargetAddress, nil)
+		if err != nil {
+			return err
+		}
+		resp, err := s.client.Do(req)
 		if err != nil {
 			return err
 		}

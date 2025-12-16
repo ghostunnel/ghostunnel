@@ -92,10 +92,16 @@ type Proxy struct {
 }
 
 func proxyProtoHeader(c net.Conn) *proxyproto.Header {
+	// Detect if connection is IPv4 or IPv6 based on remote address
+	transportProtocol := proxyproto.TCPv4
+	if addr, ok := c.RemoteAddr().(*net.TCPAddr); ok && addr.IP.To4() == nil {
+		transportProtocol = proxyproto.TCPv6
+	}
+
 	return &proxyproto.Header{
 		Version:           2,
 		Command:           proxyproto.PROXY,
-		TransportProtocol: proxyproto.TCPv4,
+		TransportProtocol: transportProtocol,
 		SourceAddr:        c.RemoteAddr(),
 		DestinationAddr:   c.LocalAddr(),
 	}

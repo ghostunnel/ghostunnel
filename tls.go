@@ -124,9 +124,8 @@ func buildConfig(enabledCipherSuites string, maxTLSVersion string) (*tls.Config,
 	}
 
 	config := &tls.Config{
-		PreferServerCipherSuites: true,
-		MinVersion:               tls.VersionTLS12,
-		CipherSuites:             suites,
+		MinVersion:   tls.VersionTLS12,
+		CipherSuites: suites,
 	}
 
 	if maxTLSVersion != "" {
