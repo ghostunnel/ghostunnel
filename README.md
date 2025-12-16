@@ -146,12 +146,12 @@ example, both the listen and target flags can also accept paths to UNIX domain
 sockets as their argument.
 
 To set allowed clients, you must specify at least one of `--allow-all`,
-`--allow-cn`, `--allow-ou`, `--allow-dns` or `--allow-uri`. All checks are made
-against the certificate of the client. Multiple flags are treated as a logical
-disjunction (OR), meaning clients can connect as long as any of the flags
-matches (see [ACCESS-FLAGS](docs/ACCESS-FLAGS.md) for more information). In
-this example, we assume that the CN of the client cert we want to accept
-connections from is `client`.
+`--allow-cn`, `--allow-ou`, `--allow-dns`, `--allow-uri` or `--alow-policy`. All
+checks are made against the certificate of the client. Multiple flags are
+treated as a logical disjunction (OR), meaning clients can connect as long as
+any of the flags matches. See [ACCESS-FLAGS](docs/ACCESS-FLAGS.md) for more
+information. In this example, we assume that the CN of the client cert we want
+to accept connections from is `client`.
 
 Start a backend server:
 
@@ -181,6 +181,11 @@ Ghostunnel and forward the connections to the insecure backend.
 
 This is an example for how to launch Ghostunnel in client mode, listening on
 `localhost:8080` and proxying requests to a TLS server on `localhost:8443`.
+
+By default, Ghostunnel in client mode verifies targets based on the hostname.
+Various access control flags exist to perform additional verification on top of
+the regular hostname verification. See [ACCESS-FLAGS](docs/ACCESS-FLAGS.md) for
+more information.
 
 Start a backend TLS server:
 
@@ -355,4 +360,12 @@ this option.
 
 ### Landlock Support
 
-Ghostunnel can use [Landlock](https://landlock.io) to limit process privileges on Linux. Landlock is enabled by default (in best-effort mode) on v1.9.0 or later. On Ghostunnel v1.8.x, Landlock can enabled using the `--use-landlock` flag. When enabled, Ghostunnel will limit its access to files and sockets based on the flags passed at startup. Note that Landlock does not work with PKCS#11 modules and is disabled if PKCS#11 is used (as PKCS#11 modules are opaque to us we can't craft workable Landlock rules for them).
+Ghostunnel can use [Landlock](https://landlock.io) to limit process privileges
+on Linux. Landlock is enabled by default (in best-effort mode) on v1.9.0 or
+later. On Ghostunnel v1.8.x, Landlock can enabled using the `--use-landlock`
+flag. On Ghostunnel v1.9.x and later, Landlock can be disabled using
+`--disable-landlock` if necessary (not recommended). When enabled, Ghostunnel
+will limit its access to files and sockets based on the flags passed at
+startup. Note that Landlock does not work with PKCS#11 modules and is disabled
+if PKCS#11 is used (as PKCS#11 modules are opaque to us we can't craft workable
+    Landlock rules for them).

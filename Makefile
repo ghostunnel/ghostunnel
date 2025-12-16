@@ -12,7 +12,7 @@ ghostunnel.man: ghostunnel
 
 # Man page for docs
 docs/MANPAGE.md: ghostunnel
-	./ghostunnel --help-man | pandoc --from man --to markdown > $@
+	./ghostunnel --help-custom-man | pandoc --wrap=preserve --from man --to markdown > $@
 
 # Test binary with coverage instrumentation
 ghostunnel.test: $(SOURCE_FILES)
