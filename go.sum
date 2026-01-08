@@ -314,8 +314,6 @@ github.com/zmap/zcrypto v0.0.0-20201128221613-3719af1573cf/go.mod h1:aPM7r+JOkfL
 github.com/zmap/zcrypto v0.0.0-20201211161100-e54a5822fb7e/go.mod h1:aPM7r+JOkfL+9qSB4KbYjtoEzJqUK50EXkkJabeNJDQ=
 github.com/zmap/zcrypto v0.0.0-20250129210703-03c45d0bae98 h1:Qp98bmMm9JHPPOaLi2Nb6oWoZ+1OyOMWI7PPeJrirI0=
 github.com/zmap/zcrypto v0.0.0-20250129210703-03c45d0bae98/go.mod h1:YTUyN/U1oJ7RzCEY5hUweYxbVUu7X+11wB7OXZT15oE=
-github.com/zmap/zcrypto v0.0.0-20251114214934-bb32b590b717 h1:4x89hS1LZY4YctWc+XOj4BEz08bUNRTraXtHQRThsmI=
-github.com/zmap/zcrypto v0.0.0-20251114214934-bb32b590b717/go.mod h1:NBtLpB/eitQk7/yXV7mHbZ/Gtmigw0Un9H9DEnrl+Zg=
 github.com/zmap/zlint/v3 v3.0.0/go.mod h1:paGwFySdHIBEMJ61YjoqT4h7Ge+fdYG4sUQhnTb1lJ8=
 github.com/zmap/zlint/v3 v3.6.8 h1:ZvdfwSgqPxeD2Sb0yhH/7jzrpFHBKAjPhzKr1vVev9c=
 github.com/zmap/zlint/v3 v3.6.8/go.mod h1:Tm0qwwaO629pgJ/En7M9U9Edx4+rQRuoeXVpXvgVHhA=

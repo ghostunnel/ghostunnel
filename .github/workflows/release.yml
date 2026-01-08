@@ -26,18 +26,13 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - name: Set up Mage
-        uses: magefile/mage-action@v3
-        with:
-          install-only: true
-          version: v1.14.0
       - name: Build binary
         env:
           VERSION: ${{ github.ref_name }}
         run: |
-          CGO_ENABLED=1 GOARCH=amd64 mage -v go:build
+          CGO_ENABLED=1 GOARCH=amd64 go tool mage -v go:build
           mv ghostunnel ghostunnel-linux-amd64
-          CGO_ENABLED=1 GOARCH=arm64 CC=aarch64-linux-gnu-gcc mage -v go:build
+          CGO_ENABLED=1 GOARCH=arm64 CC=aarch64-linux-gnu-gcc go tool mage -v go:build
           mv ghostunnel ghostunnel-linux-arm64
       - name: Upload artifact
         uses: actions/upload-artifact@v5
@@ -66,18 +61,13 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - name: Set up Mage
-        uses: magefile/mage-action@v3
-        with:
-          install-only: true
-          version: v1.14.0
       - name: Build binary
         env:
           VERSION: ${{ github.ref_name }}
         run: |
-          CGO_ENABLED=1 GOARCH=amd64 mage -v go:build
+          CGO_ENABLED=1 GOARCH=amd64 go tool mage -v go:build
           mv ghostunnel ghostunnel-darwin-amd64
-          CGO_ENABLED=1 GOARCH=arm64 mage -v go:build
+          CGO_ENABLED=1 GOARCH=arm64 go tool mage -v go:build
           mv ghostunnel ghostunnel-darwin-arm64
           lipo -create -output ghostunnel-darwin-universal ghostunnel-darwin-amd64 ghostunnel-darwin-arm64
       - name: Upload artifact
@@ -112,16 +102,11 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - name: Set up Mage
-        uses: magefile/mage-action@v3
-        with:
-          install-only: true
-          version: v1.14.0
       - name: Build binary
         env:
           VERSION: ${{ github.ref_name }}
         run: |
-          mage -v go:build
+          go tool mage -v go:build
           mv ghostunnel ghostunnel-windows-amd64.exe
       - name: Upload artifact
         uses: actions/upload-artifact@v5

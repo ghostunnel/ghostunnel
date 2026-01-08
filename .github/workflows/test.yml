@@ -30,13 +30,8 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: '3.11.x'
-      - name: Set up Mage
-        uses: magefile/mage-action@v3
-        with:
-          install-only: true
-          version: v1.14.0
       - name: Run tests
-        run: mage -v test:all
+        run: go tool mage -v test:all
       - name: Codecov upload
         if: ${{ github.actor != 'dependabot[bot]' && matrix.os != 'windows-latest' }}
         uses: codecov/codecov-action@v5
@@ -63,13 +58,8 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.version }}
-      - name: Set up Mage
-        uses: magefile/mage-action@v3
-        with:
-          install-only: true
-          version: v1.14.0
       - name: Run tests in Docker
-        run: GO_VERSION=${{ matrix.version }} mage -v test:docker
+        run: GO_VERSION=${{ matrix.version }} go tool mage -v test:docker
       - name: Codecov upload
         uses: codecov/codecov-action@v5
         if: ${{ github.actor != 'dependabot[bot]' }}
