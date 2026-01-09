@@ -54,9 +54,10 @@ jobs:
           fetch-tags: true
       - name: Build binary
         run: |
-          CGO_ENABLED=1 GOARCH=amd64 go tool mage -v go:build
+          go tool mage -compile ./mage-bin
+          CGO_ENABLED=1 GOARCH=amd64 ./mage-bin -v go:build
           mv ghostunnel ghostunnel-linux-amd64
-          CGO_ENABLED=1 GOARCH=arm64 CC=aarch64-linux-gnu-gcc go tool mage -v go:build
+          CGO_ENABLED=1 GOARCH=arm64 CC=aarch64-linux-gnu-gcc ./mage-bin -v go:build
           mv ghostunnel ghostunnel-linux-arm64
       - name: Upload artifact
         uses: actions/upload-artifact@v5
@@ -88,9 +89,10 @@ jobs:
           fetch-tags: true
       - name: Build binary
         run: |
-          CGO_ENABLED=1 GOARCH=amd64 go tool mage -v go:build
+          go tool mage -compile ./mage-bin
+          CGO_ENABLED=1 GOARCH=amd64 ./mage-bin -v go:build
           mv ghostunnel ghostunnel-darwin-amd64
-          CGO_ENABLED=1 GOARCH=arm64 go tool mage -v go:build
+          CGO_ENABLED=1 GOARCH=arm64 ./mage-bin -v go:build
           mv ghostunnel ghostunnel-darwin-arm64
           lipo -create -output ghostunnel-darwin-universal ghostunnel-darwin-amd64 ghostunnel-darwin-arm64
       - name: Upload artifact
