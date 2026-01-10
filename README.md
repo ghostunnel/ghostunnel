@@ -64,7 +64,7 @@ started is to use a package like [cloudflare/cfssl](https://github.com/cloudflar
 For testing and development purposes, you can generate test certificates using:
 
     # Generate test certificates and keys
-    mage testKeys
+    mage test:keys
 
 This will create a `test-keys` directory with all the necessary certificates and keys
 for testing. **Note: These are test certificates only and should NOT be used in production.**
