@@ -12,10 +12,7 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"crypto/x509"
-	"runtime"
 	"testing"
-
-	"github.com/github/smimesign/fakeca"
 )
 
 func TestImportDeleteRSA(t *testing.T) {
@@ -27,12 +24,7 @@ func TestImportDeleteECDSA(t *testing.T) {
 }
 
 // ImportDeleteHelper is an abstraction for testing identity Import()/Delete().
-func ImportDeleteHelper(t *testing.T, i *fakeca.Identity) {
-	if runtime.GOOS == "windows" {
-		t.Skip("FIXME: Windows runners in Github fail this test due to issues with their OpenSSL installation")
-		return
-	}
-
+func ImportDeleteHelper(t *testing.T, i *identity) {
 	withStore(t, func(store Store) {
 		// Import an identity
 		if err := store.Import(i.PFX("asdf"), "asdf"); err != nil {
@@ -99,11 +91,6 @@ func ImportDeleteHelper(t *testing.T, i *fakeca.Identity) {
 }
 
 func TestSignerRSA(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("FIXME: Windows runners in Github fail this test due to issues with their OpenSSL installation")
-		return
-	}
-
 	rsaPriv, ok := leafRSA.PrivateKey.(*rsa.PrivateKey)
 	if !ok {
 		t.Fatal("expected priv to be an RSA private key")
@@ -234,11 +221,6 @@ func TestSignerRSA(t *testing.T) {
 }
 
 func TestSignerECDSA(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("FIXME: Windows runners in Github fail this test due to issues with their OpenSSL installation")
-		return
-	}
-
 	ecPriv, ok := leafEC.PrivateKey.(*ecdsa.PrivateKey)
 	if !ok {
 		t.Fatal("expected priv to be an ECDSA private key")
@@ -320,12 +302,7 @@ func TestCertificateEC(t *testing.T) {
 	CertificateHelper(t, leafEC)
 }
 
-func CertificateHelper(t *testing.T, leaf *fakeca.Identity) {
-	if runtime.GOOS == "windows" {
-		t.Skip("FIXME: Windows runners in Github fail this test due to issues with their OpenSSL installation")
-		return
-	}
-
+func CertificateHelper(t *testing.T, leaf *identity) {
 	withIdentity(t, root, func(caIdent Identity) {
 		withIdentity(t, intermediate, func(interIdent Identity) {
 			withIdentity(t, leaf, func(leafIdent Identity) {
