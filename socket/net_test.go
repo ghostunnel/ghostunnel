@@ -17,6 +17,7 @@
 package socket
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -104,4 +105,53 @@ func TestParseHTTPAddress(t *testing.T) {
 	if address != "127.0.0.1:8000" {
 		t.Errorf("unexpected address: %s", address)
 	}
+}
+
+func TestOpenTCPSocket(t *testing.T) {
+	ln, err := Open("tcp", "127.0.0.1:0")
+	assert.Nil(t, err, "should be able to open TCP socket on random port")
+	defer func() { _ = ln.Close() }()
+	assert.NotNil(t, ln.Addr(), "listener should have an address")
+}
+
+func TestOpenUnixSocket(t *testing.T) {
+	tmpDir := t.TempDir()
+	sockPath := filepath.Join(tmpDir, "test.sock")
+	ln, err := Open("unix", sockPath)
+	assert.Nil(t, err, "should be able to open Unix socket")
+	defer func() { _ = ln.Close() }()
+	assert.NotNil(t, ln.Addr(), "listener should have an address")
+}
+
+func TestParseAndOpenTCPSuccess(t *testing.T) {
+	ln, err := ParseAndOpen("127.0.0.1:0")
+	assert.Nil(t, err, "should be able to parse and open TCP address")
+	defer func() { _ = ln.Close() }()
+}
+
+func TestParseAndOpenUnixSuccess(t *testing.T) {
+	tmpDir := t.TempDir()
+	sockPath := filepath.Join(tmpDir, "test.sock")
+	ln, err := ParseAndOpen("unix:" + sockPath)
+	assert.Nil(t, err, "should be able to parse and open Unix socket")
+	defer func() { _ = ln.Close() }()
+}
+
+func TestParseAndOpenInvalidAddress(t *testing.T) {
+	_, err := ParseAndOpen("invalid-no-port")
+	assert.NotNil(t, err, "should fail to parse invalid address")
+}
+
+func TestParseAndOpenUnresolvable(t *testing.T) {
+	_, err := ParseAndOpen("nonexistent.invalid.domain.test:8080")
+	assert.NotNil(t, err, "should fail to resolve nonexistent domain")
+}
+
+func TestParseAddressWithSkipResolve(t *testing.T) {
+	// With skipResolve=true, should not fail on unresolvable address
+	network, address, host, err := ParseAddress("nonexistent.invalid.domain.test:8080", true)
+	assert.Nil(t, err, "should succeed with skipResolve=true")
+	assert.Equal(t, "tcp", network)
+	assert.Equal(t, "nonexistent.invalid.domain.test:8080", address)
+	assert.Equal(t, "nonexistent.invalid.domain.test", host)
 }

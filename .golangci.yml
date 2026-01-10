@@ -1,0 +1,22 @@
+version: "2"
+
+linters:
+  # Use default linters (errcheck, govet, ineffassign, staticcheck, unused)
+  default: standard
+  # Enable human-readable exclusion presets including std-error-handling
+  # which excludes common error handling patterns like Close()
+  exclusions:
+    presets:
+      - std-error-handling
+      - common-false-positives
+    rules:
+      # Additional exclusions for os.Remove() in tests - cleanup that's best-effort
+      - linters:
+          - errcheck
+        text: "os.Remove"
+        path: "_test\\.go"
+  settings:
+    errcheck:
+      # Additional functions to exclude from checking
+      exclude-functions:
+        - (*github.com/ghostunnel/ghostunnel/certloader.spiffeTLSConfigSource).Close
