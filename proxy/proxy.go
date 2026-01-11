@@ -191,8 +191,8 @@ func (p *Proxy) Accept() {
 			continue
 		}
 
+		p.handlers.Add(1)
 		go connTimer.Time(func() {
-			p.handlers.Add(1)
 			openCounter.Inc(1)
 			totalCounter.Inc(1)
 

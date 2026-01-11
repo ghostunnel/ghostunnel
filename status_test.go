@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -253,7 +252,7 @@ func statusTargetWithResponseStatusCode(code int) (statusResponse, int) {
 			return nil, errors.New("simulating error when talking to backend")
 		}
 		u, _ := url.Parse(statusTarget.URL) // NOTE: I tried using statusTarget.Config.Addr instead, but it wasn't set.
-		return net.Dial("tcp", fmt.Sprintf("%s:%s", u.Hostname(), u.Port()))
+		return net.Dial("tcp", net.JoinHostPort(u.Hostname(), u.Port()))
 	}, "", "", "", statusTarget.URL)
 
 	req := httptest.NewRequest(http.MethodGet, "/not-empty", nil)
