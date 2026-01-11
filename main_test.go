@@ -17,6 +17,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"net"
@@ -28,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ghostunnel/ghostunnel/certloader"
 	"github.com/ghostunnel/ghostunnel/proxy"
 	"github.com/stretchr/testify/assert"
 )
@@ -390,4 +392,45 @@ func TestProxyLoggingFlags(t *testing.T) {
 	assert.Equal(t, proxyLoggerFlags([]string{"conns", "handshake-errs"}), proxy.LogConnectionErrors)
 	assert.Equal(t, proxyLoggerFlags([]string{"conn-errs", "handshake-errs"}), proxy.LogConnections)
 	assert.Equal(t, proxyLoggerFlags([]string{"conns", "conn-errs"}), proxy.LogHandshakeErrors)
+}
+
+// failingTLSConfigSource is a mock TLSConfigSource that always returns errors
+type failingTLSConfigSource struct{}
+
+func (f *failingTLSConfigSource) Reload() error {
+	return nil
+}
+
+func (f *failingTLSConfigSource) CanServe() bool {
+	return false
+}
+
+func (f *failingTLSConfigSource) GetClientConfig(base *tls.Config) (certloader.TLSClientConfig, error) {
+	return nil, errors.New("test error: GetClientConfig failed")
+}
+
+func (f *failingTLSConfigSource) GetServerConfig(base *tls.Config) (certloader.TLSServerConfig, error) {
+	return nil, errors.New("test error: GetServerConfig failed")
+}
+
+func TestMustGetServerConfigPanicsOnError(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("expected panic when GetServerConfig fails")
+		}
+	}()
+
+	source := &failingTLSConfigSource{}
+	mustGetServerConfig(source, nil)
+}
+
+func TestMustGetClientConfigPanicsOnError(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("expected panic when GetClientConfig fails")
+		}
+	}()
+
+	source := &failingTLSConfigSource{}
+	mustGetClientConfig(source, nil)
 }

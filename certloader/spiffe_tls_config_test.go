@@ -139,3 +139,48 @@ func countVerifyPeerCertificate(callCount *int32) func(rawCerts [][]byte, verifi
 		return nil
 	}
 }
+
+func TestSpiffeTLSConfigSourceReload(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := spiffetest.NewCA(t, td)
+
+	svid := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/foo"))
+
+	workloadAPI := spiffetest.New(t)
+	workloadAPI.SetX509SVIDResponse(
+		&spiffetest.X509SVIDResponse{
+			Bundle: ca.X509Bundle(),
+			SVIDs:  []*x509svid.SVID{svid},
+		})
+	defer workloadAPI.Stop()
+
+	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), false, log.Default())
+	require.NoError(t, err)
+	defer func() { _ = source.(*spiffeTLSConfigSource).Close() }()
+
+	// Reload should be a no-op for SPIFFE (workload API maintains itself)
+	err = source.Reload()
+	require.NoError(t, err, "Reload should not return an error")
+}
+
+func TestSpiffeTLSConfigSourceCanServe(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := spiffetest.NewCA(t, td)
+
+	svid := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/foo"))
+
+	workloadAPI := spiffetest.New(t)
+	workloadAPI.SetX509SVIDResponse(
+		&spiffetest.X509SVIDResponse{
+			Bundle: ca.X509Bundle(),
+			SVIDs:  []*x509svid.SVID{svid},
+		})
+	defer workloadAPI.Stop()
+
+	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), false, log.Default())
+	require.NoError(t, err)
+	defer func() { _ = source.(*spiffeTLSConfigSource).Close() }()
+
+	// CanServe should always return true for SPIFFE source
+	require.True(t, source.CanServe(), "CanServe should return true")
+}
