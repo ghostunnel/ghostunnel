@@ -445,8 +445,8 @@ func mapToCFDictionary(gomap map[C.CFTypeRef]C.CFTypeRef) C.CFDictionaryRef {
 	)
 
 	for k, v := range gomap {
-		keys = append(keys, unsafe.Pointer(k))
-		values = append(values, unsafe.Pointer(v))
+		keys = append(keys, unsafe.Pointer(k))     //nolint:govet // CGo pointer conversion is safe here
+		values = append(values, unsafe.Pointer(v)) //nolint:govet // CGo pointer conversion is safe here
 	}
 
 	return C.CFDictionaryCreate(nilCFAllocatorRef, &keys[0], &values[0], C.CFIndex(n), nil, nil)
