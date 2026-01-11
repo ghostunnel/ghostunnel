@@ -243,7 +243,7 @@ github.com/munnerz/goautoneg
 # github.com/nwaples/rardecode v1.1.3
 ## explicit
 github.com/nwaples/rardecode
-# github.com/open-policy-agent/opa v1.11.0
+# github.com/open-policy-agent/opa v1.12.2
 ## explicit; go 1.24.6
 github.com/open-policy-agent/opa/capabilities
 github.com/open-policy-agent/opa/internal/bundle
