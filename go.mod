@@ -7,7 +7,6 @@ require (
 	github.com/coreos/go-systemd/v22 v22.6.0
 	github.com/cyberdelia/go-metrics-graphite v0.0.0-20161219230853-39f87cc3b432
 	github.com/deathowl/go-metrics-prometheus v0.0.0-20221009205350-f2a1482ba35b
-	github.com/github/smimesign v0.2.0
 	github.com/go-jose/go-jose/v4 v4.1.3
 	github.com/hashicorp/go-syslog v1.0.0
 	github.com/kavu/go_reuseport v1.5.0
@@ -30,6 +29,7 @@ require (
 	golang.org/x/sys v0.38.0
 	google.golang.org/grpc v1.77.0
 	google.golang.org/protobuf v1.36.10
+	software.sslmate.com/src/go-pkcs12 v0.6.0
 )
 
 require (
@@ -118,7 +118,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	kernel.org/pub/linux/libs/security/libcap/psx v1.2.77 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
-	software.sslmate.com/src/go-pkcs12 v0.6.0 // indirect
 )
 
 go 1.24.6
