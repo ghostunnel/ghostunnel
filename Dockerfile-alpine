@@ -9,14 +9,16 @@
 FROM golang:1.25-alpine AS build
 
 # Dependencies
-RUN apk add --no-cache --update gcc musl-dev libtool make git
+RUN apk add --no-cache --update gcc musl-dev libtool git
 
 # Copy source
 COPY . /go/src/github.com/ghostunnel/ghostunnel
 
-# Build
+# Install mage and build
 RUN cd /go/src/github.com/ghostunnel/ghostunnel && \
-    GO111MODULE=on make clean ghostunnel && \
+    go install github.com/magefile/mage@latest && \
+    export PATH=$PATH:$(go env GOPATH)/bin && \
+    mage -v go:build && \
     cp ghostunnel /usr/bin/ghostunnel
 
 # Create a multi-stage build with the binary

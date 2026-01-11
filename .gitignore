@@ -11,6 +11,8 @@
 *.crt
 *.out
 ghostunnel
+ghostunnel.man
+mage-bin
 ghostunnel.exe
 ghostunnel.test
 ghostunnel.certstore
@@ -20,3 +22,4 @@ dist/
 .idea
 bazel-*
 coverage/
+test-keys/

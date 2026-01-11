@@ -13,6 +13,7 @@ require (
 	github.com/kavu/go_reuseport v1.5.0
 	github.com/landlock-lsm/go-landlock v0.0.0-20251103212306-430f8e5cd97c
 	github.com/letsencrypt/pkcs11key/v4 v4.0.0
+	github.com/magefile/mage v1.15.0
 	github.com/mholt/acmez v1.2.0
 	github.com/open-policy-agent/opa v1.11.0
 	github.com/pires/go-proxyproto v0.8.1
@@ -26,6 +27,7 @@ require (
 	github.com/wrouesnel/go.connect-proxy-scheme v0.0.0-20240822095422-f6d0c8f327b9
 	golang.org/x/net v0.47.0
 	golang.org/x/sync v0.18.0
+	golang.org/x/sys v0.38.0
 	google.golang.org/grpc v1.77.0
 	google.golang.org/protobuf v1.36.10
 )
@@ -64,7 +66,6 @@ require (
 	github.com/lestrrat-go/option v1.0.1 // indirect
 	github.com/lestrrat-go/option/v2 v2.0.0 // indirect
 	github.com/libdns/libdns v1.1.1 // indirect
-	github.com/magefile/mage v1.15.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mholt/acmez/v3 v3.1.4 // indirect
@@ -89,6 +90,7 @@ require (
 	github.com/ulikunitz/xz v0.5.15 // indirect
 	github.com/valyala/fastjson v1.6.4 // indirect
 	github.com/vektah/gqlparser/v2 v2.5.31 // indirect
+	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad // indirect
 	github.com/weppos/publicsuffix-go v0.50.1 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
@@ -110,7 +112,6 @@ require (
 	golang.org/x/crypto v0.45.0 // indirect
 	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f // indirect
 	golang.org/x/mod v0.30.0 // indirect
-	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
 	golang.org/x/tools v0.39.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251124214823-79d6a2a48846 // indirect
@@ -121,3 +122,8 @@ require (
 )
 
 go 1.24.6
+
+tool (
+	github.com/magefile/mage
+	github.com/wadey/gocovmerge
+)

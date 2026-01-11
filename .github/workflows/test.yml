@@ -1,5 +1,7 @@
 ---
 name: Test 
+permissions:
+  contents: read
 
 on:
   push:
@@ -8,8 +10,8 @@ on:
     branches: [ master ]
 
 jobs:
-  build:
-    name: Unit tests
+  test:
+    name: Tests
     strategy:
       matrix:
         version: [1.25.x]
@@ -23,64 +25,47 @@ jobs:
         id: go
       - name: Checkout
         uses: actions/checkout@v6
-      - name: Build binary
-        run: make ghostunnel
+      - name: Set up Python
+        if: matrix.os != 'windows-latest'
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11.x'
       - name: Run tests
-        run: make unit
+        run: go tool mage -v test:all
+      - name: Codecov upload
+        if: ${{ github.actor != 'dependabot[bot]' && matrix.os != 'windows-latest' }}
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage/all.profile
+          flags: ${{ contains(matrix.os, 'ubuntu') && 'linux' || (contains(matrix.os, 'macos') && 'darwin' || 'windows') }}
+          fail_ci_if_error: true
+          verbose: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       
-  integration-linux:
-    name: Integration tests (Linux)
+  test-docker:
+    name: Tests (PKCS#11/SoftHSM)
     strategy:
       matrix:
         version: [1.25]
-        os: [ubuntu-22.04, ubuntu-24.04]
+        os: [ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-      - name: Run tests 
-        run: GO_VERSION=${{ matrix.version }} make docker-test
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.version }}
+      - name: Run tests in Docker
+        run: GO_VERSION=${{ matrix.version }} go tool mage -v test:docker
       - name: Codecov upload
         uses: codecov/codecov-action@v5
         if: ${{ github.actor != 'dependabot[bot]' }}
         with:
           files: ./coverage/all.profile
           flags: linux
-          fail_ci_if_error: true
-          verbose: true
-          token: ${{ secrets.CODECOV_TOKEN }}
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-    
-  integration-darwin:
-    name: Integration tests (Darwin)
-    strategy:
-      matrix:
-        version: [1.25.x]
-        os: [macos-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version: ${{ matrix.version }}
-        id: go
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.11.x'
-      - name: Install gocovmerge
-        run: go install github.com/wadey/gocovmerge@latest
-      - name: Checkout
-        uses: actions/checkout@v6
-      - name: Run tests
-        run: make test
-      - name: Codecov upload
-        uses: codecov/codecov-action@v5
-        if: ${{ github.actor != 'dependabot[bot]' }}
-        with:
-          files: ./coverage/all.profile
-          flags: darwin
           fail_ci_if_error: true
           verbose: true
           token: ${{ secrets.CODECOV_TOKEN }}

@@ -9,7 +9,7 @@
 FROM golang:1.25-bookworm AS build
 
 # Dependencies
-RUN apt update && apt install -y gcc libtool git
+RUN apt update && apt install -y gcc git
 
 # Copy source
 COPY . /go/src/github.com/ghostunnel/ghostunnel
@@ -18,13 +18,12 @@ COPY . /go/src/github.com/ghostunnel/ghostunnel
 RUN cd /go/src/github.com/ghostunnel/ghostunnel && \
     go install github.com/magefile/mage@latest && \
     export PATH=$PATH:$(go env GOPATH)/bin && \
-    mage -v go:build && \
+    GOFLAGS="-tags=nopkcs11" mage -v go:build && \
     cp ghostunnel /usr/bin/ghostunnel
 
 # Create a multi-stage build with the binary
-FROM debian:bookworm-slim
+FROM gcr.io/distroless/base-nossl:nonroot
 
-RUN apt update && apt install -y --no-install-recommends libtool curl && rm -rf /var/lib/apt/lists/*
 COPY --from=build /usr/bin/ghostunnel /usr/bin/ghostunnel
 
 ENTRYPOINT ["/usr/bin/ghostunnel"]

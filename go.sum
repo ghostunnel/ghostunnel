@@ -281,6 +281,8 @@ github.com/valyala/fastjson v1.6.4 h1:uAUNq9Z6ymTgGhcm0UynUAB6tlbakBrz6CQFax3BXV
 github.com/valyala/fastjson v1.6.4/go.mod h1:CLCAqky6SMuOcxStkYQvblddUtoRxhYMGLrsQns1aXY=
 github.com/vektah/gqlparser/v2 v2.5.31 h1:YhWGA1mfTjID7qJhd1+Vxhpk5HTgydrGU9IgkWBTJ7k=
 github.com/vektah/gqlparser/v2 v2.5.31/go.mod h1:c1I28gSOVNzlfc4WuDlqU7voQnsqI6OG2amkBAFmgts=
+github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad h1:W0LEBv82YCGEtcmPA3uNZBI33/qF//HAAs3MawDjRa0=
+github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad/go.mod h1:Hy8o65+MXnS6EwGElrSRjUzQDLXreJlzYLlWiHtt8hM=
 github.com/weppos/publicsuffix-go v0.13.0/go.mod h1:z3LCPQ38eedDQSwmsSRW4Y7t2L8Ln16JPQ02lHAdn5k=
 github.com/weppos/publicsuffix-go v0.40.3-0.20250127173806-e489a31678ca/go.mod h1:43Dfyxu2dpmLg56at26Q4k9gwf3yWSUiwk8kGnwzULk=
 github.com/weppos/publicsuffix-go v0.50.1 h1:elrBHeSkS/eIb169+DnLrknqmdP4AjT0Q0tEdytz1Og=
@@ -312,8 +314,6 @@ github.com/zmap/zcrypto v0.0.0-20201128221613-3719af1573cf/go.mod h1:aPM7r+JOkfL
 github.com/zmap/zcrypto v0.0.0-20201211161100-e54a5822fb7e/go.mod h1:aPM7r+JOkfL+9qSB4KbYjtoEzJqUK50EXkkJabeNJDQ=
 github.com/zmap/zcrypto v0.0.0-20250129210703-03c45d0bae98 h1:Qp98bmMm9JHPPOaLi2Nb6oWoZ+1OyOMWI7PPeJrirI0=
 github.com/zmap/zcrypto v0.0.0-20250129210703-03c45d0bae98/go.mod h1:YTUyN/U1oJ7RzCEY5hUweYxbVUu7X+11wB7OXZT15oE=
-github.com/zmap/zcrypto v0.0.0-20251114214934-bb32b590b717 h1:4x89hS1LZY4YctWc+XOj4BEz08bUNRTraXtHQRThsmI=
-github.com/zmap/zcrypto v0.0.0-20251114214934-bb32b590b717/go.mod h1:NBtLpB/eitQk7/yXV7mHbZ/Gtmigw0Un9H9DEnrl+Zg=
 github.com/zmap/zlint/v3 v3.0.0/go.mod h1:paGwFySdHIBEMJ61YjoqT4h7Ge+fdYG4sUQhnTb1lJ8=
 github.com/zmap/zlint/v3 v3.6.8 h1:ZvdfwSgqPxeD2Sb0yhH/7jzrpFHBKAjPhzKr1vVev9c=
 github.com/zmap/zlint/v3 v3.6.8/go.mod h1:Tm0qwwaO629pgJ/En7M9U9Edx4+rQRuoeXVpXvgVHhA=
