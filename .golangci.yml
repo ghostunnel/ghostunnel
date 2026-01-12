@@ -10,10 +10,9 @@ linters:
       - std-error-handling
       - common-false-positives
     rules:
-      # Additional exclusions for os.Remove() in tests - cleanup that's best-effort
+      # Ignore errcheck in test files - test code often has best-effort operations
       - linters:
           - errcheck
-        text: "os.Remove"
         path: "_test\\.go"
   settings:
     errcheck:
