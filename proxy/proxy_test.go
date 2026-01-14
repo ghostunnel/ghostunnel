@@ -315,3 +315,257 @@ func TestCopyData(t *testing.T) {
 		t.Fatalf("input and output were different after copy")
 	}
 }
+
+// mockNetError implements net.Error for testing isTimeoutError
+type mockNetError struct {
+	timeout   bool
+	temporary bool
+	msg       string
+}
+
+func (e *mockNetError) Error() string   { return e.msg }
+func (e *mockNetError) Timeout() bool   { return e.timeout }
+func (e *mockNetError) Temporary() bool { return e.temporary }
+
+func TestIsTimeoutError(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "nil error",
+			err:      nil,
+			expected: false,
+		},
+		{
+			name:     "regular error",
+			err:      errors.New("test error"),
+			expected: false,
+		},
+		{
+			name:     "net.Error with timeout=true",
+			err:      &mockNetError{timeout: true, msg: "timeout error"},
+			expected: true,
+		},
+		{
+			name:     "net.Error with timeout=false",
+			err:      &mockNetError{timeout: false, msg: "non-timeout error"},
+			expected: false,
+		},
+		{
+			name:     "context.DeadlineExceeded",
+			err:      context.DeadlineExceeded,
+			expected: true,
+		},
+		{
+			name:     "context.Canceled",
+			err:      context.Canceled,
+			expected: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := isTimeoutError(tc.err)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestIsClosedConnectionError(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "regular error",
+			err:      errors.New("test error"),
+			expected: false,
+		},
+		{
+			name:     "closed pipe error",
+			err:      errors.New("read/write on closed pipe"),
+			expected: true,
+		},
+		{
+			name: "net.OpError read closed",
+			err: &net.OpError{
+				Op:  "read",
+				Err: errors.New("use of closed network connection"),
+			},
+			expected: true,
+		},
+		{
+			name: "net.OpError write closed",
+			err: &net.OpError{
+				Op:  "write",
+				Err: errors.New("use of closed network connection"),
+			},
+			expected: true,
+		},
+		{
+			name: "net.OpError readfrom closed",
+			err: &net.OpError{
+				Op:  "readfrom",
+				Err: errors.New("use of closed network connection"),
+			},
+			expected: true,
+		},
+		{
+			name: "net.OpError writeto closed",
+			err: &net.OpError{
+				Op:  "writeto",
+				Err: errors.New("use of closed network connection"),
+			},
+			expected: true,
+		},
+		{
+			name: "net.OpError other op",
+			err: &net.OpError{
+				Op:  "dial",
+				Err: errors.New("use of closed network connection"),
+			},
+			expected: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := isClosedConnectionError(tc.err)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+// mockConn is a minimal net.Conn implementation that is neither TCP nor Unix
+type mockConn struct {
+	closed bool
+}
+
+func (m *mockConn) Read(b []byte) (n int, err error)   { return 0, nil }
+func (m *mockConn) Write(b []byte) (n int, err error)  { return len(b), nil }
+func (m *mockConn) Close() error                       { m.closed = true; return nil }
+func (m *mockConn) LocalAddr() net.Addr                { return &net.IPAddr{IP: net.IPv4(127, 0, 0, 1)} }
+func (m *mockConn) RemoteAddr() net.Addr               { return &net.IPAddr{IP: net.IPv4(127, 0, 0, 1)} }
+func (m *mockConn) SetDeadline(t time.Time) error      { return nil }
+func (m *mockConn) SetReadDeadline(t time.Time) error  { return nil }
+func (m *mockConn) SetWriteDeadline(t time.Time) error { return nil }
+
+func TestCloseReadNonTCPConnection(t *testing.T) {
+	conn := &mockConn{}
+	closeRead(conn)
+	assert.True(t, conn.closed, "non-TCP/Unix conn should be closed via Close()")
+}
+
+func TestCloseWriteNonTCPConnection(t *testing.T) {
+	conn := &mockConn{}
+	closeWrite(conn)
+	assert.True(t, conn.closed, "non-TCP/Unix conn should be closed via Close()")
+}
+
+func TestCloseReadTCPConnection(t *testing.T) {
+	// Create a TCP connection pair
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	assert.Nil(t, err)
+	defer listener.Close()
+
+	go func() {
+		conn, _ := listener.Accept()
+		if conn != nil {
+			time.Sleep(100 * time.Millisecond)
+			conn.Close()
+		}
+	}()
+
+	conn, err := net.Dial("tcp", listener.Addr().String())
+	assert.Nil(t, err)
+	defer conn.Close()
+
+	// closeRead should not panic and should work on TCP
+	closeRead(conn)
+}
+
+func TestCloseWriteTCPConnection(t *testing.T) {
+	// Create a TCP connection pair
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	assert.Nil(t, err)
+	defer listener.Close()
+
+	go func() {
+		conn, _ := listener.Accept()
+		if conn != nil {
+			time.Sleep(100 * time.Millisecond)
+			conn.Close()
+		}
+	}()
+
+	conn, err := net.Dial("tcp", listener.Addr().String())
+	assert.Nil(t, err)
+	defer conn.Close()
+
+	// closeWrite should not panic and should work on TCP
+	closeWrite(conn)
+}
+
+func TestForceHandshakeNonTLSConn(t *testing.T) {
+	// Create a regular TCP connection (non-TLS)
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	assert.Nil(t, err)
+	defer listener.Close()
+
+	go func() {
+		conn, _ := listener.Accept()
+		if conn != nil {
+			conn.Close()
+		}
+	}()
+
+	conn, err := net.Dial("tcp", listener.Addr().String())
+	assert.Nil(t, err)
+	defer conn.Close()
+
+	// forceHandshake should be a no-op for non-TLS connections
+	ctx := context.Background()
+	err = forceHandshake(ctx, conn)
+	assert.Nil(t, err, "forceHandshake should succeed for non-TLS conn")
+}
+
+func TestLogConnectionMessageDisabled(t *testing.T) {
+	// Test with LogConnections disabled
+	p := New(nil, 5*time.Second, 5*time.Second, 0, 0, nil, &testLogger{}, 0, false)
+
+	// Create pipe connections
+	src, dst := net.Pipe()
+	defer src.Close()
+	defer dst.Close()
+
+	// Should not panic even with logging disabled
+	p.logConnectionMessage("test", src, dst, 0, 0, time.Time{})
+}
+
+func TestLogConditional(t *testing.T) {
+	logged := false
+	logger := &callbackLogger{callback: func(format string, v ...interface{}) {
+		logged = true
+	}}
+
+	// Test with flag enabled
+	p := New(nil, 5*time.Second, 5*time.Second, 0, 0, nil, logger, LogConnectionErrors, false)
+	p.logConditional(LogConnectionErrors, "test message")
+	assert.True(t, logged, "should log when flag is enabled")
+
+	// Test with flag disabled
+	logged = false
+	p.logConditional(LogHandshakeErrors, "test message")
+	assert.False(t, logged, "should not log when flag is disabled")
+}
+
+type callbackLogger struct {
+	callback func(format string, v ...interface{})
+}
+
+func (c *callbackLogger) Printf(format string, v ...interface{}) {
+	c.callback(format, v...)
+}
