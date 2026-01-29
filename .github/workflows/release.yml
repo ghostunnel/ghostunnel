@@ -72,6 +72,24 @@ jobs:
           CGO_ENABLED=1 GOARCH=arm64 ./mage-bin -v go:build
           mv ghostunnel ghostunnel-darwin-arm64
           lipo -create -output ghostunnel-darwin-universal ghostunnel-darwin-amd64 ghostunnel-darwin-arm64
+      - name: Codesign binaries
+        env:
+          CODESIGN_IDENTITY: ${{ secrets.CODESIGN_IDENTITY }}
+          CODESIGN_CERTIFICATE: ${{ secrets.CODESIGN_CERTIFICATE }}
+          CODESIGN_CERTIFICATE_PASSWORD: ${{ secrets.CODESIGN_CERTIFICATE_PASSWORD }}
+        run: |
+          ./mage-bin -v apple:codesign ghostunnel-darwin-amd64
+          ./mage-bin -v apple:codesign ghostunnel-darwin-arm64
+          ./mage-bin -v apple:codesign ghostunnel-darwin-universal
+      - name: Notarize binaries
+        env:
+          NOTARIZE_ISSUER_ID: ${{ secrets.NOTARIZE_ISSUER_ID }}
+          NOTARIZE_KEY_ID: ${{ secrets.NOTARIZE_KEY_ID }}
+          NOTARIZE_KEY: ${{ secrets.NOTARIZE_KEY }}
+        run: |
+          ./mage-bin -v apple:notarize ghostunnel-darwin-amd64
+          ./mage-bin -v apple:notarize ghostunnel-darwin-arm64
+          ./mage-bin -v apple:notarize ghostunnel-darwin-universal
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
