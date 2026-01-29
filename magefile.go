@@ -5,6 +5,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"os/exec"
@@ -18,11 +20,21 @@ import (
 )
 
 type Go mg.Namespace
+type Apple mg.Namespace
 type Git mg.Namespace
 type Test mg.Namespace
 type Docker mg.Namespace
 
 var Default = Go.Build
+
+// runSilent executes a command without echoing it to stdout, to avoid
+// leaking sensitive arguments (passwords, secrets) in CI logs.
+func runSilent(name string, args ...string) error {
+	cmd := exec.Command(name, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
 
 // printf prints the given format and args if verbose mode is enabled.
 func printf(format string, args ...interface{}) {
@@ -75,6 +87,252 @@ func (Go) Man(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// Codesign signs a macOS binary using the codesign tool. The binary argument
+// specifies which file to sign. Requires macOS. If CODESIGN_CERTIFICATE is
+// set, a temporary keychain is created, the certificate is imported, and the
+// keychain is cleaned up after signing.
+//
+// Environment variables:
+//   - CODESIGN_IDENTITY: Signing identity (required, e.g. "Developer ID Application: Name (TEAMID)")
+//   - CODESIGN_CERTIFICATE: Base64-encoded .p12 certificate to import into a temporary keychain (optional, for CI)
+//   - CODESIGN_CERTIFICATE_PASSWORD: Password for the .p12 certificate (required if CODESIGN_CERTIFICATE is set)
+func (Apple) Codesign(ctx context.Context, binary string) error {
+	if runtime.GOOS != "darwin" {
+		return fmt.Errorf("codesigning is only supported on macOS")
+	}
+
+	identity := os.Getenv("CODESIGN_IDENTITY")
+	if identity == "" {
+		return fmt.Errorf("CODESIGN_IDENTITY must be set")
+	}
+
+	certData := os.Getenv("CODESIGN_CERTIFICATE")
+	if certData != "" {
+		cleanup, err := setupCodesignKeychain(certData)
+		if err != nil {
+			return err
+		}
+		defer cleanup()
+	}
+
+	printf("Signing binary %s with identity %s\n", binary, identity)
+
+	if err := sh.Run("codesign", "--force", "--options", "runtime", "--sign", identity, binary); err != nil {
+		return fmt.Errorf("codesign %s failed: %w", binary, err)
+	}
+
+	if err := sh.Run("codesign", "--verify", "--verbose", binary); err != nil {
+		return fmt.Errorf("codesign verification of %s failed: %w", binary, err)
+	}
+
+	printf("Binary %s signed and verified successfully\n", binary)
+	return nil
+}
+
+// Notarize submits a signed macOS binary to Apple's notary service. Requires
+// macOS. If NOTARIZE_KEY is set, the .p8 key is written to a temp file and
+// cleaned up after notarization.
+//
+// The binary is zipped for submission and the zip is removed afterward.
+// Note: stapling only works for .app, .pkg, and .dmg — for bare binaries the
+// notarization is registered with Apple but cannot be stapled. The staple step
+// is attempted but a failure is not treated as an error.
+//
+// Environment variables:
+//   - NOTARIZE_ISSUER_ID: App Store Connect API issuer ID (required)
+//   - NOTARIZE_KEY_ID: App Store Connect API key ID (required)
+//   - NOTARIZE_KEY: Base64-encoded .p8 private key (optional, for CI; if not set, key must already exist)
+func (Apple) Notarize(ctx context.Context, binary string) error {
+	if runtime.GOOS != "darwin" {
+		return fmt.Errorf("notarization is only supported on macOS")
+	}
+
+	issuerID := os.Getenv("NOTARIZE_ISSUER_ID")
+	keyID := os.Getenv("NOTARIZE_KEY_ID")
+	if issuerID == "" || keyID == "" {
+		return fmt.Errorf("NOTARIZE_ISSUER_ID and NOTARIZE_KEY_ID must be set")
+	}
+
+	// If NOTARIZE_KEY is set, write the .p8 key to a temp file for notarytool
+	keyPath, err := setupNotarizeKey(keyID)
+	if err != nil {
+		return err
+	}
+	if keyPath != "" {
+		defer os.Remove(keyPath)
+	}
+
+	// Create zip for submission
+	zipPath := binary + ".zip"
+	if err := sh.Run("ditto", "-c", "-k", "--sequesterRsrc", binary, zipPath); err != nil {
+		return fmt.Errorf("failed to create zip for %s: %w", binary, err)
+	}
+
+	printf("Submitting %s for notarization...\n", binary)
+
+	submitArgs := []string{"notarytool", "submit", zipPath,
+		"--issuer", issuerID,
+		"--key-id", keyID,
+	}
+	if keyPath != "" {
+		submitArgs = append(submitArgs, "--key", keyPath)
+	}
+	submitArgs = append(submitArgs, "--wait")
+
+	err = sh.Run("xcrun", submitArgs...)
+	os.Remove(zipPath)
+	if err != nil {
+		return fmt.Errorf("notarization of %s failed: %w", binary, err)
+	}
+
+	// Attempt to staple — this only works for .app/.pkg/.dmg, not bare binaries
+	if err := sh.Run("xcrun", "stapler", "staple", binary); err != nil {
+		printf("Stapling skipped for %s (not supported for bare binaries): %v\n", binary, err)
+	}
+
+	printf("Notarization of %s completed successfully\n", binary)
+	return nil
+}
+
+// setupCodesignKeychain creates a temporary keychain, imports the signing
+// certificate, and configures the keychain search list. Returns a cleanup
+// function that removes the temporary keychain and restores the original
+// search list.
+func setupCodesignKeychain(certBase64 string) (func(), error) {
+	password := os.Getenv("CODESIGN_CERTIFICATE_PASSWORD")
+	if password == "" {
+		return nil, fmt.Errorf("CODESIGN_CERTIFICATE_PASSWORD must be set when CODESIGN_CERTIFICATE is set")
+	}
+
+	// Decode certificate
+	certBytes, err := base64.StdEncoding.DecodeString(certBase64)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode CODESIGN_CERTIFICATE: %w", err)
+	}
+
+	// Write certificate to temp file
+	certFile, err := os.CreateTemp("", "codesign-*.p12")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temp file: %w", err)
+	}
+	if _, err := certFile.Write(certBytes); err != nil {
+		os.Remove(certFile.Name())
+		return nil, fmt.Errorf("failed to write certificate: %w", err)
+	}
+	certFile.Close()
+
+	// Generate random keychain password
+	keychainPassBytes := make([]byte, 32)
+	if _, err := rand.Read(keychainPassBytes); err != nil {
+		os.Remove(certFile.Name())
+		return nil, fmt.Errorf("failed to generate keychain password: %w", err)
+	}
+	keychainPassword := base64.StdEncoding.EncodeToString(keychainPassBytes)
+
+	keychainPath := "ghostunnel-signing.keychain-db"
+
+	// Save original keychain search list
+	originalKeychains, err := sh.Output("security", "list-keychains", "-d", "user")
+	if err != nil {
+		os.Remove(certFile.Name())
+		return nil, fmt.Errorf("failed to list keychains: %w", err)
+	}
+
+	cleanup := func() {
+		// Restore original keychain search list
+		restoreArgs := []string{"list-keychains", "-d", "user", "-s"}
+		restoreArgs = append(restoreArgs, parseKeychainPaths(originalKeychains)...)
+		sh.Run("security", restoreArgs...)
+		sh.Run("security", "delete-keychain", keychainPath)
+		os.Remove(certFile.Name())
+	}
+
+	// Create temporary keychain (suppress command echo to avoid leaking keychain password)
+	if err := runSilent("security", "create-keychain", "-p", keychainPassword, keychainPath); err != nil {
+		cleanup()
+		return nil, fmt.Errorf("failed to create keychain: %w", err)
+	}
+
+	// Set keychain settings (no auto-lock)
+	if err := sh.Run("security", "set-keychain-settings", keychainPath); err != nil {
+		cleanup()
+		return nil, fmt.Errorf("failed to set keychain settings: %w", err)
+	}
+
+	// Unlock keychain (suppress command echo to avoid leaking keychain password)
+	if err := runSilent("security", "unlock-keychain", "-p", keychainPassword, keychainPath); err != nil {
+		cleanup()
+		return nil, fmt.Errorf("failed to unlock keychain: %w", err)
+	}
+
+	// Import certificate into keychain (suppress command echo to avoid leaking certificate password)
+	if err := runSilent("security", "import", certFile.Name(), "-k", keychainPath, "-f", "pkcs12", "-P", password, "-T", "/usr/bin/codesign"); err != nil {
+		cleanup()
+		return nil, fmt.Errorf("failed to import certificate: %w", err)
+	}
+
+	// Set key partition list to allow codesign access (suppress command echo to avoid leaking keychain password)
+	if err := runSilent("security", "set-key-partition-list", "-S", "apple-tool:,apple:,codesign:", "-s", "-k", keychainPassword, keychainPath); err != nil {
+		cleanup()
+		return nil, fmt.Errorf("failed to set key partition list: %w", err)
+	}
+
+	// Add temporary keychain to search list (prepend to existing)
+	keychainArgs := []string{"list-keychains", "-d", "user", "-s", keychainPath}
+	keychainArgs = append(keychainArgs, parseKeychainPaths(originalKeychains)...)
+	if err := sh.Run("security", keychainArgs...); err != nil {
+		cleanup()
+		return nil, fmt.Errorf("failed to update keychain search list: %w", err)
+	}
+
+	return cleanup, nil
+}
+
+// setupNotarizeKey writes the NOTARIZE_KEY env var (base64-encoded .p8) to a
+// temp file and returns its path. Returns an empty path if NOTARIZE_KEY is not
+// set (assumes the key file is already available locally).
+func setupNotarizeKey(keyID string) (string, error) {
+	keyData := os.Getenv("NOTARIZE_KEY")
+	if keyData == "" {
+		return "", nil
+	}
+
+	keyBytes, err := base64.StdEncoding.DecodeString(keyData)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode NOTARIZE_KEY: %w", err)
+	}
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	keyDir := filepath.Join(homeDir, "private_keys")
+	if err := os.MkdirAll(keyDir, 0700); err != nil {
+		return "", fmt.Errorf("failed to create private_keys directory: %w", err)
+	}
+
+	keyPath := filepath.Join(keyDir, fmt.Sprintf("AuthKey_%s.p8", keyID))
+	if err := os.WriteFile(keyPath, keyBytes, 0600); err != nil {
+		return "", fmt.Errorf("failed to write API key: %w", err)
+	}
+
+	return keyPath, nil
+}
+
+// parseKeychainPaths parses the output of `security list-keychains` into
+// a list of unquoted keychain paths.
+func parseKeychainPaths(output string) []string {
+	var paths []string
+	for _, line := range strings.Split(output, "\n") {
+		kc := strings.TrimSpace(strings.Trim(strings.TrimSpace(line), "\""))
+		if kc != "" {
+			paths = append(paths, kc)
+		}
+	}
+	return paths
 }
 
 // Clean removes build artifacts.
@@ -365,19 +623,23 @@ func (Docker) Push(ctx context.Context) error {
 
 // buildDocker builds and tags all Docker containers, optionally pushing them to Docker Hub.
 func buildDocker(ctx context.Context, push bool) error {
-	// Determine base tag (latest for master, version tag otherwise)
-	baseTag, err := getDockerTag()
+	baseTags, err := getDockerTags()
 	if err != nil {
 		return err
 	}
 
-	builds := map[string][]string{
-		"Dockerfile-alpine": []string{
+	builds := map[string][]string{}
+	for _, baseTag := range baseTags {
+		builds["Dockerfile-alpine"] = append(builds["Dockerfile-alpine"],
 			fmt.Sprintf("ghostunnel/ghostunnel:%s", baseTag),
 			fmt.Sprintf("ghostunnel/ghostunnel:%s-alpine", baseTag),
-		},
-		"Dockerfile-debian":     []string{fmt.Sprintf("ghostunnel/ghostunnel:%s-debian", baseTag)},
-		"Dockerfile-distroless": []string{fmt.Sprintf("ghostunnel/ghostunnel:%s-distroless", baseTag)},
+		)
+		builds["Dockerfile-debian"] = append(builds["Dockerfile-debian"],
+			fmt.Sprintf("ghostunnel/ghostunnel:%s-debian", baseTag),
+		)
+		builds["Dockerfile-distroless"] = append(builds["Dockerfile-distroless"],
+			fmt.Sprintf("ghostunnel/ghostunnel:%s-distroless", baseTag),
+		)
 	}
 
 	for dockerfile, tags := range builds {
@@ -425,37 +687,39 @@ func getVersion() string {
 	return strings.TrimSpace(output)
 }
 
-// getDockerTag determines the Docker tag to use based on git state.
-// Returns "latest" if on master branch, otherwise returns the most recent tag.
-func getDockerTag() (string, error) {
+// getDockerTags determines the Docker tags to use based on git state.
+// For release tags (refs/tags/v*), returns both the version tag and "latest".
+// For master branch, returns "master". For local non-master branches, returns
+// the most recent git tag.
+func getDockerTags() ([]string, error) {
 	// Check if we're on a tag (for GitHub Actions when triggered by tag push)
 	// In GitHub Actions, GITHUB_REF will be set, but locally we check git
 	githubRef := os.Getenv("GITHUB_REF")
 	if githubRef != "" {
 		// GitHub Actions: refs/heads/master or refs/tags/v1.2.3
 		if strings.HasPrefix(githubRef, "refs/heads/master") {
-			return "latest", nil
+			return []string{"master"}, nil
 		}
 		if strings.HasPrefix(githubRef, "refs/tags/") {
 			tag := strings.TrimPrefix(githubRef, "refs/tags/")
-			return tag, nil
+			return []string{tag, "latest"}, nil
 		}
 	}
 
 	// Check current branch
 	branch, err := sh.Output("git", "rev-parse", "--abbrev-ref", "HEAD")
 	if err != nil {
-		return "", fmt.Errorf("failed to determine git ref: %w", err)
+		return nil, fmt.Errorf("failed to determine git ref: %w", err)
 	}
 	if strings.TrimSpace(branch) == "master" {
-		return "latest", nil
+		return []string{"master"}, nil
 	}
 
 	// Not on master, get the most recent tag
 	tag, err := sh.Output("git", "describe", "--tags", "--abbrev=0")
 	if err != nil {
-		return "", fmt.Errorf("failed to get git tag: %w", err)
+		return nil, fmt.Errorf("failed to get git tag: %w", err)
 	}
 
-	return strings.TrimSpace(tag), nil
+	return []string{strings.TrimSpace(tag)}, nil
 }
