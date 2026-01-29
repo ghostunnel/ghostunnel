@@ -256,6 +256,20 @@ Now we have a full tunnel running. We take insecure client connections,
 forward them to the server side of the tunnel via TLS, and finally terminate
 and proxy the connection to the insecure backend.
 
+Docker Images
+=============
+
+Docker images are published to [Docker Hub][hub] on each release. Three
+variants are available:
+
+| Image | Tag |
+|-------|-----|
+| Alpine | `ghostunnel/ghostunnel:latest`, `ghostunnel/ghostunnel:v1.x.x` |
+| Debian | `ghostunnel/ghostunnel:latest-debian`, `ghostunnel/ghostunnel:v1.x.x-debian` |
+| Distroless | `ghostunnel/ghostunnel:latest-distroless`, `ghostunnel/ghostunnel:v1.x.x-distroless` |
+
+The `latest` tags always point to the most recent release.
+
 Advanced Features
 =================
 
