@@ -349,7 +349,7 @@ func serverValidateFlags() error {
 	}
 	if *serverAutoACMEFQDN != "" {
 		if *serverAutoACMEEmail == "" {
-			return errors.New("--auto-cert-acme was specified but no email address was provided with --auto-acme-email")
+			return errors.New("--auto-acme-cert was specified but no email address was provided with --auto-acme-email")
 		}
 		if !*serverAutoACMEAgreedTOS {
 			return errors.New("--auto-acme-agree-to-tos was not specified and is required if --auto-acme-cert is specified")

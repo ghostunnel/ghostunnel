@@ -154,7 +154,7 @@ To use it in client mode, specify the `--verify-policy` and `--verify-query` fla
 
 Example:
 ```
-ghostunnel server [...] --verify-policy=bundle.tar.gz --allow-query=data.policy.allow
+ghostunnel client [...] --verify-policy=bundle.tar.gz --verify-query=data.policy.allow
 ```
 
 Inside your policy, you can access the reflected X.509 peer certificate using
