@@ -154,7 +154,7 @@ example, both the listen and target flags can also accept paths to UNIX domain
 sockets as their argument.
 
 To set allowed clients, you must specify at least one of `--allow-all`,
-`--allow-cn`, `--allow-ou`, `--allow-dns`, `--allow-uri` or `--alow-policy`. All
+`--allow-cn`, `--allow-ou`, `--allow-dns`, `--allow-uri` or `--allow-policy`. All
 checks are made against the certificate of the client. Multiple flags are
 treated as a logical disjunction (OR), meaning clients can connect as long as
 any of the flags matches. See [ACCESS-FLAGS](docs/ACCESS-FLAGS.md) for more
@@ -162,7 +162,7 @@ information. In this example, we assume that the CN of the client cert we want
 to accept connections from is `client`.
 
 **Note:** Before running the examples below, make sure you have generated the test
-certificates by running `mage testKeys` (see the [Getting Started](#getting-started)
+certificates by running `mage test:keys` (see the [Getting Started](#getting-started)
 section above).
 
 Start a backend server:
@@ -307,7 +307,7 @@ check.
 
 ### Certificate Hotswapping
 
-To trigger a reload, simply send `SIGHUP` to the process or set a time-based
+To trigger a reload, simply send `SIGHUP` (or `SIGUSR1`) to the process or set a time-based
 reloading interval with the `--timed-reload` flag. This will cause Ghostunnel
 to reload the certificate and private key from the files on disk. Once
 successful, the reloaded certificate will be used for new connections going
@@ -369,7 +369,7 @@ See [SPIFFE-WORKLOAD-API](docs/SPIFFE-WORKLOAD-API.md) for details.
 ### Socket Activation
 
 Ghostunnel supports socket activation via both systemd (on Linux) and launchd
-(on macOS). Socket activation is support for the `--listen` and `--status`
+(on macOS). Socket activation is supported for the `--listen` and `--status`
 flags, and can be used by passing an address of the form `systemd:<name>` or
 `launchd:<name>`, where `<name>` should be the name of the socket as defined in
 your systemd/launchd configuration.

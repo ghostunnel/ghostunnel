@@ -20,7 +20,7 @@ type certTLSConfigSource struct {
 
 func (c *certTLSConfigSource) Reload() error {
 	err := c.cert.Reload()
-	if err != nil {
+	if err == nil {
 		id := c.cert.GetIdentifier()
 		if id != "" {
 			c.logger.Printf("loaded certificate: %s", id)
