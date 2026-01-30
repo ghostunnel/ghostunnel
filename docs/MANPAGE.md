@@ -174,7 +174,7 @@ Clients matching any of the specified criteria (CN=client1 or CN=client2 or OU=d
 
 **\--skip-resolve** Skip resolving target host on startup (useful to start Ghostunnel before network is up).
 
-**\--syslog** Send logs to syslog instead of stderr.
+**\--syslog** Send logs to syslog instead of stdout.
 
 **\--keychain-identity=CN** Use local keychain identity with given serial/common name (instead of keystore file).
 
