@@ -307,7 +307,7 @@ check.
 
 ### Certificate Hotswapping
 
-To trigger a reload, simply send `SIGHUP` to the process or set a time-based
+To trigger a reload, simply send `SIGHUP` (or `SIGUSR1`) to the process or set a time-based
 reloading interval with the `--timed-reload` flag. This will cause Ghostunnel
 to reload the certificate and private key from the files on disk. Once
 successful, the reloaded certificate will be used for new connections going
