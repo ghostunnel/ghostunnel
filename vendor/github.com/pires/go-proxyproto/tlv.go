@@ -12,18 +12,21 @@ import (
 
 const (
 	// Section 2.2
-	PP2_TYPE_ALPN           PP2Type = 0x01
-	PP2_TYPE_AUTHORITY      PP2Type = 0x02
-	PP2_TYPE_CRC32C         PP2Type = 0x03
-	PP2_TYPE_NOOP           PP2Type = 0x04
-	PP2_TYPE_UNIQUE_ID      PP2Type = 0x05
-	PP2_TYPE_SSL            PP2Type = 0x20
-	PP2_SUBTYPE_SSL_VERSION PP2Type = 0x21
-	PP2_SUBTYPE_SSL_CN      PP2Type = 0x22
-	PP2_SUBTYPE_SSL_CIPHER  PP2Type = 0x23
-	PP2_SUBTYPE_SSL_SIG_ALG PP2Type = 0x24
-	PP2_SUBTYPE_SSL_KEY_ALG PP2Type = 0x25
-	PP2_TYPE_NETNS          PP2Type = 0x30
+	PP2_TYPE_ALPN               PP2Type = 0x01
+	PP2_TYPE_AUTHORITY          PP2Type = 0x02
+	PP2_TYPE_CRC32C             PP2Type = 0x03
+	PP2_TYPE_NOOP               PP2Type = 0x04
+	PP2_TYPE_UNIQUE_ID          PP2Type = 0x05
+	PP2_TYPE_SSL                PP2Type = 0x20
+	PP2_SUBTYPE_SSL_VERSION     PP2Type = 0x21
+	PP2_SUBTYPE_SSL_CN          PP2Type = 0x22
+	PP2_SUBTYPE_SSL_CIPHER      PP2Type = 0x23
+	PP2_SUBTYPE_SSL_SIG_ALG     PP2Type = 0x24
+	PP2_SUBTYPE_SSL_KEY_ALG     PP2Type = 0x25
+	PP2_SUBTYPE_SSL_GROUP       PP2Type = 0x26
+	PP2_SUBTYPE_SSL_SIG_SCHEME  PP2Type = 0x27
+	PP2_SUBTYPE_SSL_CLIENT_CERT PP2Type = 0x28
+	PP2_TYPE_NETNS              PP2Type = 0x30
 
 	// Section 2.2.7, reserved types
 	PP2_TYPE_MIN_CUSTOM     PP2Type = 0xE0

@@ -195,8 +195,8 @@ github.com/pelletier/go-toml v1.9.5 h1:4yBQzkHv+7BHq2PQUZF3Mx0IYxG7LsP222s7Agd3v
 github.com/pelletier/go-toml v1.9.5/go.mod h1:u1nR/EPcESfeI/szUZKdtJ0xRNbUoANCkoOuaOx1Y+c=
 github.com/pierrec/lz4 v2.6.1+incompatible h1:9UY3+iC23yxF0UfGaYrGplQ+79Rg+h/q9FV9ix19jjM=
 github.com/pierrec/lz4 v2.6.1+incompatible/go.mod h1:pdkljMzZIN41W+lC3N2tnIh5sFi+IEE17M5jbnwPHcY=
-github.com/pires/go-proxyproto v0.8.1 h1:9KEixbdJfhrbtjpz/ZwCdWDD2Xem0NZ38qMYaASJgp0=
-github.com/pires/go-proxyproto v0.8.1/go.mod h1:ZKAAyp3cgy5Y5Mo4n9AlScrkCZwUy0g3Jf+slqQVcuU=
+github.com/pires/go-proxyproto v0.9.2 h1:H1UdHn695zUVVmB0lQ354lOWHOy6TZSpzBl3tgN0s1U=
+github.com/pires/go-proxyproto v0.9.2/go.mod h1:ZKAAyp3cgy5Y5Mo4n9AlScrkCZwUy0g3Jf+slqQVcuU=
 github.com/pkg/errors v0.8.0/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
@@ -306,8 +306,6 @@ github.com/zmap/zcrypto v0.0.0-20201128221613-3719af1573cf/go.mod h1:aPM7r+JOkfL
 github.com/zmap/zcrypto v0.0.0-20201211161100-e54a5822fb7e/go.mod h1:aPM7r+JOkfL+9qSB4KbYjtoEzJqUK50EXkkJabeNJDQ=
 github.com/zmap/zcrypto v0.0.0-20250129210703-03c45d0bae98 h1:Qp98bmMm9JHPPOaLi2Nb6oWoZ+1OyOMWI7PPeJrirI0=
 github.com/zmap/zcrypto v0.0.0-20250129210703-03c45d0bae98/go.mod h1:YTUyN/U1oJ7RzCEY5hUweYxbVUu7X+11wB7OXZT15oE=
-github.com/zmap/zcrypto v0.0.0-20260109180747-df961ee46a6c h1:UAOper+Ckxfs4vHD/IccUjNESC8dlBje9Ckkn+anEAQ=
-github.com/zmap/zcrypto v0.0.0-20260109180747-df961ee46a6c/go.mod h1:CclAsmltb5tDXElMDJFcVm29Vcz1rjgdD9Z/FgohZaQ=
 github.com/zmap/zlint/v3 v3.0.0/go.mod h1:paGwFySdHIBEMJ61YjoqT4h7Ge+fdYG4sUQhnTb1lJ8=
 github.com/zmap/zlint/v3 v3.6.8 h1:ZvdfwSgqPxeD2Sb0yhH/7jzrpFHBKAjPhzKr1vVev9c=
 github.com/zmap/zlint/v3 v3.6.8/go.mod h1:Tm0qwwaO629pgJ/En7M9U9Edx4+rQRuoeXVpXvgVHhA=
