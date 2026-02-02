@@ -44,7 +44,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	metrics "github.com/rcrowley/go-metrics"
 	sqmetrics "github.com/square/go-sq-metrics"
-	connectproxy "github.com/wrouesnel/go.connect-proxy-scheme"
+	"github.com/ghostunnel/ghostunnel/connectproxy"
 	netproxy "golang.org/x/net/proxy"
 
 	prometheusmetrics "github.com/deathowl/go-metrics-prometheus"

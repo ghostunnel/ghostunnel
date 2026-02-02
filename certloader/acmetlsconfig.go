@@ -6,8 +6,11 @@ import (
 	"errors"
 
 	"github.com/caddyserver/certmagic"
-	"github.com/mholt/acmez"
 )
+
+// acmeTLS1Protocol is the ALPN value for the ACME TLS-ALPN-01 challenge.
+// See https://datatracker.ietf.org/doc/html/rfc8737#section-6.1
+const acmeTLS1Protocol = "acme-tls/1"
 
 // ACMEConfig stores the properties used for operating as an ACME client
 type ACMEConfig struct {
@@ -132,6 +135,6 @@ type acmeTLSConfig struct {
 func (a *acmeTLSConfig) GetServerConfig() *tls.Config {
 	config := a.base.Clone()
 	config.GetCertificate = a.magicConfig.GetCertificate
-	config.NextProtos = append(config.NextProtos, acmez.ACMETLS1Protocol)
+	config.NextProtos = append(config.NextProtos, acmeTLS1Protocol)
 	return config
 }

@@ -43,7 +43,7 @@ import (
 	"unicode/utf16"
 	"unsafe"
 
-	"github.com/pkg/errors"
+	"errors"
 )
 
 const (
@@ -181,7 +181,7 @@ func identitiesForStore(store C.HCERTSTORE) ([]Identity, error) {
 		idents = append(idents, newWinIdentity(chain))
 	}
 
-	if err = checkError("failed to iterate certs in store"); err != nil && errors.Cause(err) != errCode(CRYPT_E_NOT_FOUND) {
+	if err = checkError("failed to iterate certs in store"); err != nil && !errors.Is(err, errCode(CRYPT_E_NOT_FOUND)) {
 		goto fail
 	}
 
@@ -231,7 +231,7 @@ func (s *winStore) Import(data []byte, password string) error {
 	for {
 		// iterate through certs in temporary store
 		if ctx = C.CertFindCertificateInStore(store, encoding, 0, C.CERT_FIND_ANY, nil, ctx); ctx == nil {
-			if err := checkError("failed to iterate certs in store"); err != nil && errors.Cause(err) != errCode(CRYPT_E_NOT_FOUND) {
+			if err := checkError("failed to iterate certs in store"); err != nil && !errors.Is(err, errCode(CRYPT_E_NOT_FOUND)) {
 				return err
 			}
 
@@ -306,12 +306,12 @@ func (i *winIdentity) getPrivateKey() (*winPrivateKey, error) {
 
 	cert, err := i.Certificate()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get identity certificate")
+		return nil, fmt.Errorf("failed to get identity certificate: %w", err)
 	}
 
 	signer, err := newWinPrivateKey(i.chain[0], cert.PublicKey)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to load identity private key")
+		return nil, fmt.Errorf("failed to load identity private key: %w", err)
 	}
 
 	i.signer = signer
@@ -332,11 +332,11 @@ func (i *winIdentity) Delete() error {
 	// try deleting private key
 	wpk, err := i.getPrivateKey()
 	if err != nil {
-		return errors.Wrap(err, "failed to get identity private key")
+		return fmt.Errorf("failed to get identity private key: %w", err)
 	}
 
 	if err := wpk.Delete(); err != nil {
-		return errors.Wrap(err, "failed to delete identity private key")
+		return fmt.Errorf("failed to delete identity private key: %w", err)
 	}
 
 	return nil
@@ -473,14 +473,14 @@ func (wpk *winPrivateKey) cngSignHash(opts crypto.SignerOpts, digest []byte) ([]
 
 	// get signature length
 	if err := checkStatus(C.NCryptSignHash(wpk.cngHandle, padPtr, digestPtr, digestLen, nil, 0, &sigLen, flags)); err != nil {
-		return nil, errors.Wrap(err, "failed to get signature length")
+		return nil, fmt.Errorf("failed to get signature length: %w", err)
 	}
 
 	// get signature
 	sig := make([]byte, sigLen)
 	sigPtr := (*C.BYTE)(&sig[0])
 	if err := checkStatus(C.NCryptSignHash(wpk.cngHandle, padPtr, digestPtr, digestLen, sigPtr, sigLen, &sigLen, flags)); err != nil {
-		return nil, errors.Wrap(err, "failed to sign digest")
+		return nil, fmt.Errorf("failed to sign digest: %w", err)
 	}
 
 	// CNG returns a raw ECDSA signature, but we wan't ASN.1 DER encoding.
@@ -498,7 +498,7 @@ func (wpk *winPrivateKey) cngSignHash(opts crypto.SignerOpts, digest []byte) ([]
 
 		encoded, err := asn1.Marshal(ecdsaSignature{r, s})
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to ASN.1 encode EC signature")
+			return nil, fmt.Errorf("failed to ASN.1 encode EC signature: %w", err)
 		}
 
 		return encoded, nil
@@ -539,7 +539,7 @@ func (wpk *winPrivateKey) capiSignHash(opts crypto.SignerOpts, digest []byte) ([
 	var chash C.HCRYPTHASH
 
 	if ok := C.CryptCreateHash(C.HCRYPTPROV(wpk.capiProv), hash_alg, 0, 0, &chash); ok == winFalse {
-		if err := lastError("failed to create hash"); errors.Cause(err) == errCode(NTE_BAD_ALGID) {
+		if err := lastError("failed to create hash"); errors.Is(err, errCode(NTE_BAD_ALGID)) {
 			return nil, ErrUnsupportedHash
 		} else {
 			return nil, err
@@ -612,19 +612,19 @@ func (wpk *winPrivateKey) Delete() error {
 		)
 
 		if param, err = wpk.getProviderParam(C.PP_CONTAINER); err != nil {
-			return errors.Wrap(err, "failed to get PP_CONTAINER")
+			return fmt.Errorf("failed to get PP_CONTAINER: %w", err)
 		} else {
 			containerName = C.LPCTSTR(param)
 		}
 
 		if param, err = wpk.getProviderParam(C.PP_NAME); err != nil {
-			return errors.Wrap(err, "failed to get PP_NAME")
+			return fmt.Errorf("failed to get PP_NAME: %w", err)
 		} else {
 			providerName = C.LPCTSTR(param)
 		}
 
 		if param, err = wpk.getProviderParam(C.PP_PROVTYPE); err != nil {
-			return errors.Wrap(err, "failed to get PP_PROVTYPE")
+			return fmt.Errorf("failed to get PP_PROVTYPE: %w", err)
 		} else {
 			providerType = (*C.DWORD)(param)
 		}
@@ -677,7 +677,7 @@ func exportCertCtx(ctx C.PCCERT_CONTEXT) (*x509.Certificate, error) {
 
 	cert, err := x509.ParseCertificate(der)
 	if err != nil {
-		return nil, errors.Wrap(err, "certificate parsing failed")
+		return nil, fmt.Errorf("certificate parsing failed: %w", err)
 	}
 
 	return cert, nil
@@ -699,7 +699,7 @@ func lastError(msg string) error {
 // isn't one, it returns nil.
 func checkError(msg string) error {
 	if code := errCode(C.GetLastError()); code != 0 {
-		return errors.Wrap(code, msg)
+		return fmt.Errorf("%s: %w", msg, code)
 	}
 
 	return nil

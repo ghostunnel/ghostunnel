@@ -21,7 +21,6 @@ import (
 	"testing"
 
 	"github.com/caddyserver/certmagic"
-	"github.com/mholt/acmez"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -77,7 +76,7 @@ func TestACMETLSConfigSourceGetServerConfigNilBase(t *testing.T) {
 	tlsConfig := config.GetServerConfig()
 	require.NotNil(t, tlsConfig)
 	assert.NotNil(t, tlsConfig.GetCertificate, "GetCertificate should be set")
-	assert.Contains(t, tlsConfig.NextProtos, acmez.ACMETLS1Protocol, "ACME-TLS protocol should be in NextProtos")
+	assert.Contains(t, tlsConfig.NextProtos, acmeTLS1Protocol, "ACME-TLS protocol should be in NextProtos")
 }
 
 func TestACMETLSConfigSourceGetServerConfigWithBase(t *testing.T) {
@@ -101,7 +100,7 @@ func TestACMETLSConfigSourceGetServerConfigWithBase(t *testing.T) {
 	assert.Equal(t, uint16(tls.VersionTLS13), tlsConfig.MinVersion, "MinVersion should be preserved from base")
 	assert.Contains(t, tlsConfig.NextProtos, "h2", "base NextProtos should be preserved")
 	assert.Contains(t, tlsConfig.NextProtos, "http/1.1", "base NextProtos should be preserved")
-	assert.Contains(t, tlsConfig.NextProtos, acmez.ACMETLS1Protocol, "ACME-TLS protocol should be added")
+	assert.Contains(t, tlsConfig.NextProtos, acmeTLS1Protocol, "ACME-TLS protocol should be added")
 }
 
 func TestACMETLSConfigGetServerConfig(t *testing.T) {
@@ -125,5 +124,5 @@ func TestACMETLSConfigGetServerConfig(t *testing.T) {
 	assert.NotNil(t, tlsConfig.GetCertificate)
 
 	// Verify ACME-TLS protocol is added
-	assert.Contains(t, tlsConfig.NextProtos, acmez.ACMETLS1Protocol)
+	assert.Contains(t, tlsConfig.NextProtos, acmeTLS1Protocol)
 }
