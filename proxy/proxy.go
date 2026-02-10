@@ -378,8 +378,8 @@ func (p *Proxy) logConditional(flag int, msg string, args ...interface{}) {
 }
 
 func isTimeoutError(err error) bool {
-	netErr, ok := err.(net.Error)
-	return (ok && netErr.Timeout()) || err == context.DeadlineExceeded
+	var netErr net.Error
+	return (errors.As(err, &netErr) && netErr.Timeout()) || errors.Is(err, context.DeadlineExceeded)
 }
 
 func isClosedConnectionError(err error) bool {
