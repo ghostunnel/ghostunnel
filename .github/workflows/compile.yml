@@ -24,7 +24,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.25.x'
+          go-version: '1.26.x'
       - name: Build containers
         run: go tool mage -v docker:build
         env:
@@ -34,7 +34,7 @@ jobs:
     name: Build (Linux)
     strategy:
       matrix:
-        version: [1.25.x]
+        version: [1.26.x]
         os: [ubuntu-22.04, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     steps:
@@ -74,7 +74,7 @@ jobs:
     name: Build (MacOS)
     strategy:
       matrix:
-        version: [1.25.x]
+        version: [1.26.x]
     runs-on: macos-latest
     steps:
       - name: Set up toolchain
@@ -115,7 +115,7 @@ jobs:
     name: Build (Windows)
     strategy:
       matrix:
-        version: [1.25.x]
+        version: [1.26.x]
     runs-on: windows-latest
     steps:
       - name: Set up toolchain
