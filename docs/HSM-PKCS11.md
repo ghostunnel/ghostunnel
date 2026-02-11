@@ -38,7 +38,7 @@ To launch ghostunnel with the SoftHSM-backed PKCS11 key (on macOS):
         --allow-cn client
 
 The `--pkcs11-module`, `--pkcs11-token-label` and `--pkcs11-pin` flags can be
-used to select the private key to be used the PKCS11 module. It's also possible
+used to select the private key to be used from the PKCS11 module. It's also possible
 to use environment variables to set PKCS11 options instead of flags (via
 `PKCS11_MODULE`, `PKCS11_TOKEN_LABEL` and `PKCS11_PIN`), useful if you don't
 want to show the PIN on the command line.

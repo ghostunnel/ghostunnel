@@ -105,7 +105,7 @@ validate the server certificate:
             --key client-key.pem \
             --cacert cacert.pem
 
-Use **\--override-server-name** to overrides the server name used for
+Use **\--override-server-name** to override the server name used for
 hostname verification. Various access control flags exist to perform
 additional verification (on top of the regular hostname verification) of
 server certificates, such as **\--verify-cn**, **\--verify-ou**,

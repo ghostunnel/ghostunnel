@@ -5,7 +5,7 @@ Ghostunnel has support for the [SPIFFE](https://spiffe.io)
 [Workload API](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Workload_API.md).
 Using the Workload API, Ghostunnel maintains up-to-date, frequently rotated
 client/server identities (i.e. X.509 certificates and private keys) and trusted
-X.509 roots. When utilizing the Workload API, ghosttunnel expects peers to
+X.509 roots. When utilizing the Workload API, ghostunnel expects peers to
 present SPIFFE
 [X509-SVIDs](https://github.com/spiffe/spiffe/blob/main/standards/X509-SVID.md)
 and verifies them using SPIFFE authentication.

@@ -322,13 +322,13 @@ feature).
 
 Note that if you are using an HSM/PKCS#11 module, only the certificate will
 be reloaded. It is assumed that the private key in the HSM remains the same.
-This means the updated/reissued certificate much match the private key that
+This means the updated/reissued certificate must match the private key that
 was loaded from the HSM previously, everything else works the same.
 
 ### ACME Support
 
 Ghostunnel in server mode supports the ACME protocol for automatically
-obtaining and renewing a public certificate, assuming it's exposed publically
+obtaining and renewing a public certificate, assuming it's exposed publicly
 on tcp/443 and there are valid public DNS FQDN records that resolve to the
 listening interface IP.
 
@@ -388,7 +388,7 @@ this option.
 
 Ghostunnel can use [Landlock](https://landlock.io) to limit process privileges
 on Linux. Landlock is enabled by default (in best-effort mode) on v1.9.0 or
-later. On Ghostunnel v1.8.x, Landlock can enabled using the `--use-landlock`
+later. On Ghostunnel v1.8.x, Landlock can be enabled using the `--use-landlock`
 flag. On Ghostunnel v1.9.x and later, Landlock can be disabled using
 `--disable-landlock` if necessary (not recommended). When enabled, Ghostunnel
 will limit its access to files and sockets based on the flags passed at

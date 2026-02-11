@@ -2,7 +2,7 @@ Socket Activation
 =================
 
 Ghostunnel supports socket activation via both systemd (on Linux) and launchd
-(on macOS). Socket activation is support for the `--listen` and `--status`
+(on macOS). Socket activation is supported for the `--listen` and `--status`
 flags, and can be used by passing an address of the form `systemd:<name>` or
 `launchd:<name>`, where `<name>` should be the name of the socket as defined in
 your systemd/launchd configuration.
@@ -91,7 +91,7 @@ ListenStream=0.0.0.0:8443
 WantedBy=sockets.target
 ```
 
-With a corresponding `ghostunel.service` to forward to `localhost:8080` could
+With a corresponding `ghostunnel.service` to forward to `localhost:8080` could
 look like this:
 
 ```

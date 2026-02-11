@@ -142,7 +142,7 @@ certificate:
         --cacert cacert.pem
 .fi
 
-Use \fB--override-server-name\fR to overrides the server name used for hostname
+Use \fB--override-server-name\fR to override the server name used for hostname
 verification. Various access control flags exist to perform additional
 verification (on top of the regular hostname verification) of server
 certificates, such as \fB--verify-cn\fR, \fB--verify-ou\fR, \fB--verify-dns\fR,
