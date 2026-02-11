@@ -67,6 +67,17 @@ func (Go) Build(ctx context.Context) error {
 	return sh.Run("go", "build", "-ldflags", fmt.Sprintf("-X main.version=%s", version), "-o", "ghostunnel", ".")
 }
 
+// Lint runs golangci-lint on the codebase.
+func (Go) Lint(ctx context.Context) error {
+	cmd := exec.CommandContext(ctx, "go", "tool", "golangci-lint", "run")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		os.Stdout.Write(output)
+		return err
+	}
+	return nil
+}
+
 // Man generates the Ghostunnel man page from the built binary.
 // Also generates docs/MANPAGE.md from the man page using pandoc.
 func (Go) Man(ctx context.Context) error {
