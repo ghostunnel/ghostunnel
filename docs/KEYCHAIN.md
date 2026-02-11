@@ -13,7 +13,7 @@ addition to this, you can use the `--keychain-require-token` flag on macOS to
 require the loaded certificate to come from a physical token by setting the
 access group to `token`.
 
-For example, to load an identity based on subject name login keychain:
+For example, to load an identity based on subject name from the login keychain:
 
     ghostunnel client \
         --keychain-identity <common-name-or-serial> \

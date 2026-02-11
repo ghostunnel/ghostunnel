@@ -36,14 +36,14 @@ exact string comparison on the OU field.
 
 Allow clients with given DNS subject alternative name (DNS SAN) in the subject.
 Can be repeated to allow multiple clients with different DNS SANs to connect.
-Note that this performs the access check based on a comparison of the the DNS
+Note that this performs the access check based on a comparison of the DNS
 SAN value of the client certificate, it does not perform any DNS lookups.
 
 * `--allow-uri`
 
 Allow clients with given URI subject alternative name (URI SAN) in the subject.
 Can be repeated to allow multiple clients with different URI SANs to connect.
-This flag may also contain `*` and `** `wildcards that can be used to match
+This flag may also contain `*` and `**` wildcards that can be used to match
 multiple clients.
 
 For example, setting `--allow-uri=spiffe://ghostunnel/*` would allow clients
@@ -108,7 +108,7 @@ that at least one of a set of hostnames is present.
 Verify the presence of a URI subject alternative name (URI SAN) on the server
 certificate, on top of the hostname. This checks that the given URI name is
 listed as a valid name on the certificate. This flag may also contain `*` and
-`** `wildcards that can be used to match multiple servers.
+`**` wildcards that can be used to match multiple servers.
 
 For example, setting `--verify-uri=spiffe://ghostunnel/*` would allow servers
 with `spiffe://ghostunnel/server1` or `spiffe://ghostunnel/server2` URI SANs (as
