@@ -434,3 +434,520 @@ func TestMustGetClientConfigPanicsOnError(t *testing.T) {
 	source := &failingTLSConfigSource{}
 	mustGetClientConfig(source, nil)
 }
+
+// writeTempFile creates a temp file with the given content and returns its path.
+// The caller should defer os.Remove on the returned path.
+func writeTempFile(t *testing.T, prefix string, content []byte) string {
+	t.Helper()
+	f, err := os.CreateTemp("", prefix)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.Write(content); err != nil {
+		t.Fatal(err)
+	}
+	f.Sync()
+	f.Close()
+	return f.Name()
+}
+
+func TestGetTLSConfigSourceCertPath(t *testing.T) {
+	certFile := writeTempFile(t, "test-cert-*.pem", []byte(testKeystoreCertOnly))
+	defer os.Remove(certFile)
+	keyFile := writeTempFile(t, "test-key-*.pem", []byte(testKeystoreKeyPath))
+	defer os.Remove(keyFile)
+	caFile := writeTempFile(t, "test-ca-*.pem", []byte(testCertificate))
+	defer os.Remove(caFile)
+
+	// Save and restore global flag state
+	origKeystorePath := *keystorePath
+	origCertPath := *certPath
+	origKeyPath := *keyPath
+	origCaBundlePath := *caBundlePath
+	origUseWorkloadAPI := *useWorkloadAPI
+	origServerAutoACMEFQDN := *serverAutoACMEFQDN
+	defer func() {
+		*keystorePath = origKeystorePath
+		*certPath = origCertPath
+		*keyPath = origKeyPath
+		*caBundlePath = origCaBundlePath
+		*useWorkloadAPI = origUseWorkloadAPI
+		*serverAutoACMEFQDN = origServerAutoACMEFQDN
+	}()
+
+	*useWorkloadAPI = false
+	*serverAutoACMEFQDN = ""
+	*keystorePath = ""
+	*certPath = certFile
+	*keyPath = keyFile
+	*caBundlePath = caFile
+
+	source, err := getTLSConfigSource(false)
+	assert.Nil(t, err, "should be able to create TLS config source from cert/key files")
+	assert.NotNil(t, source, "TLS config source should not be nil")
+}
+
+func TestGetTLSConfigSourceKeystore(t *testing.T) {
+	ksFile := writeTempFile(t, "test-ks-*.p12", testKeystore)
+	defer os.Remove(ksFile)
+	caFile := writeTempFile(t, "test-ca-*.pem", []byte(testCertificate))
+	defer os.Remove(caFile)
+
+	origKeystorePath := *keystorePath
+	origCertPath := *certPath
+	origKeyPath := *keyPath
+	origCaBundlePath := *caBundlePath
+	origUseWorkloadAPI := *useWorkloadAPI
+	origServerAutoACMEFQDN := *serverAutoACMEFQDN
+	origKeystorePass := *keystorePass
+	defer func() {
+		*keystorePath = origKeystorePath
+		*certPath = origCertPath
+		*keyPath = origKeyPath
+		*caBundlePath = origCaBundlePath
+		*useWorkloadAPI = origUseWorkloadAPI
+		*serverAutoACMEFQDN = origServerAutoACMEFQDN
+		*keystorePass = origKeystorePass
+	}()
+
+	*useWorkloadAPI = false
+	*serverAutoACMEFQDN = ""
+	*keystorePath = ksFile
+	*certPath = ""
+	*keyPath = ""
+	*caBundlePath = caFile
+	*keystorePass = testKeystorePassword
+
+	source, err := getTLSConfigSource(false)
+	assert.Nil(t, err, "should be able to create TLS config source from keystore")
+	assert.NotNil(t, source, "TLS config source should not be nil")
+}
+
+func TestGetTLSConfigSourceInvalidCert(t *testing.T) {
+	origKeystorePath := *keystorePath
+	origCertPath := *certPath
+	origKeyPath := *keyPath
+	origCaBundlePath := *caBundlePath
+	origUseWorkloadAPI := *useWorkloadAPI
+	origServerAutoACMEFQDN := *serverAutoACMEFQDN
+	defer func() {
+		*keystorePath = origKeystorePath
+		*certPath = origCertPath
+		*keyPath = origKeyPath
+		*caBundlePath = origCaBundlePath
+		*useWorkloadAPI = origUseWorkloadAPI
+		*serverAutoACMEFQDN = origServerAutoACMEFQDN
+	}()
+
+	caFile := writeTempFile(t, "test-ca-*.pem", []byte(testCertificate))
+	defer os.Remove(caFile)
+
+	*useWorkloadAPI = false
+	*serverAutoACMEFQDN = ""
+	*keystorePath = "nonexistent-keystore.p12"
+	*certPath = ""
+	*keyPath = ""
+	*caBundlePath = caFile
+
+	_, err := getTLSConfigSource(false)
+	assert.NotNil(t, err, "should fail with invalid cert path")
+}
+
+func TestGetTLSConfigSourceNoCert(t *testing.T) {
+	origKeystorePath := *keystorePath
+	origCertPath := *certPath
+	origKeyPath := *keyPath
+	origCaBundlePath := *caBundlePath
+	origUseWorkloadAPI := *useWorkloadAPI
+	origServerAutoACMEFQDN := *serverAutoACMEFQDN
+	defer func() {
+		*keystorePath = origKeystorePath
+		*certPath = origCertPath
+		*keyPath = origKeyPath
+		*caBundlePath = origCaBundlePath
+		*useWorkloadAPI = origUseWorkloadAPI
+		*serverAutoACMEFQDN = origServerAutoACMEFQDN
+	}()
+
+	caFile := writeTempFile(t, "test-ca-*.pem", []byte(testCertificate))
+	defer os.Remove(caFile)
+
+	*useWorkloadAPI = false
+	*serverAutoACMEFQDN = ""
+	*keystorePath = ""
+	*certPath = ""
+	*keyPath = ""
+	*caBundlePath = caFile
+
+	source, err := getTLSConfigSource(false)
+	assert.Nil(t, err, "should be able to create TLS config source with no cert")
+	assert.NotNil(t, source, "TLS config source should not be nil")
+}
+
+func TestServerValidateFlagsACMEMissingEmail(t *testing.T) {
+	origServerAutoACMEFQDN := *serverAutoACMEFQDN
+	origServerAutoACMEEmail := *serverAutoACMEEmail
+	origServerAutoACMEAgreedTOS := *serverAutoACMEAgreedTOS
+	origKeystorePath := *keystorePath
+	origCertPath := *certPath
+	origKeyPath := *keyPath
+	origServerDisableAuth := *serverDisableAuth
+	origServerAllowAll := *serverAllowAll
+	origServerAllowedCNs := *serverAllowedCNs
+	origServerAllowedOUs := *serverAllowedOUs
+	origServerAllowedDNSs := *serverAllowedDNSs
+	origServerAllowedIPs := *serverAllowedIPs
+	origServerAllowedURIs := *serverAllowedURIs
+	origServerAllowPolicy := *serverAllowPolicy
+	origServerAllowQuery := *serverAllowQuery
+	origServerForwardAddress := *serverForwardAddress
+	origServerUnsafeTarget := *serverUnsafeTarget
+	origEnabledCipherSuites := *enabledCipherSuites
+	defer func() {
+		*serverAutoACMEFQDN = origServerAutoACMEFQDN
+		*serverAutoACMEEmail = origServerAutoACMEEmail
+		*serverAutoACMEAgreedTOS = origServerAutoACMEAgreedTOS
+		*keystorePath = origKeystorePath
+		*certPath = origCertPath
+		*keyPath = origKeyPath
+		*serverDisableAuth = origServerDisableAuth
+		*serverAllowAll = origServerAllowAll
+		*serverAllowedCNs = origServerAllowedCNs
+		*serverAllowedOUs = origServerAllowedOUs
+		*serverAllowedDNSs = origServerAllowedDNSs
+		*serverAllowedIPs = origServerAllowedIPs
+		*serverAllowedURIs = origServerAllowedURIs
+		*serverAllowPolicy = origServerAllowPolicy
+		*serverAllowQuery = origServerAllowQuery
+		*serverForwardAddress = origServerForwardAddress
+		*serverUnsafeTarget = origServerUnsafeTarget
+		*enabledCipherSuites = origEnabledCipherSuites
+	}()
+
+	// ACME is the only credential source
+	*keystorePath = ""
+	*certPath = ""
+	*keyPath = ""
+	*serverAutoACMEFQDN = "example.com"
+	*serverAutoACMEEmail = ""
+	*serverAutoACMEAgreedTOS = true
+	// Use disable-authentication to bypass access control checks
+	*serverDisableAuth = true
+	*serverAllowAll = false
+	*serverAllowedCNs = nil
+	*serverAllowedOUs = nil
+	*serverAllowedDNSs = nil
+	*serverAllowedIPs = nil
+	*serverAllowedURIs = nil
+	*serverAllowPolicy = ""
+	*serverAllowQuery = ""
+	*serverForwardAddress = "localhost:8080"
+	*serverUnsafeTarget = false
+	*enabledCipherSuites = "AES,CHACHA"
+
+	err := serverValidateFlags()
+	assert.NotNil(t, err, "ACME without email should be rejected")
+	assert.Contains(t, err.Error(), "auto-acme-email", "error should mention missing email")
+}
+
+func TestServerValidateFlagsACMEMissingTOS(t *testing.T) {
+	origServerAutoACMEFQDN := *serverAutoACMEFQDN
+	origServerAutoACMEEmail := *serverAutoACMEEmail
+	origServerAutoACMEAgreedTOS := *serverAutoACMEAgreedTOS
+	origKeystorePath := *keystorePath
+	origCertPath := *certPath
+	origKeyPath := *keyPath
+	origServerDisableAuth := *serverDisableAuth
+	origServerAllowAll := *serverAllowAll
+	origServerAllowedCNs := *serverAllowedCNs
+	origServerAllowedOUs := *serverAllowedOUs
+	origServerAllowedDNSs := *serverAllowedDNSs
+	origServerAllowedIPs := *serverAllowedIPs
+	origServerAllowedURIs := *serverAllowedURIs
+	origServerAllowPolicy := *serverAllowPolicy
+	origServerAllowQuery := *serverAllowQuery
+	origServerForwardAddress := *serverForwardAddress
+	origServerUnsafeTarget := *serverUnsafeTarget
+	origEnabledCipherSuites := *enabledCipherSuites
+	defer func() {
+		*serverAutoACMEFQDN = origServerAutoACMEFQDN
+		*serverAutoACMEEmail = origServerAutoACMEEmail
+		*serverAutoACMEAgreedTOS = origServerAutoACMEAgreedTOS
+		*keystorePath = origKeystorePath
+		*certPath = origCertPath
+		*keyPath = origKeyPath
+		*serverDisableAuth = origServerDisableAuth
+		*serverAllowAll = origServerAllowAll
+		*serverAllowedCNs = origServerAllowedCNs
+		*serverAllowedOUs = origServerAllowedOUs
+		*serverAllowedDNSs = origServerAllowedDNSs
+		*serverAllowedIPs = origServerAllowedIPs
+		*serverAllowedURIs = origServerAllowedURIs
+		*serverAllowPolicy = origServerAllowPolicy
+		*serverAllowQuery = origServerAllowQuery
+		*serverForwardAddress = origServerForwardAddress
+		*serverUnsafeTarget = origServerUnsafeTarget
+		*enabledCipherSuites = origEnabledCipherSuites
+	}()
+
+	// ACME is the only credential source
+	*keystorePath = ""
+	*certPath = ""
+	*keyPath = ""
+	*serverAutoACMEFQDN = "example.com"
+	*serverAutoACMEEmail = "test@example.com"
+	*serverAutoACMEAgreedTOS = false
+	// Use disable-authentication to bypass access control checks
+	*serverDisableAuth = true
+	*serverAllowAll = false
+	*serverAllowedCNs = nil
+	*serverAllowedOUs = nil
+	*serverAllowedDNSs = nil
+	*serverAllowedIPs = nil
+	*serverAllowedURIs = nil
+	*serverAllowPolicy = ""
+	*serverAllowQuery = ""
+	*serverForwardAddress = "localhost:8080"
+	*serverUnsafeTarget = false
+	*enabledCipherSuites = "AES,CHACHA"
+
+	err := serverValidateFlags()
+	assert.NotNil(t, err, "ACME without TOS agreement should be rejected")
+	assert.Contains(t, err.Error(), "auto-acme-agree-to-tos", "error should mention missing TOS")
+}
+
+func TestClientBackendDialerWithOPA(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("skipping on windows")
+	}
+
+	origKeystorePath := *keystorePath
+	origCertPath := *certPath
+	origKeyPath := *keyPath
+	origCaBundlePath := *caBundlePath
+	origClientServerName := *clientServerName
+	origClientAllowedURIs := *clientAllowedURIs
+	origClientAllowPolicy := *clientAllowPolicy
+	origClientAllowQuery := *clientAllowQuery
+	origConnectTimeout := *connectTimeout
+	origEnabledCipherSuites := *enabledCipherSuites
+	defer func() {
+		*keystorePath = origKeystorePath
+		*certPath = origCertPath
+		*keyPath = origKeyPath
+		*caBundlePath = origCaBundlePath
+		*clientServerName = origClientServerName
+		*clientAllowedURIs = origClientAllowedURIs
+		*clientAllowPolicy = origClientAllowPolicy
+		*clientAllowQuery = origClientAllowQuery
+		*connectTimeout = origConnectTimeout
+		*enabledCipherSuites = origEnabledCipherSuites
+	}()
+
+	certFile := writeTempFile(t, "test-cert-*.pem", []byte(testKeystoreCertOnly))
+	defer os.Remove(certFile)
+	keyFile := writeTempFile(t, "test-key-*.pem", []byte(testKeystoreKeyPath))
+	defer os.Remove(keyFile)
+	caFile := writeTempFile(t, "test-ca-*.pem", []byte(testCertificate))
+	defer os.Remove(caFile)
+
+	// Create a temp OPA policy file
+	policyFile, err := os.CreateTemp("", "test-policy-*.rego")
+	assert.Nil(t, err)
+	defer os.Remove(policyFile.Name())
+
+	_, err = policyFile.WriteString(`package policy
+import input
+default allow := true
+`)
+	assert.Nil(t, err)
+	policyFile.Sync()
+	policyFile.Close()
+
+	*keystorePath = ""
+	*certPath = certFile
+	*keyPath = keyFile
+	*caBundlePath = caFile
+	*clientServerName = "localhost"
+	*clientAllowedURIs = []string{"spiffe://ghostunnel/*"}
+	*clientAllowPolicy = policyFile.Name()
+	*clientAllowQuery = "data.policy.allow"
+	*connectTimeout = 10 * time.Second
+	*enabledCipherSuites = "AES,CHACHA"
+
+	source, err := getTLSConfigSource(false)
+	assert.Nil(t, err, "should create TLS config source")
+
+	dial, regoPolicy, err := clientBackendDialer(source, "tcp", "localhost:8443", "localhost")
+	assert.Nil(t, err, "should create client backend dialer with OPA")
+	assert.NotNil(t, dial, "dialer should not be nil")
+	assert.NotNil(t, regoPolicy, "rego policy should not be nil")
+}
+
+func TestClientBackendDialerWithServerNameOverride(t *testing.T) {
+	origKeystorePath := *keystorePath
+	origCertPath := *certPath
+	origKeyPath := *keyPath
+	origCaBundlePath := *caBundlePath
+	origClientServerName := *clientServerName
+	origClientAllowedURIs := *clientAllowedURIs
+	origClientAllowPolicy := *clientAllowPolicy
+	origClientAllowQuery := *clientAllowQuery
+	origConnectTimeout := *connectTimeout
+	origEnabledCipherSuites := *enabledCipherSuites
+	defer func() {
+		*keystorePath = origKeystorePath
+		*certPath = origCertPath
+		*keyPath = origKeyPath
+		*caBundlePath = origCaBundlePath
+		*clientServerName = origClientServerName
+		*clientAllowedURIs = origClientAllowedURIs
+		*clientAllowPolicy = origClientAllowPolicy
+		*clientAllowQuery = origClientAllowQuery
+		*connectTimeout = origConnectTimeout
+		*enabledCipherSuites = origEnabledCipherSuites
+	}()
+
+	certFile := writeTempFile(t, "test-cert-*.pem", []byte(testKeystoreCertOnly))
+	defer os.Remove(certFile)
+	keyFile := writeTempFile(t, "test-key-*.pem", []byte(testKeystoreKeyPath))
+	defer os.Remove(keyFile)
+	caFile := writeTempFile(t, "test-ca-*.pem", []byte(testCertificate))
+	defer os.Remove(caFile)
+
+	*keystorePath = ""
+	*certPath = certFile
+	*keyPath = keyFile
+	*caBundlePath = caFile
+	*clientServerName = "override.example.com"
+	*clientAllowedURIs = nil
+	*clientAllowPolicy = ""
+	*clientAllowQuery = ""
+	*connectTimeout = 10 * time.Second
+	*enabledCipherSuites = "AES,CHACHA"
+
+	source, err := getTLSConfigSource(false)
+	assert.Nil(t, err, "should create TLS config source")
+
+	dial, regoPolicy, err := clientBackendDialer(source, "tcp", "localhost:8443", "localhost")
+	assert.Nil(t, err, "should create client backend dialer with server name override")
+	assert.NotNil(t, dial, "dialer should not be nil")
+	assert.Nil(t, regoPolicy, "rego policy should be nil when not configured")
+}
+
+func TestClientBackendDialerInvalidURI(t *testing.T) {
+	origKeystorePath := *keystorePath
+	origCertPath := *certPath
+	origKeyPath := *keyPath
+	origCaBundlePath := *caBundlePath
+	origClientServerName := *clientServerName
+	origClientAllowedURIs := *clientAllowedURIs
+	origClientAllowPolicy := *clientAllowPolicy
+	origClientAllowQuery := *clientAllowQuery
+	origConnectTimeout := *connectTimeout
+	origEnabledCipherSuites := *enabledCipherSuites
+	defer func() {
+		*keystorePath = origKeystorePath
+		*certPath = origCertPath
+		*keyPath = origKeyPath
+		*caBundlePath = origCaBundlePath
+		*clientServerName = origClientServerName
+		*clientAllowedURIs = origClientAllowedURIs
+		*clientAllowPolicy = origClientAllowPolicy
+		*clientAllowQuery = origClientAllowQuery
+		*connectTimeout = origConnectTimeout
+		*enabledCipherSuites = origEnabledCipherSuites
+	}()
+
+	certFile := writeTempFile(t, "test-cert-*.pem", []byte(testKeystoreCertOnly))
+	defer os.Remove(certFile)
+	keyFile := writeTempFile(t, "test-key-*.pem", []byte(testKeystoreKeyPath))
+	defer os.Remove(keyFile)
+	caFile := writeTempFile(t, "test-ca-*.pem", []byte(testCertificate))
+	defer os.Remove(caFile)
+
+	*keystorePath = ""
+	*certPath = certFile
+	*keyPath = keyFile
+	*caBundlePath = caFile
+	*clientServerName = ""
+	// An empty string is the only invalid URI pattern for the wildcard compiler
+	*clientAllowedURIs = []string{""}
+	*clientAllowPolicy = ""
+	*clientAllowQuery = ""
+	*connectTimeout = 10 * time.Second
+	*enabledCipherSuites = "AES,CHACHA"
+
+	source, err := getTLSConfigSource(false)
+	assert.Nil(t, err, "should create TLS config source")
+
+	_, _, err = clientBackendDialer(source, "tcp", "localhost:8443", "localhost")
+	assert.NotNil(t, err, "should fail with empty URI pattern")
+}
+
+func TestClientBackendDialerInvalidOPAPolicy(t *testing.T) {
+	origKeystorePath := *keystorePath
+	origCertPath := *certPath
+	origKeyPath := *keyPath
+	origCaBundlePath := *caBundlePath
+	origClientServerName := *clientServerName
+	origClientAllowedURIs := *clientAllowedURIs
+	origClientAllowPolicy := *clientAllowPolicy
+	origClientAllowQuery := *clientAllowQuery
+	origConnectTimeout := *connectTimeout
+	origEnabledCipherSuites := *enabledCipherSuites
+	defer func() {
+		*keystorePath = origKeystorePath
+		*certPath = origCertPath
+		*keyPath = origKeyPath
+		*caBundlePath = origCaBundlePath
+		*clientServerName = origClientServerName
+		*clientAllowedURIs = origClientAllowedURIs
+		*clientAllowPolicy = origClientAllowPolicy
+		*clientAllowQuery = origClientAllowQuery
+		*connectTimeout = origConnectTimeout
+		*enabledCipherSuites = origEnabledCipherSuites
+	}()
+
+	certFile := writeTempFile(t, "test-cert-*.pem", []byte(testKeystoreCertOnly))
+	defer os.Remove(certFile)
+	keyFile := writeTempFile(t, "test-key-*.pem", []byte(testKeystoreKeyPath))
+	defer os.Remove(keyFile)
+	caFile := writeTempFile(t, "test-ca-*.pem", []byte(testCertificate))
+	defer os.Remove(caFile)
+
+	*keystorePath = ""
+	*certPath = certFile
+	*keyPath = keyFile
+	*caBundlePath = caFile
+	*clientServerName = ""
+	*clientAllowedURIs = nil
+	*clientAllowPolicy = "/nonexistent/policy.rego"
+	*clientAllowQuery = "data.policy.allow"
+	*connectTimeout = 10 * time.Second
+	*enabledCipherSuites = "AES,CHACHA"
+
+	source, err := getTLSConfigSource(false)
+	assert.Nil(t, err, "should create TLS config source")
+
+	_, _, err = clientBackendDialer(source, "tcp", "localhost:8443", "localhost")
+	assert.NotNil(t, err, "should fail with invalid OPA policy path")
+}
+
+func TestValidateCipherSuitesUnsafe(t *testing.T) {
+	origEnabledCipherSuites := *enabledCipherSuites
+	origAllowUnsafeCipherSuites := *allowUnsafeCipherSuites
+	defer func() {
+		*enabledCipherSuites = origEnabledCipherSuites
+		*allowUnsafeCipherSuites = origAllowUnsafeCipherSuites
+	}()
+
+	*enabledCipherSuites = "UNSAFE-AZURE"
+	*allowUnsafeCipherSuites = false
+	err := validateCipherSuites()
+	assert.NotNil(t, err, "should reject unsafe cipher suites without flag")
+
+	*allowUnsafeCipherSuites = true
+	err = validateCipherSuites()
+	assert.Nil(t, err, "should allow unsafe cipher suites with flag")
+}

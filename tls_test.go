@@ -278,6 +278,63 @@ func TestBuildConfig(t *testing.T) {
 	assert.Nil(t, err, "cert with separate key should be ok")
 }
 
+func TestBuildClientConfig(t *testing.T) {
+	conf, err := buildClientConfig("AES,CHACHA", "")
+	assert.Nil(t, err, "should be able to build client TLS config")
+	assert.True(t, conf.MinVersion == tls.VersionTLS12, "must have correct TLS min version")
+
+	conf, err = buildClientConfig("AES,CHACHA", "TLS1.2")
+	assert.Nil(t, err, "should be able to build client TLS config with max version")
+	assert.Equal(t, uint16(tls.VersionTLS12), conf.MaxVersion, "must have correct max TLS version")
+
+	_, err = buildClientConfig("INVALID", "")
+	assert.NotNil(t, err, "should fail to build client config with invalid cipher suite")
+}
+
+func TestBuildServerConfig(t *testing.T) {
+	conf, err := buildServerConfig("AES,CHACHA", "")
+	assert.Nil(t, err, "should be able to build server TLS config")
+	assert.Equal(t, tls.RequireAndVerifyClientCert, conf.ClientAuth, "server config should require client cert")
+	assert.Contains(t, conf.CurvePreferences, tls.X25519, "should include X25519 curve")
+	assert.Contains(t, conf.CurvePreferences, tls.CurveP256, "should include P256 curve")
+}
+
+func TestBuildCertificateKeystore(t *testing.T) {
+	tmpKeystore, err := os.CreateTemp("", "ghostunnel-test")
+	panicOnError(err)
+	tmpKeystore.Write(testKeystore)
+	tmpKeystore.Sync()
+	defer os.Remove(tmpKeystore.Name())
+
+	tmpCaBundle, err := os.CreateTemp("", "ghostunnel-test")
+	panicOnError(err)
+	tmpCaBundle.WriteString(testCertificate)
+	tmpCaBundle.Sync()
+	defer os.Remove(tmpCaBundle.Name())
+
+	logger := log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
+
+	// Test the keystore branch
+	cert, err := buildCertificate(tmpKeystore.Name(), "", "", testKeystorePassword, tmpCaBundle.Name(), logger)
+	assert.NotNil(t, cert, "cert from keystore should not be nil")
+	assert.Nil(t, err, "should load cert from keystore")
+}
+
+func TestBuildCertificateNoCert(t *testing.T) {
+	tmpCaBundle, err := os.CreateTemp("", "ghostunnel-test")
+	panicOnError(err)
+	tmpCaBundle.WriteString(testCertificate)
+	tmpCaBundle.Sync()
+	defer os.Remove(tmpCaBundle.Name())
+
+	logger := log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
+
+	// Test the no-cert fallback
+	cert, err := buildCertificate("", "", "", "", tmpCaBundle.Name(), logger)
+	assert.NotNil(t, cert, "no-cert certificate should not be nil")
+	assert.Nil(t, err, "no-cert should not raise an error")
+}
+
 func TestCipherSuitePreference(t *testing.T) {
 	_, err := buildConfig("XYZ", "TLS1.3")
 	assert.NotNil(t, err, "should not be able to build TLS config with invalid cipher suite option")

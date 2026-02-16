@@ -239,6 +239,30 @@ func TestStatusTargetHTTPWithError(t *testing.T) {
 	}
 }
 
+func TestSystemdStubsAreNoOps(t *testing.T) {
+	if runtime.GOOS == "linux" {
+		t.Skip("stubs are only compiled on non-Linux")
+	}
+
+	// These should not panic
+	systemdNotifyStatus("test")
+	systemdNotifyReady()
+	systemdNotifyReloading()
+	systemdNotifyStopping()
+
+	err := systemdHandleWatchdog(func() bool { return true }, nil)
+	if err != nil {
+		t.Errorf("systemdHandleWatchdog stub should return nil, got: %v", err)
+	}
+}
+
+func TestHandleWatchdogCallsSystemd(t *testing.T) {
+	handler := newStatusHandler(dummyDial, "", "", "", "")
+	handler.Listening()
+	// HandleWatchdog should not panic regardless of platform
+	handler.HandleWatchdog()
+}
+
 // statusTargetWithResponseStatusCode creates a stub status target that returns the status code specified by "code".
 func statusTargetWithResponseStatusCode(code int) (statusResponse, int) {
 	statusTarget := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
