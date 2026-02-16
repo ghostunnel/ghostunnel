@@ -5,6 +5,9 @@ on:
   push:
     tags: [ "*" ]
 
+permissions:
+  contents: write
+
 jobs:
   build-linux:
     name: Build (Linux)
