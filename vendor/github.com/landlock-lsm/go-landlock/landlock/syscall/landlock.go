@@ -46,6 +46,25 @@ const (
 	AccessNetConnectTCP
 )
 
+// Landlock scope flags.
+//
+// Please see the full documentation at
+// https://www.kernel.org/doc/html/latest/userspace-api/landlock.html#scope-flags.
+const (
+	ScopeAbstractUnixSocket = 1 << iota
+	ScopeSignal
+)
+
+// Flags for [AllThreadsLandlockRestrictSelf].
+//
+// Please see full documentation at
+// https://docs.kernel.org/userspace-api/landlock.html#enforcing-a-ruleset
+const (
+	FlagRestrictSelfLogSameExecOff = 1 << iota
+	FlagRestrictSelfLogNewExecOn
+	FlagRestrictSelfLogSubdomainsOff
+)
+
 // RulesetAttr is the Landlock ruleset definition.
 //
 // Argument of LandlockCreateRuleset(). This structure can grow in future versions of Landlock.
@@ -54,10 +73,8 @@ const (
 type RulesetAttr struct {
 	HandledAccessFS  uint64
 	HandledAccessNet uint64
+	Scoped           uint64
 }
-
-// The size of the RulesetAttr struct in bytes.
-const rulesetAttrSize = 16
 
 // PathBeneathAttr references a file hierarchy and defines the desired
 // extent to which it should be usable when the rule is enforced.

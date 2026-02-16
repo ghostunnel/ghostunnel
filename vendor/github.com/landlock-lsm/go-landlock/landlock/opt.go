@@ -20,9 +20,16 @@ type Rule interface {
 	// V1 system but the rule wants to grant the refer right on
 	// a path. "Refer" operations are always forbidden under
 	// Landlock V1.
+	//
+	// This may yield a rule with empty access rights, but those
+	// are a no-op when you apply them with addToRuleset().
 	downgrade(c Config) (out Rule, ok bool)
 
 	// addToRuleset applies the rule to the given rulesetFD.
+	//
+	// This operation may be a no-op if the given rule requires
+	// not access rights for the object that it refers to,
+	// which can happen during downgrade().
 	//
 	// This may return errors such as "file not found" depending
 	// on the rule type.

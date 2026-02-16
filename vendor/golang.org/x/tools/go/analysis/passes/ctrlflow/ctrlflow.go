@@ -16,11 +16,9 @@ import (
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
-	"golang.org/x/tools/go/analysis/passes/internal/ctrlflowinternal"
 	"golang.org/x/tools/go/ast/inspector"
 	"golang.org/x/tools/go/cfg"
 	"golang.org/x/tools/go/types/typeutil"
-	"golang.org/x/tools/internal/cfginternal"
 	"golang.org/x/tools/internal/typesinternal"
 )
 
@@ -51,16 +49,17 @@ type CFGs struct {
 	pass      *analysis.Pass       // transient; nil after construction
 }
 
-// TODO(adonovan): add (*CFGs).NoReturn to public API.
-func (c *CFGs) isNoReturn(fn *types.Func) bool {
+// NoReturn reports whether the specified control-flow graph cannot return normally.
+//
+// It is defined for at least all function symbols that appear as the static callee of a
+// CallExpr in the current package, even if the callee was imported from a dependency.
+//
+// The result may incorporate interprocedural information based on induction of
+// the "no return" property over the static call graph within the package.
+// For example, if f simply calls g and g always calls os.Exit, then both f and g may
+// be deemed never to return.
+func (c *CFGs) NoReturn(fn *types.Func) bool {
 	return c.noReturn[fn]
-}
-
-func init() {
-	// Expose the hidden method to callers in x/tools.
-	ctrlflowinternal.NoReturn = func(c any, fn *types.Func) bool {
-		return c.(*CFGs).isNoReturn(fn)
-	}
 }
 
 // CFGs has two maps: funcDecls for named functions and funcLits for
@@ -154,7 +153,7 @@ func run(pass *analysis.Pass) (any, error) {
 		li := funcLits[lit]
 		if li.cfg == nil {
 			li.cfg = cfg.New(lit.Body, c.callMayReturn)
-			if cfginternal.IsNoReturn(li.cfg) {
+			if li.cfg.NoReturn() {
 				li.noReturn = true
 			}
 		}
@@ -183,7 +182,7 @@ func (c *CFGs) buildDecl(fn *types.Func, di *declInfo) {
 	if !known {
 		if di.decl.Body != nil {
 			di.cfg = cfg.New(di.decl.Body, c.callMayReturn)
-			if cfginternal.IsNoReturn(di.cfg) {
+			if di.cfg.NoReturn() {
 				noreturn = true
 			}
 		}
@@ -245,7 +244,17 @@ func knownIntrinsic(fn *types.Func) (noreturn, known bool) {
 
 	// Functions known intrinsically never to return.
 	if typesinternal.IsFunctionNamed(fn, "syscall", "Exit", "ExitProcess", "ExitThread") ||
-		typesinternal.IsFunctionNamed(fn, "runtime", "Goexit") {
+		typesinternal.IsFunctionNamed(fn, "runtime", "Goexit", "fatalthrow", "fatalpanic", "exit") ||
+		// Following staticcheck (see go/ir/exits.go) we include functions
+		// in several popular logging packages whose no-return status is
+		// beyond the analysis to infer.
+		// TODO(adonovan): make this list extensible.
+		typesinternal.IsMethodNamed(fn, "go.uber.org/zap", "Logger", "Fatal", "Panic") ||
+		typesinternal.IsMethodNamed(fn, "go.uber.org/zap", "SugaredLogger", "Fatal", "Fatalw", "Fatalf", "Panic", "Panicw", "Panicf") ||
+		typesinternal.IsMethodNamed(fn, "github.com/sirupsen/logrus", "Logger", "Exit", "Panic", "Panicf", "Panicln") ||
+		typesinternal.IsMethodNamed(fn, "github.com/sirupsen/logrus", "Entry", "Panicf", "Panicln") ||
+		typesinternal.IsFunctionNamed(fn, "k8s.io/klog", "Exit", "ExitDepth", "Exitf", "Exitln", "Fatal", "FatalDepth", "Fatalf", "Fatalln") ||
+		typesinternal.IsFunctionNamed(fn, "k8s.io/klog/v2", "Exit", "ExitDepth", "Exitf", "Exitln", "Fatal", "FatalDepth", "Fatalf", "Fatalln") {
 		return true, true
 	}
 

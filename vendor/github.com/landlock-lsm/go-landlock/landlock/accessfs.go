@@ -35,7 +35,7 @@ func accessSetString(a uint64, names []string) string {
 	}
 	var b strings.Builder
 	b.WriteByte('{')
-	for i := 0; i < 64; i++ {
+	for i := range 64 {
 		if a&(1<<i) == 0 {
 			continue
 		}

@@ -53,13 +53,14 @@ func restrict(c Config, rules ...Rule) error {
 	// always implicit, even in Landlock V1. So enabling Landlock
 	// on a Landlock V1 kernel without any handled access rights
 	// will still forbid linking files between directories.
-	if c.handledAccessFS.isEmpty() && c.handledAccessNet.isEmpty() {
+	if c.handledAccessFS.isEmpty() && c.handledAccessNet.isEmpty() && c.scoped.isEmpty() {
 		return nil // Success: Nothing to restrict.
 	}
 
 	rulesetAttr := ll.RulesetAttr{
 		HandledAccessFS:  uint64(c.handledAccessFS),
 		HandledAccessNet: uint64(c.handledAccessNet),
+		Scoped:           uint64(c.scoped),
 	}
 	fd, err := ll.LandlockCreateRuleset(&rulesetAttr, 0)
 	if err != nil {
@@ -85,7 +86,7 @@ func restrict(c Config, rules ...Rule) error {
 		return bug(fmt.Errorf("prctl(PR_SET_NO_NEW_PRIVS): %v", err))
 	}
 
-	if err := ll.AllThreadsLandlockRestrictSelf(fd, 0); err != nil {
+	if err := ll.AllThreadsLandlockRestrictSelf(fd, uint32(c.flags)); err != nil {
 		if errors.Is(err, syscall.E2BIG) {
 			// Other errors than E2BIG should never happen.
 			return fmt.Errorf("the maximum number of stacked rulesets is reached for the current thread: %w", err)

@@ -13,7 +13,7 @@ import (
 // LandlockCreateRuleset creates a ruleset file descriptor with the
 // given attributes.
 func LandlockCreateRuleset(attr *RulesetAttr, flags int) (fd int, err error) {
-	r0, _, e1 := syscall.Syscall(unix.SYS_LANDLOCK_CREATE_RULESET, uintptr(unsafe.Pointer(attr)), uintptr(rulesetAttrSize), uintptr(flags))
+	r0, _, e1 := syscall.Syscall(unix.SYS_LANDLOCK_CREATE_RULESET, uintptr(unsafe.Pointer(attr)), unsafe.Sizeof(*attr), uintptr(flags))
 	fd = int(r0)
 	if e1 != 0 {
 		err = syscall.Errno(e1)
@@ -26,6 +26,16 @@ func LandlockGetABIVersion() (version int, err error) {
 	r0, _, e1 := syscall.Syscall(unix.SYS_LANDLOCK_CREATE_RULESET, 0, 0, unix.LANDLOCK_CREATE_RULESET_VERSION)
 	version = int(r0)
 	if e1 != 0 {
+		err = syscall.Errno(e1)
+	}
+	return
+}
+
+// LandlockGetErrata returns the fixed Landlock errata as an integer.
+func LandlockGetErrata() (errata int, err error) {
+	r0, _, e1 := syscall.Syscall(unix.SYS_LANDLOCK_CREATE_RULESET, 0, 0, unix.LANDLOCK_CREATE_RULESET_ERRATA)
+	errata = int(r0)
+	if errata < 0 {
 		err = syscall.Errno(e1)
 	}
 	return
@@ -61,7 +71,7 @@ func LandlockAddRule(rulesetFd int, ruleType int, ruleAttr unsafe.Pointer, flags
 
 // AllThreadsLandlockRestrictSelf enforces the given ruleset on all OS
 // threads belonging to the current process.
-func AllThreadsLandlockRestrictSelf(rulesetFd int, flags int) (err error) {
+func AllThreadsLandlockRestrictSelf(rulesetFd int, flags uint32) (err error) {
 	_, _, e1 := psx.Syscall3(unix.SYS_LANDLOCK_RESTRICT_SELF, uintptr(rulesetFd), uintptr(flags), 0)
 	if e1 != 0 {
 		err = syscall.Errno(e1)

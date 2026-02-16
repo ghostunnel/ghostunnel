@@ -36,7 +36,7 @@ var stringscutAnalyzer = &analysis.Analyzer{
 		typeindexanalyzer.Analyzer,
 	},
 	Run: stringscut,
-	URL: "https://pkg.go.dev/golang.org/x/tools/gopls/internal/analysis/modernize#stringscut",
+	URL: "https://pkg.go.dev/golang.org/x/tools/go/analysis/passes/modernize#stringscut",
 }
 
 func init() {
@@ -345,6 +345,7 @@ func indexArgValid(info *types.Info, index *typeindex.Index, expr ast.Expr, afte
 	switch expr := expr.(type) {
 	case *ast.CallExpr:
 		return types.Identical(tv.Type, byteSliceType) &&
+			info.Types[expr.Fun].IsType() && // make sure this isn't a function that returns a byte slice
 			indexArgValid(info, index, expr.Args[0], afterPos) // check s in []byte(s)
 	case *ast.Ident:
 		sObj := info.Uses[expr]
@@ -375,7 +376,7 @@ func indexArgValid(info *types.Info, index *typeindex.Index, expr ast.Expr, afte
 // 4. afterSlice - a slice of `s` that matches one of: s[i+len(substr):], s[len(substr) + i:], s[i + const], s[k + i] (where k = len(substr))
 func checkIdxUses(info *types.Info, uses iter.Seq[inspector.Cursor], s, substr ast.Expr) (negative, nonnegative, beforeSlice, afterSlice []ast.Expr) {
 	use := func(cur inspector.Cursor) bool {
-		ek, _ := cur.ParentEdge()
+		ek := cur.ParentEdgeKind()
 		n := cur.Parent().Node()
 		switch ek {
 		case edge.BinaryExpr_X, edge.BinaryExpr_Y:
@@ -434,7 +435,7 @@ func checkIdxUses(info *types.Info, uses iter.Seq[inspector.Cursor], s, substr a
 // considered.
 func hasModifyingUses(info *types.Info, uses iter.Seq[inspector.Cursor], afterPos token.Pos) bool {
 	for curUse := range uses {
-		ek, _ := curUse.ParentEdge()
+		ek := curUse.ParentEdgeKind()
 		if ek == edge.AssignStmt_Lhs {
 			if curUse.Node().Pos() <= afterPos {
 				continue
