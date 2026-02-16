@@ -32,3 +32,9 @@ func TestInvalidKeychainIdentity(t *testing.T) {
 	}
 	assert.NotNil(t, err, "should not load invalid identity")
 }
+
+func TestSupportsKeychain(t *testing.T) {
+	// Just verify this function doesn't panic and returns a bool
+	result := SupportsKeychain()
+	_ = result
+}

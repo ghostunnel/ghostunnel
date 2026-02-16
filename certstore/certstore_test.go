@@ -293,6 +293,13 @@ func TestSignerECDSA(t *testing.T) {
 	})
 }
 
+func TestStoreClose(t *testing.T) {
+	withStore(t, func(store Store) {
+		// Close should not panic
+		store.Close()
+	})
+}
+
 func TestCertificateRSA(t *testing.T) {
 	CertificateHelper(t, leafRSA)
 }
