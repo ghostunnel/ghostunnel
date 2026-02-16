@@ -20,7 +20,7 @@ import (
 	"golang.org/x/tools/go/ast/edge"
 	"golang.org/x/tools/go/ast/inspector"
 	"golang.org/x/tools/internal/analysis/analyzerutil"
-	"golang.org/x/tools/internal/astutil"
+
 	"golang.org/x/tools/internal/moreiters"
 	"golang.org/x/tools/internal/packagepath"
 	"golang.org/x/tools/internal/stdlib"
@@ -34,7 +34,7 @@ var doc string
 var Suite = []*analysis.Analyzer{
 	AnyAnalyzer,
 	// AppendClippedAnalyzer, // not nil-preserving!
-	BLoopAnalyzer,
+	// BLoopAnalyzer, // may skew benchmark results, see golang/go#74967
 	FmtAppendfAnalyzer,
 	ForVarAnalyzer,
 	MapsLoopAnalyzer,
@@ -114,7 +114,7 @@ func within(pass *analysis.Pass, pkgs ...string) bool {
 // unparenEnclosing removes enclosing parens from cur in
 // preparation for a call to [Cursor.ParentEdge].
 func unparenEnclosing(cur inspector.Cursor) inspector.Cursor {
-	for astutil.IsChildOf(cur, edge.ParenExpr_X) {
+	for cur.ParentEdgeKind() == edge.ParenExpr_X {
 		cur = cur.Parent()
 	}
 	return cur
@@ -142,3 +142,5 @@ func lookup(info *types.Info, cur inspector.Cursor, name string) types.Object {
 	_, obj := scope.LookupParent(name, cur.Node().Pos())
 	return obj
 }
+
+func first[T any](x T, _ any) T { return x }

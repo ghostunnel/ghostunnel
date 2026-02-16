@@ -15,6 +15,10 @@ func LandlockGetABIVersion() (version int, err error) {
 	return -1, syscall.ENOSYS
 }
 
+func LandlockGetErrata() (errata int, err error) {
+	return -1, syscall.ENOSYS
+}
+
 func LandlockAddRule(rulesetFd int, ruleType int, ruleAttr unsafe.Pointer, flags int) (err error) {
 	return syscall.ENOSYS
 }
@@ -27,7 +31,7 @@ func LandlockAddNetPortRule(rulesetFD int, attr *NetPortAttr, flags int) error {
 	return syscall.ENOSYS
 }
 
-func AllThreadsLandlockRestrictSelf(rulesetFd int, flags int) (err error) {
+func AllThreadsLandlockRestrictSelf(rulesetFd int, flags uint32) (err error) {
 	return syscall.ENOSYS
 }
 

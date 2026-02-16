@@ -11,7 +11,6 @@ import (
 	"go/token"
 	"strings"
 
-	"golang.org/x/tools/go/ast/edge"
 	"golang.org/x/tools/go/ast/inspector"
 	"golang.org/x/tools/internal/moreiters"
 )
@@ -71,14 +70,6 @@ func NodeContains(n ast.Node, rng Range) bool {
 // file's complete extent.
 func NodeContainsPos(n ast.Node, pos token.Pos) bool {
 	return NodeRange(n).ContainsPos(pos)
-}
-
-// IsChildOf reports whether cur.ParentEdge is ek.
-//
-// TODO(adonovan): promote to a method of Cursor.
-func IsChildOf(cur inspector.Cursor, ek edge.Kind) bool {
-	got, _ := cur.ParentEdge()
-	return got == ek
 }
 
 // EnclosingFile returns the syntax tree for the file enclosing c.
@@ -178,6 +169,9 @@ func (r Range) IsValid() bool { return r.Start.IsValid() && r.Start <= r.EndPos 
 //
 // Select returns the enclosing BlockStmt, the f() CallExpr, and the g() CallExpr.
 //
+// If the selection does not wholly enclose any nodes, Select returns an error
+// and invalid start/end nodes, but it may return a valid enclosing node.
+//
 // Callers that require exactly one syntax tree (e.g. just f() or just
 // g()) should check that the returned start and end nodes are
 // identical.
@@ -201,33 +195,92 @@ func Select(curFile inspector.Cursor, start, end token.Pos) (_enclosing, _start,
 	for cur := range curEnclosing.Preorder() {
 		if rng.Contains(NodeRange(cur.Node())) {
 			// The start node has the least Pos.
-			if !CursorValid(curStart) {
+			if !curStart.Valid() {
 				curStart = cur
 			}
 			// The end node has the greatest End.
 			// End positions do not change monotonically,
 			// so we must compute the max.
-			if !CursorValid(curEnd) ||
+			if !curEnd.Valid() ||
 				cur.Node().End() > curEnd.Node().End() {
 				curEnd = cur
 			}
 		}
 	}
-	if !CursorValid(curStart) {
-		return noCursor, noCursor, noCursor, fmt.Errorf("no syntax selected")
+	if !curStart.Valid() {
+		// The selection is valid (inside curEnclosing) but contains no
+		// complete nodes. This happens for point selections (start == end),
+		// or selections covering only only spaces, comments, and punctuation
+		// tokens.
+		// Return the enclosing node so the caller can still use the context.
+		return curEnclosing, noCursor, noCursor, fmt.Errorf("invalid selection")
 	}
 	return curEnclosing, curStart, curEnd, nil
 }
 
-// CursorValid reports whether the cursor is valid.
+var noCursor inspector.Cursor
+
+// MaybeParenthesize returns new, possibly wrapped in parens if needed
+// to preserve operator precedence when it replaces old, whose parent
+// is parentNode.
 //
-// A valid cursor may yet be the virtual root node,
-// cur.Inspector.Root(), which has no [Cursor.Node].
-//
-// TODO(adonovan): move to cursorutil package, and move that package into x/tools.
-// Ultimately, make this a method of Cursor. Needs a proposal.
-func CursorValid(cur inspector.Cursor) bool {
-	return cur.Inspector() != nil
+// (This would be more naturally written in terms of Cursor, but one of
+// the callers--the inliner--does not have cursors handy.)
+func MaybeParenthesize(parentNode ast.Node, old, new ast.Expr) ast.Expr {
+	if needsParens(parentNode, old, new) {
+		new = &ast.ParenExpr{X: new}
+	}
+	return new
 }
 
-var noCursor inspector.Cursor
+func needsParens(parentNode ast.Node, old, new ast.Expr) bool {
+	// An expression beneath a non-expression
+	// has no precedence ambiguity.
+	parent, ok := parentNode.(ast.Expr)
+	if !ok {
+		return false
+	}
+
+	precedence := func(n ast.Node) int {
+		switch n := n.(type) {
+		case *ast.UnaryExpr, *ast.StarExpr:
+			return token.UnaryPrec
+		case *ast.BinaryExpr:
+			return n.Op.Precedence()
+		}
+		return -1
+	}
+
+	// Parens are not required if the new node
+	// is not unary or binary.
+	newprec := precedence(new)
+	if newprec < 0 {
+		return false
+	}
+
+	// Parens are required if parent and child are both
+	// unary or binary and the parent has higher precedence.
+	if precedence(parent) > newprec {
+		return true
+	}
+
+	// Was the old node the operand of a postfix operator?
+	//  f().sel
+	//  f()[i:j]
+	//  f()[i]
+	//  f().(T)
+	//  f()(x)
+	switch parent := parent.(type) {
+	case *ast.SelectorExpr:
+		return parent.X == old
+	case *ast.IndexExpr:
+		return parent.X == old
+	case *ast.SliceExpr:
+		return parent.X == old
+	case *ast.TypeAssertExpr:
+		return parent.X == old
+	case *ast.CallExpr:
+		return parent.Fun == old
+	}
+	return false
+}

@@ -5,12 +5,12 @@
 // The following invocation will restrict all goroutines so that they
 // can only read from /usr, /bin and /tmp, and only write to /tmp:
 //
-//	err := landlock.V5.BestEffort().RestrictPaths(
+//	err := landlock.V6.BestEffort().RestrictPaths(
 //	    landlock.RODirs("/usr", "/bin"),
 //	    landlock.RWDirs("/tmp"),
 //	)
 //
-// This will restrict file access using Landlock V5, if available. If
+// This will restrict file access using Landlock V6, if available. If
 // unavailable, it will attempt using earlier Landlock versions than
 // the one requested. If no Landlock version is available, it will
 // still succeed, without restricting file accesses.
@@ -20,20 +20,30 @@
 // The following invocation will restrict all goroutines so that they
 // can only bind to TCP port 8080 and only connect to TCP port 53:
 //
-//	err := landlock.V5.BestEffort().RestrictNet(
+//	err := landlock.V6.BestEffort().RestrictNet(
 //	    landlock.BindTCP(8080),
 //	    landlock.ConnectTCP(53),
 //	)
 //
-// This functionality is available since Landlock V5.
+// This functionality is available since Landlock V4.
 //
-// # Restricting file access and networking at once
+// # Restricting IPC scopes
 //
-// The following invocation restricts both file and network access at
-// once.  The effect is the same as calling [Config.RestrictPaths] and
-// [Config.RestrictNet] one after another, but it happens in one step.
+// The following invocation will restrict IPC to more privileged
+// Landlock domains, if possible:
 //
-//	err := landlock.V5.BestEffort().Restrict(
+//	err := landlock.V6.BestEffort().RestrictScoped()
+//
+// This functionality is available since Landlock V6.
+//
+// # Restricting all types of operations at once
+//
+// The following invocation restricts all types of operations at once.
+// The effect is the same as calling [Config.RestrictPaths],
+// [Config.RestrictNet] and [Config.RestrictScoped] one after another,
+// but it happens in one step.
+//
+//	err := landlock.V6.BestEffort().Restrict(
 //	    landlock.RODirs("/usr", "/bin"),
 //	    landlock.RWDirs("/tmp"),
 //	    landlock.BindTCP(8080),
@@ -42,9 +52,9 @@
 //
 // # More possible invocations
 //
-// landlock.V5.RestrictPaths(...) (without the call to
+// landlock.V6.RestrictPaths(...) (without the call to
 // [Config.BestEffort]) enforces the given rules using the
-// capabilities of Landlock V5, but returns an error if that
+// capabilities of Landlock V6, but returns an error if that
 // functionality is not available on the system that the program is
 // running on.
 //
@@ -73,7 +83,7 @@
 // possible, but it will ensure that all the requested access rights
 // are permitted after Landlock enforcement.
 //
-// # Current limitations
+// # Current limitations (File System)
 //
 // Landlock can not currently restrict all file system operations.
 // The operations that can and can not be restricted yet are listed in
@@ -91,6 +101,16 @@
 // These are Landlock limitations that will be resolved in future
 // versions. See the [Kernel Documentation about Current Limitations]
 // for more details.
+//
+// # Current Limitations (IPC within the same Go program)
+//
+// For a Go process which restricts Landlock "scoped" IPC operations
+// for itself, goroutines within this process might be inconsistently
+// permitted or denied to use these IPC mechanisms among themselves.
+//
+// This is because different OS threads within the Go process may
+// technically belong to different Landlock domains (even if these
+// domains enforce the same policies).
 //
 // # Multithreading Limitations
 //
