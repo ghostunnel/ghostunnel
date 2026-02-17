@@ -109,7 +109,7 @@ func buildConfig(enabledCipherSuites string, maxTLSVersion string) (*tls.Config,
 	// * We list AES-128 ahead of AES-256 for performance reasons.
 
 	suites := []uint16{}
-	for _, suite := range strings.Split(enabledCipherSuites, ",") {
+	for suite := range strings.SplitSeq(enabledCipherSuites, ",") {
 		name := strings.TrimSpace(suite)
 		ciphers, ok := cipherSuites[name]
 		if !ok && *allowUnsafeCipherSuites {

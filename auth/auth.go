@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"slices"
 	"time"
 
 	"github.com/ghostunnel/ghostunnel/policy"
@@ -89,7 +90,7 @@ func (a ACL) VerifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*
 	cert := verifiedChains[0][0]
 
 	// Check CN against --allow-cn flag(s).
-	if contains(a.AllowedCNs, cert.Subject.CommonName) {
+	if slices.Contains(a.AllowedCNs, cert.Subject.CommonName) {
 		return nil
 	}
 
@@ -117,7 +118,7 @@ func (a ACL) VerifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*
 	if a.AllowOPAQuery != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), a.OPAQueryTimeout)
 		defer cancel()
-		input := map[string]interface{}{
+		input := map[string]any{
 			"certificate": cert,
 		}
 		results, err := a.AllowOPAQuery.Eval(ctx, rego.EvalInput(input))
@@ -151,7 +152,7 @@ func (a ACL) VerifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*
 	cert := verifiedChains[0][0]
 
 	// Check CN against --verify-cn flag(s).
-	if contains(a.AllowedCNs, cert.Subject.CommonName) {
+	if slices.Contains(a.AllowedCNs, cert.Subject.CommonName) {
 		return nil
 	}
 
@@ -179,7 +180,7 @@ func (a ACL) VerifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*
 	if a.AllowOPAQuery != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), a.OPAQueryTimeout)
 		defer cancel()
-		input := map[string]interface{}{
+		input := map[string]any{
 			"certificate": cert,
 		}
 		results, err := a.AllowOPAQuery.Eval(ctx, rego.EvalInput(input))
@@ -194,20 +195,10 @@ func (a ACL) VerifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*
 	return errors.New("unauthorized: invalid principal, or principal not allowed")
 }
 
-// Returns true if item is contained in set.
-func contains(set []string, item string) bool {
-	for _, c := range set {
-		if c == item {
-			return true
-		}
-	}
-	return false
-}
-
 // Returns true if at least one item from left is also contained in right.
 func intersects(left, right []string) bool {
 	for _, item := range left {
-		if contains(right, item) {
+		if slices.Contains(right, item) {
 			return true
 		}
 	}

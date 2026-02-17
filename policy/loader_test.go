@@ -105,14 +105,14 @@ func TestPolicyReloading(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	input := map[string]interface{}{"name": "foobar"}
+	input := map[string]any{"name": "foobar"}
 	results, err := p.Eval(context.Background(), rego.EvalInput(input))
 	assert.Nil(t, err, "error evaluating policy")
 	if !results.Allowed() {
 		log.Fatal("input foobar not allowed on original policy, though it should've been")
 	}
 
-	input = map[string]interface{}{"name": "barfoo"}
+	input = map[string]any{"name": "barfoo"}
 	results, err = p.Eval(context.Background(), rego.EvalInput(input))
 	assert.Nil(t, err, "error evaluating policy")
 	if results.Allowed() {
@@ -127,14 +127,14 @@ func TestPolicyReloading(t *testing.T) {
 	err = p.Reload()
 	assert.Nil(t, err, "error reloading policy")
 
-	input = map[string]interface{}{"name": "foobar"}
+	input = map[string]any{"name": "foobar"}
 	results, err = p.Eval(context.Background(), rego.EvalInput(input))
 	assert.Nil(t, err, "error evaluating policy")
 	if !results.Allowed() {
 		log.Fatal("input foobar not allowed on updated policy, though it should've been")
 	}
 
-	input = map[string]interface{}{"name": "barfoo"}
+	input = map[string]any{"name": "barfoo"}
 	results, err = p.Eval(context.Background(), rego.EvalInput(input))
 	assert.Nil(t, err, "error evaluating policy")
 	if !results.Allowed() {
@@ -176,14 +176,14 @@ func TestPolicyBundleLoading(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	input := map[string]interface{}{"name": "foobar"}
+	input := map[string]any{"name": "foobar"}
 	results, err := p.Eval(context.Background(), rego.EvalInput(input))
 	assert.Nil(t, err, "error evaluating policy")
 	if !results.Allowed() {
 		log.Fatal("input foobar not allowed on original policy, though it should've been")
 	}
 
-	input = map[string]interface{}{"name": "barfoo"}
+	input = map[string]any{"name": "barfoo"}
 	results, err = p.Eval(context.Background(), rego.EvalInput(input))
 	assert.Nil(t, err, "error evaluating policy")
 	if results.Allowed() {
