@@ -20,6 +20,7 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"slices"
 	"time"
 
 	"github.com/ghostunnel/ghostunnel/proxy"
@@ -29,12 +30,7 @@ import (
 // and returns true if that's the case. Returns false if the signal is
 // a refresh signal.
 func isShutdownSignal(sig os.Signal) bool {
-	for _, shutdownSignal := range shutdownSignals {
-		if sig == shutdownSignal {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(shutdownSignals, sig)
 }
 
 // signalHandler listens for incoming shutdown or refresh signals. If we get

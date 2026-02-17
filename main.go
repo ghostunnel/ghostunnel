@@ -28,6 +28,7 @@ import (
 	"net/http/pprof"
 	"os"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -212,12 +213,10 @@ func initLogger(syslog bool, flags []string) (err error) {
 	// If user has indicated request for syslog, override default stdout
 	// logger with a syslog one instead. This can fail, e.g. in containers
 	// that don't have syslog available.
-	for _, flag := range flags {
-		if flag == "all" {
-			// If --quiet=all if passed, disable all logging
-			logger = log.New(io.Discard, "", 0)
-			return
-		}
+	if slices.Contains(flags, "all") {
+		// If --quiet=all if passed, disable all logging
+		logger = log.New(io.Discard, "", 0)
+		return
 	}
 	if syslog {
 		var syslogWriter gsyslog.Syslogger
@@ -287,7 +286,7 @@ func validateCredentials(creds []bool) int {
 }
 
 func validateCipherSuites() error {
-	for _, suite := range strings.Split(*enabledCipherSuites, ",") {
+	for suite := range strings.SplitSeq(*enabledCipherSuites, ",") {
 		name := strings.TrimSpace(suite)
 		_, ok := cipherSuites[name]
 		if !ok && *allowUnsafeCipherSuites {

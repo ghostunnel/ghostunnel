@@ -34,7 +34,7 @@ import (
 
 type testLogger struct{}
 
-func (t *testLogger) Printf(format string, v ...interface{}) {
+func (t *testLogger) Printf(format string, v ...any) {
 	fmt.Fprintf(os.Stderr, format+"\n", v...)
 }
 
@@ -60,7 +60,7 @@ func TestAbortedConnection(t *testing.T) {
 	defer p.Shutdown()
 
 	errorCounter.Clear()
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		if errorCounter.Count() != 0 {
 			return
 		}
@@ -261,7 +261,7 @@ func TestBackendDialError(t *testing.T) {
 	defer src.Close()
 
 	failed := false
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		_, err := src.Write([]byte("A"))
 		if err != nil {
 			failed = true
@@ -296,7 +296,7 @@ func TestCopyData(t *testing.T) {
 	}()
 
 	input := make([]byte, size)
-	for i := 0; i < size; i++ {
+	for i := range size {
 		input[i] = byte(i)
 	}
 
@@ -547,7 +547,7 @@ func TestLogConnectionMessageDisabled(t *testing.T) {
 
 func TestLogConditional(t *testing.T) {
 	logged := false
-	logger := &callbackLogger{callback: func(format string, v ...interface{}) {
+	logger := &callbackLogger{callback: func(format string, v ...any) {
 		logged = true
 	}}
 
@@ -563,9 +563,9 @@ func TestLogConditional(t *testing.T) {
 }
 
 type callbackLogger struct {
-	callback func(format string, v ...interface{})
+	callback func(format string, v ...any)
 }
 
-func (c *callbackLogger) Printf(format string, v ...interface{}) {
+func (c *callbackLogger) Printf(format string, v ...any) {
 	c.callback(format, v...)
 }

@@ -11,7 +11,7 @@ import (
 func BenchmarkCopyData(b *testing.B) {
 	proxy := proxyForTest(nil, nil)
 
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		b.Run(fmt.Sprintf("%d bytes", 1<<i), func(b *testing.B) {
 			benchmarkCopyData(b, proxy, 1<<i)
 		})
@@ -34,7 +34,7 @@ func benchmarkCopyData(b *testing.B, proxy *Proxy, size int) {
 
 		go func() {
 			buf := make([]byte, size)
-			for i := 0; i < size; i++ {
+			for i := range size {
 				buf[i] = byte(i % (1 << 8))
 			}
 			_, _ = srcIn.Write(buf)

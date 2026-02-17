@@ -391,7 +391,7 @@ func checkMetadata(ctx context.Context, key, value string) error {
 	return nil
 }
 
-func structFromValues(values map[string]interface{}) (*structpb.Struct, error) {
+func structFromValues(values map[string]any) (*structpb.Struct, error) {
 	valuesJSON, err := json.Marshal(values)
 	if err != nil {
 		return nil, err

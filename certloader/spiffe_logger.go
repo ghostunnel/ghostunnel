@@ -24,18 +24,18 @@ type spiffeLogger struct {
 	log *log.Logger
 }
 
-func (l spiffeLogger) Debugf(format string, args ...interface{}) {
+func (l spiffeLogger) Debugf(format string, args ...any) {
 	l.log.Printf("spiffe/debug: "+format, args...)
 }
 
-func (l spiffeLogger) Infof(format string, args ...interface{}) {
+func (l spiffeLogger) Infof(format string, args ...any) {
 	l.log.Printf("spiffe/info: "+format, args...)
 }
 
-func (l spiffeLogger) Warnf(format string, args ...interface{}) {
+func (l spiffeLogger) Warnf(format string, args ...any) {
 	l.log.Printf("spiffe/warn: "+format, args...)
 }
 
-func (l spiffeLogger) Errorf(format string, args ...interface{}) {
+func (l spiffeLogger) Errorf(format string, args ...any) {
 	l.log.Printf("spiffe/error: "+format, args...)
 }

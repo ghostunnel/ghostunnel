@@ -55,7 +55,7 @@ const (
 
 // Logger is used by this package to log messages
 type Logger interface {
-	Printf(format string, v ...interface{})
+	Printf(format string, v ...any)
 }
 
 // DialFunc represents a function that can dial a backend/destination for forwarding connections.
@@ -371,7 +371,7 @@ func (p *Proxy) logConnectionMessage(action string, dst net.Conn, src net.Conn, 
 	)
 }
 
-func (p *Proxy) logConditional(flag int, msg string, args ...interface{}) {
+func (p *Proxy) logConditional(flag int, msg string, args ...any) {
 	if (p.loggerFlags & flag) > 0 {
 		p.Logger.Printf(msg, args...)
 	}

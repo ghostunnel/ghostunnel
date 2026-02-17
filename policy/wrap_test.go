@@ -37,7 +37,7 @@ func TestStaticPolicy(t *testing.T) {
 	policy := WrapForTest(&prepped)
 	assert.Nil(t, policy.Reload())
 
-	res, err := policy.Eval(ctx, rego.EvalInput(map[string]interface{}{}))
+	res, err := policy.Eval(ctx, rego.EvalInput(map[string]any{}))
 	assert.Nil(t, err)
 	assert.True(t, res.Allowed())
 }

@@ -67,7 +67,7 @@ type statusResponse struct {
 	BackendStatus  string    `json:"backend_status"`
 	BackendError   string    `json:"backend_error,omitempty"`
 	Time           time.Time `json:"time"`
-	LastReload     time.Time `json:"last_reload,omitempty"`
+	LastReload     time.Time `json:"last_reload"`
 	Hostname       string    `json:"hostname,omitempty"`
 	Message        string    `json:"message"`
 	Revision       string    `json:"revision"`
