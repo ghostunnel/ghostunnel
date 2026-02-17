@@ -20,7 +20,7 @@ import (
 	"crypto/tls"
 )
 
-// TLSConfig is used to configure client or server TLS. It supports hot reloading.
+// TLSConfigSource is used to configure client or server TLS. It supports hot reloading.
 type TLSConfigSource interface {
 	// Reload will reload the TLS configuration. If reloading fails, the
 	// existing configuration will be used. The client and server config
@@ -44,12 +44,14 @@ type TLSConfigSource interface {
 	GetServerConfig(base *tls.Config) (TLSServerConfig, error)
 }
 
+// TLSClientConfig is an interface for obtaining TLS client configuration.
 type TLSClientConfig interface {
 	// GetClientConfig returns a TLS configuration for use as a TLS client. It
 	// is safe to call concurrently.
 	GetClientConfig() *tls.Config
 }
 
+// TLSServerConfig is an interface for obtaining TLS server configuration.
 type TLSServerConfig interface {
 	// GetServerConfig returns a TLS configuration for use as a TLS server. It
 	// is safe to call concurrently.

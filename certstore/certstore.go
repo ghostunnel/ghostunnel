@@ -14,7 +14,7 @@ var (
 )
 
 const (
-	// Require a hardware token when fetching identities (Darwin only).
+	// RequireToken requires a hardware token when fetching identities (Darwin only).
 	RequireToken = 1
 )
 

@@ -81,6 +81,7 @@ func readX509(path string) ([]*x509.Certificate, error) {
 	return out, nil
 }
 
+// LoadTrustStore loads a CA bundle from the given path, or returns the system cert pool if empty.
 func LoadTrustStore(caBundlePath string) (*x509.CertPool, error) {
 	if caBundlePath == "" {
 		return x509.SystemCertPool()

@@ -59,9 +59,8 @@ func buildCertificate(keystorePath, certPath, keyPath, keystorePass, caBundlePat
 		logger.Printf("using PKCS#11 module as certificate source")
 		if keystorePath != "" {
 			return buildCertificateFromPKCS11(keystorePath, caBundlePath, logger)
-		} else {
-			return buildCertificateFromPKCS11(certPath, caBundlePath, logger)
 		}
+		return buildCertificateFromPKCS11(certPath, caBundlePath, logger)
 	}
 	if hasKeychainIdentity() {
 		logger.Printf("using operating system keychain as certificate source")

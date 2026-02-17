@@ -137,6 +137,11 @@ func TestFlagValidation(t *testing.T) {
 	assert.NotNil(t, err, "--enable-pprof implies --status")
 
 	*enableProf = false
+	*enableShutdown = true
+	*statusAddress = ""
+	err = validateFlags(nil)
+	assert.NotNil(t, err, "--enable-shutdown implies --status")
+	*enableShutdown = false
 	*metricsURL = "127.0.0.1"
 	err = validateFlags(nil)
 	assert.NotNil(t, err, "invalid --metrics-url should be rejected")
@@ -299,6 +304,49 @@ func TestServerFlagValidation(t *testing.T) {
 	*serverForwardAddress = ""
 	*serverAllowAll = false
 	*keystorePath = ""
+
+	// Test: no credentials at all
+	*keystorePath = ""
+	*certPath = ""
+	*keyPath = ""
+	*useWorkloadAPI = false
+	*serverAutoACMEFQDN = ""
+	keychainIdentity = nil
+	keychainIssuer = nil
+	*serverAllowAll = true
+	*serverForwardAddress = "127.0.0.1:8080"
+	err = serverValidateFlags()
+	assert.NotNil(t, err, "should require at least one credential source")
+	assert.Contains(t, err.Error(), "at least one of")
+
+	// Test: --key without --cert
+	*keystorePath = ""
+	*keyPath = "file"
+	*certPath = ""
+	err = serverValidateFlags()
+	assert.NotNil(t, err, "--key without --cert should be rejected")
+	*keyPath = ""
+
+	// Test: --disable-authentication with --allow-cn (not --allow-all)
+	*keystorePath = "file"
+	*serverDisableAuth = true
+	*serverAllowAll = false
+	*serverAllowedCNs = []string{"test"}
+	err = serverValidateFlags()
+	assert.NotNil(t, err, "--disable-authentication is mutually exclusive with --allow-cn")
+	*serverAllowedCNs = nil
+	*serverDisableAuth = false
+
+	// Test: OPA flags with --allow-uri
+	*serverAllowPolicy = "policy"
+	*serverAllowQuery = "query"
+	*serverAllowedURIs = []string{"spiffe://example.com/*"}
+	err = serverValidateFlags()
+	assert.NotNil(t, err, "--allow-policy and --allow-uri are mutually exclusive")
+	*serverAllowPolicy = ""
+	*serverAllowQuery = ""
+	*serverAllowedURIs = nil
+	*keystorePath = ""
 }
 
 func TestClientFlagValidation(t *testing.T) {
@@ -342,6 +390,22 @@ func TestClientFlagValidation(t *testing.T) {
 	*keystorePath = ""
 	err = clientValidateFlags()
 	assert.NotNil(t, err, "one of --keystore or --disable-authentication is required")
+
+	// Test: --cert without --key
+	*enabledCipherSuites = "AES,CHACHA"
+	*certPath = "file"
+	*keyPath = ""
+	*clientListenAddress = "127.0.0.1:8080"
+	err = clientValidateFlags()
+	assert.NotNil(t, err, "--cert without --key should be rejected")
+	*certPath = ""
+
+	// Test: --key without --cert
+	*keyPath = "file"
+	*certPath = ""
+	err = clientValidateFlags()
+	assert.NotNil(t, err, "--key without --cert should be rejected")
+	*keyPath = ""
 }
 
 func TestAllowsLocalhost(t *testing.T) {

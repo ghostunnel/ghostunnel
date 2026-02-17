@@ -31,6 +31,7 @@ type Listener struct {
 	config TLSServerConfig
 }
 
+// NewListener creates a new TLS listener that wraps the given net.Listener.
 func NewListener(listener net.Listener, config TLSServerConfig) *Listener {
 	return &Listener{
 		Listener: listener,
@@ -38,6 +39,7 @@ func NewListener(listener net.Listener, config TLSServerConfig) *Listener {
 	}
 }
 
+// Accept waits for and returns the next TLS-wrapped connection to the listener.
 func (l *Listener) Accept() (net.Conn, error) {
 	c, err := l.Listener.Accept()
 	if err != nil {

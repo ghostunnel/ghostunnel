@@ -300,41 +300,32 @@ func validateCipherSuites() error {
 	return nil
 }
 
-// Validate flags for server mode
-func serverValidateFlags() error {
-	// hasAccessFlags is true if access control flags (besides allow-all) were specified
-	hasAccessFlags := len(*serverAllowedCNs) > 0 ||
-		len(*serverAllowedOUs) > 0 ||
-		len(*serverAllowedDNSs) > 0 ||
-		len(*serverAllowedIPs) > 0 ||
-		len(*serverAllowedURIs) > 0
-	hasOPAFlags := len(*serverAllowPolicy) > 0 ||
-		len(*serverAllowQuery) > 0
-
-	hasValidCredentials := validateCredentials([]bool{
-		// Standard keystore
-		*keystorePath != "",
-		// macOS keychain identity
-		hasKeychainIdentity(),
-		// A certificate and a key, in separate files
-		(*certPath != "" && *keyPath != ""),
-		// A certificate, with the key in a PKCS#11 module
-		(*certPath != "" && hasPKCS11()),
-		// SPIFFE Workload API
-		*useWorkloadAPI,
-		// Auto via ACME
-		*serverAutoACMEFQDN != "",
-	})
-
-	if hasValidCredentials == 0 {
-		return errors.New("at least one of --keystore, --cert/--key, --auto-acme-cert, or --keychain-identity/issuer (if supported) flags is required")
-	}
-	if hasValidCredentials > 1 {
-		return errors.New("--keystore, --cert/--key, --auto-acme-cert, and --keychain-identity/issuer flags are mutually exclusive")
-	}
+func validateCertKeyPair() error {
 	if (*keyPath != "" && *certPath == "") || (*certPath != "" && *keyPath == "" && !hasPKCS11()) {
 		return errors.New("--cert/--key must be set together, unless using PKCS11 for private key")
 	}
+	return nil
+}
+
+func validateServerCredentials() error {
+	count := validateCredentials([]bool{
+		*keystorePath != "",
+		hasKeychainIdentity(),
+		(*certPath != "" && *keyPath != ""),
+		(*certPath != "" && hasPKCS11()),
+		*useWorkloadAPI,
+		*serverAutoACMEFQDN != "",
+	})
+	if count == 0 {
+		return errors.New("at least one of --keystore, --cert/--key, --auto-acme-cert, or --keychain-identity/issuer (if supported) flags is required")
+	}
+	if count > 1 {
+		return errors.New("--keystore, --cert/--key, --auto-acme-cert, and --keychain-identity/issuer flags are mutually exclusive")
+	}
+	return validateCertKeyPair()
+}
+
+func validateServerAccessControl(hasAccessFlags, hasOPAFlags bool) error {
 	if !(*serverDisableAuth) && !(*serverAllowAll) && !hasAccessFlags && !hasOPAFlags {
 		return errors.New("at least one access control flag (--allow-{all,cn,ou,dns-san,ip-san,uri-san}, or OPA flags, or --disable-authentication) is required")
 	}
@@ -344,64 +335,103 @@ func serverValidateFlags() error {
 	if *serverDisableAuth && (*serverAllowAll || hasAccessFlags || hasOPAFlags) {
 		return errors.New("--disable-authentication is mutually exclusive with other access control flags")
 	}
+	return nil
+}
+
+func validateServerTarget() error {
 	if !*serverUnsafeTarget && !consideredSafe(*serverForwardAddress) {
 		return errors.New("--target must be unix:PATH or localhost:PORT (unless --unsafe-target is set)")
 	}
-	if *serverAutoACMEFQDN != "" {
-		if *serverAutoACMEEmail == "" {
-			return errors.New("--auto-acme-cert was specified but no email address was provided with --auto-acme-email")
-		}
-		if !*serverAutoACMEAgreedTOS {
-			return errors.New("--auto-acme-agree-to-tos was not specified and is required if --auto-acme-cert is specified")
-		}
-	}
+	return nil
+}
 
-	if hasOPAFlags && (*serverAllowPolicy == "" || *serverAllowQuery == "") {
+func validateServerACME() error {
+	if *serverAutoACMEFQDN == "" {
+		return nil
+	}
+	if *serverAutoACMEEmail == "" {
+		return errors.New("--auto-acme-cert was specified but no email address was provided with --auto-acme-email")
+	}
+	if !*serverAutoACMEAgreedTOS {
+		return errors.New("--auto-acme-agree-to-tos was not specified and is required if --auto-acme-cert is specified")
+	}
+	return nil
+}
+
+func validateServerOPA(hasAccessFlags, hasOPAFlags bool) error {
+	if !hasOPAFlags {
+		return nil
+	}
+	if *serverAllowPolicy == "" || *serverAllowQuery == "" {
 		return errors.New("--allow-policy and --allow-query have to be used together")
 	}
-	if hasOPAFlags && hasAccessFlags {
+	if hasAccessFlags {
 		return errors.New("--allow-policy and --allow-query are mutually exclusive with other access control flags")
 	}
+	return nil
+}
 
-	if err := validateCipherSuites(); err != nil {
+// Validate flags for server mode
+func serverValidateFlags() error {
+	if err := validateServerCredentials(); err != nil {
 		return err
 	}
 
+	hasAccessFlags := len(*serverAllowedCNs) > 0 ||
+		len(*serverAllowedOUs) > 0 ||
+		len(*serverAllowedDNSs) > 0 ||
+		len(*serverAllowedIPs) > 0 ||
+		len(*serverAllowedURIs) > 0
+	hasOPAFlags := len(*serverAllowPolicy) > 0 || len(*serverAllowQuery) > 0
+
+	if err := validateServerAccessControl(hasAccessFlags, hasOPAFlags); err != nil {
+		return err
+	}
+	if err := validateServerTarget(); err != nil {
+		return err
+	}
+	if err := validateServerACME(); err != nil {
+		return err
+	}
+	if err := validateServerOPA(hasAccessFlags, hasOPAFlags); err != nil {
+		return err
+	}
+	return validateCipherSuites()
+}
+
+func validateClientCredentials() error {
+	count := validateCredentials([]bool{
+		*keystorePath != "",
+		hasKeychainIdentity(),
+		(*certPath != "" && *keyPath != ""),
+		(*certPath != "" && hasPKCS11()),
+		*clientDisableAuth,
+	})
+	if count == 0 && !*useWorkloadAPI {
+		return errors.New("at least one of --keystore, --cert/--key, --keychain-identity/issuer (if supported) or --disable-authentication flags is required")
+	}
+	if count > 1 {
+		return errors.New("--keystore, --cert/--key, --keychain-identity/issuer and --disable-authentication flags are mutually exclusive")
+	}
+	return validateCertKeyPair()
+}
+
+func validateClientListen() error {
+	if !*clientUnsafeListen && !consideredSafe(*clientListenAddress) {
+		return fmt.Errorf("--listen must be unix:PATH, localhost:PORT, systemd:NAME or launchd:NAME (unless --unsafe-listen is set)")
+	}
 	return nil
 }
 
 // Validate flags for client mode
 func clientValidateFlags() error {
-	hasValidCredentials := validateCredentials([]bool{
-		// Standard keystore
-		*keystorePath != "",
-		// macOS keychain identity
-		hasKeychainIdentity(),
-		// A certificate and a key, in separate files
-		(*certPath != "" && *keyPath != ""),
-		// A certificate, with the key in a PKCS#11 module
-		(*certPath != "" && hasPKCS11()),
-		// No credentials needed if auth is disabled
-		*clientDisableAuth,
-	})
-
-	if hasValidCredentials == 0 && !*useWorkloadAPI {
-		return errors.New("at least one of --keystore, --cert/--key, --keychain-identity/issuer (if supported) or --disable-authentication flags is required")
-	}
-	if hasValidCredentials > 1 {
-		return errors.New("--keystore, --cert/--key, --keychain-identity/issuer and --disable-authentication flags are mutually exclusive")
-	}
-	if (*keyPath != "" && *certPath == "") || (*certPath != "" && *keyPath == "" && !hasPKCS11()) {
-		return errors.New("--cert/--key must be set together, unless using PKCS11 for private key")
-	}
-	if !*clientUnsafeListen && !consideredSafe(*clientListenAddress) {
-		return fmt.Errorf("--listen must be unix:PATH, localhost:PORT, systemd:NAME or launchd:NAME (unless --unsafe-listen is set)")
-	}
-	if err := validateCipherSuites(); err != nil {
+	if err := validateClientCredentials(); err != nil {
 		return err
 	}
-
-	return nil
+	if err := validateClientListen(); err != nil {
+		return err
+	}
+	return validateCipherSuites()
 }
 
 func main() {

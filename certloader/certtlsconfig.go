@@ -6,6 +6,7 @@ import (
 	"log"
 )
 
+// TLSConfigSourceFromCertificate creates a TLSConfigSource from a Certificate.
 func TLSConfigSourceFromCertificate(cert Certificate, logger *log.Logger) TLSConfigSource {
 	return &certTLSConfigSource{
 		cert:   cert,
