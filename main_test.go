@@ -934,6 +934,73 @@ func TestClientBackendDialerInvalidOPAPolicy(t *testing.T) {
 	assert.NotNil(t, err, "should fail with invalid OPA policy path")
 }
 
+func TestGetTLSConfigSourceWorkloadAPI(t *testing.T) {
+	origKeystorePath := *keystorePath
+	origCertPath := *certPath
+	origKeyPath := *keyPath
+	origCaBundlePath := *caBundlePath
+	origUseWorkloadAPI := *useWorkloadAPI
+	origUseWorkloadAPIAddr := *useWorkloadAPIAddr
+	origServerAutoACMEFQDN := *serverAutoACMEFQDN
+	defer func() {
+		*keystorePath = origKeystorePath
+		*certPath = origCertPath
+		*keyPath = origKeyPath
+		*caBundlePath = origCaBundlePath
+		*useWorkloadAPI = origUseWorkloadAPI
+		*useWorkloadAPIAddr = origUseWorkloadAPIAddr
+		*serverAutoACMEFQDN = origServerAutoACMEFQDN
+	}()
+
+	// SPIFFE client creation succeeds even with unreachable address (lazy connect).
+	// This test exercises the SPIFFE branch in getTLSConfigSource (main.go:908-914).
+	*useWorkloadAPI = true
+	*useWorkloadAPIAddr = "tcp://127.0.0.1:1"
+	*serverAutoACMEFQDN = ""
+	*keystorePath = ""
+	*certPath = ""
+	*keyPath = ""
+
+	source, err := getTLSConfigSource(false)
+	assert.Nil(t, err, "SPIFFE source creation should succeed (lazy connection)")
+	assert.NotNil(t, source, "should return a TLS config source from workload API")
+}
+
+func TestGetTLSConfigSourceACMEError(t *testing.T) {
+	origKeystorePath := *keystorePath
+	origCertPath := *certPath
+	origKeyPath := *keyPath
+	origCaBundlePath := *caBundlePath
+	origUseWorkloadAPI := *useWorkloadAPI
+	origServerAutoACMEFQDN := *serverAutoACMEFQDN
+	origServerAutoACMEEmail := *serverAutoACMEEmail
+	origServerAutoACMEAgreedTOS := *serverAutoACMEAgreedTOS
+	origServerAutoACMETestCA := *serverAutoACMETestCA
+	defer func() {
+		*keystorePath = origKeystorePath
+		*certPath = origCertPath
+		*keyPath = origKeyPath
+		*caBundlePath = origCaBundlePath
+		*useWorkloadAPI = origUseWorkloadAPI
+		*serverAutoACMEFQDN = origServerAutoACMEFQDN
+		*serverAutoACMEEmail = origServerAutoACMEEmail
+		*serverAutoACMEAgreedTOS = origServerAutoACMEAgreedTOS
+		*serverAutoACMETestCA = origServerAutoACMETestCA
+	}()
+
+	*useWorkloadAPI = false
+	*serverAutoACMEFQDN = "test.example.com"
+	*serverAutoACMEEmail = "test@example.com"
+	*serverAutoACMEAgreedTOS = true
+	*serverAutoACMETestCA = "https://127.0.0.1:1/directory"
+	*keystorePath = ""
+	*certPath = ""
+	*keyPath = ""
+
+	_, err := getTLSConfigSource(false)
+	assert.NotNil(t, err, "should fail to obtain ACME cert from unreachable CA")
+}
+
 func TestValidateCipherSuitesUnsafe(t *testing.T) {
 	origEnabledCipherSuites := *enabledCipherSuites
 	origAllowUnsafeCipherSuites := *allowUnsafeCipherSuites

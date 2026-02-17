@@ -386,6 +386,106 @@ func TestReload(t *testing.T) {
 	c.Reload()
 }
 
+func TestBuildCertificateHasPKCS11WithKeystorePath(t *testing.T) {
+	// Save and restore global state
+	origPkcs11Module := pkcs11Module
+	origKeychainIdentity := keychainIdentity
+	defer func() {
+		pkcs11Module = origPkcs11Module
+		keychainIdentity = origKeychainIdentity
+	}()
+
+	// Set up PKCS#11 module to a non-existent path
+	nonExistentModule := "/nonexistent/pkcs11-module.so"
+	pkcs11Module = &nonExistentModule
+	keychainIdentity = nil
+
+	logger := log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
+
+	tmpCaBundle, err := os.CreateTemp("", "ghostunnel-test")
+	panicOnError(err)
+	tmpCaBundle.WriteString(testCertificate)
+	tmpCaBundle.Sync()
+	defer os.Remove(tmpCaBundle.Name())
+
+	// Test PKCS#11 branch with keystorePath set (line 60-61)
+	_, err = buildCertificate("keystore.p12", "", "", "", tmpCaBundle.Name(), logger)
+	assert.NotNil(t, err, "should fail with non-existent PKCS11 module via keystorePath")
+}
+
+func TestBuildCertificateHasPKCS11WithCertPath(t *testing.T) {
+	// Save and restore global state
+	origPkcs11Module := pkcs11Module
+	origKeychainIdentity := keychainIdentity
+	defer func() {
+		pkcs11Module = origPkcs11Module
+		keychainIdentity = origKeychainIdentity
+	}()
+
+	// Set up PKCS#11 module to a non-existent path
+	nonExistentModule := "/nonexistent/pkcs11-module.so"
+	pkcs11Module = &nonExistentModule
+	keychainIdentity = nil
+
+	logger := log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
+
+	tmpCaBundle, err := os.CreateTemp("", "ghostunnel-test")
+	panicOnError(err)
+	tmpCaBundle.WriteString(testCertificate)
+	tmpCaBundle.Sync()
+	defer os.Remove(tmpCaBundle.Name())
+
+	tmpCert, err := os.CreateTemp("", "ghostunnel-test")
+	panicOnError(err)
+	tmpCert.WriteString(testKeystoreCertOnly)
+	tmpCert.Sync()
+	defer os.Remove(tmpCert.Name())
+
+	// Test PKCS#11 branch with certPath set (line 63)
+	_, err = buildCertificate("", tmpCert.Name(), "", "", tmpCaBundle.Name(), logger)
+	assert.NotNil(t, err, "should fail with non-existent PKCS11 module via certPath")
+}
+
+func TestBuildCertificateHasKeychainIdentityError(t *testing.T) {
+	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
+		t.Skip("keychain identity only supported on darwin/windows")
+	}
+
+	// Save and restore global state
+	origPkcs11Module := pkcs11Module
+	origKeychainIdentity := keychainIdentity
+	origKeychainIssuer := keychainIssuer
+	origKeychainRequireToken := keychainRequireToken
+	defer func() {
+		pkcs11Module = origPkcs11Module
+		keychainIdentity = origKeychainIdentity
+		keychainIssuer = origKeychainIssuer
+		keychainRequireToken = origKeychainRequireToken
+	}()
+
+	// Ensure PKCS11 is disabled, enable keychain
+	emptyStr := ""
+	pkcs11Module = &emptyStr
+	nonExistentIdentity := "nonexistent-identity-12345"
+	keychainIdentity = &nonExistentIdentity
+	nonExistentIssuer := "nonexistent-issuer-67890"
+	keychainIssuer = &nonExistentIssuer
+	falseVal := false
+	keychainRequireToken = &falseVal
+
+	logger := log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
+
+	tmpCaBundle, err := os.CreateTemp("", "ghostunnel-test")
+	panicOnError(err)
+	tmpCaBundle.WriteString(testCertificate)
+	tmpCaBundle.Sync()
+	defer os.Remove(tmpCaBundle.Name())
+
+	// Test keychain branch (line 66-68)
+	_, err = buildCertificate("", "", "", "", tmpCaBundle.Name(), logger)
+	assert.NotNil(t, err, "should fail with non-existent keychain identity")
+}
+
 func TestBuildConfigSystemRoots(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		// System roots are not supported on Windows

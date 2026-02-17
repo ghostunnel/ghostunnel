@@ -440,6 +440,73 @@ func (Test) Integration(ctx context.Context) error {
 	return nil
 }
 
+// Single runs a single integration test by name.
+// The test name can be specified with or without the "test-" prefix and ".py" suffix.
+// Examples:
+//
+//	mage test:single test-server-listen-port-conflict
+//	mage test:single server-listen-port-conflict
+//	mage test:single test-server-listen-port-conflict.py
+func (Test) Single(ctx context.Context, name string) error {
+	mg.CtxDeps(ctx, Test.build)
+
+	if err := os.MkdirAll("coverage", 0755); err != nil {
+		return fmt.Errorf("failed to create coverage directory: %w", err)
+	}
+
+	if runtime.GOOS == "windows" {
+		fmt.Fprintf(os.Stderr, "Integration tests are not supported on Windows\n")
+		return nil
+	}
+
+	// Normalize the test name
+	name = strings.TrimSuffix(name, ".py")
+	if !strings.HasPrefix(name, "test-") {
+		name = "test-" + name
+	}
+
+	// Check that the test file exists
+	testPath := filepath.Join("tests", name+".py")
+	if _, err := os.Stat(testPath); err != nil {
+		return fmt.Errorf("integration test file not found: %s", testPath)
+	}
+
+	// Run the test
+	printf("=== RUN   %s\n", name)
+	start := time.Now()
+
+	cmd := exec.CommandContext(ctx, "python3", name+".py")
+	cmd.Dir = "tests"
+
+	var stdout, stderr bytes.Buffer
+	if mg.Verbose() {
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	} else {
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+	}
+
+	err := cmd.Run()
+	elapsed := time.Since(start).Seconds()
+
+	if err == nil {
+		printf("=== PASS: %s (%.2fs)\n", name, elapsed)
+		return nil
+	}
+
+	// On failure, show captured output if not already streaming
+	if !mg.Verbose() {
+		os.Stdout.Write(stdout.Bytes())
+		os.Stderr.Write(stderr.Bytes())
+	}
+	fmt.Printf("=== FAIL: %s (%.2fs)\n", name, elapsed)
+	if exitError, ok := err.(*exec.ExitError); ok {
+		return fmt.Errorf("integration test %s failed with exit code %d", name, exitError.ExitCode())
+	}
+	return fmt.Errorf("integration test %s failed: %w", name, err)
+}
+
 // Coverage merges the coverage files into a single file.
 func (Test) Coverage(ctx context.Context) error {
 	mg.CtxDeps(ctx, Test.Unit, Test.Integration)
