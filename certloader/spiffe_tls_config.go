@@ -31,6 +31,7 @@ type spiffeTLSConfigSource struct {
 	logger            *log.Logger
 }
 
+// TLSConfigSourceFromWorkloadAPI creates a TLSConfigSource that uses the SPIFFE Workload API.
 func TLSConfigSourceFromWorkloadAPI(addr string, clientDisableAuth bool, logger *log.Logger) (TLSConfigSource, error) {
 	client, err := spiffeApi.New(
 		context.Background(),
