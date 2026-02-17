@@ -468,8 +468,8 @@ func TestBuildCertificateHasKeychainIdentityError(t *testing.T) {
 	pkcs11Module = &emptyStr
 	nonExistentIdentity := "nonexistent-identity-12345"
 	keychainIdentity = &nonExistentIdentity
-	emptyIssuer := ""
-	keychainIssuer = &emptyIssuer
+	nonExistentIssuer := "nonexistent-issuer-67890"
+	keychainIssuer = &nonExistentIssuer
 	falseVal := false
 	keychainRequireToken = &falseVal
 
