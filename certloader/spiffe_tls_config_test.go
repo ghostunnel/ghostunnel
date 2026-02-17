@@ -127,6 +127,78 @@ func TestWorkloadAPITLSConfigSource(t *testing.T) {
 	require.Equal(t, int32(1), atomic.LoadInt32(&serverVerifyCallCount))
 }
 
+func TestWorkloadAPISourceCreation(t *testing.T) {
+	// SPIFFE client creation succeeds even with unreachable address (lazy connect).
+	// This test exercises the TLSConfigSourceFromWorkloadAPI function to ensure
+	// the source is created with correct settings.
+	source, err := TLSConfigSourceFromWorkloadAPI("tcp://127.0.0.1:1", false, log.Default())
+	require.NoError(t, err, "source creation should succeed (lazy connect)")
+	defer source.(*spiffeTLSConfigSource).Close()
+
+	require.NotNil(t, source, "source should not be nil")
+	require.False(t, source.(*spiffeTLSConfigSource).clientDisableAuth, "clientDisableAuth should be false")
+}
+
+func TestWorkloadAPISourceCreationDisableAuth(t *testing.T) {
+	// Test source creation with clientDisableAuth=true
+	source, err := TLSConfigSourceFromWorkloadAPI("tcp://127.0.0.1:1", true, log.Default())
+	require.NoError(t, err, "source creation should succeed with auth disabled")
+	defer source.(*spiffeTLSConfigSource).Close()
+
+	spiffeSource := source.(*spiffeTLSConfigSource)
+	require.True(t, spiffeSource.clientDisableAuth, "clientDisableAuth should be true")
+}
+
+func TestSpiffeTLSConfigSourceClose(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := spiffetest.NewCA(t, td)
+
+	svid := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/foo"))
+
+	workloadAPI := spiffetest.New(t)
+	workloadAPI.SetX509SVIDResponse(
+		&spiffetest.X509SVIDResponse{
+			Bundle: ca.X509Bundle(),
+			SVIDs:  []*x509svid.SVID{svid},
+		})
+	defer workloadAPI.Stop()
+
+	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), false, log.Default())
+	require.NoError(t, err)
+
+	// Explicitly test Close() method
+	err = source.(*spiffeTLSConfigSource).Close()
+	require.NoError(t, err, "Close should not return an error")
+}
+
+func TestWorkloadAPIServerConfigDisableAuth(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := spiffetest.NewCA(t, td)
+
+	svid := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/foo"))
+
+	workloadAPI := spiffetest.New(t)
+	workloadAPI.SetX509SVIDResponse(
+		&spiffetest.X509SVIDResponse{
+			Bundle: ca.X509Bundle(),
+			SVIDs:  []*x509svid.SVID{svid},
+		})
+	defer workloadAPI.Stop()
+
+	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), true, log.Default())
+	require.NoError(t, err)
+	defer source.(*spiffeTLSConfigSource).Close()
+
+	serverBase := &tls.Config{}
+	serverConfig, err := source.GetServerConfig(serverBase)
+	require.NoError(t, err)
+
+	tlsConfig := serverConfig.GetServerConfig()
+	// When clientDisableAuth=true, ClientAuth should NOT be RequireAnyClientCert
+	require.NotEqual(t, tls.RequireAnyClientCert, tlsConfig.ClientAuth,
+		"ClientAuth should not require client certs when auth is disabled")
+}
+
 func countVerifyPeerCertificate(callCount *int32) func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
 	return func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
 		if len(rawCerts) == 0 {

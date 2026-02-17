@@ -36,6 +36,23 @@ func TestInvalidPKCS11Module(t *testing.T) {
 	assert.NotNil(t, err, "should not load invalid PKCS11 certificate/key")
 }
 
+func TestPKCS11GetTrustStore(t *testing.T) {
+	pool := x509.NewCertPool()
+	pool.AddCert(&x509.Certificate{
+		Subject: pkix.Name{
+			CommonName: "test-ca",
+		},
+	})
+
+	p11cert := &pkcs11Certificate{
+		cachedCertPool: unsafe.Pointer(pool),
+	}
+
+	result := p11cert.GetTrustStore()
+	assert.NotNil(t, result, "GetTrustStore should return the cached cert pool")
+	assert.Equal(t, pool, result, "GetTrustStore should return the same cert pool")
+}
+
 func TestGetCachedCertificatePKCS11(t *testing.T) {
 	tlscert := &tls.Certificate{
 		Leaf: &x509.Certificate{
