@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"log"
+	"time"
 
 	"github.com/caddyserver/certmagic"
 	"github.com/mholt/acmez"
@@ -72,10 +74,37 @@ func TLSConfigSourceFromACME(acme *ACMEConfig) (TLSConfigSource, error) {
 
 	magicConfig := certmagic.NewDefault()
 
-	// Force an initial synchronous load of the certificate on startup. If no certificate
+	// Force an initial synchronous load of the certificate on startup,
+	// but retry with backoff instead of exiting the whole process. If no certificate
 	// yet exists, certmagic will attempt to obtain one from the ACME provider. If a valid
 	// cert has already been obtained, it will be loaded from local cache.
-	err := magicConfig.ManageSync(context.Background(), []string{acme.FQDN})
+	backoff := 5 * time.Second
+	maxBackoff := 2 * time.Minute
+	maxAttempts := 5
+
+	var err error
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		err = magicConfig.ManageSync(context.Background(), []string{acme.FQDN})
+		if err == nil {
+			break
+		}
+
+		if attempt < maxAttempts {
+			log.Printf(
+				"ACME initial certificate load failed (attempt %d/%d): %v; retrying in %s",
+				attempt, maxAttempts, err, backoff,
+			)
+
+			time.Sleep(backoff)
+
+			backoff *= 2
+			if backoff > maxBackoff {
+				backoff = maxBackoff
+			}
+		}
+	}
+
 	if err != nil {
 		return nil, err
 	}
