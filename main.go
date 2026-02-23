@@ -947,11 +947,12 @@ func getTLSConfigSource(disableAuth bool) (certloader.TLSConfigSource, error) {
 	if *serverAutoACMEFQDN != "" {
 		logger.Printf("using ACME server as certificate source")
 		acmeConfig := certloader.ACMEConfig{
-			FQDN:      *serverAutoACMEFQDN,
-			Email:     *serverAutoACMEEmail,
-			TOSAgreed: *serverAutoACMEAgreedTOS,
-			ProdCAURL: *serverAutoACMEProdCA,
-			TestCAURL: *serverAutoACMETestCA,
+			FQDN:         *serverAutoACMEFQDN,
+			Email:        *serverAutoACMEEmail,
+			TOSAgreed:    *serverAutoACMEAgreedTOS,
+			ProdCAURL:    *serverAutoACMEProdCA,
+			TestCAURL:    *serverAutoACMETestCA,
+			CABundlePath: *caBundlePath,
 		}
 		source, err := certloader.TLSConfigSourceFromACME(&acmeConfig)
 		if err != nil {

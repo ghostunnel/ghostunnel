@@ -18,7 +18,11 @@ package certloader
 
 import (
 	"crypto/tls"
+	"crypto/x509"
+	"os"
+	"sync/atomic"
 	"testing"
+	"unsafe"
 
 	"github.com/caddyserver/certmagic"
 	"github.com/mholt/acmez"
@@ -53,14 +57,16 @@ func TestACMETLSConfigSourceCanServe(t *testing.T) {
 }
 
 func TestACMETLSConfigSourceReload(t *testing.T) {
+	// Reload now reloads the trust store from disk. With empty caBundlePath
+	// it loads the system cert pool.
 	source := &acmeTLSConfigSource{
 		magicConfig:  certmagic.NewDefault(),
 		gtACMEConfig: &ACMEConfig{},
 	}
 
-	// Reload should be a no-op (certmagic auto-refreshes)
 	err := source.Reload()
 	assert.NoError(t, err)
+	assert.NotNil(t, source.getTrustStore(), "trust store should be loaded after reload")
 }
 
 func TestACMETLSConfigSourceGetServerConfigNilBase(t *testing.T) {
@@ -192,9 +198,15 @@ func TestACMETLSConfigGetServerConfig(t *testing.T) {
 		MinVersion: tls.VersionTLS12,
 	}
 
+	source := &acmeTLSConfigSource{
+		magicConfig:  magicConfig,
+		gtACMEConfig: &ACMEConfig{},
+	}
+
 	acmeConfig := &acmeTLSConfig{
 		magicConfig: magicConfig,
 		base:        base,
+		source:      source,
 	}
 
 	tlsConfig := acmeConfig.GetServerConfig()
@@ -208,4 +220,130 @@ func TestACMETLSConfigGetServerConfig(t *testing.T) {
 
 	// Verify ACME-TLS protocol is added
 	assert.Contains(t, tlsConfig.NextProtos, acmez.ACMETLS1Protocol)
+}
+
+func TestACMETLSConfigGetServerConfigWithTrustStore(t *testing.T) {
+	// Verify that a custom trust store (from --cacert) is set as ClientCAs
+	// in the TLS config returned by GetServerConfig. This is the fix for
+	// https://github.com/ghostunnel/ghostunnel/issues/647.
+	caFile, err := os.CreateTemp("", "ghostunnel-test-ca")
+	require.NoError(t, err)
+	defer os.Remove(caFile.Name())
+
+	_, err = caFile.Write([]byte(testCertificate))
+	require.NoError(t, err)
+	caFile.Close()
+
+	trustStore, err := LoadTrustStore(caFile.Name())
+	require.NoError(t, err)
+
+	source := &acmeTLSConfigSource{
+		magicConfig:  certmagic.NewDefault(),
+		gtACMEConfig: &ACMEConfig{CABundlePath: caFile.Name()},
+		caBundlePath: caFile.Name(),
+	}
+	atomic.StorePointer(&source.cachedTrustStore, unsafe.Pointer(trustStore))
+
+	serverConfig, err := source.GetServerConfig(&tls.Config{
+		MinVersion: tls.VersionTLS12,
+	})
+	require.NoError(t, err)
+
+	tlsConfig := serverConfig.GetServerConfig()
+	require.NotNil(t, tlsConfig)
+	assert.NotNil(t, tlsConfig.ClientCAs, "ClientCAs should be set from trust store")
+	assert.True(t, tlsConfig.ClientCAs.Equal(trustStore), "ClientCAs should match the loaded trust store")
+}
+
+func TestACMETLSConfigGetServerConfigWithoutTrustStore(t *testing.T) {
+	// When CABundlePath is empty, the system cert pool should be used
+	source := &acmeTLSConfigSource{
+		magicConfig:  certmagic.NewDefault(),
+		gtACMEConfig: &ACMEConfig{},
+	}
+
+	// Load system trust store for comparison
+	systemPool, err := x509.SystemCertPool()
+	require.NoError(t, err)
+
+	atomic.StorePointer(&source.cachedTrustStore, unsafe.Pointer(systemPool))
+
+	serverConfig, err := source.GetServerConfig(nil)
+	require.NoError(t, err)
+
+	tlsConfig := serverConfig.GetServerConfig()
+	require.NotNil(t, tlsConfig)
+	assert.NotNil(t, tlsConfig.ClientCAs, "ClientCAs should be set even with empty CABundlePath")
+}
+
+func TestACMETLSConfigSourceReloadTrustStore(t *testing.T) {
+	// Verify that Reload() re-reads the CA bundle from disk, and that
+	// a previously-obtained TLSServerConfig reflects the updated trust store
+	// dynamically (not a stale snapshot).
+
+	// Start with no custom CA (system pool)
+	source := &acmeTLSConfigSource{
+		magicConfig:  certmagic.NewDefault(),
+		gtACMEConfig: &ACMEConfig{},
+		caBundlePath: "",
+	}
+	err := source.Reload()
+	require.NoError(t, err)
+
+	systemTrustStore := source.getTrustStore()
+	require.NotNil(t, systemTrustStore)
+
+	// Get a server config — this holds a reference to the source
+	serverConfig, err := source.GetServerConfig(nil)
+	require.NoError(t, err)
+
+	// Verify initial state uses system pool
+	tlsConfig := serverConfig.GetServerConfig()
+	require.NotNil(t, tlsConfig.ClientCAs)
+	assert.True(t, tlsConfig.ClientCAs.Equal(systemTrustStore))
+
+	// Now create a CA file with testCertificate and switch to it
+	caFile, err := os.CreateTemp("", "ghostunnel-test-ca-reload")
+	require.NoError(t, err)
+	defer os.Remove(caFile.Name())
+
+	_, err = caFile.Write([]byte(testCertificate))
+	require.NoError(t, err)
+	caFile.Close()
+
+	// Update the source's CA bundle path and reload
+	source.caBundlePath = caFile.Name()
+	err = source.Reload()
+	require.NoError(t, err)
+
+	customTrustStore := source.getTrustStore()
+	require.NotNil(t, customTrustStore)
+
+	// The custom trust store should differ from the system pool
+	assert.False(t, customTrustStore.Equal(systemTrustStore),
+		"custom trust store should differ from system pool")
+
+	// Verify the same server config object now returns the updated trust store
+	tlsConfig2 := serverConfig.GetServerConfig()
+	require.NotNil(t, tlsConfig2.ClientCAs)
+	assert.True(t, tlsConfig2.ClientCAs.Equal(customTrustStore),
+		"server config should dynamically reflect the reloaded trust store")
+	assert.False(t, tlsConfig2.ClientCAs.Equal(systemTrustStore),
+		"server config should no longer return the old system trust store")
+}
+
+func TestACMETLSConfigGetServerConfigNilTrustStore(t *testing.T) {
+	// When trust store is nil, ClientCAs should be nil (no client cert verification)
+	source := &acmeTLSConfigSource{
+		magicConfig:  certmagic.NewDefault(),
+		gtACMEConfig: &ACMEConfig{},
+	}
+	// cachedTrustStore zero-value is nil, so no atomic store needed
+
+	serverConfig, err := source.GetServerConfig(nil)
+	require.NoError(t, err)
+
+	tlsConfig := serverConfig.GetServerConfig()
+	require.NotNil(t, tlsConfig)
+	assert.Nil(t, tlsConfig.ClientCAs, "ClientCAs should be nil when trust store is nil")
 }
