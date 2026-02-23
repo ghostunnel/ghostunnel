@@ -3,13 +3,18 @@ package certloader
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"log"
+	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/caddyserver/certmagic"
 	"github.com/mholt/acmez"
 )
+
+const defaultMaxAttempts = 5
 
 // ACMEConfig stores the properties used for operating as an ACME client
 type ACMEConfig struct {
@@ -36,6 +41,14 @@ type ACMEConfig struct {
 	// If true, use the Test/Staging ACME CA URL. If false, use the
 	// Production ACME CA URL. Defaults to false.
 	UseTestCA bool
+
+	// Path to a CA bundle file for verifying client certificates (mTLS).
+	// If empty, the system certificate pool is used.
+	CABundlePath string
+
+	// Maximum number of attempts to obtain the initial ACME certificate.
+	// Defaults to 5 if zero.
+	MaxAttempts int
 }
 
 func TLSConfigSourceFromACME(acme *ACMEConfig) (TLSConfigSource, error) {
@@ -80,7 +93,10 @@ func TLSConfigSourceFromACME(acme *ACMEConfig) (TLSConfigSource, error) {
 	// cert has already been obtained, it will be loaded from local cache.
 	backoff := 5 * time.Second
 	maxBackoff := 2 * time.Minute
-	maxAttempts := 5
+	maxAttempts := acme.MaxAttempts
+	if maxAttempts == 0 {
+		maxAttempts = defaultMaxAttempts
+	}
 
 	var err error
 
@@ -109,20 +125,47 @@ func TLSConfigSourceFromACME(acme *ACMEConfig) (TLSConfigSource, error) {
 		return nil, err
 	}
 
-	return &acmeTLSConfigSource{
+	return newACMETLSConfigSource(magicConfig, acme)
+}
+
+func newACMETLSConfigSource(magicConfig *certmagic.Config, acme *ACMEConfig) (*acmeTLSConfigSource, error) {
+	trustStore, err := LoadTrustStore(acme.CABundlePath)
+	if err != nil {
+		return nil, err
+	}
+
+	source := &acmeTLSConfigSource{
 		magicConfig:  magicConfig,
 		gtACMEConfig: acme,
-	}, nil
+		caBundlePath: acme.CABundlePath,
+	}
+	atomic.StorePointer(&source.cachedTrustStore, unsafe.Pointer(trustStore))
+
+	return source, nil
 }
 
 type acmeTLSConfigSource struct {
 	magicConfig  *certmagic.Config
 	gtACMEConfig *ACMEConfig
+	caBundlePath string
+	// Cached *x509.CertPool
+	cachedTrustStore unsafe.Pointer
 }
 
 func (a *acmeTLSConfigSource) Reload() error {
-	// certmagic automatically keeps certs updated
+	// certmagic automatically keeps certs updated, but we need to
+	// reload the trust store (CA bundle) from disk.
+	bundle, err := LoadTrustStore(a.caBundlePath)
+	if err != nil {
+		return err
+	}
+
+	atomic.StorePointer(&a.cachedTrustStore, unsafe.Pointer(bundle))
 	return nil
+}
+
+func (a *acmeTLSConfigSource) getTrustStore() *x509.CertPool {
+	return (*x509.CertPool)(atomic.LoadPointer(&a.cachedTrustStore))
 }
 
 func (a *acmeTLSConfigSource) CanServe() bool {
@@ -150,17 +193,20 @@ func (a *acmeTLSConfigSource) GetServerConfig(base *tls.Config) (TLSServerConfig
 	return &acmeTLSConfig{
 		magicConfig: a.magicConfig,
 		base:        base,
+		source:      a,
 	}, nil
 }
 
 type acmeTLSConfig struct {
 	magicConfig *certmagic.Config
 	base        *tls.Config
+	source      *acmeTLSConfigSource
 }
 
 func (a *acmeTLSConfig) GetServerConfig() *tls.Config {
 	config := a.base.Clone()
 	config.GetCertificate = a.magicConfig.GetCertificate
+	config.ClientCAs = a.source.getTrustStore()
 	config.NextProtos = append(config.NextProtos, acmez.ACMETLS1Protocol)
 	return config
 }
