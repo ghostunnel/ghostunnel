@@ -14,6 +14,8 @@ import (
 	"github.com/mholt/acmez"
 )
 
+const defaultMaxAttempts = 5
+
 // ACMEConfig stores the properties used for operating as an ACME client
 type ACMEConfig struct {
 	// Must be explicitly set to true by the user to indicate
@@ -43,6 +45,10 @@ type ACMEConfig struct {
 	// Path to a CA bundle file for verifying client certificates (mTLS).
 	// If empty, the system certificate pool is used.
 	CABundlePath string
+
+	// Maximum number of attempts to obtain the initial ACME certificate.
+	// Defaults to 5 if zero.
+	MaxAttempts int
 }
 
 func TLSConfigSourceFromACME(acme *ACMEConfig) (TLSConfigSource, error) {
@@ -87,7 +93,10 @@ func TLSConfigSourceFromACME(acme *ACMEConfig) (TLSConfigSource, error) {
 	// cert has already been obtained, it will be loaded from local cache.
 	backoff := 5 * time.Second
 	maxBackoff := 2 * time.Minute
-	maxAttempts := 5
+	maxAttempts := acme.MaxAttempts
+	if maxAttempts == 0 {
+		maxAttempts = defaultMaxAttempts
+	}
 
 	var err error
 

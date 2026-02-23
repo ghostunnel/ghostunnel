@@ -130,10 +130,11 @@ func TestACMEConfigTestCAURL(t *testing.T) {
 
 	// When TestCAURL is set, it should be used as both CA and TestCA
 	config := &ACMEConfig{
-		FQDN:      "test.example.com",
-		Email:     "test@example.com",
-		TOSAgreed: true,
-		TestCAURL: "https://127.0.0.1:1/directory",
+		FQDN:        "test.example.com",
+		Email:       "test@example.com",
+		TOSAgreed:   true,
+		TestCAURL:   "https://127.0.0.1:1/directory",
+		MaxAttempts: 1,
 	}
 
 	// This will fail at ManageSync (unreachable CA), but exercises the
@@ -149,10 +150,11 @@ func TestACMEConfigProdCAURL(t *testing.T) {
 
 	// When only ProdCAURL is set (no TestCAURL), it should use ProdCAURL
 	config := &ACMEConfig{
-		FQDN:      "test.example.com",
-		Email:     "test@example.com",
-		TOSAgreed: true,
-		ProdCAURL: "https://127.0.0.1:1/directory",
+		FQDN:        "test.example.com",
+		Email:       "test@example.com",
+		TOSAgreed:   true,
+		ProdCAURL:   "https://127.0.0.1:1/directory",
+		MaxAttempts: 1,
 	}
 
 	// This will fail at ManageSync (unreachable CA), but exercises the

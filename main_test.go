@@ -1031,37 +1031,15 @@ func TestGetTLSConfigSourceWorkloadAPI(t *testing.T) {
 }
 
 func TestGetTLSConfigSourceACMEError(t *testing.T) {
-	origKeystorePath := *keystorePath
-	origCertPath := *certPath
-	origKeyPath := *keyPath
-	origCaBundlePath := *caBundlePath
-	origUseWorkloadAPI := *useWorkloadAPI
-	origServerAutoACMEFQDN := *serverAutoACMEFQDN
-	origServerAutoACMEEmail := *serverAutoACMEEmail
-	origServerAutoACMEAgreedTOS := *serverAutoACMEAgreedTOS
-	origServerAutoACMETestCA := *serverAutoACMETestCA
-	defer func() {
-		*keystorePath = origKeystorePath
-		*certPath = origCertPath
-		*keyPath = origKeyPath
-		*caBundlePath = origCaBundlePath
-		*useWorkloadAPI = origUseWorkloadAPI
-		*serverAutoACMEFQDN = origServerAutoACMEFQDN
-		*serverAutoACMEEmail = origServerAutoACMEEmail
-		*serverAutoACMEAgreedTOS = origServerAutoACMEAgreedTOS
-		*serverAutoACMETestCA = origServerAutoACMETestCA
-	}()
+	acmeConfig := certloader.ACMEConfig{
+		FQDN:        "test.example.com",
+		Email:       "test@example.com",
+		TOSAgreed:   true,
+		TestCAURL:   "https://127.0.0.1:1/directory",
+		MaxAttempts: 1,
+	}
 
-	*useWorkloadAPI = false
-	*serverAutoACMEFQDN = "test.example.com"
-	*serverAutoACMEEmail = "test@example.com"
-	*serverAutoACMEAgreedTOS = true
-	*serverAutoACMETestCA = "https://127.0.0.1:1/directory"
-	*keystorePath = ""
-	*certPath = ""
-	*keyPath = ""
-
-	_, err := getTLSConfigSource(false)
+	_, err := certloader.TLSConfigSourceFromACME(&acmeConfig)
 	assert.NotNil(t, err, "should fail to obtain ACME cert from unreachable CA")
 }
 
