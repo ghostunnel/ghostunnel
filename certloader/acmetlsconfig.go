@@ -3,6 +3,7 @@ package certloader
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"log"
 	"time"
@@ -38,7 +39,7 @@ type ACMEConfig struct {
 	UseTestCA bool
 }
 
-func TLSConfigSourceFromACME(acme *ACMEConfig) (TLSConfigSource, error) {
+func TLSConfigSourceFromACME(acme *ACMEConfig, caBundlePath string) (TLSConfigSource, error) {
 	certmagic.DefaultACME.DisableHTTPChallenge = true
 	certmagic.DefaultACME.Agreed = acme.TOSAgreed
 	certmagic.DefaultACME.Email = acme.Email
@@ -109,15 +110,22 @@ func TLSConfigSourceFromACME(acme *ACMEConfig) (TLSConfigSource, error) {
 		return nil, err
 	}
 
+	trustStore, err := LoadTrustStore(caBundlePath)
+	if err != nil {
+		return nil, err
+	}
+
 	return &acmeTLSConfigSource{
 		magicConfig:  magicConfig,
 		gtACMEConfig: acme,
+		trustStore:   trustStore,
 	}, nil
 }
 
 type acmeTLSConfigSource struct {
 	magicConfig  *certmagic.Config
 	gtACMEConfig *ACMEConfig
+	trustStore   *x509.CertPool
 }
 
 func (a *acmeTLSConfigSource) Reload() error {
@@ -150,17 +158,22 @@ func (a *acmeTLSConfigSource) GetServerConfig(base *tls.Config) (TLSServerConfig
 	return &acmeTLSConfig{
 		magicConfig: a.magicConfig,
 		base:        base,
+		trustStore:  a.trustStore,
 	}, nil
 }
 
 type acmeTLSConfig struct {
 	magicConfig *certmagic.Config
 	base        *tls.Config
+	trustStore  *x509.CertPool
 }
 
 func (a *acmeTLSConfig) GetServerConfig() *tls.Config {
 	config := a.base.Clone()
 	config.GetCertificate = a.magicConfig.GetCertificate
 	config.NextProtos = append(config.NextProtos, acmez.ACMETLS1Protocol)
+	if a.trustStore != nil {
+		config.ClientCAs = a.trustStore
+	}
 	return config
 }

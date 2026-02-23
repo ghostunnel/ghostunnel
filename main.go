@@ -953,7 +953,7 @@ func getTLSConfigSource(disableAuth bool) (certloader.TLSConfigSource, error) {
 			ProdCAURL: *serverAutoACMEProdCA,
 			TestCAURL: *serverAutoACMETestCA,
 		}
-		source, err := certloader.TLSConfigSourceFromACME(&acmeConfig)
+		source, err := certloader.TLSConfigSourceFromACME(&acmeConfig, *caBundlePath)
 		if err != nil {
 			logger.Printf("error: Unable to load or obtain ACME cert: %s\n", err)
 			return nil, err

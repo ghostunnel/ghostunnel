@@ -132,7 +132,7 @@ func TestACMEConfigTestCAURL(t *testing.T) {
 
 	// This will fail at ManageSync (unreachable CA), but exercises the
 	// TestCAURL branch at acmetlsconfig.go:57-60
-	_, err := TLSConfigSourceFromACME(config)
+	_, err := TLSConfigSourceFromACME(config, "")
 	assert.Error(t, err, "should fail with unreachable test CA")
 	assert.True(t, config.UseTestCA, "UseTestCA should be set to true when TestCAURL is provided")
 }
@@ -151,7 +151,7 @@ func TestACMEConfigProdCAURL(t *testing.T) {
 
 	// This will fail at ManageSync (unreachable CA), but exercises the
 	// ProdCAURL branch at acmetlsconfig.go:66-67
-	_, err := TLSConfigSourceFromACME(config)
+	_, err := TLSConfigSourceFromACME(config, "")
 	assert.Error(t, err, "should fail with unreachable prod CA")
 }
 
