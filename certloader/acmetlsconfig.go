@@ -125,6 +125,10 @@ func TLSConfigSourceFromACME(acme *ACMEConfig) (TLSConfigSource, error) {
 		return nil, err
 	}
 
+	return newACMETLSConfigSource(magicConfig, acme)
+}
+
+func newACMETLSConfigSource(magicConfig *certmagic.Config, acme *ACMEConfig) (*acmeTLSConfigSource, error) {
 	trustStore, err := LoadTrustStore(acme.CABundlePath)
 	if err != nil {
 		return nil, err

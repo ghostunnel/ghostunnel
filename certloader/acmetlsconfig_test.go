@@ -349,3 +349,50 @@ func TestACMETLSConfigGetServerConfigNilTrustStore(t *testing.T) {
 	require.NotNil(t, tlsConfig)
 	assert.Nil(t, tlsConfig.ClientCAs, "ClientCAs should be nil when trust store is nil")
 }
+
+func TestNewACMETLSConfigSourceWithCABundle(t *testing.T) {
+	caFile, err := os.CreateTemp("", "ghostunnel-test-ca")
+	require.NoError(t, err)
+	defer os.Remove(caFile.Name())
+
+	_, err = caFile.Write([]byte(testCertificate))
+	require.NoError(t, err)
+	caFile.Close()
+
+	source, err := newACMETLSConfigSource(certmagic.NewDefault(), &ACMEConfig{
+		CABundlePath: caFile.Name(),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, source)
+
+	trustStore := source.getTrustStore()
+	require.NotNil(t, trustStore, "trust store should be loaded from CA bundle")
+
+	// Verify the loaded pool contains the test certificate
+	expected, err := LoadTrustStore(caFile.Name())
+	require.NoError(t, err)
+	assert.True(t, trustStore.Equal(expected), "trust store should match the CA bundle file")
+}
+
+func TestNewACMETLSConfigSourceEmptyCABundle(t *testing.T) {
+	source, err := newACMETLSConfigSource(certmagic.NewDefault(), &ACMEConfig{
+		CABundlePath: "",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, source)
+
+	trustStore := source.getTrustStore()
+	require.NotNil(t, trustStore, "trust store should fall back to system cert pool")
+
+	systemPool, err := x509.SystemCertPool()
+	require.NoError(t, err)
+	assert.True(t, trustStore.Equal(systemPool), "trust store should equal system cert pool")
+}
+
+func TestNewACMETLSConfigSourceInvalidCABundle(t *testing.T) {
+	source, err := newACMETLSConfigSource(certmagic.NewDefault(), &ACMEConfig{
+		CABundlePath: "/nonexistent/path/to/ca-bundle.pem",
+	})
+	assert.Error(t, err)
+	assert.Nil(t, source)
+}
