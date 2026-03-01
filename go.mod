@@ -3,7 +3,7 @@ module github.com/ghostunnel/ghostunnel
 require (
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/alecthomas/kingpin/v2 v2.4.0
-	github.com/caddyserver/certmagic v0.25.1
+	github.com/caddyserver/certmagic v0.25.2
 	github.com/coreos/go-systemd/v22 v22.7.0
 	github.com/cyberdelia/go-metrics-graphite v0.0.0-20161219230853-39f87cc3b432
 	github.com/deathowl/go-metrics-prometheus v0.0.0-20221009205350-f2a1482ba35b
@@ -74,7 +74,7 @@ require (
 	github.com/breml/errchkjson v0.4.1 // indirect
 	github.com/butuzov/ireturn v0.4.0 // indirect
 	github.com/butuzov/mirror v1.3.0 // indirect
-	github.com/caddyserver/zerossl v0.1.4 // indirect
+	github.com/caddyserver/zerossl v0.1.5 // indirect
 	github.com/catenacyber/perfsprint v0.10.1 // indirect
 	github.com/ccojocar/zxcvbn-go v1.0.4 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -180,7 +180,7 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/mgechev/revive v1.13.0 // indirect
-	github.com/mholt/acmez/v3 v3.1.4 // indirect
+	github.com/mholt/acmez/v3 v3.1.6 // indirect
 	github.com/mholt/archiver v3.1.1+incompatible // indirect
 	github.com/miekg/dns v1.1.72 // indirect
 	github.com/miekg/pkcs11 v1.1.1 // indirect
