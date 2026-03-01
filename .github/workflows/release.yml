@@ -39,12 +39,12 @@ jobs:
           CGO_ENABLED=1 GOARCH=arm64 CC=aarch64-linux-gnu-gcc ./mage-bin -v go:build
           mv ghostunnel ghostunnel-linux-arm64
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ghostunnel-linux-amd64
           path: ghostunnel-linux-amd64
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ghostunnel-linux-arm64
           path: ghostunnel-linux-arm64
@@ -94,17 +94,17 @@ jobs:
           ./mage-bin -v apple:notarize ghostunnel-darwin-arm64
           ./mage-bin -v apple:notarize ghostunnel-darwin-universal
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ghostunnel-darwin-amd64
           path: ghostunnel-darwin-amd64
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ghostunnel-darwin-arm64
           path: ghostunnel-darwin-arm64
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ghostunnel-darwin-universal
           path: ghostunnel-darwin-universal
@@ -132,7 +132,7 @@ jobs:
           go tool mage -v go:build
           mv ghostunnel ghostunnel-windows-amd64.exe
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ghostunnel-windows-amd64.exe
           path: ghostunnel-windows-amd64.exe
