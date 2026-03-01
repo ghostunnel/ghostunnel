@@ -159,11 +159,11 @@ github.com/butuzov/ireturn/analyzer/internal/types
 ## explicit; go 1.19
 github.com/butuzov/mirror
 github.com/butuzov/mirror/internal/checker
-# github.com/caddyserver/certmagic v0.25.1
+# github.com/caddyserver/certmagic v0.25.2
 ## explicit; go 1.24.0
 github.com/caddyserver/certmagic
 github.com/caddyserver/certmagic/internal/atomicfile
-# github.com/caddyserver/zerossl v0.1.4
+# github.com/caddyserver/zerossl v0.1.5
 ## explicit; go 1.21.0
 github.com/caddyserver/zerossl
 # github.com/catenacyber/perfsprint v0.10.1
@@ -828,8 +828,8 @@ github.com/mgechev/revive/rule
 ## explicit; go 1.20
 github.com/mholt/acmez
 github.com/mholt/acmez/acme
-# github.com/mholt/acmez/v3 v3.1.4
-## explicit; go 1.21.0
+# github.com/mholt/acmez/v3 v3.1.6
+## explicit; go 1.24.0
 github.com/mholt/acmez/v3
 github.com/mholt/acmez/v3/acme
 # github.com/mholt/archiver v3.1.1+incompatible
