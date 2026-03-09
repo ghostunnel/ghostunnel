@@ -33,6 +33,7 @@ import (
 
 func launchdSocket(address string) (net.Listener, error) {
 	c_name := C.CString(address)
+	defer C.free(unsafe.Pointer(c_name))
 	var c_fds *C.int
 	c_cnt := C.size_t(0)
 

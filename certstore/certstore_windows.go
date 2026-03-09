@@ -614,18 +614,21 @@ func (wpk *winPrivateKey) Delete() error {
 		if param, err = wpk.getProviderParam(C.PP_CONTAINER); err != nil {
 			return errors.Wrap(err, "failed to get PP_CONTAINER")
 		} else {
+			defer C.free(param)
 			containerName = C.LPCTSTR(param)
 		}
 
 		if param, err = wpk.getProviderParam(C.PP_NAME); err != nil {
 			return errors.Wrap(err, "failed to get PP_NAME")
 		} else {
+			defer C.free(param)
 			providerName = C.LPCTSTR(param)
 		}
 
 		if param, err = wpk.getProviderParam(C.PP_PROVTYPE); err != nil {
 			return errors.Wrap(err, "failed to get PP_PROVTYPE")
 		} else {
+			defer C.free(param)
 			providerType = (*C.DWORD)(param)
 		}
 
@@ -654,7 +657,6 @@ func (wpk *winPrivateKey) getProviderParam(param C.DWORD) (unsafe.Pointer, error
 		return nil, lastError("failed to get provider parameter")
 	}
 
-	// TODO leaking memory here
 	return C.CBytes(data), nil
 }
 
