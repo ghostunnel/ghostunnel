@@ -70,7 +70,7 @@ var (
 
 // Main flags (always supported)
 var (
-	app = kingpin.New("ghostunnel", "A simple SSL/TLS proxy with mutual authentication for securing non-TLS services.")
+	app = kingpin.New("ghostunnel", "A simple TLS proxy with mutual authentication for securing non-TLS services.")
 
 	// Server flags
 	serverCommand             = app.Command("server", "Server mode (TLS listener -> plain TCP/UNIX target).")
@@ -108,7 +108,7 @@ var (
 	clientAllowedIPs     = clientCommand.Flag("verify-ip", "").Hidden().PlaceHolder("SAN").IPList()
 	clientAllowedURIs    = clientCommand.Flag("verify-uri", "Allow servers with given URI subject alternative name (can be repeated).").PlaceHolder("URI").Strings()
 	clientAllowPolicy    = clientCommand.Flag("verify-policy", "Allow passing the location of an OPA bundle.").PlaceHolder("BUNDLE").String()
-	clientAllowQuery     = clientCommand.Flag("verify-query", "Allow defining a query to validate against the client certificate and the Rego policy.").PlaceHolder("QUERY").String()
+	clientAllowQuery     = clientCommand.Flag("verify-query", "Rego query to evaluate against the server certificate and the policy.").PlaceHolder("QUERY").String()
 	clientDisableAuth    = clientCommand.Flag("disable-authentication", "Disable client authentication, no certificate will be provided to the server.").Default("false").Bool()
 
 	// TLS options

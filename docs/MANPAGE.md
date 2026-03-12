@@ -18,10 +18,6 @@ can be a TCP domain/port or a UNIX domain socket. Ghostunnel in client
 mode accepts (insecure) connections through a TCP or UNIX domain socket
 and proxies them to a TLS-secured service.
 
-For a more in-depth explanation, please see the README.md file (and docs
-folder) that shipped with Ghostunnel or view the latest docs on
-github.com/ghostunnel/ghostunnel.
-
 # CERTIFICATES & PRIVATE KEYS
 
 Ghostunnel supports multiple methods for loading certificates and
@@ -370,8 +366,30 @@ name (can be repeated).
 
 **\--verify-policy=BUNDLE** Allow passing the location of an OPA bundle.
 
-**\--verify-query=QUERY** Allow defining a query to validate against the
-client certificate and the Rego policy.
+**\--verify-query=QUERY** Rego query to evaluate against the server
+certificate and the policy.
 
 **\--disable-authentication** Disable client authentication, no
 certificate will be provided to the server.
+
+# SIGNALS
+
+**SIGHUP**, **SIGUSR1** — Reload certificates, CA bundle, and OPA
+policies from disk. New connections will use the reloaded configuration.
+Existing connections are not affected. These signals are not available on
+Windows; use **\--timed-reload** instead.
+
+**SIGTERM**, **SIGINT** — Initiate graceful shutdown. The listener is
+closed immediately, then Ghostunnel waits up to **\--shutdown-timeout**
+(default: 5m) for in-flight connections to drain before forcing exit.
+
+# EXIT STATUS
+
+**0** — Clean shutdown (all connections drained before timeout).
+
+**1** — Error during startup, or graceful shutdown timed out before all
+connections could drain.
+
+# SEE ALSO
+
+Project documentation: https://github.com/ghostunnel/ghostunnel
