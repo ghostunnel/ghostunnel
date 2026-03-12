@@ -115,8 +115,6 @@ with `spiffe://ghostunnel/server1` or `spiffe://ghostunnel/server2` URI SANs (as
 well as other values). See documentation for the [wildcard][wildcard] package
 for more information.
 
-[wildcard]: https://godoc.org/github.com/ghostunnel/ghostunnel/wildcard
-
 * `--verify-policy` and `--verify-query`
 
 Verify that a Rego policy evaluates to `true` with the given query.
@@ -128,14 +126,10 @@ Disable client authentication, no certificate will be provided to the server.
 This is useful if you just want to use Ghostunnel to wrap a connection in TLS
 but the backend doesn't require mutual authentication.
 
-[tls]: https://golang.org/pkg/crypto/tls
-[wildcard]: https://godoc.org/github.com/ghostunnel/ghostunnel/wildcard
+[tls]: https://pkg.go.dev/crypto/tls
+[wildcard]: https://pkg.go.dev/github.com/ghostunnel/ghostunnel/wildcard
 
 ### Open Policy Agent
-
-<span style="color:red">Note: This feature is considered experimental and is
-subject to future breaking changes. Please report bugs if you find them!</span>
-
 
 Ghostunnel has support for Open Policy Agent (OPA), both in server and client
 mode. The policy bundle must be present on disk for Ghostunnel to use it and the

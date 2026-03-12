@@ -50,8 +50,8 @@ trusted by your system (c.f. [golang/go#20939][pprof-bug]). For more
 information on profiling via pprof, see the [`runtime/pprof`][pprof] and
 [`net/http/pprof`][http-pprof] docs.
 
-[pprof]: https://golang.org/pkg/runtime/pprof
-[http-pprof]: https://golang.org/pkg/net/http/pprof
+[pprof]: https://pkg.go.dev/runtime/pprof
+[http-pprof]: https://pkg.go.dev/net/http/pprof
 [pprof-bug]: https://github.com/golang/go/issues/20939
 
 ### Exposing status port with HTTP instead of HTTPS

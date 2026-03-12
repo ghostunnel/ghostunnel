@@ -22,7 +22,7 @@ mage test:all
 # Run only unit tests
 mage test:unit
 
-# Run only integration tests (requires Python 3.5+)
+# Run only integration tests (requires Python 3)
 mage test:integration
 
 # Run tests in Docker (includes PKCS#11 tests with SoftHSM)
@@ -57,7 +57,7 @@ cd tests && python3 test-name.py
 ### Linting
 
 ```bash
-golangci-lint run
+mage go:lint
 ```
 
 The project uses golangci-lint with configuration in `.golangci.yml`. Standard linters are enabled with exclusions for common error handling patterns.

@@ -8,7 +8,7 @@ ghostunnel
 
 # DESCRIPTION
 
-A simple SSL/TLS proxy with mutual authentication for securing non-TLS
+A simple TLS proxy with mutual authentication for securing non-TLS
 services.
 
 Ghostunnel supports two modes, client mode and server mode. Ghostunnel

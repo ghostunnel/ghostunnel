@@ -47,7 +47,7 @@ $ ghostunnel server \
     --allow-uri spiffe://domain.test/frontend
 ```
 
-As a client, 
+As a client:
 
 ```
 $ ghostunnel client \
