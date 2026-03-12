@@ -90,7 +90,7 @@ type spiffeTLSConfig struct {
 
 func (c *spiffeTLSConfig) GetClientConfig() *tls.Config {
 	config := c.base.Clone()
-	// Go TLS stack will do hostname validation with is not a part of SPIFFE
+	// Go TLS stack will do hostname validation which is not a part of SPIFFE
 	// authentication. Unfortunately there is no way to just skip hostname
 	// validation without having to turn off all verification. This is still
 	// safe since Go will still invoke the VerifyPeerCertificate callback,
@@ -117,7 +117,7 @@ func (c *spiffeTLSConfig) GetServerConfig() *tls.Config {
 		config.ClientAuth = tls.RequireAnyClientCert
 	}
 
-	// Go TLS stack will do hostname validation with is not a part of SPIFFE
+	// Go TLS stack will do hostname validation which is not a part of SPIFFE
 	// authentication. Unfortunately there is no way to just skip hostname
 	// validation without having to turn off all verification. This is still
 	// safe since Go will still invoke the VerifyPeerCertificate callback,

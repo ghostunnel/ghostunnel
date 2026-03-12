@@ -34,7 +34,7 @@ import (
 // ACL represents an access control list for mutually-authenticated TLS connections.
 // These options are disjunctive, if at least one attribute matches access will be granted.
 type ACL struct {
-	// AllowAll will allow all authenticated pricipals. If this option is set,
+	// AllowAll will allow all authenticated principals. If this option is set,
 	// all other options are ignored as all principals with valid certificates
 	// will be allowed no matter the subject.
 	AllowAll bool
@@ -104,7 +104,7 @@ func (a ACL) VerifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*
 		return nil
 	}
 
-	// Check IP SANs against --allow-dns-san flag(s).
+	// Check IP SANs against --allow-ip-san flag(s).
 	if intersectsIP(a.AllowedIPs, cert.IPAddresses) {
 		return nil
 	}
@@ -166,7 +166,7 @@ func (a ACL) VerifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*
 		return nil
 	}
 
-	// Check IP SANs against --verify-dns-san flag(s).
+	// Check IP SANs against --verify-ip-san flag(s).
 	if intersectsIP(a.AllowedIPs, cert.IPAddresses) {
 		return nil
 	}

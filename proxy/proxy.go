@@ -64,7 +64,7 @@ type DialFunc func(context.Context) (net.Conn, error)
 // Proxy will take incoming connections from a listener and forward them to
 // a backend through the given dialer.
 type Proxy struct {
-	// Listener to accept connetions on.
+	// Listener to accept connections on.
 	Listener net.Listener
 	// ConnectTimeout, CloseTimeout limit time to execute connects/close connections.
 	ConnectTimeout, CloseTimeout time.Duration

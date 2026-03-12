@@ -24,13 +24,13 @@ type wrappedPolicy struct {
 	wrapped *rego.PreparedEvalQuery
 }
 
-// WrapForTest creates a policy from a pepared query, useful for testing.
+// WrapForTest creates a policy from a prepared query, useful for testing.
 // Do not use this in code -- the policy will not be able to reload.
 func WrapForTest(query *rego.PreparedEvalQuery) Policy {
 	return &wrappedPolicy{query}
 }
 
-// Reload transparently reloads the certificate.
+// Reload transparently reloads the policy.
 func (w *wrappedPolicy) Reload() error {
 	return nil
 }

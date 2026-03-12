@@ -43,7 +43,7 @@ type statusHandler struct {
 	mu *sync.Mutex
 	// Backend dialer and HTTP client to check if target is up and running
 	// - dialer is used for raw TCP status checks
-	// - client is used for HTTP status checks if a targetAdress is supplied
+	// - client is used for HTTP status checks if a statusTargetAddress is supplied
 	dial                proxy.DialFunc
 	client              *http.Client
 	command             string

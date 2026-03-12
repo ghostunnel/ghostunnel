@@ -198,7 +198,7 @@ allow if {
 	not uri.User
 	not uri.Opaque
 	not uri.RawQuery
-	not uri.Fragement
+	not uri.Fragment
 	not uri.RawFragment
 
 	# Match host/path against the pattern
