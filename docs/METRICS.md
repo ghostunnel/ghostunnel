@@ -54,6 +54,56 @@ information on profiling via pprof, see the [`runtime/pprof`][pprof] and
 [http-pprof]: https://pkg.go.dev/net/http/pprof
 [pprof-bug]: https://github.com/golang/go/issues/20939
 
+### Shutdown endpoint
+
+If `--enable-shutdown` is set, a `/_shutdown` endpoint is available on the
+status port. Sending an HTTP POST request to this endpoint will trigger a
+graceful shutdown of the Ghostunnel process. Any other HTTP method returns 405
+Method Not Allowed.
+
+### Backend healthchecks
+
+The `/_status` endpoint includes a backend healthcheck. By default, Ghostunnel
+performs a TCP connection check against the `--target` address. You can override
+this with `--target-status=URL` to perform an HTTP GET against the given URL
+instead. Ghostunnel expects an HTTP 200 response.
+
+The `/_status` JSON response includes:
+
+* `backend_ok` — boolean indicating if the backend check passed
+* `backend_status` — string of `ok` or `critical`
+* `backend_error` — string of error message if the check failed
+
+If the backend check fails, the `/_status` endpoint returns HTTP 503.
+
+### Metric names
+
+Ghostunnel exports the following metrics. All names are prefixed with the value
+of `--metrics-prefix` (default: `ghostunnel`), e.g. `ghostunnel.conn.open`.
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `conn.open` | Counter | Currently open connections |
+| `conn.timeout` | Counter | Connections that timed out during data transfer |
+| `accept.total` | Counter | Total connection attempts accepted |
+| `accept.success` | Counter | Connections successfully established |
+| `accept.error` | Counter | Failed connection attempts |
+| `accept.timeout` | Counter | TLS handshake timeouts |
+| `conn.handshake` | Timer | TLS handshake duration |
+| `conn.lifetime` | Timer | Total connection lifetime |
+
+### Metrics export
+
+Metrics are always available via the status port endpoints (`/_metrics/json`,
+`/_metrics/prometheus`). Additionally, metrics can be pushed to external systems:
+
+* `--metrics-graphite=ADDR` — push to a Graphite instance via raw TCP
+* `--metrics-url=URL` — push via HTTP POST (JSON format) at the interval set by
+  `--metrics-interval` (default: 30s)
+
+The `--metrics-prefix` flag controls the prefix prepended to all metric names in
+all export formats (default: `ghostunnel`).
+
 ### Exposing status port with HTTP instead of HTTPS
 
 By default, Ghostunnel uses HTTPS for the status port. But you can force it to use HTTP by explicitly prefixing the status address with "http://".

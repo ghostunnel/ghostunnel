@@ -111,3 +111,6 @@ WantedBy=default.target
 Note that the `FileDescriptorName` in `ghostunnel.socket` matches the name passed to
 `--listen`. If multiple sockets are needed, e.g. for a status port, the name can be
 used to distinguish the listening and status sockets.
+
+Ghostunnel also supports systemd notify and watchdog functionality. See
+[WATCHDOG](WATCHDOG.md) for details on configuring `Type=notify-reload` services.
