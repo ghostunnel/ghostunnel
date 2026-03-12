@@ -96,8 +96,7 @@ to get more verbose output.
 ### Develop
 
 Ghostunnel has an extensive suite of integration tests. Our integration test
-suite requires Python 3 and [Go modules][gomod] for managing vendored
-dependencies.
+suite requires Python 3.
 
 To run tests:
 
@@ -112,8 +111,6 @@ To run tests:
     go tool cover -html coverage/all.profile
 
 For more information on how to contribute, please see the [CONTRIBUTING](CONTRIBUTING.md) file.
-
-[gomod]: https://github.com/golang/go/wiki/Modules
 
 Usage
 =====
