@@ -46,7 +46,7 @@ How to use profiling endpoints, if `--enable-pprof` is set:
 Note that `go tool pprof` does not support setting CA certificates at the
 moment, hence the use of the `https+insecure` scheme in the last example. You
 can use the standard `https` scheme if your ghostunnel is using a certificate
-trusted by your system (c.f. [golang/go#20939][pprof-bug]). For more
+trusted by your system (see [golang/go#20939][pprof-bug]). For more
 information on profiling via pprof, see the [`runtime/pprof`][pprof] and
 [`net/http/pprof`][http-pprof] docs.
 
@@ -78,12 +78,11 @@ If the backend check fails, the `/_status` endpoint returns HTTP 503.
 
 ### Metric names
 
-Ghostunnel exports the following metrics. All names are prefixed with the value
-of `--metrics-prefix` (default: `ghostunnel`), e.g. `ghostunnel.conn.open`.
+Ghostunnel exports the following base metrics:
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `conn.open` | Counter | Currently open connections |
+| `conn.open` | Gauge | Number of currently open connections |
 | `conn.timeout` | Counter | Connections that timed out during data transfer |
 | `accept.total` | Counter | Total connection attempts accepted |
 | `accept.success` | Counter | Connections successfully established |
@@ -92,21 +91,69 @@ of `--metrics-prefix` (default: `ghostunnel`), e.g. `ghostunnel.conn.open`.
 | `conn.handshake` | Timer | TLS handshake duration |
 | `conn.lifetime` | Timer | Total connection lifetime |
 
+The `--metrics-prefix` flag (default: `ghostunnel`) is prepended to all metric
+names. How the prefix and metric names are formatted depends on the output
+format (see below).
+
+### JSON format (`/_metrics/json`)
+
+JSON output uses dot-separated names. Counters and gauges are emitted as a
+single value. Timers are expanded into count, min/max/mean, and percentile
+sub-metrics:
+
+| JSON metric name | Description |
+|------------------|-------------|
+| `ghostunnel.conn.open` | Counter value |
+| `ghostunnel.conn.handshake.count` | Number of observations |
+| `ghostunnel.conn.handshake.min` | Minimum value |
+| `ghostunnel.conn.handshake.max` | Maximum value |
+| `ghostunnel.conn.handshake.mean` | Mean value |
+| `ghostunnel.conn.handshake.50-percentile` | 50th percentile (median) |
+| `ghostunnel.conn.handshake.75-percentile` | 75th percentile |
+| `ghostunnel.conn.handshake.95-percentile` | 95th percentile |
+| `ghostunnel.conn.handshake.99-percentile` | 99th percentile |
+
+Each metric is returned as a JSON object with `timestamp`, `metric`, `value`,
+and `hostname` fields.
+
+### Prometheus format (`/_metrics/prometheus`)
+
+Prometheus output replaces dots, dashes, and other special characters with
+underscores to comply with Prometheus naming conventions. All metrics are
+exposed as Prometheus gauges. Timers additionally include rate gauges,
+statistical gauges, and a summary histogram:
+
+| Prometheus metric name | Description |
+|------------------------|-------------|
+| `ghostunnel_conn_open` | Current open connections |
+| `ghostunnel_conn_handshake_count` | Number of observations |
+| `ghostunnel_conn_handshake_sum` | Sum of observed values |
+| `ghostunnel_conn_handshake_min` | Minimum value |
+| `ghostunnel_conn_handshake_max` | Maximum value |
+| `ghostunnel_conn_handshake_mean` | Mean value |
+| `ghostunnel_conn_handshake_std_dev` | Standard deviation |
+| `ghostunnel_conn_handshake_variance` | Variance |
+| `ghostunnel_conn_handshake_rate1` | 1-minute rate |
+| `ghostunnel_conn_handshake_rate5` | 5-minute rate |
+| `ghostunnel_conn_handshake_rate15` | 15-minute rate |
+| `ghostunnel_conn_handshake_rate_mean` | Mean rate |
+| `ghostunnel_conn_handshake_timer_bucket{le="..."}` | Histogram buckets (0.50, 0.95, 0.99, 0.999) |
+| `ghostunnel_conn_handshake_timer_count` | Histogram observation count |
+
 ### Metrics export
 
 Metrics are always available via the status port endpoints (`/_metrics/json`,
 `/_metrics/prometheus`). Additionally, metrics can be pushed to external systems:
 
 * `--metrics-graphite=ADDR` — push to a Graphite instance via raw TCP
+  (dot-separated names, same as JSON format)
 * `--metrics-url=URL` — push via HTTP POST (JSON format) at the interval set by
   `--metrics-interval` (default: 30s)
 
-The `--metrics-prefix` flag controls the prefix prepended to all metric names in
-all export formats (default: `ghostunnel`).
-
 ### Exposing status port with HTTP instead of HTTPS
 
-By default, Ghostunnel uses HTTPS for the status port. But you can force it to use HTTP by explicitly prefixing the status address with "http://".
+By default, Ghostunnel uses HTTPS for the status port. You can force it to use
+HTTP by prefixing the status address with "http://".
 
 For example:
 
