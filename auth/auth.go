@@ -99,17 +99,17 @@ func (a ACL) VerifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*
 		return nil
 	}
 
-	// Check DNS SANs against --allow-dns-san flag(s).
+	// Check DNS SANs against --allow-dns flag(s).
 	if intersects(a.AllowedDNSs, cert.DNSNames) {
 		return nil
 	}
 
-	// Check IP SANs against --allow-ip-san flag(s).
+	// Check IP SANs against --allow-ip flag(s).
 	if intersectsIP(a.AllowedIPs, cert.IPAddresses) {
 		return nil
 	}
 
-	// Check URI SANs against --allow-uri-san flag(s).
+	// Check URI SANs against --allow-uri flag(s).
 	if intersectsURI(a.AllowedURIs, cert.URIs) {
 		return nil
 	}
@@ -161,17 +161,17 @@ func (a ACL) VerifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*
 		return nil
 	}
 
-	// Check DNS SANs against --verify-dns-san flag(s).
+	// Check DNS SANs against --verify-dns flag(s).
 	if intersects(a.AllowedDNSs, cert.DNSNames) {
 		return nil
 	}
 
-	// Check IP SANs against --verify-ip-san flag(s).
+	// Check IP SANs against --verify-ip flag(s).
 	if intersectsIP(a.AllowedIPs, cert.IPAddresses) {
 		return nil
 	}
 
-	// Check URI SANs against --verify-uri-san flag(s).
+	// Check URI SANs against --verify-uri flag(s).
 	if intersectsURI(a.AllowedURIs, cert.URIs) {
 		return nil
 	}
