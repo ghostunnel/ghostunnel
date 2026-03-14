@@ -24,7 +24,7 @@ import (
 )
 
 // ParseAddress parses a string representing a TCP address or UNIX socket
-// for our backend target. The input can be or the form "HOST:PORT" for
+// for our backend target. The input can be of the form "HOST:PORT" for
 // a TCP socket, "unix:PATH" for a UNIX socket, and "systemd:NAME" or
 // "launchd:NAME" for a socket provided by launchd/systemd for socket
 // activation.
@@ -89,7 +89,7 @@ func ParseHTTPAddress(input string) (https bool, address string) {
 // will be set to unlink on close automatically.
 //
 // For 'launchd' sockets, the address must be the name of the socket
-// from the plist file. Only one socket maybe configured in the
+// from the plist file. Only one socket may be configured in the
 // plist for that name, multiple sockets per name (e.g. separate
 // IPv4/IPv4 sockets) are not supported.
 //

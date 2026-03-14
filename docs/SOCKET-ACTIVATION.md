@@ -102,7 +102,7 @@ Requires=ghostunnel.socket
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/ghostunnel server --listen=systemd:ghostunnel --target=localhost:8080 --keystore=/etc/ghostunnel/server-keystore.p12 --cacert /etc/ghostunnel/cacert.pem --allow-cn client
+ExecStart=/usr/bin/ghostunnel server --listen=systemd:ghostunnel --target=localhost:8080 --keystore=/etc/ghostunnel/server-keystore.p12 --cacert=/etc/ghostunnel/cacert.pem --allow-cn=client
 
 [Install]
 WantedBy=default.target
@@ -111,3 +111,6 @@ WantedBy=default.target
 Note that the `FileDescriptorName` in `ghostunnel.socket` matches the name passed to
 `--listen`. If multiple sockets are needed, e.g. for a status port, the name can be
 used to distinguish the listening and status sockets.
+
+Ghostunnel also supports systemd notify and watchdog functionality. See
+[WATCHDOG](WATCHDOG.md) for details on configuring `Type=notify-reload` services.

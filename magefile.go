@@ -92,9 +92,10 @@ func (Go) Man(ctx context.Context) error {
 		return fmt.Errorf("failed to write ghostunnel.man: %w", err)
 	}
 
-	// Generate docs/MANPAGE.md from the man page using pandoc
-	if err := sh.Run("pandoc", "-f", "man", "-t", "markdown", "ghostunnel.man", "-o", "docs/MANPAGE.md"); err != nil {
-		return fmt.Errorf("failed to generate docs/MANPAGE.md: %w", err)
+	// Generate docs/MANPAGE-<os>.md from the man page using pandoc
+	manpageMD := fmt.Sprintf("docs/MANPAGE-%s.md", runtime.GOOS)
+	if err := sh.Run("pandoc", "-f", "man", "-t", "gfm", "ghostunnel.man", "-o", manpageMD); err != nil {
+		return fmt.Errorf("failed to generate %s: %w", manpageMD, err)
 	}
 
 	return nil

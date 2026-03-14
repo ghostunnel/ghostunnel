@@ -46,7 +46,7 @@ func (d *mtlsDialer) DialContext(ctx context.Context, network, address string) (
 }
 
 // Internal copy of tls.DialWithDialer, adapted so it can work with proxy dialers.
-// See https://golang.org/pkg/crypto/tls/#DialWithDialer for original implementation.
+// See https://pkg.go.dev/crypto/tls#DialWithDialer for original implementation.
 func dialWithDialer(dialer netproxy.ContextDialer, ctx context.Context, timeout time.Duration, network, addr string, config *tls.Config) (*tls.Conn, error) {
 	var cancel context.CancelFunc
 	ctx, cancel = context.WithTimeout(ctx, timeout)

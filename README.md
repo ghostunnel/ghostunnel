@@ -96,8 +96,7 @@ to get more verbose output.
 ### Develop
 
 Ghostunnel has an extensive suite of integration tests. Our integration test
-suite requires Python 3.5 (or later) and [gocovmerge][gcvm] to run. We use [Go
-modules][gomod] for managing vendored dependencies.
+suite requires Python 3.
 
 To run tests:
 
@@ -113,24 +112,16 @@ To run tests:
 
 For more information on how to contribute, please see the [CONTRIBUTING](CONTRIBUTING.md) file.
 
-[gcvm]: https://github.com/wadey/gocovmerge
-[gomod]: https://github.com/golang/go/wiki/Modules
-
 Usage
 =====
 
 To see available commands and flags, run `ghostunnel --help`. You can get more
 information about a command by adding `--help` to the command, like `ghostunnel
-server --help` or `ghostunnel client --help`. There's also a [MANPAGE](docs/MANPAGE.md).
+server --help` or `ghostunnel client --help`. There's also a [man page](docs/).
 
 By default, ghostunnel runs in the foreground and logs to stdout. You can set
 `--syslog` to log to syslog instead of stdout. If you want to run ghostunnel
 in the background, we recommend using a service manager.
-
-[runit]: http://smarden.org/runit
-[systemd]: https://www.freedesktop.org/wiki/Software/systemd
-[daemonize]: http://software.clapper.org/daemonize
-[dumb-init]: https://github.com/Yelp/dumb-init
 
 ### Certificates
 
@@ -394,4 +385,4 @@ flag. On Ghostunnel v1.9.x and later, Landlock can be disabled using
 will limit its access to files and sockets based on the flags passed at
 startup. Note that Landlock does not work with PKCS#11 modules and is disabled
 if PKCS#11 is used (as PKCS#11 modules are opaque to us we can't craft workable
-    Landlock rules for them).
+Landlock rules for them).

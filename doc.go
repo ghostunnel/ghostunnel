@@ -1,4 +1,4 @@
-// Command ghostunnel implements a simple SSL/TLS proxy with mutual
+// Command ghostunnel implements a simple TLS proxy with mutual
 // authentication for securing non-TLS services. Ghostunnel in server mode
 // runs in front of a backend server and accepts TLS-secured connections, which
 // are then proxied to the (insecure) backend. A backend can be a TCP
@@ -56,10 +56,6 @@ connections, which are then proxied to the (insecure) backend. A backend can be
 a TCP domain/port or a UNIX domain socket. Ghostunnel in client mode accepts
 (insecure) connections through a TCP or UNIX domain socket and proxies them to
 a TLS-secured service.
-
-For a more in-depth explanation, please see the README.md file (and docs
-folder) that shipped with Ghostunnel or view the latest docs on
-github.com/ghostunnel/ghostunnel.
 .SH "CERTIFICATES & PRIVATE KEYS"
 Ghostunnel supports multiple methods for loading certificates and private keys.
 
@@ -228,6 +224,30 @@ connect. The same OR logic applies to client mode verification flags
 .SH "COMMANDS"
 {{template "FormatCommands" .App}}\
 {{end}}\
+
+.SH "SIGNALS"
+.TP
+\fBSIGHUP\fR, \fBSIGUSR1\fR
+Reload certificates, CA bundle, and OPA policies from disk. New connections
+will use the reloaded configuration. Existing connections are not affected.
+These signals are not available on Windows; use \fB--timed-reload\fR instead.
+.TP
+\fBSIGTERM\fR, \fBSIGINT\fR
+Initiate graceful shutdown. The listener is closed immediately, then
+Ghostunnel waits up to \fB--shutdown-timeout\fR (default: 5m) for in-flight
+connections to drain before forcing exit.
+
+.SH "EXIT STATUS"
+.TP
+\fB0\fR
+Clean shutdown (all connections drained before timeout).
+.TP
+\fB1\fR
+Error during startup, or graceful shutdown timed out before all connections
+could drain.
+
+.SH "SEE ALSO"
+Project documentation: \fIhttps://github.com/ghostunnel/ghostunnel\fR
 `
 
 func generateManPage(c *kingpin.ParseContext) error {

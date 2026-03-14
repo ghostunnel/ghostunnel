@@ -27,7 +27,7 @@ type ACMEConfig struct {
 
 	// The email address to be associated with the ACME account used
 	// to obtain a certificate from the ACME CA. This email address
-	// may receive certificate lifecycle notificates from the ACME CA.
+	// may receive certificate lifecycle notifications from the ACME CA.
 	Email string
 
 	// The URL for the Production ACME CA to use. Defaults to the

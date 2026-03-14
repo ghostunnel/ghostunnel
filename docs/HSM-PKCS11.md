@@ -5,8 +5,7 @@ Ghostunnel has support for loading private keys from PKCS#11 modules, which
 should work with any hardware security module that exposes a PKCS#11 interface.
 An easy way to test the PKCS#11 interface for development purposes is with
 [SoftHSM][softhsm]. Note that CGO is required in order for PKCS#11 support to
-work (see [CROSS-COMPILE](CROSS-COMPILE.md) for instructions to
-cross-compile with CGO enabled).
+work.
 
 [softhsm]: https://github.com/opendnssec/SoftHSMv2
 
@@ -25,11 +24,11 @@ To import the server test key into SoftHSM, for example:
         --so-pin 1234 \
         --pin 1234
 
-To launch ghostunnel with the SoftHSM-backed PKCS11 key (on macOS):
+To launch ghostunnel with the SoftHSM-backed PKCS11 key:
 
     ghostunnel server \
         --cert test-keys/server-cert.pem \
-        --pkcs11-module /usr/local/Cellar/softhsm/2.4.0/lib/softhsm/libsofthsm2.so \
+        --pkcs11-module /path/to/libsofthsm2.so \
         --pkcs11-token-label ghostunnel-server \
         --pkcs11-pin 1234 \
         --listen localhost:8443 \
