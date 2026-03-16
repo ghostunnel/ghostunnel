@@ -10,7 +10,7 @@ your systemd/launchd configuration.
 launchd
 -------
 
-A launchd plist to launch ghostunnel in server mode on :8081,
+A launchd plist to launch Ghostunnel in server mode on :8081,
 listening for status connections on :8082, and forwarding connections to :8083
 could look like this:
 
@@ -70,7 +70,7 @@ could look like this:
 Note that in the launchd case *both* `SockType` and `SockFamily` need to be
 defined for each socket. If for example the family were to be left out, launchd
 would open two sockets (IPv4 and IPv6) for the given key (like `Listener`) and
-pass them to ghostunnel which is not currently supported.
+pass them to Ghostunnel which is not currently supported.
 
 systemd
 -------

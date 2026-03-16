@@ -69,7 +69,7 @@ Keychain (macOS/Windows):
 
 # EXAMPLE: SERVER MODE
 
-Start a ghostunnel in server mode to proxy connections from
+Start a Ghostunnel in server mode to proxy connections from
 localhost:8443 to localhost:8080, while only allowing connections from
 client certificates with CN=client:
 
@@ -90,7 +90,7 @@ flags match. To disable requiring client certificates, use
 
 # EXAMPLE: CLIENT MODE
 
-Start a ghostunnel in client mode to proxy connections from
+Start a Ghostunnel in client mode to proxy connections from
 localhost:8080 to localhost:8443, doing only hostname verification to
 validate the server certificate:
 

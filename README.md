@@ -13,7 +13,7 @@ server mode runs in front of a backend server and accepts TLS-secured
 connections, which are then proxied to the (insecure) backend. A backend can be
 a TCP domain/port or a UNIX domain socket. Ghostunnel in client mode accepts
 (insecure) connections through a TCP or UNIX domain socket and proxies them to
-a TLS-secured service. In other words, ghostunnel is a replacement for stunnel.
+a TLS-secured service.
 
 **Supported platforms**: Ghostunnel is developed primarily for Linux and Darwin
 (macOS), although it should run on any UNIX system that exposes `SO_REUSEPORT`,
@@ -119,8 +119,8 @@ To see available commands and flags, run `ghostunnel --help`. You can get more
 information about a command by adding `--help` to the command, like `ghostunnel
 server --help` or `ghostunnel client --help`. There's also a [man page](docs/).
 
-By default, ghostunnel runs in the foreground and logs to stdout. You can set
-`--syslog` to log to syslog instead of stdout. If you want to run ghostunnel
+By default, Ghostunnel runs in the foreground and logs to stdout. You can set
+`--syslog` to log to syslog instead of stdout. If you want to run Ghostunnel
 in the background, we recommend using a service manager.
 
 ### Certificates
@@ -138,7 +138,7 @@ SPIFFE Workload API and having private keys backed by PKCS#11 modules, see the
 
 ### Server mode
 
-This is an example for how to launch ghostunnel in server mode, listening for
+This is an example for how to launch Ghostunnel in server mode, listening for
 incoming TLS connections on `localhost:8443` and forwarding them to
 `localhost:8080`. Note that while we use TCP sockets on `localhost` in this
 example, both the listen and target flags can also accept paths to UNIX domain
@@ -222,7 +222,7 @@ Start netcat on port `8001`:
 
     nc -l localhost 8001
 
-Start the ghostunnel server:
+Start the Ghostunnel server:
 
     ghostunnel server \
         --listen localhost:8002 \
@@ -231,7 +231,7 @@ Start the ghostunnel server:
         --cacert test-keys/cacert.pem \
         --allow-cn client
 
-Start the ghostunnel client:
+Start the Ghostunnel client:
 
     ghostunnel client \
         --listen localhost:8003 \
