@@ -55,11 +55,9 @@ func New(tb testing.TB) *WorkloadAPI {
 	server := grpc.NewServer()
 	workload.RegisterSpiffeWorkloadAPIServer(server, &workloadAPIWrapper{w: w})
 
-	w.wg.Add(1)
-	go func() {
-		defer w.wg.Done()
+	w.wg.Go(func() {
 		_ = server.Serve(listener)
-	}()
+	})
 
 	w.addr = fmt.Sprintf("%s://%s", listener.Addr().Network(), listener.Addr().String())
 	tb.Logf("WorkloadAPI address: %s", w.addr)
