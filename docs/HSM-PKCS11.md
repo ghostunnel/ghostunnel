@@ -24,7 +24,7 @@ To import the server test key into SoftHSM, for example:
         --so-pin 1234 \
         --pin 1234
 
-To launch ghostunnel with the SoftHSM-backed PKCS11 key:
+To launch Ghostunnel with the SoftHSM-backed PKCS11 key:
 
     ghostunnel server \
         --cert test-keys/server-cert.pem \
