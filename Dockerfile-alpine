@@ -1,7 +1,7 @@
 # Dockerfile for ghostunnel/ghostunnel built on Alpine.
 #
 # To build this image:
-#     docker build -t ghostunnel/ghostunnel .
+#     docker buildx build -t ghostunnel/ghostunnel .
 #
 # To run ghostunnel from the image (for example):
 #     docker run --rm ghostunnel/ghostunnel --version

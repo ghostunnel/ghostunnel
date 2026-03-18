@@ -1,7 +1,7 @@
 # Dockerfile for running integration tests, includes PKCS11/SoftHSM setup. 
 # 
 # Build image:
-#     docker build --build-arg GO_VERSION=[VERSION] -t ghostunnel/ghostunnel-test -f Dockerfile-test .
+#     docker buildx build --build-arg GO_VERSION=[VERSION] -t ghostunnel/ghostunnel-test -f Dockerfile-test .
 #
 # Run integration tests:
 #     docker run -v /dev/log:/dev/log -v $PWD:/go/src/github.com/ghostunnel/ghostunnel ghostunnel/ghostunnel-test

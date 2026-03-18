@@ -666,7 +666,7 @@ func (Test) SoftHSMImport(ctx context.Context) error {
 // Docker builds and runs tests in a Docker container.
 // Output is streamed in real-time as the container runs.
 func (Test) Docker(ctx context.Context) error {
-	args := []string{"build", "-t", "ghostunnel/ghostunnel-test", "-f", "Dockerfile-test"}
+	args := []string{"buildx", "build", "-t", "ghostunnel/ghostunnel-test", "-f", "Dockerfile-test"}
 	if !mg.Verbose() {
 		args = append(args, "--quiet")
 	}
