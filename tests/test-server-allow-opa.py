@@ -5,10 +5,9 @@ Test to check --allow-policy flag behavior.
 """
 
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, \
-    TlsClient, print_ok, run_ghostunnel, terminate, status_info
+    TlsClient, print_ok, run_ghostunnel, terminate, wait_for_status
 
 from tempfile import mkstemp, mkdtemp
-import time
 import signal
 import shutil
 import ssl
@@ -49,7 +48,7 @@ if __name__ == "__main__":
         pair1 = SocketPair(
             TlsClient('client1', 'root', 13001), TcpServer(13002))
         pair1.validate_can_send_from_client("toto", "pair1 works")
-        pair1.validate_can_send_from_server
+        pair1.validate_can_send_from_server("toto", "pair1 reverse works")
 
         try:
             pair2 = SocketPair(
@@ -63,15 +62,14 @@ if __name__ == "__main__":
         ghostunnel.send_signal(signal.SIGUSR1)
 
         # wait until reload complete
-        while 'last_reload' not in status_info():
-            os.sleep(1)
+        wait_for_status(lambda info: 'last_reload' in info)
         print_ok("reloaded policy")
 
         # Should work with client2 now
         pair1 = SocketPair(
             TlsClient('client2', 'root', 13001), TcpServer(13002))
         pair1.validate_can_send_from_client("toto", "pair2 works")
-        pair1.validate_can_send_from_server
+        pair1.validate_can_send_from_server("toto", "pair1 reverse works after reload")
 
         print_ok("OK")
     finally:

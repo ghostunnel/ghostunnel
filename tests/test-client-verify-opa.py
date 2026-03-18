@@ -5,10 +5,9 @@ Tests that verify-policy flag works correctly on the client.
 """
 
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, \
-    TlsServer, print_ok, run_ghostunnel, terminate, status_info
+    TlsServer, print_ok, run_ghostunnel, terminate, wait_for_status
 
 from tempfile import mkstemp, mkdtemp
-import time
 import signal
 import shutil
 import ssl
@@ -68,8 +67,7 @@ if __name__ == "__main__":
         ghostunnel.send_signal(signal.SIGUSR1)
 
         # wait until reload complete
-        while 'last_reload' not in status_info():
-            os.sleep(1)
+        wait_for_status(lambda info: 'last_reload' in info)
         print_ok("reloaded policy")
 
         # Should work with server2 now

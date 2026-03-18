@@ -1,4 +1,4 @@
-from subprocess import call, Popen
+from subprocess import call, Popen, DEVNULL
 from tempfile import mkstemp, mkdtemp
 import json
 import platform
@@ -9,7 +9,6 @@ import ssl
 import os
 import urllib.request
 
-FNULL = open(os.devnull, 'w')
 LOCALHOST = '127.0.0.1'
 STATUS_PORT = 13100
 TIMEOUT = 5
@@ -92,6 +91,16 @@ def status_info():
     except Exception as e:
         print('unable to fetch status:', e)
 
+def wait_for_status(predicate, timeout=30):
+    """Poll status_info() until predicate(info) is truthy, with timeout."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        info = status_info()
+        if info and predicate(info):
+            return info
+        time.sleep(1)
+    raise TimeoutError("status check timed out after {0}s".format(timeout))
+
 def dump_goroutines():
     """Attempt to dump goroutines via status port/pprof"""
     ctx = ssl.create_default_context()
@@ -114,7 +123,7 @@ class RootCert:
         call(
             'openssl genrsa -out {0}.key 2048'.format(name),
             shell=True,
-            stderr=FNULL)
+            stderr=DEVNULL)
         call(
             'openssl req -x509 -new -key {0}.key -days 5 -out {0}_temp.crt -addext "keyUsage = digitalSignature, cRLSign, keyCertSign" -subj /C=US/ST=CA/O=ghostunnel/OU={0}'.format(name),
             shell=True)
@@ -127,11 +136,11 @@ class RootCert:
         os.write(fd, "extendedKeyUsage=clientAuth,serverAuth\n".encode('utf-8'))
         os.write(fd, "subjectAltName = {0},DNS:{1}".format(san, cn_and_ou).encode('utf-8'))
         call("openssl genrsa -out {0}.key 2048".format(cn_and_ou),
-             shell=True, stderr=FNULL)
+             shell=True, stderr=DEVNULL)
         call(
             "openssl req -new -key {0}.key -out {0}.csr -subj /CN={0}/C=US/ST=CA/O=ghostunnel/OU={0}".format(cn_and_ou),
             shell=True,
-            stderr=FNULL)
+            stderr=DEVNULL)
         call("chmod 600 {0}.key".format(cn_and_ou), shell=True)
         call(
             "openssl x509 -req -in {0}.csr -CA {1}.crt -CAkey {1}.key -CAcreateserial -out {0}_temp.crt -days 5 -extfile {2}".format(
@@ -139,7 +148,7 @@ class RootCert:
                 self.name,
                 openssl_config),
             shell=True,
-            stderr=FNULL)
+            stderr=DEVNULL)
         call(
             "openssl pkcs12 -export -out {0}_temp.p12 -in {0}_temp.crt -inkey {0}.key -password pass:".format(cn_and_ou),
             shell=True)
@@ -190,7 +199,9 @@ class MySocket():
         return self.socket
 
     def cleanup(self):
-        self.socket = None  # automatically calls close()
+        if self.socket:
+            self.socket.close()
+        self.socket = None
 
 ######################### TCP #########################
 
@@ -234,9 +245,12 @@ class TcpServer(MySocket):
         self.socket, _ = self.listener.accept()
         self.socket.settimeout(TIMEOUT)
         self.listener.close()
+        self.listener = None
 
     def cleanup(self):
         super().cleanup()
+        if self.listener:
+            self.listener.close()
         self.listener = None
 
 ######################### TLS #########################
@@ -311,16 +325,19 @@ class TlsServer(MySocket):
         self.socket, _ = self.tls_listener.accept()
         self.socket.settimeout(TIMEOUT)
         self.tls_listener.close()
+        self.tls_listener = None
 
     def validate_client_cert(self, ou):
         if self.socket.getpeercert()['subject'][0][0][1] == ou:
             return
         raise Exception("did not connect to expected peer: got ",
-                        self.socket.getpeercert()[0][0][1],
+                        self.socket.getpeercert()['subject'][0][0][1],
                         ", wanted: ", ou)
 
     def cleanup(self):
         super().cleanup()
+        if self.tls_listener:
+            self.tls_listener.close()
         self.tls_listener = None
 
 ######################### UNIX SOCKET #########################
@@ -352,7 +369,6 @@ class UnixClient(MySocket):
 
     def cleanup(self):
         super().cleanup()
-        self.socket = None
         os.remove(self.socket_path)
         os.rmdir(os.path.dirname(self.socket_path))
 
@@ -382,6 +398,8 @@ class UnixServer(MySocket):
 
     def cleanup(self):
         super().cleanup()
+        if self.listener:
+            self.listener.close()
         self.listener = None
         os.remove(self.socket_path)
 
