@@ -14,6 +14,11 @@ import urllib.request
 LOCALHOST = '127.0.0.1'
 TIMEOUT = 5
 
+
+def _poll_sleep(iteration):
+    """Exponential backoff: 0.05, 0.1, 0.2, 0.4, 0.8, 1.0, 1.0, ..."""
+    time.sleep(min(0.05 * (2 ** iteration), 1.0))
+
 # Store original directory paths before changing working directory
 _TESTS_DIR = os.path.abspath(os.path.dirname(__file__) or '.')
 _ROOT_DIR = os.path.abspath(os.path.join(_TESTS_DIR, '..'))
@@ -99,7 +104,7 @@ def terminate(ghostunnel):
     try:
         if ghostunnel:
             ghostunnel.terminate()
-            for _ in range(0, 10):
+            for i in range(0, 10):
                 try:
                     ghostunnel.wait(timeout=1)
                 except BaseException:
@@ -108,7 +113,7 @@ def terminate(ghostunnel):
                     print_ok("ghostunnel stopped with exit code {0}".format(
                         ghostunnel.returncode))
                     return
-                time.sleep(1)
+                _poll_sleep(i)
             print_ok("timeout, killing ghostunnel")
             ghostunnel.kill()
     except BaseException:
@@ -134,11 +139,13 @@ def status_info():
 def wait_for_status(predicate, timeout=30):
     """Poll status_info() until predicate(info) is truthy, with timeout."""
     deadline = time.time() + timeout
+    iteration = 0
     while time.time() < deadline:
         info = status_info()
         if info and predicate(info):
             return info
-        time.sleep(1)
+        _poll_sleep(iteration)
+        iteration += 1
     raise TimeoutError("status check timed out after {0}s".format(timeout))
 
 def dump_goroutines():
@@ -161,27 +168,25 @@ class RootCert:
         self.leaf_certs = []
         print_ok("generating {0}.key, {0}.crt".format(name))
         call(
-            'openssl genrsa -out {0}.key 2048'.format(name),
+            'openssl ecparam -name prime256v1 -genkey -noout -out {0}.key'.format(name),
             shell=True,
             stderr=DEVNULL)
         call(
             'openssl req -x509 -new -key {0}.key -days 5 -out {0}_temp.crt -addext "keyUsage = digitalSignature, cRLSign, keyCertSign" -subj /C=US/ST=CA/O=ghostunnel/OU={0}'.format(name),
             shell=True)
         os.rename("{0}_temp.crt".format(name), "{0}.crt".format(name))
-        call('chmod 600 {0}.key'.format(name), shell=True)
 
     def create_signed_cert(self, cn_and_ou, san="IP:127.0.0.1,IP:::1,DNS:localhost"):
         print_ok("generating {0}.key, {0}.crt, {0}.p12".format(cn_and_ou))
         fd, openssl_config = mkstemp(dir='.')
         os.write(fd, "extendedKeyUsage=clientAuth,serverAuth\n".encode('utf-8'))
         os.write(fd, "subjectAltName = {0},DNS:{1}".format(san, cn_and_ou).encode('utf-8'))
-        call("openssl genrsa -out {0}.key 2048".format(cn_and_ou),
+        call("openssl ecparam -name prime256v1 -genkey -noout -out {0}.key".format(cn_and_ou),
              shell=True, stderr=DEVNULL)
         call(
             "openssl req -new -key {0}.key -out {0}.csr -subj /CN={0}/C=US/ST=CA/O=ghostunnel/OU={0}".format(cn_and_ou),
             shell=True,
             stderr=DEVNULL)
-        call("chmod 600 {0}.key".format(cn_and_ou), shell=True)
         call(
             "openssl x509 -req -in {0}.csr -CA {1}.crt -CAkey {1}.key -CAcreateserial -out {0}_temp.crt -days 5 -extfile {2}".format(
                 cn_and_ou,
@@ -252,7 +257,7 @@ class TcpClient(MySocket):
         self.port = port
 
     def connect(self, attempts=1, msg=''):
-        for _ in range(0, attempts):
+        for i in range(0, attempts):
             try:
                 self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.socket.settimeout(TIMEOUT)
@@ -263,7 +268,7 @@ class TcpClient(MySocket):
                 print(e)
             print(
                 "failed to connect to {0}. Trying again...".format(self.port))
-            time.sleep(1)
+            _poll_sleep(i)
 
         raise Exception("Failed to connect to {0}".format(self.port))
 
@@ -306,7 +311,7 @@ class TlsClient(MySocket):
         self.max_version = max_version
 
     def connect(self, attempts=1, peer=None):
-        for _ in range(0, attempts):
+        for i in range(0, attempts):
             try:
                 ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
                 ctx.verify_mode = ssl.CERT_REQUIRED
@@ -326,8 +331,8 @@ class TlsClient(MySocket):
                 self.socket.connect((LOCALHOST, self.port))
                 return
             except Exception as e:
-                print('connection attempt {0} failed, error: {1}'.format(_, e))
-                time.sleep(1)
+                print('connection attempt {0} failed, error: {1}'.format(i, e))
+                _poll_sleep(i)
 
         raise Exception("connection failed after {0} attempts".format(attempts))
 
@@ -392,7 +397,7 @@ class UnixClient(MySocket):
         return self.socket_path
 
     def connect(self, attempts=1, msg=''):
-        for _ in range(0, attempts):
+        for i in range(0, attempts):
             try:
                 self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                 self.socket.settimeout(TIMEOUT)
@@ -403,7 +408,7 @@ class UnixClient(MySocket):
                 print(e)
             print("failed to connect to {0}. Trying again...".format(
                 self.socket_path))
-            time.sleep(1)
+            _poll_sleep(i)
 
         raise Exception("Failed to connect to {0}".format(self.socket_path))
 
@@ -536,7 +541,7 @@ class SocketPair():
         self.server.get_socket().close()
 
     def validate_client_cert(self, ou, msg):
-        for _ in range(1, 20):
+        for i in range(1, 20):
             try:
                 self.server.validate_client_cert(ou)
                 print_ok(msg)
@@ -544,7 +549,7 @@ class SocketPair():
             except Exception as e:
                 print(e)
             print("validate client cert failed, trying again...")
-            time.sleep(1)
+            _poll_sleep(i)
             self.cleanup()
             self.connect()
         raise Exception("did not connect to expected peer.")

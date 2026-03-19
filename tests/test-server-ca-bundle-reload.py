@@ -4,8 +4,7 @@
 Ensures that root certificates are reloaded as well.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
-import time
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, print_ok, run_ghostunnel, terminate, wait_for_status, LISTEN_PORT, TARGET_PORT
 import signal
 import os
 
@@ -43,7 +42,7 @@ if __name__ == "__main__":
         root.create_signed_cert('client')
 
         ghostunnel.send_signal(signal.SIGUSR1)
-        time.sleep(3)
+        wait_for_status(lambda info: True, timeout=10)
         
         # Make sure everything still works
         pair = SocketPair(TlsClient('client', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))

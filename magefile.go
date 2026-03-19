@@ -399,8 +399,8 @@ func (Test) Integration(ctx context.Context) error {
 
 	// Determine parallelism
 	parallel := runtime.NumCPU()
-	if parallel > 8 {
-		parallel = 8
+	if parallel > 16 {
+		parallel = 16
 	}
 	if envVal := os.Getenv("GHOSTUNNEL_TEST_PARALLEL"); envVal != "" {
 		if n, err := strconv.Atoi(envVal); err == nil && n > 0 {
