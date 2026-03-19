@@ -11,7 +11,7 @@ There are various cases to take into account:
 
 import ssl
 import os
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TlsClient, TlsServer, print_ok, run_ghostunnel, terminate
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TlsClient, TlsServer, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
 
 if __name__ == "__main__":
     ghostunnel = None
@@ -27,8 +27,8 @@ if __name__ == "__main__":
 
         # start ghostunnel
         ghostunnel = run_ghostunnel(['client',
-                                     '--listen={0}:13001'.format(LOCALHOST),
-                                     '--target={0}:13002'.format(LOCALHOST),
+                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                     '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
                                      '--keystore=client1.p12',
                                      '--timed-reload=1s',
                                      '--cacert=root1.crt',
@@ -36,8 +36,8 @@ if __name__ == "__main__":
                                                                STATUS_PORT)])
 
         # ensure ghostunnel connects with server1
-        pair1 = SocketPair(TcpClient(13001), TlsServer(
-            'server1', 'root1', 13002))
+        pair1 = SocketPair(TcpClient(LISTEN_PORT), TlsServer(
+            'server1', 'root1', TARGET_PORT))
         pair1.validate_can_send_from_client("toto", "pair1 works")
         pair1.validate_client_cert("client1", "pair1: ou=client1 -> ...")
 
@@ -52,8 +52,8 @@ if __name__ == "__main__":
         TlsClient(None, 'root1', STATUS_PORT).connect(20, 'new_client1')
         print_ok("reload done")
 
-        pair2 = SocketPair(TcpClient(13001), TlsServer(
-            'server1', 'root1', 13002))
+        pair2 = SocketPair(TcpClient(LISTEN_PORT), TlsServer(
+            'server1', 'root1', TARGET_PORT))
         pair2.validate_can_send_from_client("toto", "pair2 works")
         pair2.validate_client_cert(
             "new_client1", "pair2: ou=new_client1 -> ...")
@@ -61,8 +61,8 @@ if __name__ == "__main__":
 
         # ensure ghostunnel won't connect to server2
         try:
-            pair3 = SocketPair(TcpClient(13001), TlsServer(
-                'server2', 'root1', 13002))
+            pair3 = SocketPair(TcpClient(LISTEN_PORT), TlsServer(
+                'server2', 'root1', TARGET_PORT))
             pair3.validate_can_send_from_client("toto", "pair3 works")
             raise Exception("pair3 worked")
         except ssl.SSLError as e:

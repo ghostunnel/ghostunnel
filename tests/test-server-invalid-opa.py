@@ -5,7 +5,7 @@ Tests code paths with invalid policy.
 """
 
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, \
-    TlsClient, print_ok, run_ghostunnel, terminate
+    TlsClient, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
 
 from tempfile import mkstemp, mkdtemp
 import time
@@ -36,8 +36,8 @@ if __name__ == "__main__":
         shutil.copyfile(dir_path + '/test-server-allow-opa-policy.tar.gz', tmp_dir + '/bundle.tar.gz')
 
         ghostunnel = run_ghostunnel(['server',
-                                     '--listen={0}:13001'.format(LOCALHOST),
-                                     '--target={0}:13002'.format(LOCALHOST),
+                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                     '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
                                      '--keystore=server.p12',
                                      '--cacert=root.crt',
                                      '--allow-policy=' + tmp_dir + '/bundle.tar.gz',

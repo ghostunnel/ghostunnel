@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -375,7 +376,8 @@ func (Test) Unit(ctx context.Context) error {
 	return sh.Run("go", "test", "-v", "-covermode=count", "-coverprofile=coverage/unit-test.profile", "./...")
 }
 
-// Integration runs the integration tests.
+// Integration runs the integration tests in parallel.
+// Set GHOSTUNNEL_TEST_PARALLEL to control concurrency (default: NumCPU, max 8).
 func (Test) Integration(ctx context.Context) error {
 	mg.CtxDeps(ctx, Test.build)
 
@@ -395,47 +397,91 @@ func (Test) Integration(ctx context.Context) error {
 		return fmt.Errorf("failed to find test files: %w", err)
 	}
 
-	// Run each integration test directly
-	printf("Running integration tests...\n")
+	// Determine parallelism
+	parallel := runtime.NumCPU()
+	if parallel > 8 {
+		parallel = 8
+	}
+	if envVal := os.Getenv("GHOSTUNNEL_TEST_PARALLEL"); envVal != "" {
+		if n, err := strconv.Atoi(envVal); err == nil && n > 0 {
+			parallel = n
+		}
+	}
+
+	printf("Running %d integration tests with parallelism=%d...\n", len(testFiles), parallel)
+
+	type testResult struct {
+		name     string
+		stdout   []byte
+		stderr   []byte
+		err      error
+		duration time.Duration
+	}
+
+	// Channel-based semaphore for limiting concurrency
+	sem := make(chan struct{}, parallel)
+	results := make(chan testResult, len(testFiles))
+
+	// Launch all tests as goroutines
 	for _, testFile := range testFiles {
-		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("context cancelled: %w", err)
+		go func() {
+			// Check for context cancellation before acquiring semaphore
+			select {
+			case <-ctx.Done():
+				results <- testResult{
+					name: strings.TrimSuffix(filepath.Base(testFile), ".py"),
+					err:  ctx.Err(),
+				}
+				return
+			case sem <- struct{}{}: // acquire
+			}
+			defer func() { <-sem }() // release
+
+			testName := strings.TrimSuffix(filepath.Base(testFile), ".py")
+
+			start := time.Now()
+			testFileName := filepath.Base(testFile)
+			cmd := exec.CommandContext(ctx, "python3", testFileName)
+			cmd.Dir = "tests"
+
+			var stdout, stderr bytes.Buffer
+			cmd.Stdout = &stdout
+			cmd.Stderr = &stderr
+
+			err := cmd.Run()
+			duration := time.Since(start)
+
+			results <- testResult{
+				name:     testName,
+				stdout:   stdout.Bytes(),
+				stderr:   stderr.Bytes(),
+				err:      err,
+				duration: duration,
+			}
+		}()
+	}
+
+	// Collect results
+	var failed []testResult
+	for i := 0; i < len(testFiles); i++ {
+		r := <-results
+		if r.err == nil {
+			printf("=== PASS: %s (%.2fs)\n", r.name, r.duration.Seconds())
+		} else {
+			printf("=== FAIL: %s (%.2fs)\n", r.name, r.duration.Seconds())
+			failed = append(failed, r)
 		}
+	}
 
-		testName := strings.TrimSuffix(filepath.Base(testFile), ".py")
-		printf("=== RUN   %s\n", testName)
-
-		// Run the Python test file directly from tests directory
-		start := time.Now()
-		testFileName := filepath.Base(testFile)
-		cmd := exec.CommandContext(ctx, "python3", testFileName)
-		cmd.Dir = "tests"
-
-		// Capture stdout and stderr
-		var stdout, stderr bytes.Buffer
-		cmd.Stdout = &stdout
-		cmd.Stderr = &stderr
-
-		err := cmd.Run()
-		duration := time.Since(start)
-		elapsed := duration.Seconds()
-
-		if err == nil {
-			printf("=== PASS: %s (%.2fs)\n", testName, elapsed)
-			continue
+	// Report failures
+	if len(failed) > 0 {
+		printf("\n--- FAILURES ---\n")
+		for _, r := range failed {
+			printf("\n=== FAIL: %s (%.2fs)\n", r.name, r.duration.Seconds())
+			os.Stdout.Write(r.stdout)
+			os.Stderr.Write(r.stderr)
 		}
-
-		// Test failed - output captured stdout/stderr and failure message
-		os.Stdout.Write(stdout.Bytes())
-		os.Stderr.Write(stderr.Bytes())
-		printf("=== FAIL: %s (%.2fs)\n", testName, elapsed)
-
-		// Get exit code if available
-		if exitError, ok := err.(*exec.ExitError); ok {
-			return fmt.Errorf("integration test %s failed with exit code %d", testName, exitError.ExitCode())
-		}
-
-		return fmt.Errorf("integration test %s failed: %w", testName, err)
+		return fmt.Errorf("%d integration test(s) failed", len(failed))
 	}
 
 	return nil

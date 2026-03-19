@@ -1,7 +1,9 @@
 from subprocess import call, Popen, DEVNULL
 from tempfile import mkstemp, mkdtemp
+import atexit
 import json
 import platform
+import shutil
 import sys
 import time
 import socket
@@ -10,13 +12,51 @@ import os
 import urllib.request
 
 LOCALHOST = '127.0.0.1'
-STATUS_PORT = 13100
 TIMEOUT = 5
+
+# Store original directory paths before changing working directory
+_TESTS_DIR = os.path.abspath(os.path.dirname(__file__) or '.')
+_ROOT_DIR = os.path.abspath(os.path.join(_TESTS_DIR, '..'))
+_GHOSTUNNEL_BINARY = os.path.join(_ROOT_DIR, 'ghostunnel.test')
+_COVERAGE_DIR = os.path.join(_ROOT_DIR, 'coverage')
+
+
+def get_free_port():
+    """Get an available port by binding to port 0 and letting the OS assign one."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.bind(('', 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+
+# Allocate unique ports per test process at import time
+STATUS_PORT = get_free_port()
+LISTEN_PORT = get_free_port()
+TARGET_PORT = get_free_port()
+
+# Create a per-test temporary working directory for cert file isolation
+_WORK_DIR = mkdtemp(prefix='ghostunnel-test-')
+os.chdir(_WORK_DIR)
+
+
+def _cleanup_work_dir():
+    """Clean up the temporary working directory on exit."""
+    try:
+        os.chdir(_TESTS_DIR)
+        shutil.rmtree(_WORK_DIR, ignore_errors=True)
+    except Exception:
+        pass
+
+
+atexit.register(_cleanup_work_dir)
+
 
 def run_ghostunnel(args, stdout=sys.stdout.buffer, stderr=sys.stderr.buffer, prefix=None):
     """Helper to run ghostunnel in integration test mode"""
 
-    # Set lower than default timeouts to speed up tests 
+    # Set lower than default timeouts to speed up tests
     if not any('shutdown-timeout' in f for f in args):
         args.append('--shutdown-timeout=0.1s')
     if not any('close-timeout' in f for f in args):
@@ -32,9 +72,9 @@ def run_ghostunnel(args, stdout=sys.stdout.buffer, stderr=sys.stderr.buffer, pre
     # Run it, hook up stdout/stderr if desired
     test = os.path.basename(sys.argv[0]).replace('.py', '.profile')
     cmd = [
-        '../ghostunnel.test',
+        _GHOSTUNNEL_BINARY,
         '-test.run=TestIntegrationMain',
-        '-test.coverprofile=../coverage/{0}'.format(test)
+        '-test.coverprofile={0}/{1}'.format(_COVERAGE_DIR, test)
     ]
 
     if prefix:
@@ -468,7 +508,7 @@ class SocketPair():
         # server should still be able to send data back, within the timeout
         self.server.get_socket().send('A'.encode('utf-8'))
         self.client.get_socket().recv(1)
-        # if the tunnel doesn't close the connection (forwarding the FIN packet), 
+        # if the tunnel doesn't close the connection (forwarding the FIN packet),
         # then recv(1) will raise a Timeout
         self.server.get_socket().recv(1)
         # cleanup
@@ -489,7 +529,7 @@ class SocketPair():
         # client should still be able to send data back, within the timeout
         self.client.get_socket().send('A'.encode('utf-8'))
         self.server.get_socket().recv(1)
-        # if the tunnel doesn't close the connection (forwarding the FIN packet), 
+        # if the tunnel doesn't close the connection (forwarding the FIN packet),
         # then recv(1) will raise a Timeout
         self.client.get_socket().recv(1)
         # cleanup

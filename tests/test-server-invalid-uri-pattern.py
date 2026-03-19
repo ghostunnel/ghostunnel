@@ -4,7 +4,7 @@
 Test that ghostunnel server exits with an error when given an invalid URI pattern.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, print_ok, run_ghostunnel, terminate
+from common import LOCALHOST, RootCert, STATUS_PORT, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
 
 if __name__ == "__main__":
     ghostunnel = None
@@ -15,8 +15,8 @@ if __name__ == "__main__":
 
         # start ghostunnel with an empty/invalid --allow-uri pattern
         ghostunnel = run_ghostunnel(['server',
-                                     '--listen={0}:13001'.format(LOCALHOST),
-                                     '--target={0}:13002'.format(LOCALHOST),
+                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                     '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
                                      '--keystore=server.p12',
                                      '--cacert=root.crt',
                                      '--allow-uri='])

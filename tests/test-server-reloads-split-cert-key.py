@@ -5,7 +5,7 @@ Ensures that tunnel sees & reloads a certificate
 change.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, print_ok, run_ghostunnel, terminate
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
 import os
 import signal
 
@@ -20,8 +20,8 @@ if __name__ == "__main__":
 
         # start ghostunnel
         ghostunnel = run_ghostunnel(['server',
-                                     '--listen={0}:13001'.format(LOCALHOST),
-                                     '--target={0}:13002'.format(LOCALHOST),
+                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                     '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
                                      '--key=server.key',
                                      '--cert=server.crt',
                                      '--cacert=root.crt',
@@ -31,7 +31,7 @@ if __name__ == "__main__":
 
         # create connections with client
         pair1 = SocketPair(
-            TlsClient('client', 'root', 13001), TcpServer(13002))
+            TlsClient('client', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
         pair1.validate_can_send_from_client("toto", "pair1 works")
         pair1.validate_tunnel_ou("server", "pair1 -> ou=server")
 
@@ -45,7 +45,7 @@ if __name__ == "__main__":
 
         # create connections with client
         pair2 = SocketPair(
-            TlsClient('client', 'root', 13001), TcpServer(13002))
+            TlsClient('client', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
         pair2.validate_can_send_from_client("toto", "pair2 works")
         pair2.validate_tunnel_ou("new_server", "pair2 -> ou=new_server")
         pair2.cleanup()

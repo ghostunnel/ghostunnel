@@ -4,7 +4,7 @@
 Ensures that /_status endpoint works.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, TlsClient, print_ok, run_ghostunnel, terminate, urlopen
+from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, TlsClient, print_ok, run_ghostunnel, terminate, urlopen, LISTEN_PORT, TARGET_PORT
 import urllib.request
 import urllib.error
 import urllib.parse
@@ -24,7 +24,7 @@ if __name__ == "__main__":
         # start ghostunnel
         # hack: point target to STATUS_PORT so that /_status doesn't 503.
         ghostunnel = run_ghostunnel(['server',
-                                     '--listen={0}:13001'.format(LOCALHOST),
+                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
                                      '--target={0}:{1}'.format(LOCALHOST,
                                                                STATUS_PORT),
                                      '--keystore=server.p12',

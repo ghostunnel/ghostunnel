@@ -4,7 +4,7 @@
 Test that ensures that metrics endpoint works.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, print_ok, run_ghostunnel, terminate, urlopen
+from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, print_ok, run_ghostunnel, terminate, urlopen, LISTEN_PORT, TARGET_PORT
 import urllib.request
 import urllib.error
 import urllib.parse
@@ -20,8 +20,8 @@ if __name__ == "__main__":
 
         # start ghostunnel
         ghostunnel = run_ghostunnel(['server',
-                                     '--listen={0}:13001'.format(LOCALHOST),
-                                     '--target={0}:13002'.format(LOCALHOST),
+                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                     '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
                                      '--keystore=server.p12',
                                      '--cacert=root.crt',
                                      '--allow-ou=client',

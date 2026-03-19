@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from common import LOCALHOST, RootCert, STATUS_PORT, print_ok, run_ghostunnel, terminate, assert_not_zero
+from common import LOCALHOST, RootCert, STATUS_PORT, print_ok, run_ghostunnel, terminate, assert_not_zero, LISTEN_PORT, TARGET_PORT
 
 if __name__ == "__main__":
     ghostunnel = None
@@ -11,16 +11,16 @@ if __name__ == "__main__":
 
         # start ghostunnel with bad flags
         ghostunnel1 = run_ghostunnel(['client',
-                                      '--listen={0}:13001'.format(LOCALHOST),
-                                      '--target={0}:13002'.format(LOCALHOST),
+                                      '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                      '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
                                       '--keystore=server.p12',
                                       '--disable-authentication',
                                       '--cacert=root.crt'])
         assert_not_zero(ghostunnel1)
 
         ghostunnel2 = run_ghostunnel(['client',
-                                      '--listen={0}:13001'.format(LOCALHOST),
-                                      '--target={0}:13002'.format(LOCALHOST),
+                                      '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                      '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
                                       '--cert=server.crt',
                                       '--key=server.key',
                                       '--disable-authentication',
@@ -28,23 +28,23 @@ if __name__ == "__main__":
         assert_not_zero(ghostunnel2)
 
         ghostunnel3 = run_ghostunnel(['client',
-                                      '--listen={0}:13001'.format(LOCALHOST),
-                                      '--target={0}:13002'.format(LOCALHOST),
+                                      '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                      '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
                                       '--key=server.crt',
                                       '--cacert=root.crt'])
         assert_not_zero(ghostunnel3)
 
         ghostunnel4 = run_ghostunnel(['client',
-                                      '--listen={0}:13001'.format(LOCALHOST),
-                                      '--target={0}:13002'.format(LOCALHOST),
+                                      '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                      '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
                                       '--disable-authentication',
                                       '--key=server.key',
                                       '--cacert=root.crt'])
         assert_not_zero(ghostunnel4)
 
         ghostunnel5 = run_ghostunnel(['client',
-                                      '--listen={0}:13001'.format(LOCALHOST),
-                                      '--target={0}:13002'.format(LOCALHOST),
+                                      '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                      '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
                                       '--disable-authentication',
                                       '--cert=server.key',
                                       '--cacert=root.crt'])

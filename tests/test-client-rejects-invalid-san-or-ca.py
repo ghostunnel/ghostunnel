@@ -4,7 +4,7 @@
 Ensures we can connect to a server signed by root1 but not root2.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TlsServer, print_ok, run_ghostunnel, terminate
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TlsServer, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
 import ssl
 
 if __name__ == "__main__":
@@ -22,16 +22,16 @@ if __name__ == "__main__":
 
         # start ghostunnel
         ghostunnel = run_ghostunnel(['client',
-                                     '--listen={0}:13001'.format(LOCALHOST),
-                                     '--target=localhost:13002',
+                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                     '--target=localhost:{0}'.format(TARGET_PORT),
                                      '--keystore=client.p12',
                                      '--cacert=root.crt',
                                      '--status={0}:{1}'.format(LOCALHOST,
                                                                STATUS_PORT)])
 
         # connect to server1, confirm that the tunnel is up
-        pair = SocketPair(TcpClient(13001), TlsServer(
-            'server1', 'root', 13002))
+        pair = SocketPair(TcpClient(LISTEN_PORT), TlsServer(
+            'server1', 'root', TARGET_PORT))
         pair.validate_can_send_from_client(
             "hello world", "1: client -> server")
         pair.validate_can_send_from_server(
@@ -41,16 +41,16 @@ if __name__ == "__main__":
 
         # connect to other_server, confirm that the tunnel isn't up
         try:
-            pair = SocketPair(TcpClient(13001), TlsServer(
-                'other_server', 'other_root', 13002))
+            pair = SocketPair(TcpClient(LISTEN_PORT), TlsServer(
+                'other_server', 'other_root', TARGET_PORT))
             raise Exception('failed to reject other_server')
         except ssl.SSLError:
             print_ok("other_server correctly rejected")
 
         # connect to server2, confirm that the tunnel isn't up
         try:
-            pair = SocketPair(TcpClient(13001), TlsServer(
-                'server2', 'root', 13002))
+            pair = SocketPair(TcpClient(LISTEN_PORT), TlsServer(
+                'server2', 'root', TARGET_PORT))
             raise Exception('failed to reject serve2')
         except ssl.SSLError:
             print_ok("other_server correctly rejected")

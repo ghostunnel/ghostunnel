@@ -5,7 +5,7 @@ Ensures that /_status endpoint using UNIX sockets
 works.
 """
 
-from common import LOCALHOST, RootCert, print_ok, run_ghostunnel, terminate
+from common import LOCALHOST, RootCert, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
 from tempfile import mkdtemp
 from shutil import rmtree
 import socket
@@ -38,7 +38,7 @@ if __name__ == "__main__":
         path = os.path.join(tempdir, 'ghostunnel-status-socket')
 
         ghostunnel = run_ghostunnel(['server',
-                                     '--listen={0}:13001'.format(LOCALHOST),
+                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
                                      '--target=unix:{0}'.format(path),
                                      '--keystore=server.p12',
                                      '--cacert=root.crt',

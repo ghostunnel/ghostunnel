@@ -5,7 +5,7 @@ Tests that verify-policy flag works correctly on the client.
 """
 
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, \
-    TlsServer, print_ok, run_ghostunnel, terminate, wait_for_status
+    TlsServer, print_ok, run_ghostunnel, terminate, wait_for_status, LISTEN_PORT, TARGET_PORT
 
 from tempfile import mkstemp, mkdtemp
 import signal
@@ -35,8 +35,8 @@ if __name__ == "__main__":
         shutil.copyfile(dir_path + '/test-client-verify-opa-policy.tar.gz', tmp_dir + '/bundle.tar.gz')
 
         ghostunnel = run_ghostunnel(['client',
-                                     '--listen={0}:13001'.format(LOCALHOST),
-                                     '--target=localhost:13002',
+                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                     '--target=localhost:{0}'.format(TARGET_PORT),
                                      '--keystore=client.p12',
                                      '--verify-policy=' + tmp_dir + '/bundle.tar.gz',
                                      '--verify-query=data.policy.allow',
@@ -45,8 +45,8 @@ if __name__ == "__main__":
                                                                STATUS_PORT)])
 
         # connect to server1, confirm that the tunnel is up
-        pair = SocketPair(TcpClient(13001), TlsServer(
-            'server1', 'root', 13002))
+        pair = SocketPair(TcpClient(LISTEN_PORT), TlsServer(
+            'server1', 'root', TARGET_PORT))
         pair.validate_can_send_from_client(
             "hello world", "1: client -> server")
         pair.validate_can_send_from_server(
@@ -56,8 +56,8 @@ if __name__ == "__main__":
 
         # connect to server2, confirm that the tunnel isn't up
         try:
-            pair = SocketPair(TcpClient(13001), TlsServer(
-                'server2', 'root', 13002))
+            pair = SocketPair(TcpClient(LISTEN_PORT), TlsServer(
+                'server2', 'root', TARGET_PORT))
             raise Exception('failed to reject other_server')
         except ssl.SSLError:
             print_ok("other_server correctly rejected")
@@ -71,8 +71,8 @@ if __name__ == "__main__":
         print_ok("reloaded policy")
 
         # Should work with server2 now
-        pair = SocketPair(TcpClient(13001), TlsServer(
-            'server2', 'root', 13002))
+        pair = SocketPair(TcpClient(LISTEN_PORT), TlsServer(
+            'server2', 'root', TARGET_PORT))
         pair.validate_can_send_from_client(
             "hello world", "2: client -> server")
         pair.validate_can_send_from_server(

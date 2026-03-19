@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TlsServer, print_ok, run_ghostunnel, terminate
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TlsServer, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT, get_free_port
 import http.server
 import threading
 import select
@@ -58,24 +58,25 @@ if __name__ == "__main__":
         root.create_signed_cert('server', san='DNS:{}'.format(FAKE_TARGET))
         root.create_signed_cert('client')
 
+        proxy_port = get_free_port()
         httpd = http.server.HTTPServer(
-            (LOCALHOST, 13080), FakeConnectProxyHandler)
+            (LOCALHOST, proxy_port), FakeConnectProxyHandler)
         server = threading.Thread(target=httpd.handle_request)
         server.start()
 
         # start ghostunnel
         ghostunnel = run_ghostunnel(['client',
-                                     '--listen={0}:13001'.format(LOCALHOST),
-                                     '--target={0}:13002'.format(FAKE_TARGET),
+                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                     '--target={0}:{1}'.format(FAKE_TARGET, TARGET_PORT),
                                      '--keystore=client.p12',
                                      '--cacert=root.crt',
-                                     '--connect-proxy=http://{0}:13080'.format(LOCALHOST),
+                                     '--connect-proxy=http://{0}:{1}'.format(LOCALHOST, proxy_port),
                                      '--connect-timeout=30s',
                                      '--status={0}:{1}'.format(LOCALHOST,
                                                                STATUS_PORT)])
 
         # connect to server, confirm that the tunnel is up
-        pair = SocketPair(TcpClient(13001), TlsServer('server', 'root', 13002))
+        pair = SocketPair(TcpClient(LISTEN_PORT), TlsServer('server', 'root', TARGET_PORT))
         pair.validate_can_send_from_client(
             'hello world', '1: client -> server')
         pair.validate_can_send_from_server(

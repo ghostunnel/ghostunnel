@@ -4,7 +4,7 @@
 Test that ensures that PKCS11 module support works.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, UnixServer, TcpClient, TcpServer, TlsClient, print_ok, run_ghostunnel, terminate
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, UnixServer, TcpClient, TcpServer, TlsClient, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT, _ROOT_DIR
 from shutil import copyfile
 import urllib.request
 import urllib.error
@@ -21,15 +21,16 @@ if __name__ == "__main__":
         if 'GHOSTUNNEL_TEST_PKCS11' not in os.environ:
             sys.exit(0)
 
-        copyfile('../test-keys/client-key.pem', 'client.key')
-        copyfile('../test-keys/client-cert.pem', 'client.crt')
-        copyfile('../test-keys/server-cert.pem', 'server.crt')
-        copyfile('../test-keys/cacert.pem', 'root.crt')
+        test_keys = os.path.join(_ROOT_DIR, 'test-keys')
+        copyfile(os.path.join(test_keys, 'client-key.pem'), 'client.key')
+        copyfile(os.path.join(test_keys, 'client-cert.pem'), 'client.crt')
+        copyfile(os.path.join(test_keys, 'server-cert.pem'), 'server.crt')
+        copyfile(os.path.join(test_keys, 'cacert.pem'), 'root.crt')
 
         # start ghostunnel
         ghostunnel = run_ghostunnel(['server',
-                                     '--listen={0}:13001'.format(LOCALHOST),
-                                     '--target={0}:13002'.format(LOCALHOST),
+                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                     '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
                                      '--cert=server.crt',
                                      '--pkcs11-module={0}'.format(os.environ['GHOSTUNNEL_TEST_PKCS11_MODULE']),
                                      '--pkcs11-token-label={0}'.format(os.environ['GHOSTUNNEL_TEST_PKCS11_LABEL']),
@@ -42,7 +43,7 @@ if __name__ == "__main__":
         TcpClient(STATUS_PORT).connect(3)
 
         # Test some connections
-        pair = SocketPair(TlsClient('client', 'root', 13001), TcpServer(13002))
+        pair = SocketPair(TlsClient('client', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
         pair.validate_can_send_from_client(
             "hello world", "1: client -> server")
         pair.validate_can_send_from_server(
@@ -54,7 +55,7 @@ if __name__ == "__main__":
         ghostunnel.send_signal(signal.SIGUSR1)
 
         # Test some connections (again)
-        pair = SocketPair(TlsClient('client', 'root', 13001), TcpServer(13002))
+        pair = SocketPair(TlsClient('client', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
         pair.validate_can_send_from_client(
             "hello world", "1: client -> server")
         pair.validate_can_send_from_server(

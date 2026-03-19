@@ -4,7 +4,7 @@
 Simulates a hanging handshake, waits for timeout.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, print_ok, run_ghostunnel, terminate, urlopen
+from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, print_ok, run_ghostunnel, terminate, urlopen, LISTEN_PORT, TARGET_PORT, get_free_port
 import urllib.request
 import urllib.error
 import urllib.parse
@@ -22,8 +22,8 @@ if __name__ == "__main__":
 
         # start ghostunnel
         ghostunnel = run_ghostunnel(['server',
-                                     '--listen={0}:13000'.format(LOCALHOST),
-                                     '--target={0}:13001'.format(LOCALHOST),
+                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                     '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
                                      '--keystore=server.p12',
                                      '--cacert=root.crt',
                                      '--allow-ou=client',
@@ -32,7 +32,7 @@ if __name__ == "__main__":
                                                                STATUS_PORT)])
 
         # connect but don't perform handshake
-        client = TcpClient(13000)
+        client = TcpClient(LISTEN_PORT)
         client.connect(20)
         client.get_socket().setblocking(False)
 

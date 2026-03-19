@@ -5,7 +5,7 @@ Test to check OPA policy reloading failure.
 """
 
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, \
-    TlsClient, print_ok, run_ghostunnel, terminate, wait_for_status
+    TlsClient, print_ok, run_ghostunnel, terminate, wait_for_status, LISTEN_PORT, TARGET_PORT
 
 from tempfile import mkstemp, mkdtemp
 import signal
@@ -35,8 +35,8 @@ if __name__ == '__main__':
         shutil.copyfile(dir_path + '/test-server-allow-opa-policy.tar.gz', tmp_dir + '/bundle.tar.gz')
 
         ghostunnel = run_ghostunnel(['server',
-                                     '--listen={0}:13001'.format(LOCALHOST),
-                                     '--target={0}:13002'.format(LOCALHOST),
+                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                     '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
                                      '--keystore=server.p12',
                                      '--cacert=root.crt',
                                      '--allow-policy=' + tmp_dir + '/bundle.tar.gz',
@@ -46,13 +46,13 @@ if __name__ == '__main__':
 
         # create connections with client
         pair1 = SocketPair(
-            TlsClient('client1', 'root', 13001), TcpServer(13002))
+            TlsClient('client1', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
         pair1.validate_can_send_from_client('toto', 'pair1 works')
         pair1.validate_can_send_from_server("toto", "pair1 reverse works")
 
         try:
             pair2 = SocketPair(
-                TlsClient('client2', 'root', 13001), TcpServer(13002))
+                TlsClient('client2', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
             raise Exception('failed to reject client2')
         except (ssl.SSLError, socket.timeout):
             print_ok('client2 correctly rejected')
@@ -66,13 +66,13 @@ if __name__ == '__main__':
 
         # old policy remains in effect
         pair1 = SocketPair(
-            TlsClient('client1', 'root', 13001), TcpServer(13002))
+            TlsClient('client1', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
         pair1.validate_can_send_from_client('toto', 'pair1 works')
         pair1.validate_can_send_from_server("toto", "pair1 reverse works after failed reload")
 
         try:
             pair2 = SocketPair(
-                TlsClient('client2', 'root', 13001), TcpServer(13002))
+                TlsClient('client2', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
             raise Exception('failed to reject client2')
         except (ssl.SSLError, socket.timeout):
             print_ok('client2 correctly rejected')

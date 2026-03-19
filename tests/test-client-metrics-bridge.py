@@ -4,7 +4,7 @@
 Ensures that metrics bridge submission works.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, print_ok, run_ghostunnel, terminate
+from common import LOCALHOST, RootCert, STATUS_PORT, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT, get_free_port
 import time
 import json
 import http.server
@@ -29,21 +29,22 @@ if __name__ == "__main__":
         root = RootCert('root')
         root.create_signed_cert('client')
 
+        bridge_port = get_free_port()
         httpd = http.server.HTTPServer(
-            ('localhost', 13080), FakeMetricsBridgeHandler)
+            ('localhost', bridge_port), FakeMetricsBridgeHandler)
         server = threading.Thread(target=httpd.handle_request)
         server.start()
 
         # start ghostunnel
         ghostunnel = run_ghostunnel(['client',
-                                     '--listen={0}:13001'.format(LOCALHOST),
-                                     '--target={0}:13002'.format(LOCALHOST),
+                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                     '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
                                      '--keystore=client.p12',
                                      '--cacert=root.crt',
                                      '--metrics-interval=1s',
                                      '--status={0}:{1}'.format(LOCALHOST,
                                                                STATUS_PORT),
-                                     '--metrics-url=http://localhost:13080/post'])
+                                     '--metrics-url=http://localhost:{0}/post'.format(bridge_port)])
 
         # wait for metrics to post
         for i in range(0, 10):

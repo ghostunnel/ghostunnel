@@ -5,7 +5,7 @@ Test to check --allow-uri flag behavior.
 """
 
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, \
-                   TlsClient, print_ok, run_ghostunnel, terminate
+                   TlsClient, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
 
 import os
 import signal
@@ -29,8 +29,8 @@ if __name__ == "__main__":
 
         # start ghostunnel
         ghostunnel = run_ghostunnel(['server',
-                                     '--listen={0}:13001'.format(LOCALHOST),
-                                     '--target={0}:13002'.format(LOCALHOST),
+                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                     '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
                                      '--keystore=server.p12',
                                      '--cacert=root.crt',
                                      '--allow-uri=spiffe://client1',
@@ -39,13 +39,13 @@ if __name__ == "__main__":
 
         # create connections with client
         pair1 = SocketPair(
-                TlsClient('client1', 'root', 13001), TcpServer(13002))
+                TlsClient('client1', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
         pair1.validate_can_send_from_client("toto", "pair1 works")
         pair1.validate_can_send_from_server("toto", "pair1 works")
 
         try:
             pair2 = SocketPair(
-                TlsClient('client2', 'root', 13001), TcpServer(13002))
+                TlsClient('client2', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
             raise Exception('failed to reject client2')
         except (ssl.SSLError, socket.timeout):
             print_ok("client2 correctly rejected")

@@ -4,7 +4,7 @@
 Simulates a hanging connection, waits for timeout.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, TlsClient, TcpServer, SocketPair, print_ok, run_ghostunnel, terminate, urlopen
+from common import LOCALHOST, RootCert, STATUS_PORT, TlsClient, TcpServer, SocketPair, print_ok, run_ghostunnel, terminate, urlopen, LISTEN_PORT, TARGET_PORT, get_free_port
 import urllib.request
 import urllib.error
 import urllib.parse
@@ -22,8 +22,8 @@ if __name__ == "__main__":
 
         # start ghostunnel
         ghostunnel = run_ghostunnel(['server',
-                                     '--listen={0}:13000'.format(LOCALHOST),
-                                     '--target={0}:13001'.format(LOCALHOST),
+                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                     '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
                                      '--keystore=server.p12',
                                      '--cacert=root.crt',
                                      '--allow-ou=client',
@@ -37,7 +37,7 @@ if __name__ == "__main__":
 
         # create connections with client, leave connection open
         pair1 = SocketPair(
-            TlsClient('client', 'root', 13000), TcpServer(13001))
+            TlsClient('client', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
         pair1.validate_can_send_from_client("toto", "pair1 works")
 
         # check metrics for connection lifetime timeout
