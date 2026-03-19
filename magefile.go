@@ -726,12 +726,21 @@ func (Test) Docker(ctx context.Context) error {
 		return fmt.Errorf("failed to get current directory: %w", err)
 	}
 
-	args = []string{"run", "-v", fmt.Sprintf("%s:/go/src/github.com/ghostunnel/ghostunnel", pwd), "ghostunnel/ghostunnel-test", "--"}
+	containerName := fmt.Sprintf("ghostunnel-test-%d", os.Getpid())
+	args = []string{"run", "--rm", "--name", containerName, "-v", fmt.Sprintf("%s:/go/src/github.com/ghostunnel/ghostunnel", pwd), "ghostunnel/ghostunnel-test", "--"}
 	if mg.Verbose() {
 		args = append(args, "-v")
 	}
 	args = append(args, "test:softhsmimport", "test:all")
-	return sh.Run("docker", args...)
+
+	defer func() {
+		exec.Command("docker", "rm", "-f", containerName).Run()
+	}()
+
+	cmd := exec.CommandContext(ctx, "docker", args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 // Build builds and tags all Docker containers.
