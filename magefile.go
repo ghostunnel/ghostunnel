@@ -468,18 +468,20 @@ func (Test) Integration(ctx context.Context) error {
 		if r.err == nil {
 			printf("=== PASS: %s (%.2fs)\n", r.name, r.duration.Seconds())
 		} else {
-			printf("=== FAIL: %s (%.2fs)\n", r.name, r.duration.Seconds())
+			fmt.Printf("=== FAIL: %s (%.2fs)\n", r.name, r.duration.Seconds())
 			failed = append(failed, r)
 		}
 	}
 
 	// Report failures
 	if len(failed) > 0 {
-		printf("\n--- FAILURES ---\n")
+		fmt.Printf("\n--- FAILURES ---\n")
 		for _, r := range failed {
-			printf("\n=== FAIL: %s (%.2fs)\n", r.name, r.duration.Seconds())
+			fmt.Printf("\n=== FAIL: %s (%.2fs)\n", r.name, r.duration.Seconds())
+			fmt.Printf("--- stdout ---\n")
 			os.Stdout.Write(r.stdout)
-			os.Stderr.Write(r.stderr)
+			fmt.Printf("--- stderr ---\n")
+			os.Stdout.Write(r.stderr)
 		}
 		return fmt.Errorf("%d integration test(s) failed", len(failed))
 	}
@@ -544,8 +546,10 @@ func (Test) Single(ctx context.Context, name string) error {
 
 	// On failure, show captured output if not already streaming
 	if !mg.Verbose() {
+		fmt.Printf("--- stdout ---\n")
 		os.Stdout.Write(stdout.Bytes())
-		os.Stderr.Write(stderr.Bytes())
+		fmt.Printf("--- stderr ---\n")
+		os.Stdout.Write(stderr.Bytes())
 	}
 	fmt.Printf("=== FAIL: %s (%.2fs)\n", name, elapsed)
 	if exitError, ok := err.(*exec.ExitError); ok {
