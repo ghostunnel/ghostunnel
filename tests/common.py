@@ -24,6 +24,7 @@ _TESTS_DIR = os.path.abspath(os.path.dirname(__file__) or '.')
 _ROOT_DIR = os.path.abspath(os.path.join(_TESTS_DIR, '..'))
 _GHOSTUNNEL_BINARY = os.path.join(_ROOT_DIR, 'ghostunnel.test')
 _COVERAGE_DIR = os.path.join(_ROOT_DIR, 'coverage')
+os.makedirs(_COVERAGE_DIR, exist_ok=True)
 
 
 def get_free_port():
