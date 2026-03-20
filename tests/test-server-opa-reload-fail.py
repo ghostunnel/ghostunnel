@@ -5,7 +5,7 @@ Test to check OPA policy reloading failure.
 """
 
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, \
-    TlsClient, print_ok, run_ghostunnel, terminate, wait_for_status, LISTEN_PORT, TARGET_PORT
+    TlsClient, print_ok, run_ghostunnel, status_info, terminate, wait_for_status, LISTEN_PORT, TARGET_PORT
 
 from tempfile import mkstemp, mkdtemp
 import signal
@@ -59,10 +59,11 @@ if __name__ == '__main__':
 
         # make policy invalid and reload
         os.remove(tmp_dir + '/bundle.tar.gz')
+        pre_reload = status_info().get('last_reload')
         ghostunnel.send_signal(signal.SIGUSR1)
 
         # wait until reload complete
-        wait_for_status(lambda info: 'last_reload' in info)
+        wait_for_status(lambda info: info.get('last_reload') != pre_reload)
 
         # old policy remains in effect
         pair1 = SocketPair(
