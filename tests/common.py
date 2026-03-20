@@ -30,7 +30,7 @@ def get_free_port():
     """Get an available port by binding to port 0 and letting the OS assign one."""
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    s.bind(('', 0))
+    s.bind((LOCALHOST, 0))
     port = s.getsockname()[1]
     s.close()
     return port
