@@ -12,7 +12,7 @@ import os
 import urllib.request
 
 LOCALHOST = '127.0.0.1'
-TIMEOUT = 5
+TIMEOUT = int(os.environ.get('GHOSTUNNEL_TEST_TIMEOUT', '10'))
 
 
 def _poll_sleep(iteration):
@@ -37,29 +37,35 @@ def get_free_port():
     return port
 
 
+_SO_REUSEPORT = getattr(socket, 'SO_REUSEPORT', 15)  # 15 on Linux
+
+
 def _get_distinct_free_ports(n):
-    """Allocate n distinct free ports, holding all sockets open until all are
-    assigned to prevent the OS from handing out duplicates or another process
-    grabbing a port in between."""
-    sockets = []
+    """Allocate n distinct free ports with SO_REUSEPORT, holding all sockets
+    open until release_ports() is called.  Because ghostunnel also uses
+    SO_REUSEPORT, it can bind the same ports while the reservation sockets
+    are still open, but other test processes cannot accidentally get the
+    same ports from the OS."""
+    socks = []
     ports = []
-    try:
-        for _ in range(n):
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            s.bind((LOCALHOST, 0))
-            sockets.append(s)
-            ports.append(s.getsockname()[1])
-    finally:
-        for s in sockets:
-            s.close()
+    for _ in range(n):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.setsockopt(socket.SOL_SOCKET, _SO_REUSEPORT, 1)
+        s.bind((LOCALHOST, 0))
+        socks.append(s)
+        ports.append(s.getsockname()[1])
     assert len(set(ports)) == n, \
         "failed to allocate {0} distinct ports, got {1}".format(n, ports)
-    return ports
+    return ports, socks
 
 
-# Allocate unique ports per test process at import time
-STATUS_PORT, LISTEN_PORT, TARGET_PORT = _get_distinct_free_ports(3)
+# Allocate unique ports per test process at import time.
+# Reservation sockets stay open for the lifetime of the process.
+# Ghostunnel can co-bind because it also uses SO_REUSEPORT.
+(STATUS_PORT, LISTEN_PORT, TARGET_PORT), _port_reservation_sockets = \
+    _get_distinct_free_ports(3)
+atexit.register(lambda: [s.close() for s in _port_reservation_sockets])
 
 # Create a per-test temporary working directory for cert file isolation
 _WORK_DIR = mkdtemp(prefix='ghostunnel-test-')
@@ -83,7 +89,7 @@ def run_ghostunnel(args, stdout=sys.stdout.buffer, stderr=sys.stderr.buffer, pre
 
     # Set lower than default timeouts to speed up tests
     if not any('shutdown-timeout' in f for f in args):
-        args.append('--shutdown-timeout=0.1s')
+        args.append('--shutdown-timeout=1s')
     if not any('close-timeout' in f for f in args):
         args.append('--close-timeout=1s')
 
@@ -303,6 +309,7 @@ class TcpServer(MySocket):
         self.listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.listener.settimeout(TIMEOUT)
         self.listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.listener.setsockopt(socket.SOL_SOCKET, _SO_REUSEPORT, 1)
         self.listener.bind((LOCALHOST, self.port))
         self.listener.listen(1)
 
@@ -375,6 +382,7 @@ class TlsServer(MySocket):
         listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         listener.settimeout(TIMEOUT)
         listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.setsockopt(socket.SOL_SOCKET, _SO_REUSEPORT, 1)
         listener.bind((LOCALHOST, self.port))
         listener.listen(1)
         self.tls_listener = wrap_socket(listener,
