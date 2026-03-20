@@ -36,10 +36,29 @@ def get_free_port():
     return port
 
 
+def _get_distinct_free_ports(n):
+    """Allocate n distinct free ports, holding all sockets open until all are
+    assigned to prevent the OS from handing out duplicates or another process
+    grabbing a port in between."""
+    sockets = []
+    ports = []
+    try:
+        for _ in range(n):
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind((LOCALHOST, 0))
+            sockets.append(s)
+            ports.append(s.getsockname()[1])
+    finally:
+        for s in sockets:
+            s.close()
+    assert len(set(ports)) == n, \
+        "failed to allocate {0} distinct ports, got {1}".format(n, ports)
+    return ports
+
+
 # Allocate unique ports per test process at import time
-STATUS_PORT = get_free_port()
-LISTEN_PORT = get_free_port()
-TARGET_PORT = get_free_port()
+STATUS_PORT, LISTEN_PORT, TARGET_PORT = _get_distinct_free_ports(3)
 
 # Create a per-test temporary working directory for cert file isolation
 _WORK_DIR = mkdtemp(prefix='ghostunnel-test-')
