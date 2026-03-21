@@ -4,7 +4,7 @@
 Spins up a client and tests systemd socket activation.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TlsServer, print_ok, run_ghostunnel, terminate
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TlsServer, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
 from shutil import which
 import sys
 
@@ -30,7 +30,7 @@ if __name__ == "__main__":
                 '--cacert=root.crt'],
                 prefix=[
                 'systemd-socket-activate',
-                '--listen={0}:13001'.format(LOCALHOST),
+                '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
                 '--listen={0}:{1}'.format(LOCALHOST, STATUS_PORT),
                 '--fdname=client:status',
                 '--setenv=GHOSTUNNEL_INTEGRATION_TEST',

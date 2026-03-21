@@ -4,7 +4,7 @@
 Ensures when server disconnects that the client connection also disconnects.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, print_ok, run_ghostunnel, terminate
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT, get_free_port
 
 if __name__ == "__main__":
     ghostunnel = None
@@ -16,8 +16,8 @@ if __name__ == "__main__":
 
         # start ghostunnel
         ghostunnel = run_ghostunnel(['server',
-                                     '--listen={0}:13001'.format(LOCALHOST),
-                                     '--target={0}:13000'.format(LOCALHOST),
+                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                     '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
                                      '--keystore=server.p12',
                                      '--status={0}:{1}'.format(LOCALHOST,
                                                                STATUS_PORT),
@@ -26,7 +26,7 @@ if __name__ == "__main__":
                                      '--allow-ou=client'])
 
         # connect with client, confirm that the tunnel is up
-        pair = SocketPair(TlsClient('client', 'root', 13001), TcpServer(13000))
+        pair = SocketPair(TlsClient('client', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
         pair.validate_can_send_from_server(
             "hello world", "1: server -> client")
         pair.validate_can_send_from_client(
@@ -34,7 +34,7 @@ if __name__ == "__main__":
         pair.validate_closing_server_closes_client(
             "1: server closed -> client closed")
 
-        pair = SocketPair(TlsClient('client', 'root', 13001), TcpServer(13000))
+        pair = SocketPair(TlsClient('client', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
         pair.validate_can_send_from_server(
             "hello world", "2: server -> client")
         pair.validate_can_send_from_client(

@@ -5,13 +5,13 @@ Ensures that multiple servers can communicate.
 """
 
 from multiprocessing import Process
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TlsServer, print_ok, run_ghostunnel, terminate
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TlsServer, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
 import time
 import random
 
 
 def send_data(i):
-    p = SocketPair(TcpClient(13001), TlsServer("server{0}".format(i), 'root', 13002))
+    p = SocketPair(TcpClient(LISTEN_PORT), TlsServer("server{0}".format(i), 'root', TARGET_PORT))
     counter = 0
     while counter < 100:
         r = random.random()
@@ -46,8 +46,8 @@ if __name__ == "__main__":
 
         # start ghostunnel
         ghostunnel = run_ghostunnel(['client',
-                                     '--listen={0}:13001'.format(LOCALHOST),
-                                     '--target={0}:13002'.format(LOCALHOST),
+                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                     '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
                                      '--keystore=client.p12',
                                      '--status={0}:{1}'.format(LOCALHOST,
                                                                STATUS_PORT),

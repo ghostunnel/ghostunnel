@@ -1,7 +1,9 @@
-from subprocess import call, Popen
+from subprocess import call, Popen, DEVNULL
 from tempfile import mkstemp, mkdtemp
+import atexit
 import json
 import platform
+import shutil
 import sys
 import time
 import socket
@@ -9,17 +11,80 @@ import ssl
 import os
 import urllib.request
 
-FNULL = open(os.devnull, 'w')
 LOCALHOST = '127.0.0.1'
-STATUS_PORT = 13100
-TIMEOUT = 5
+TIMEOUT = int(os.environ.get('GHOSTUNNEL_TEST_TIMEOUT', '10'))
+
+
+def _poll_sleep(iteration):
+    """Exponential backoff: 0.05, 0.1, 0.2, 0.4, 0.8, 1.0, 1.0, ..."""
+    time.sleep(min(0.05 * (2 ** iteration), 1.0))
+
+# Store original directory paths before changing working directory
+_TESTS_DIR = os.path.abspath(os.path.dirname(__file__) or '.')
+_ROOT_DIR = os.path.abspath(os.path.join(_TESTS_DIR, '..'))
+_GHOSTUNNEL_BINARY = os.path.join(_ROOT_DIR, 'ghostunnel.test')
+_COVERAGE_DIR = os.path.join(_ROOT_DIR, 'coverage')
+os.makedirs(_COVERAGE_DIR, exist_ok=True)
+
+if not hasattr(socket, 'SO_REUSEPORT'):
+    raise RuntimeError("SO_REUSEPORT is required but not available on this platform")
+_SO_REUSEPORT = socket.SO_REUSEPORT
+
+# Holds reservation sockets for ports allocated by get_free_port()
+_extra_port_sockets = []
+atexit.register(lambda: [s.close() for s in _extra_port_sockets])
+
+
+def get_free_port(release=False):
+    """Get an available port by binding to port 0 with SO_REUSEPORT.
+
+    By default the reservation socket is kept open for the lifetime of the
+    process to prevent other parallel test processes from being assigned the
+    same port.  Pass release=True to close the socket immediately — use this
+    when the caller will bind the port exclusively right away (e.g. port-
+    conflict tests)."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.setsockopt(socket.SOL_SOCKET, _SO_REUSEPORT, 1)
+    s.bind((LOCALHOST, 0))
+    port = s.getsockname()[1]
+    if release:
+        s.close()
+    else:
+        _extra_port_sockets.append(s)
+    return port
+
+
+# Allocate unique ports per test process at import time.
+# Reservation sockets stay open for the lifetime of the process.
+# Ghostunnel can co-bind because it also uses SO_REUSEPORT.
+STATUS_PORT = get_free_port()
+LISTEN_PORT = get_free_port()
+TARGET_PORT = get_free_port()
+
+# Create a per-test temporary working directory for cert file isolation
+_WORK_DIR = mkdtemp(prefix='ghostunnel-test-')
+os.chdir(_WORK_DIR)
+
+
+def _cleanup_work_dir():
+    """Clean up the temporary working directory on exit."""
+    try:
+        os.chdir(_TESTS_DIR)
+        shutil.rmtree(_WORK_DIR, ignore_errors=True)
+    except Exception:
+        pass
+
+
+atexit.register(_cleanup_work_dir)
+
 
 def run_ghostunnel(args, stdout=sys.stdout.buffer, stderr=sys.stderr.buffer, prefix=None):
     """Helper to run ghostunnel in integration test mode"""
 
-    # Set lower than default timeouts to speed up tests 
+    # Set lower than default timeouts to speed up tests
     if not any('shutdown-timeout' in f for f in args):
-        args.append('--shutdown-timeout=0.1s')
+        args.append('--shutdown-timeout=1s')
     if not any('close-timeout' in f for f in args):
         args.append('--close-timeout=1s')
 
@@ -33,9 +98,9 @@ def run_ghostunnel(args, stdout=sys.stdout.buffer, stderr=sys.stderr.buffer, pre
     # Run it, hook up stdout/stderr if desired
     test = os.path.basename(sys.argv[0]).replace('.py', '.profile')
     cmd = [
-        '../ghostunnel.test',
+        _GHOSTUNNEL_BINARY,
         '-test.run=TestIntegrationMain',
-        '-test.coverprofile=../coverage/{0}'.format(test)
+        '-test.coverprofile={0}/{1}'.format(_COVERAGE_DIR, test)
     ]
 
     if prefix:
@@ -60,7 +125,7 @@ def terminate(ghostunnel):
     try:
         if ghostunnel:
             ghostunnel.terminate()
-            for _ in range(0, 10):
+            for i in range(0, 10):
                 try:
                     ghostunnel.wait(timeout=1)
                 except BaseException:
@@ -69,7 +134,7 @@ def terminate(ghostunnel):
                     print_ok("ghostunnel stopped with exit code {0}".format(
                         ghostunnel.returncode))
                     return
-                time.sleep(1)
+                _poll_sleep(i)
             print_ok("timeout, killing ghostunnel")
             ghostunnel.kill()
     except BaseException:
@@ -92,6 +157,18 @@ def status_info():
     except Exception as e:
         print('unable to fetch status:', e)
 
+def wait_for_status(predicate, timeout=30):
+    """Poll status_info() until predicate(info) is truthy, with timeout."""
+    deadline = time.time() + timeout
+    iteration = 0
+    while time.time() < deadline:
+        info = status_info()
+        if info and predicate(info):
+            return info
+        _poll_sleep(iteration)
+        iteration += 1
+    raise TimeoutError("status check timed out after {0}s".format(timeout))
+
 def dump_goroutines():
     """Attempt to dump goroutines via status port/pprof"""
     ctx = ssl.create_default_context()
@@ -112,34 +189,32 @@ class RootCert:
         self.leaf_certs = []
         print_ok("generating {0}.key, {0}.crt".format(name))
         call(
-            'openssl genrsa -out {0}.key 2048'.format(name),
+            'openssl ecparam -name prime256v1 -genkey -noout -out {0}.key'.format(name),
             shell=True,
-            stderr=FNULL)
+            stderr=DEVNULL)
         call(
             'openssl req -x509 -new -key {0}.key -days 5 -out {0}_temp.crt -addext "keyUsage = digitalSignature, cRLSign, keyCertSign" -subj /C=US/ST=CA/O=ghostunnel/OU={0}'.format(name),
             shell=True)
         os.rename("{0}_temp.crt".format(name), "{0}.crt".format(name))
-        call('chmod 600 {0}.key'.format(name), shell=True)
 
     def create_signed_cert(self, cn_and_ou, san="IP:127.0.0.1,IP:::1,DNS:localhost"):
         print_ok("generating {0}.key, {0}.crt, {0}.p12".format(cn_and_ou))
         fd, openssl_config = mkstemp(dir='.')
         os.write(fd, "extendedKeyUsage=clientAuth,serverAuth\n".encode('utf-8'))
         os.write(fd, "subjectAltName = {0},DNS:{1}".format(san, cn_and_ou).encode('utf-8'))
-        call("openssl genrsa -out {0}.key 2048".format(cn_and_ou),
-             shell=True, stderr=FNULL)
+        call("openssl ecparam -name prime256v1 -genkey -noout -out {0}.key".format(cn_and_ou),
+             shell=True, stderr=DEVNULL)
         call(
             "openssl req -new -key {0}.key -out {0}.csr -subj /CN={0}/C=US/ST=CA/O=ghostunnel/OU={0}".format(cn_and_ou),
             shell=True,
-            stderr=FNULL)
-        call("chmod 600 {0}.key".format(cn_and_ou), shell=True)
+            stderr=DEVNULL)
         call(
             "openssl x509 -req -in {0}.csr -CA {1}.crt -CAkey {1}.key -CAcreateserial -out {0}_temp.crt -days 5 -extfile {2}".format(
                 cn_and_ou,
                 self.name,
                 openssl_config),
             shell=True,
-            stderr=FNULL)
+            stderr=DEVNULL)
         call(
             "openssl pkcs12 -export -out {0}_temp.p12 -in {0}_temp.crt -inkey {0}.key -password pass:".format(cn_and_ou),
             shell=True)
@@ -190,7 +265,9 @@ class MySocket():
         return self.socket
 
     def cleanup(self):
-        self.socket = None  # automatically calls close()
+        if self.socket:
+            self.socket.close()
+        self.socket = None
 
 ######################### TCP #########################
 
@@ -201,7 +278,7 @@ class TcpClient(MySocket):
         self.port = port
 
     def connect(self, attempts=1, msg=''):
-        for _ in range(0, attempts):
+        for i in range(0, attempts):
             try:
                 self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.socket.settimeout(TIMEOUT)
@@ -212,7 +289,7 @@ class TcpClient(MySocket):
                 print(e)
             print(
                 "failed to connect to {0}. Trying again...".format(self.port))
-            time.sleep(1)
+            _poll_sleep(i)
 
         raise Exception("Failed to connect to {0}".format(self.port))
 
@@ -227,6 +304,7 @@ class TcpServer(MySocket):
         self.listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.listener.settimeout(TIMEOUT)
         self.listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.listener.setsockopt(socket.SOL_SOCKET, _SO_REUSEPORT, 1)
         self.listener.bind((LOCALHOST, self.port))
         self.listener.listen(1)
 
@@ -234,9 +312,12 @@ class TcpServer(MySocket):
         self.socket, _ = self.listener.accept()
         self.socket.settimeout(TIMEOUT)
         self.listener.close()
+        self.listener = None
 
     def cleanup(self):
         super().cleanup()
+        if self.listener:
+            self.listener.close()
         self.listener = None
 
 ######################### TLS #########################
@@ -252,7 +333,7 @@ class TlsClient(MySocket):
         self.max_version = max_version
 
     def connect(self, attempts=1, peer=None):
-        for _ in range(0, attempts):
+        for i in range(0, attempts):
             try:
                 ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
                 ctx.verify_mode = ssl.CERT_REQUIRED
@@ -272,8 +353,8 @@ class TlsClient(MySocket):
                 self.socket.connect((LOCALHOST, self.port))
                 return
             except Exception as e:
-                print('connection attempt {0} failed, error: {1}'.format(_, e))
-                time.sleep(1)
+                print('connection attempt {0} failed, error: {1}'.format(i, e))
+                _poll_sleep(i)
 
         raise Exception("connection failed after {0} attempts".format(attempts))
 
@@ -296,6 +377,7 @@ class TlsServer(MySocket):
         listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         listener.settimeout(TIMEOUT)
         listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.setsockopt(socket.SOL_SOCKET, _SO_REUSEPORT, 1)
         listener.bind((LOCALHOST, self.port))
         listener.listen(1)
         self.tls_listener = wrap_socket(listener,
@@ -311,16 +393,18 @@ class TlsServer(MySocket):
         self.socket, _ = self.tls_listener.accept()
         self.socket.settimeout(TIMEOUT)
         self.tls_listener.close()
+        self.tls_listener = None
 
     def validate_client_cert(self, ou):
         if self.socket.getpeercert()['subject'][0][0][1] == ou:
             return
-        raise Exception("did not connect to expected peer: got ",
-                        self.socket.getpeercert()[0][0][1],
-                        ", wanted: ", ou)
+        raise Exception("did not connect to expected peer: got {}, wanted: {}".format(
+                        self.socket.getpeercert()['subject'][0][0][1], ou))
 
     def cleanup(self):
         super().cleanup()
+        if self.tls_listener:
+            self.tls_listener.close()
         self.tls_listener = None
 
 ######################### UNIX SOCKET #########################
@@ -335,7 +419,7 @@ class UnixClient(MySocket):
         return self.socket_path
 
     def connect(self, attempts=1, msg=''):
-        for _ in range(0, attempts):
+        for i in range(0, attempts):
             try:
                 self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                 self.socket.settimeout(TIMEOUT)
@@ -346,13 +430,12 @@ class UnixClient(MySocket):
                 print(e)
             print("failed to connect to {0}. Trying again...".format(
                 self.socket_path))
-            time.sleep(1)
+            _poll_sleep(i)
 
         raise Exception("Failed to connect to {0}".format(self.socket_path))
 
     def cleanup(self):
         super().cleanup()
-        self.socket = None
         os.remove(self.socket_path)
         os.rmdir(os.path.dirname(self.socket_path))
 
@@ -382,6 +465,8 @@ class UnixServer(MySocket):
 
     def cleanup(self):
         super().cleanup()
+        if self.listener:
+            self.listener.close()
         self.listener = None
         os.remove(self.socket_path)
 
@@ -450,7 +535,7 @@ class SocketPair():
         # server should still be able to send data back, within the timeout
         self.server.get_socket().send('A'.encode('utf-8'))
         self.client.get_socket().recv(1)
-        # if the tunnel doesn't close the connection (forwarding the FIN packet), 
+        # if the tunnel doesn't close the connection (forwarding the FIN packet),
         # then recv(1) will raise a Timeout
         self.server.get_socket().recv(1)
         # cleanup
@@ -471,14 +556,14 @@ class SocketPair():
         # client should still be able to send data back, within the timeout
         self.client.get_socket().send('A'.encode('utf-8'))
         self.server.get_socket().recv(1)
-        # if the tunnel doesn't close the connection (forwarding the FIN packet), 
+        # if the tunnel doesn't close the connection (forwarding the FIN packet),
         # then recv(1) will raise a Timeout
         self.client.get_socket().recv(1)
         # cleanup
         self.server.get_socket().close()
 
     def validate_client_cert(self, ou, msg):
-        for _ in range(1, 20):
+        for i in range(1, 20):
             try:
                 self.server.validate_client_cert(ou)
                 print_ok(msg)
@@ -486,7 +571,7 @@ class SocketPair():
             except Exception as e:
                 print(e)
             print("validate client cert failed, trying again...")
-            time.sleep(1)
+            _poll_sleep(i)
             self.cleanup()
             self.connect()
         raise Exception("did not connect to expected peer.")

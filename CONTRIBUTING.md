@@ -52,6 +52,13 @@ run checks on a live instance. If you are adding new features or changing
 existing behavior, please add/update the integration tests in the `tests/`
 directory accordingly. The tests use the `tests/common.py` helper module.
 
+Integration tests run in parallel by default (up to `NumCPU`, capped at 16 by default).
+Set `GHOSTUNNEL_TEST_PARALLEL` to control the number of concurrent tests (may exceed the default cap):
+
+```bash
+GHOSTUNNEL_TEST_PARALLEL=4 mage test:integration
+```
+
 Test certificates are generated in `test-keys/` via `mage test:keys`.
 
 ## Architecture Overview

@@ -4,7 +4,7 @@
 Test that ghostunnel server exits with an error when the listen port is already in use.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, print_ok, run_ghostunnel, terminate
+from common import LOCALHOST, RootCert, STATUS_PORT, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT, get_free_port
 import socket
 
 if __name__ == "__main__":
@@ -15,15 +15,16 @@ if __name__ == "__main__":
         root = RootCert('root')
         root.create_signed_cert('server')
 
-        # Occupy port 13099 with a blocking socket
+        # Occupy a port with a blocking socket
+        conflict_port = get_free_port(release=True)
         blocking_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        blocking_socket.bind((LOCALHOST, 13099))
+        blocking_socket.bind((LOCALHOST, conflict_port))
         blocking_socket.listen(1)
 
         # start ghostunnel, which should fail because port is already taken
         ghostunnel = run_ghostunnel(['server',
-                                     '--listen={0}:13099'.format(LOCALHOST),
-                                     '--target={0}:13100'.format(LOCALHOST),
+                                     '--listen={0}:{1}'.format(LOCALHOST, conflict_port),
+                                     '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
                                      '--keystore=server.p12',
                                      '--cacert=root.crt',
                                      '--allow-ou=server'])

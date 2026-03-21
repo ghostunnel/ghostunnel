@@ -4,7 +4,7 @@
 Ensures that --quiet=conns disables logging about new connections.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, TlsClient, TcpServer, print_ok, run_ghostunnel, terminate, SocketPair, urlopen
+from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, TlsClient, TcpServer, print_ok, run_ghostunnel, terminate, SocketPair, urlopen, LISTEN_PORT, TARGET_PORT
 import urllib.request
 import urllib.error
 import urllib.parse
@@ -25,8 +25,8 @@ if __name__ == '__main__':
         # hack: point target to STATUS_PORT so that /_status doesn't 503.
         ghostunnel = run_ghostunnel(['server',
                                      '--quiet=conns',
-                                     '--listen={0}:13001'.format(LOCALHOST),
-                                     '--target={0}:13002'.format(LOCALHOST),
+                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                     '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
                                      '--keystore=server.p12',
                                      '--cacert=root.crt',
                                      '--allow-ou=client',
@@ -44,7 +44,7 @@ if __name__ == '__main__':
 
         # send some data through proxy
         pair1 = SocketPair(
-                TlsClient('client', 'root', 13001), TcpServer(13002))
+                TlsClient('client', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
         pair1.validate_can_send_from_client('toto', 'works')
         pair1.validate_can_send_from_server('toto', 'works')
         pair1.cleanup()

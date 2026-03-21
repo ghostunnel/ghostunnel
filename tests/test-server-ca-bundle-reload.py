@@ -4,8 +4,7 @@
 Ensures that root certificates are reloaded as well.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, print_ok, run_ghostunnel, terminate
-import time
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, print_ok, run_ghostunnel, status_info, terminate, wait_for_status, LISTEN_PORT, TARGET_PORT
 import signal
 import os
 
@@ -19,8 +18,8 @@ if __name__ == "__main__":
 
         # start ghostunnel
         ghostunnel = run_ghostunnel(['server',
-                                     '--listen={0}:13001'.format(LOCALHOST),
-                                     '--target={0}:13002'.format(LOCALHOST),
+                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                     '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
                                      '--keystore=server.p12',
                                      '--status={0}:{1}'.format(LOCALHOST,
                                                                STATUS_PORT),
@@ -28,7 +27,7 @@ if __name__ == "__main__":
                                      '--allow-ou=client'])
 
         # connect with client, confirm that the tunnel is up
-        pair = SocketPair(TlsClient('client', 'root', 13001), TcpServer(13002))
+        pair = SocketPair(TlsClient('client', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
         pair.validate_can_send_from_client(
             "hello world", "1: client -> server")
         pair.validate_can_send_from_server(
@@ -42,11 +41,12 @@ if __name__ == "__main__":
         root.create_signed_cert('server')
         root.create_signed_cert('client')
 
+        pre_reload = status_info().get('last_reload')
         ghostunnel.send_signal(signal.SIGUSR1)
-        time.sleep(3)
+        wait_for_status(lambda info: info.get('last_reload') != pre_reload, timeout=10)
         
         # Make sure everything still works
-        pair = SocketPair(TlsClient('client', 'root', 13001), TcpServer(13002))
+        pair = SocketPair(TlsClient('client', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
         pair.validate_can_send_from_client(
             "hello world", "1: client -> server")
         pair.validate_can_send_from_server(

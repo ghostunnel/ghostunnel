@@ -4,7 +4,7 @@
 Test that ensures that we can use the --cert/--key flags.
 """
 
-from common import LOCALHOST, STATUS_PORT, TcpClient, print_ok, run_ghostunnel, terminate, RootCert, SocketPair, TlsClient, TcpServer
+from common import LOCALHOST, STATUS_PORT, TcpClient, print_ok, run_ghostunnel, terminate, RootCert, SocketPair, TlsClient, TcpServer, LISTEN_PORT, TARGET_PORT
 import urllib.request
 import urllib.error
 import urllib.parse
@@ -22,8 +22,8 @@ if __name__ == "__main__":
 
         # start ghostunnel
         ghostunnel = run_ghostunnel(['server',
-                                     '--listen={0}:13001'.format(LOCALHOST),
-                                     '--target={0}:13002'.format(LOCALHOST),
+                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                     '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
                                      '--cert=server.crt',
                                      '--key=server.key',
                                      '--cacert=root.crt',
@@ -33,7 +33,7 @@ if __name__ == "__main__":
 
         # connect with client, confirm that the tunnel is up
         pair = SocketPair(
-            TlsClient('client', 'root', 13001), TcpServer(13002))
+            TlsClient('client', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
         pair.validate_can_send_from_client(
             "hello world", "1: client -> server")
         pair.validate_can_send_from_server(

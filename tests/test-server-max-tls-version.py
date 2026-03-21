@@ -6,7 +6,7 @@ Tests that ghostunnel respects the max-tls-version flag by verifying that:
 2. TLS 1.3 connections are rejected when max version is set to TLS1.2
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, TlsClient, TcpServer, print_ok, run_ghostunnel, terminate
+from common import LOCALHOST, RootCert, STATUS_PORT, TlsClient, TcpServer, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
 import ssl
 import time
 
@@ -20,8 +20,8 @@ if __name__ == "__main__":
 
         # start ghostunnel with max TLS version set to 1.2
         ghostunnel = run_ghostunnel(['server',
-                                   '--listen={0}:13001'.format(LOCALHOST),
-                                   '--target={0}:13002'.format(LOCALHOST),
+                                   '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                   '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
                                    '--keystore=server.p12',
                                    '--cacert=root.crt',
                                    '--allow-ou=client',
@@ -32,12 +32,12 @@ if __name__ == "__main__":
         TlsClient(None, 'root', STATUS_PORT).connect(20, 'server')
 
         # Create backend socket
-        backend = TcpServer(13002)
+        backend = TcpServer(TARGET_PORT)
         backend.listen()
 
         # Test TLS 1.2 client (should succeed)
         print_ok("testing TLS 1.2 connection (should succeed)...")
-        client = TlsClient('client', 'root', 13001,
+        client = TlsClient('client', 'root', LISTEN_PORT,
                          min_version=ssl.TLSVersion.TLSv1_2,
                          max_version=ssl.TLSVersion.TLSv1_2)
         client.connect()
@@ -47,7 +47,7 @@ if __name__ == "__main__":
 
         # Test TLS 1.3 client (should fail)
         print_ok("testing TLS 1.3 connection (should fail)...")
-        client = TlsClient('client', 'root', 13001,
+        client = TlsClient('client', 'root', LISTEN_PORT,
                          min_version=ssl.TLSVersion.TLSv1_3,
                          max_version=ssl.TLSVersion.TLSv1_3)
         

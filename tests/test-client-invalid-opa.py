@@ -5,7 +5,7 @@ Tests code paths with invalid policy.
 """
 
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, \
-    TlsServer, print_ok, run_ghostunnel, terminate
+    TlsServer, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
 
 from tempfile import mkstemp, mkdtemp
 import time
@@ -36,8 +36,8 @@ if __name__ == "__main__":
         shutil.copyfile(dir_path + '/test-client-verify-opa-policy.tar.gz', tmp_dir + '/bundle.tar.gz')
 
         ghostunnel = run_ghostunnel(['client',
-                                     '--listen={0}:13001'.format(LOCALHOST),
-                                     '--target=localhost:13002',
+                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                     '--target=localhost:{0}'.format(TARGET_PORT),
                                      '--keystore=client.p12',
                                      '--verify-policy=' + tmp_dir + '/bundle.tar.gz',
                                      '--verify-query=xxx@invalid',

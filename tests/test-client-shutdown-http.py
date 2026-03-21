@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TlsClient, TlsServer, print_ok, run_ghostunnel, terminate, urlopen
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TlsClient, TlsServer, print_ok, run_ghostunnel, terminate, urlopen, LISTEN_PORT, TARGET_PORT
+import http.client
 import urllib.request
 import urllib.error
 import urllib.parse
@@ -17,8 +18,8 @@ if __name__ == "__main__":
 
         # start ghostunnel
         ghostunnel = run_ghostunnel(['client',
-                                     '--listen={0}:13001'.format(LOCALHOST),
-                                     '--target={0}:13002'.format(LOCALHOST),
+                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                     '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
                                      '--keystore=client.p12',
                                      '--cacert=root.crt',
                                      '--enable-shutdown',
@@ -30,12 +31,15 @@ if __name__ == "__main__":
 
         # create connections with client
         pair1 = SocketPair(
-            TcpClient(13001), TlsServer('server', 'root', 13002))
+            TcpClient(LISTEN_PORT), TlsServer('server', 'root', TARGET_PORT))
         pair1.validate_can_send_from_client("toto", "pair1 works")
         pair1.cleanup()
 
         print_ok('attempting to terminate ghostunnel via HTTP POST')
-        urlopen(urllib.request.Request("https://{0}:{1}/_shutdown".format(LOCALHOST, STATUS_PORT), method='POST'))
+        try:
+            urlopen(urllib.request.Request("https://{0}:{1}/_shutdown".format(LOCALHOST, STATUS_PORT), method='POST'))
+        except http.client.RemoteDisconnected:
+            pass  # expected: server may close before sending response
 
         for n in range(0, 90):
             try:

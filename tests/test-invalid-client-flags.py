@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from common import LOCALHOST, RootCert, STATUS_PORT, print_ok, run_ghostunnel, terminate
+from common import LOCALHOST, RootCert, STATUS_PORT, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
 
 if __name__ == "__main__":
     ghostunnel = None
@@ -11,8 +11,8 @@ if __name__ == "__main__":
 
         # start ghostunnel with bad proxy
         ghostunnel = run_ghostunnel(['client',
-                                     '--listen={0}:13001'.format(LOCALHOST),
-                                     '--target={0}:13002'.format(LOCALHOST),
+                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                     '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
                                      '--keystore=client.p12',
                                      '--connect-proxy=ftp://invalid',
                                      '--cacert=root.crt',
@@ -30,7 +30,7 @@ if __name__ == "__main__":
         # start ghostunnel with bad client listen addr
         ghostunnel = run_ghostunnel(['client',
                                      '--listen=invalid',
-                                     '--target={0}:13002'.format(LOCALHOST),
+                                     '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
                                      '--keystore=client.p12',
                                      '--cacert=root.crt',
                                      '--status={0}:{1}'.format(LOCALHOST,

@@ -4,7 +4,7 @@
 Ensures when server disconnects that the client connection also disconnects, with UNIX sockets.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, UnixServer, TlsClient, print_ok, run_ghostunnel, terminate
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, UnixServer, TlsClient, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
 
 if __name__ == "__main__":
     ghostunnel = None
@@ -17,7 +17,7 @@ if __name__ == "__main__":
         # start ghostunnel
         server = UnixServer()
         ghostunnel = run_ghostunnel(['server',
-                                     '--listen={0}:13001'.format(LOCALHOST),
+                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
                                      '--target=unix:{0}'.format(server.get_socket_path()),
                                      '--keystore=server.p12',
                                      '--status={0}:{1}'.format(LOCALHOST,
@@ -27,7 +27,7 @@ if __name__ == "__main__":
                                      '--allow-ou=client'])
 
         # connect with client, confirm that the tunnel is up
-        pair = SocketPair(TlsClient('client', 'root', 13001), server)
+        pair = SocketPair(TlsClient('client', 'root', LISTEN_PORT), server)
         pair.validate_can_send_from_server(
             "hello world", "1: server -> client")
         pair.validate_can_send_from_client(
@@ -35,7 +35,7 @@ if __name__ == "__main__":
         pair.validate_closing_server_closes_client(
             "1: server closed -> client closed")
 
-        pair = SocketPair(TlsClient('client', 'root', 13001), server)
+        pair = SocketPair(TlsClient('client', 'root', LISTEN_PORT), server)
         pair.validate_can_send_from_server(
             "hello world", "2: server -> client")
         pair.validate_can_send_from_client(

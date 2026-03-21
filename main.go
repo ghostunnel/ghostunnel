@@ -773,10 +773,9 @@ func (env *Environment) serveStatus() error {
 			}
 
 			logger.Printf("shutdown was requested via status endpoint")
+			w.WriteHeader(http.StatusOK)
 
 			env.shutdownChannel <- true
-
-			w.WriteHeader(http.StatusOK)
 		})
 	}
 
