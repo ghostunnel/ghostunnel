@@ -47,6 +47,14 @@ func reflecttypefor(pass *analysis.Pass) (any, error) {
 		// Have: reflect.TypeOf(expr)
 
 		expr := call.Args[0]
+
+		// reflect.TypeFor cannot be instantiated with an untyped nil.
+		// We use type information rather than checking the identifier name
+		// to correctly handle edge cases where "nil" is shadowed (e.g. nil := "nil").
+		if info.Types[expr].IsNil() {
+			continue
+		}
+
 		if !typesinternal.NoEffects(info, expr) {
 			continue // don't eliminate operand: may have effects
 		}
@@ -54,24 +62,30 @@ func reflecttypefor(pass *analysis.Pass) (any, error) {
 		t := info.TypeOf(expr)
 		var edits []analysis.TextEdit
 
-		// Special case for TypeOf((*T)(nil)).Elem(),
-		// needed when T is an interface type.
+		// Special cases for TypeOf((*T)(nil)).Elem(), and
+		// TypeOf([]T(nil)).Elem(), needed when T is an interface type.
 		if curCall.ParentEdgeKind() == edge.SelectorExpr_X {
 			curSel := unparenEnclosing(curCall).Parent()
 			if curSel.ParentEdgeKind() == edge.CallExpr_Fun {
-				call2 := unparenEnclosing(curSel).Parent().Node().(*ast.CallExpr)
+				call2 := unparenEnclosing(curSel).Parent().Node().(*ast.CallExpr) // potentially .Elem()
 				obj := typeutil.Callee(info, call2)
 				if typesinternal.IsMethodNamed(obj, "reflect", "Type", "Elem") {
-					if ptr, ok := t.(*types.Pointer); ok {
+					// reflect.TypeOf(expr).Elem()
+					//                     -------
+					// reflect.TypeOf(expr)
+					removeElem := []analysis.TextEdit{{
+						Pos: call.End(),
+						End: call2.End(),
+					}}
+					switch typ := t.(type) {
+					case *types.Pointer:
 						// Have: TypeOf(expr).Elem() where expr : *T
-						t = ptr.Elem()
-						// reflect.TypeOf(expr).Elem()
-						//                     -------
-						// reflect.TypeOf(expr)
-						edits = []analysis.TextEdit{{
-							Pos: call.End(),
-							End: call2.End(),
-						}}
+						t = typ.Elem()
+						edits = removeElem
+					case *types.Slice:
+						// Have: TypeOf(expr).Elem() where expr : []T
+						t = typ.Elem()
+						edits = removeElem
 					}
 				}
 			}

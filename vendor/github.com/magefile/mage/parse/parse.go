@@ -38,7 +38,7 @@ type PkgInfo struct {
 	Imports     Imports
 }
 
-// Function represented a job function from a mage file
+// Function represents a job function from a mage file
 type Function struct {
 	PkgAlias   string
 	Package    string
@@ -73,6 +73,7 @@ func (s Functions) Swap(i, j int) {
 // Arg is an argument to a Function.
 type Arg struct {
 	Name, Type string
+	Optional   bool
 }
 
 // ID returns user-readable information about where this function is defined.
@@ -101,6 +102,49 @@ func (f Function) TargetName() string {
 	return strings.Join(names, ":")
 }
 
+// NumRequiredArgs returns the number of non-optional arguments.
+func (f Function) NumRequiredArgs() int {
+	n := 0
+	for _, a := range f.Args {
+		if !a.Optional {
+			n++
+		}
+	}
+	return n
+}
+
+// RequiredArgs returns only the non-optional arguments.
+func (f Function) RequiredArgs() []Arg {
+	var out []Arg
+	for _, a := range f.Args {
+		if !a.Optional {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+// OptionalArgs returns only the optional arguments.
+func (f Function) OptionalArgs() []Arg {
+	var out []Arg
+	for _, a := range f.Args {
+		if a.Optional {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+// HasOptionalArgs reports whether the function has any optional arguments.
+func (f Function) HasOptionalArgs() bool {
+	for _, a := range f.Args {
+		if a.Optional {
+			return true
+		}
+	}
+	return false
+}
+
 // ExecCode returns code for the template switch to run the target.
 // It wraps each target call to match the func(context.Context) error that
 // runTarget requires.
@@ -114,7 +158,12 @@ func (f Function) ExecCode() string {
 	}
 
 	var parseargs string
+
+	// Phase 1: Parse positional (required) arguments
 	for x, arg := range f.Args {
+		if arg.Optional {
+			continue
+		}
 		switch arg.Type {
 		case "string":
 			parseargs += fmt.Sprintf(`
@@ -125,6 +174,14 @@ func (f Function) ExecCode() string {
 				arg%d, err := strconv.Atoi(args.Args[x])
 				if err != nil {
 					logger.Printf("can't convert argument %%q to int\n", args.Args[x])
+					os.Exit(2)
+				}
+				x++`, x)
+		case "float64":
+			parseargs += fmt.Sprintf(`
+				arg%d, err := strconv.ParseFloat(args.Args[x], 64)
+				if err != nil {
+					logger.Printf("can't convert argument %%q to float64\n", args.Args[x])
 					os.Exit(2)
 				}
 				x++`, x)
@@ -145,6 +202,107 @@ func (f Function) ExecCode() string {
 				}
 				x++`, x)
 		}
+	}
+
+	// Phase 2: Declare optional argument variables (nil by default)
+	for x, arg := range f.Args {
+		if !arg.Optional {
+			continue
+		}
+		parseargs += fmt.Sprintf(`
+				var arg%d *%s`, x, arg.Type)
+	}
+
+	// Phase 3: Parse optional arguments from -name=value flags
+	if f.HasOptionalArgs() {
+		// Collect lowercase names of bool optional args for bare-flag support
+		var boolOptNames []string
+		for _, arg := range f.Args {
+			if arg.Optional && arg.Type == "bool" {
+				boolOptNames = append(boolOptNames, strings.ToLower(arg.Name))
+			}
+		}
+
+		parseargs += fmt.Sprintf(`
+				for x < len(args.Args) && _strings.HasPrefix(args.Args[x], "-") {
+					_optArg := args.Args[x]
+					_eqIdx := _strings.Index(_optArg, "=")
+					var _optName, _optVal string
+					if _eqIdx < 0 {
+						_optName = _strings.ToLower(_optArg[1:])
+						switch _optName {`)
+		// Generate cases for each bool optional arg
+		for _, bname := range boolOptNames {
+			parseargs += fmt.Sprintf(`
+						case %q:
+							_optVal = "true"`, bname)
+		}
+		parseargs += fmt.Sprintf(`
+						default:
+							logger.Printf("invalid option %%q for target \"%s\", expected -name=value format\n", _optArg)
+							os.Exit(2)
+						}
+					} else {
+						_optName = _strings.ToLower(_optArg[1:_eqIdx])
+						_optVal = _optArg[_eqIdx+1:]
+					}
+					switch _optName {`, f.TargetName())
+		for x, arg := range f.Args {
+			if !arg.Optional {
+				continue
+			}
+			lowerName := strings.ToLower(arg.Name)
+			switch arg.Type {
+			case "string":
+				parseargs += fmt.Sprintf(`
+					case %q:
+						_tmp%d := _optVal
+						arg%d = &_tmp%d`, lowerName, x, x, x)
+			case "int":
+				parseargs += fmt.Sprintf(`
+					case %q:
+						_tmp%d, err := strconv.Atoi(_optVal)
+						if err != nil {
+							logger.Printf("can't convert option %%q value %%q to int\n", _optName, _optVal)
+							os.Exit(2)
+						}
+						arg%d = &_tmp%d`, lowerName, x, x, x)
+			case "float64":
+				parseargs += fmt.Sprintf(`
+					case %q:
+						_tmp%d, err := strconv.ParseFloat(_optVal, 64)
+						if err != nil {
+							logger.Printf("can't convert option %%q value %%q to float64\n", _optName, _optVal)
+							os.Exit(2)
+						}
+						arg%d = &_tmp%d`, lowerName, x, x, x)
+			case "bool":
+				parseargs += fmt.Sprintf(`
+					case %q:
+						_tmp%d, err := strconv.ParseBool(_optVal)
+						if err != nil {
+							logger.Printf("can't convert option %%q value %%q to bool\n", _optName, _optVal)
+							os.Exit(2)
+						}
+						arg%d = &_tmp%d`, lowerName, x, x, x)
+			case "time.Duration":
+				parseargs += fmt.Sprintf(`
+					case %q:
+						_tmp%d, err := time.ParseDuration(_optVal)
+						if err != nil {
+							logger.Printf("can't convert option %%q value %%q to time.Duration\n", _optName, _optVal)
+							os.Exit(2)
+						}
+						arg%d = &_tmp%d`, lowerName, x, x, x)
+			}
+		}
+		parseargs += fmt.Sprintf(`
+					default:
+						logger.Printf("unknown option %%q for target \"%s\"\n", _optName)
+						os.Exit(2)
+					}
+					x++
+				}`, f.TargetName())
 	}
 
 	out := parseargs + `
@@ -456,19 +614,18 @@ func setImports(gocmd string, pi *PkgInfo) error {
 }
 
 func getImportPath(imp *ast.ImportSpec) (path, alias string, ok bool) {
-	if imp.Doc == nil || len(imp.Doc.List) == 9 {
-		return "", "", false
-	}
-	// import is always the last comment
-	s := imp.Doc.List[len(imp.Doc.List)-1].Text
+	leadingVals := getImportPathFromCommentGroup(imp.Doc)
+	trailingVals := getImportPathFromCommentGroup(imp.Comment)
 
-	// trim comment start and normalize for anyone who has spaces or not between
-	// "//"" and the text
-	vals := strings.Fields(strings.ToLower(s[2:]))
-	if len(vals) == 0 {
-		return "", "", false
-	}
-	if vals[0] != importTag {
+	var vals []string
+	if len(leadingVals) > 0 {
+		vals = leadingVals
+		if len(trailingVals) > 0 {
+			log.Println("warning:", importTag, "specified both before and after, picking first")
+		}
+	} else if len(trailingVals) > 0 {
+		vals = trailingVals
+	} else {
 		return "", "", false
 	}
 	path, ok = lit2string(imp.Path)
@@ -487,6 +644,25 @@ func getImportPath(imp *ast.ImportSpec) (path, alias string, ok bool) {
 		log.Println("warning: ignoring malformed", importTag, "for import", path)
 		return "", "", false
 	}
+}
+
+func getImportPathFromCommentGroup(comments *ast.CommentGroup) []string {
+	if comments == nil || len(comments.List) == 9 {
+		return nil
+	}
+	// import is always the last comment
+	s := comments.List[len(comments.List)-1].Text
+
+	// trim comment start and normalize for anyone who has spaces or not between
+	// "//"" and the text
+	vals := strings.Fields(strings.ToLower(s[2:]))
+	if len(vals) == 0 {
+		return nil
+	}
+	if vals[0] != importTag {
+		return nil
+	}
+	return vals
 }
 
 func isNamespace(t *doc.Type) bool {
@@ -653,7 +829,7 @@ func getFunction(exp ast.Expr, pi *PkgInfo) (*Function, error) {
 			for _, imp := range pi.Imports {
 				if firstname == imp.Name {
 					for _, f := range imp.Info.Funcs {
-						if funcname == f.Name {
+						if funcname == f.Name && f.Receiver == "" {
 							return f, nil
 						}
 					}
@@ -807,14 +983,24 @@ func funcType(ft *ast.FuncType) (*Function, error) {
 	}
 	for ; x < len(ft.Params.List); x++ {
 		param := ft.Params.List[x]
-		t := fmt.Sprint(param.Type)
+		optional := false
+		paramType := param.Type
+		// Check for pointer types (optional arguments)
+		if star, ok := param.Type.(*ast.StarExpr); ok {
+			optional = true
+			paramType = star.X
+		}
+		t := fmt.Sprint(paramType)
 		typ, ok := argTypes[t]
 		if !ok {
+			if optional {
+				return nil, fmt.Errorf("unsupported argument type: *%s", t)
+			}
 			return nil, fmt.Errorf("unsupported argument type: %s", t)
 		}
 		// support for foo, bar string
 		for _, name := range param.Names {
-			f.Args = append(f.Args, Arg{Name: name.Name, Type: typ})
+			f.Args = append(f.Args, Arg{Name: name.Name, Type: typ, Optional: optional})
 		}
 	}
 	return f, nil
@@ -827,6 +1013,7 @@ func toOneLine(s string) string {
 var argTypes = map[string]string{
 	"string":           "string",
 	"int":              "int",
+	"float64":          "float64",
 	"&{time Duration}": "time.Duration",
 	"bool":             "bool",
 }

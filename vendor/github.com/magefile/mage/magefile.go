@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -20,16 +19,6 @@ import (
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
 )
-
-var Aliases = map[string]interface{}{
-	"Speak": Say,
-}
-
-// Say says something.
-func Say(msg string, i int, b bool, d time.Duration) error {
-	_, err := fmt.Printf("%v(%T) %v(%T) %v(%T) %v(%T)\n", msg, msg, i, i, b, b, d, d)
-	return err
-}
 
 // Runs "go install" for mage.  This generates the version info the binary.
 func Install() error {
@@ -71,8 +60,8 @@ var releaseTag = regexp.MustCompile(`^v1\.[0-9]+\.[0-9]+$`)
 
 // Generates a new release. Expects a version tag in v1.x.x format.
 func Release(tag string) (err error) {
-	if _, err := exec.LookPath("goreleaser"); err != nil {
-		return fmt.Errorf("can't find goreleaser: %w", err)
+	if err := sh.RunV("go", "install", "github.com/goreleaser/goreleaser/v2@v2.14.3"); err != nil {
+		return err
 	}
 	if !releaseTag.MatchString(tag) {
 		return errors.New("TAG environment variable must be in semver v1.x.x format, but was " + tag)
@@ -90,7 +79,7 @@ func Release(tag string) (err error) {
 			sh.RunV("git", "push", "--delete", "origin", tag)
 		}
 	}()
-	return sh.RunV("goreleaser")
+	return sh.RunV("goreleaser", "release")
 }
 
 // Remove the temporarily generated files from Release.
