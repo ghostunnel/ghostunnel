@@ -377,7 +377,7 @@ func (Test) Unit(ctx context.Context) error {
 }
 
 // Integration runs the integration tests in parallel.
-// Set GHOSTUNNEL_TEST_PARALLEL to control concurrency (default: NumCPU, max 8).
+// Set GHOSTUNNEL_TEST_PARALLEL to control concurrency (default: NumCPU, max 16).
 func (Test) Integration(ctx context.Context) error {
 	mg.CtxDeps(ctx, Test.build)
 

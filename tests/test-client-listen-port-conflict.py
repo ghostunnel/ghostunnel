@@ -16,7 +16,7 @@ if __name__ == "__main__":
         root.create_signed_cert('client')
 
         # Occupy a port with a blocking socket
-        conflict_port = get_free_port()
+        conflict_port = get_free_port(release=True)
         blocking_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         blocking_socket.bind((LOCALHOST, conflict_port))
         blocking_socket.listen(1)

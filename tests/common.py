@@ -26,23 +26,38 @@ _GHOSTUNNEL_BINARY = os.path.join(_ROOT_DIR, 'ghostunnel.test')
 _COVERAGE_DIR = os.path.join(_ROOT_DIR, 'coverage')
 os.makedirs(_COVERAGE_DIR, exist_ok=True)
 
+if not hasattr(socket, 'SO_REUSEPORT'):
+    raise RuntimeError("SO_REUSEPORT is required but not available on this platform")
+_SO_REUSEPORT = socket.SO_REUSEPORT
 
-def get_free_port():
-    """Get an available port by binding to port 0 and letting the OS assign one."""
+# Holds reservation sockets for ports allocated by get_free_port()
+_extra_port_sockets = []
+atexit.register(lambda: [s.close() for s in _extra_port_sockets])
+
+
+def get_free_port(release=False):
+    """Get an available port by binding to port 0 with SO_REUSEPORT.
+
+    By default the reservation socket is kept open for the lifetime of the
+    process to prevent other parallel test processes from being assigned the
+    same port.  Pass release=True to close the socket immediately — use this
+    when the caller will bind the port exclusively right away (e.g. port-
+    conflict tests)."""
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.setsockopt(socket.SOL_SOCKET, _SO_REUSEPORT, 1)
     s.bind((LOCALHOST, 0))
     port = s.getsockname()[1]
-    s.close()
+    if release:
+        s.close()
+    else:
+        _extra_port_sockets.append(s)
     return port
-
-
-_SO_REUSEPORT = getattr(socket, 'SO_REUSEPORT', 15)  # 15 on Linux
 
 
 def _get_distinct_free_ports(n):
     """Allocate n distinct free ports with SO_REUSEPORT, holding all sockets
-    open until release_ports() is called.  Because ghostunnel also uses
+    open for the lifetime of the process.  Because ghostunnel also uses
     SO_REUSEPORT, it can bind the same ports while the reservation sockets
     are still open, but other test processes cannot accidentally get the
     same ports from the OS."""
@@ -403,9 +418,8 @@ class TlsServer(MySocket):
     def validate_client_cert(self, ou):
         if self.socket.getpeercert()['subject'][0][0][1] == ou:
             return
-        raise Exception("did not connect to expected peer: got ",
-                        self.socket.getpeercert()['subject'][0][0][1],
-                        ", wanted: ", ou)
+        raise Exception("did not connect to expected peer: got {}, wanted: {}".format(
+                        self.socket.getpeercert()['subject'][0][0][1], ou))
 
     def cleanup(self):
         super().cleanup()
