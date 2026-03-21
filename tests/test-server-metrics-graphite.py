@@ -15,7 +15,7 @@ if __name__ == "__main__":
         root.create_signed_cert('server')
 
         # Mock out a graphite server
-        graphite_port = get_free_port()
+        graphite_port = get_free_port(release=True)
         m = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         m.settimeout(10)
         m.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

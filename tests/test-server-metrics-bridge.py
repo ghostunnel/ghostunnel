@@ -29,7 +29,7 @@ if __name__ == "__main__":
         root = RootCert('root')
         root.create_signed_cert('server')
 
-        bridge_port = get_free_port()
+        bridge_port = get_free_port(release=True)
         httpd = http.server.HTTPServer(
             ('localhost', bridge_port), FakeMetricsBridgeHandler)
         server = threading.Thread(target=httpd.handle_request)

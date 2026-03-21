@@ -58,7 +58,7 @@ if __name__ == "__main__":
         root.create_signed_cert('server', san='DNS:{}'.format(FAKE_TARGET))
         root.create_signed_cert('client')
 
-        proxy_port = get_free_port()
+        proxy_port = get_free_port(release=True)
         httpd = http.server.HTTPServer(
             (LOCALHOST, proxy_port), FakeConnectProxyHandler)
         server = threading.Thread(target=httpd.handle_request)
