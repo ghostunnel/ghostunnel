@@ -17,11 +17,19 @@
 package certloader
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"math/big"
 	"os"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const testCertificate = `
@@ -118,6 +126,109 @@ func TestReadX509Invalid(t *testing.T) {
 	certs, err = readX509("does-not-exist")
 	assert.NotNil(t, err, "should not parse invalid file")
 	assert.Len(t, certs, 0, "should not parse invalid file")
+}
+
+func TestReadPEMFormatError(t *testing.T) {
+	// File with 1 byte and no known extension → formatForFile fails on Peek
+	tmp, err := os.CreateTemp("", "ghostunnel-test-*.tmp")
+	require.NoError(t, err)
+	defer os.Remove(tmp.Name())
+
+	_, err = tmp.Write([]byte{0x01})
+	require.NoError(t, err)
+	tmp.Close()
+
+	_, err = readPEM(tmp.Name(), "", "")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "error reading file")
+}
+
+func TestReadPEMNoCertsFound(t *testing.T) {
+	// Empty file with explicit PEM format → 0 blocks → "no certificates found"
+	tmp, err := os.CreateTemp("", "ghostunnel-test-*.pem")
+	require.NoError(t, err)
+	defer os.Remove(tmp.Name())
+	tmp.Close()
+
+	_, err = readPEM(tmp.Name(), "", "PEM")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "no certificates found")
+}
+
+func TestReadX509NoCertificatesInPEM(t *testing.T) {
+	// PEM file with only a PRIVATE KEY block → no CERTIFICATE blocks → error
+	_, priv, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	pkcs8, err := x509.MarshalPKCS8PrivateKey(priv)
+	require.NoError(t, err)
+
+	pemData := pem.EncodeToMemory(&pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: pkcs8,
+	})
+
+	tmp, err := os.CreateTemp("", "ghostunnel-test-*.pem")
+	require.NoError(t, err)
+	defer os.Remove(tmp.Name())
+
+	_, err = tmp.Write(pemData)
+	require.NoError(t, err)
+	tmp.Close()
+
+	_, err = readX509(tmp.Name())
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "no certificates found")
+}
+
+func TestReadX509ParseCertificateError(t *testing.T) {
+	// PEM file with a CERTIFICATE block containing garbage → ParseCertificate fails
+	pemData := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: []byte{0x01, 0x02, 0x03},
+	})
+
+	tmp, err := os.CreateTemp("", "ghostunnel-test-*.pem")
+	require.NoError(t, err)
+	defer os.Remove(tmp.Name())
+
+	_, err = tmp.Write(pemData)
+	require.NoError(t, err)
+	tmp.Close()
+
+	_, err = readX509(tmp.Name())
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "error reading file")
+}
+
+func TestReadX509MultipleCerts(t *testing.T) {
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "test"},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+	}
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, pub, priv)
+	require.NoError(t, err)
+
+	block := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+	// Write two copies
+	pemData := append(block, block...)
+
+	tmp, err := os.CreateTemp("", "ghostunnel-test-*.pem")
+	require.NoError(t, err)
+	defer os.Remove(tmp.Name())
+
+	_, err = tmp.Write(pemData)
+	require.NoError(t, err)
+	tmp.Close()
+
+	certs, err := readX509(tmp.Name())
+	assert.NoError(t, err)
+	assert.Len(t, certs, 2)
 }
 
 func TestLoadTrustStoreSystemRoots(t *testing.T) {

@@ -89,6 +89,97 @@ func TestExtractCertificatesInvalid(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestParseSignedDataWrongOID(t *testing.T) {
+	// Valid ASN.1 envelope but with a non-SignedData OID
+	signedData := struct {
+		Version          int
+		DigestAlgorithms asn1.RawValue `asn1:"set"`
+		ContentInfo      asn1.RawValue
+		SignerInfos      asn1.RawValue `asn1:"set"`
+	}{
+		Version:          1,
+		DigestAlgorithms: asn1.RawValue{Tag: 17, Class: asn1.ClassUniversal, IsCompound: true, Bytes: []byte{}},
+		ContentInfo:      asn1.RawValue{FullBytes: mustMarshal(t, asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 1})},
+		SignerInfos:      asn1.RawValue{Tag: 17, Class: asn1.ClassUniversal, IsCompound: true, Bytes: []byte{}},
+	}
+
+	envelope := struct {
+		Type       asn1.ObjectIdentifier
+		SignedData interface{} `asn1:"tag:0,explicit,optional"`
+	}{
+		Type:       asn1.ObjectIdentifier{1, 2, 3, 4, 5}, // wrong OID
+		SignedData: signedData,
+	}
+
+	data, err := asn1.Marshal(envelope)
+	require.NoError(t, err)
+
+	_, err = ParseSignedData(data)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unexpected object identifier")
+}
+
+func TestParseSignedDataWrongVersion(t *testing.T) {
+	// SignedData with version=2 instead of 1
+	signedData := struct {
+		Version          int
+		DigestAlgorithms asn1.RawValue `asn1:"set"`
+		ContentInfo      asn1.RawValue
+		SignerInfos      asn1.RawValue `asn1:"set"`
+	}{
+		Version:          2,
+		DigestAlgorithms: asn1.RawValue{Tag: 17, Class: asn1.ClassUniversal, IsCompound: true, Bytes: []byte{}},
+		ContentInfo:      asn1.RawValue{FullBytes: mustMarshal(t, asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 1})},
+		SignerInfos:      asn1.RawValue{Tag: 17, Class: asn1.ClassUniversal, IsCompound: true, Bytes: []byte{}},
+	}
+
+	envelope := struct {
+		Type       asn1.ObjectIdentifier
+		SignedData interface{} `asn1:"tag:0,explicit,optional"`
+	}{
+		Type:       asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 2},
+		SignedData: signedData,
+	}
+
+	data, err := asn1.Marshal(envelope)
+	require.NoError(t, err)
+
+	_, err = ParseSignedData(data)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown version number")
+}
+
+func TestExtractCertificatesBadCertInEnvelope(t *testing.T) {
+	// Valid SignedData structure but with garbage in the Certificates field
+	signedData := struct {
+		Version          int
+		DigestAlgorithms asn1.RawValue `asn1:"set"`
+		ContentInfo      asn1.RawValue
+		Certificates     []asn1.RawValue `asn1:"tag:0,optional,set"`
+		SignerInfos      asn1.RawValue   `asn1:"set"`
+	}{
+		Version:          1,
+		DigestAlgorithms: asn1.RawValue{Tag: 17, Class: asn1.ClassUniversal, IsCompound: true, Bytes: []byte{}},
+		ContentInfo:      asn1.RawValue{FullBytes: mustMarshal(t, asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 1})},
+		Certificates:     []asn1.RawValue{{FullBytes: []byte{0x30, 0x03, 0x01, 0x01, 0xFF}}}, // garbage cert
+		SignerInfos:      asn1.RawValue{Tag: 17, Class: asn1.ClassUniversal, IsCompound: true, Bytes: []byte{}},
+	}
+
+	envelope := struct {
+		Type       asn1.ObjectIdentifier
+		SignedData interface{} `asn1:"tag:0,explicit,optional"`
+	}{
+		Type:       asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 2},
+		SignedData: signedData,
+	}
+
+	data, err := asn1.Marshal(envelope)
+	require.NoError(t, err)
+
+	_, err = ExtractCertificates(data)
+	assert.Error(t, err)
+}
+
 func mustMarshal(t *testing.T, v interface{}) []byte {
 	t.Helper()
 	data, err := asn1.Marshal(v)
