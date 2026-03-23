@@ -1,5 +1,6 @@
 /*-
  * Copyright 2018 Square Inc.
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,13 +18,12 @@
 package certloader
 
 import (
+	"bufio"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
 	"fmt"
 	"os"
-
-	certigo "github.com/square/certigo/lib"
 )
 
 func readPEM(path, password, format string) ([]*pem.Block, error) {
@@ -33,15 +33,13 @@ func readPEM(path, password, format string) ([]*pem.Block, error) {
 	}
 	defer file.Close()
 
-	var pemBlocks []*pem.Block
-	err = certigo.ReadAsPEMFromFiles(
-		[]*os.File{file},
-		format,
-		func(prompt string) string { return password },
-		func(block *pem.Block, format string) error {
-			pemBlocks = append(pemBlocks, block)
-			return nil
-		})
+	reader := bufio.NewReaderSize(file, 4)
+	format, err = formatForFile(reader, file.Name(), format)
+	if err != nil {
+		return nil, fmt.Errorf("error reading file '%s': %s", path, err)
+	}
+
+	pemBlocks, err := readCertsFromStream(reader, format, password)
 	if err != nil {
 		return nil, fmt.Errorf("error reading file '%s': %s", path, err)
 	}
@@ -59,22 +57,23 @@ func readX509(path string) ([]*x509.Certificate, error) {
 	}
 	defer file.Close()
 
-	errs := []error{}
-	out := []*x509.Certificate{}
-
-	err = certigo.ReadAsX509FromFiles(
-		[]*os.File{file}, "PEM", nil,
-		func(cert *x509.Certificate, format string, err error) error {
-			if err != nil {
-				errs = append(errs, err)
-				return nil
-			}
-			out = append(out, cert)
-			return nil
-		})
-	if err != nil || len(errs) > 0 {
+	pemBlocks, err := readCertsFromStream(file, "PEM", "")
+	if err != nil {
 		return nil, fmt.Errorf("error reading file '%s'", path)
 	}
+
+	var out []*x509.Certificate
+	for _, block := range pemBlocks {
+		if block.Type != "CERTIFICATE" {
+			continue
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("error reading file '%s'", path)
+		}
+		out = append(out, cert)
+	}
+
 	if len(out) == 0 {
 		return nil, fmt.Errorf("no certificates found in file '%s'", path)
 	}
