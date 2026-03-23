@@ -25,17 +25,16 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha1"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
-	"encoding/binary"
 	"errors"
 	"math/big"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/ghostunnel/ghostunnel/certloader/jceks/jcekstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"software.sslmate.com/src/go-pkcs12"
@@ -82,8 +81,8 @@ func TestReadPKCS12ED25519(t *testing.T) {
 	require.NoError(t, err)
 	tmpFile.Close()
 
-	// Read back using our readPEM function
-	blocks, err := readPEM(tmpFile.Name(), password, "")
+	// Read back using our readCertificateFile function
+	blocks, err := readCertificateFile(tmpFile.Name(), password, "")
 	assert.NoError(t, err, "should read PKCS#12 file with ED25519 key")
 	assert.NotEmpty(t, blocks, "should have PEM blocks")
 
@@ -110,7 +109,7 @@ func TestKeyToPemED25519(t *testing.T) {
 	_, priv, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
 
-	block, err := keyToPem(priv)
+	block, err := keyToPEM(priv)
 	assert.NoError(t, err)
 	assert.Equal(t, "PRIVATE KEY", block.Type)
 
@@ -122,7 +121,7 @@ func TestKeyToPemED25519(t *testing.T) {
 }
 
 func TestKeyToPemUnknownType(t *testing.T) {
-	_, err := keyToPem("not a key")
+	_, err := keyToPEM("not a key")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unknown key type")
 }
@@ -167,32 +166,36 @@ func TestPrivateKeyInfoED25519RoundTrip(t *testing.T) {
 	assert.Equal(t, priv.Seed(), recovered.Seed(), "recovered key seed should match original")
 }
 
-// --- keyToPem RSA/ECDSA tests ---
+// --- keyToPEM RSA/ECDSA tests ---
 
 func TestKeyToPemRSA(t *testing.T) {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
-	block, err := keyToPem(key)
+	block, err := keyToPEM(key)
 	require.NoError(t, err)
-	assert.Equal(t, "RSA PRIVATE KEY", block.Type)
+	assert.Equal(t, "PRIVATE KEY", block.Type)
 
-	recovered, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	recovered, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 	require.NoError(t, err)
-	assert.Equal(t, key.D.Bytes(), recovered.D.Bytes())
+	rsaKey, ok := recovered.(*rsa.PrivateKey)
+	require.True(t, ok)
+	assert.Equal(t, key.D.Bytes(), rsaKey.D.Bytes())
 }
 
 func TestKeyToPemECDSA(t *testing.T) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 
-	block, err := keyToPem(key)
+	block, err := keyToPEM(key)
 	require.NoError(t, err)
-	assert.Equal(t, "EC PRIVATE KEY", block.Type)
+	assert.Equal(t, "PRIVATE KEY", block.Type)
 
-	recovered, err := x509.ParseECPrivateKey(block.Bytes)
+	recovered, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 	require.NoError(t, err)
-	assert.Equal(t, key.D.Bytes(), recovered.D.Bytes())
+	ecKey, ok := recovered.(*ecdsa.PrivateKey)
+	require.True(t, ok)
+	assert.Equal(t, key.D.Bytes(), ecKey.D.Bytes())
 }
 
 // --- readDERBlocks tests ---
@@ -258,15 +261,15 @@ func TestReadDERBlocksPKCS7(t *testing.T) {
 	blocks, err := readDERBlocks(bytes.NewReader(p7Data))
 	require.NoError(t, err)
 	require.Len(t, blocks, 1)
-	assert.Equal(t, "PKCS7", blocks[0].Type)
+	assert.Equal(t, "CERTIFICATE", blocks[0].Type)
 }
 
 func TestReadDERBlocksInvalid(t *testing.T) {
 	garbage := []byte{0x01, 0x02, 0x03, 0x04, 0x05}
 	_, err := readDERBlocks(bytes.NewReader(garbage))
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "X.509 parser gave")
-	assert.Contains(t, err.Error(), "PKCS7 parser gave")
+	assert.Contains(t, err.Error(), "unable to parse DER data as X.509")
+	assert.Contains(t, err.Error(), "or PKCS7")
 }
 
 // --- readCertsFromStream tests ---
@@ -295,7 +298,7 @@ func TestReadCertsFromStreamJCEKS(t *testing.T) {
 	require.NoError(t, err)
 
 	password := "changeit"
-	jceksData := buildMinimalJCEKSForDecode(t, "alias", certDER, password)
+	jceksData := jcekstest.BuildMinimalJCEKS(t, "alias", certDER, password)
 
 	blocks, err := readCertsFromStream(bytes.NewReader(jceksData), "JCEKS", password)
 	require.NoError(t, err)
@@ -309,46 +312,6 @@ func TestReadCertsFromStreamUnknown(t *testing.T) {
 	assert.Contains(t, err.Error(), "unknown file type")
 }
 
-// buildMinimalJCEKSForDecode constructs a JCEKS binary for use in decode_test.go.
-func buildMinimalJCEKSForDecode(t *testing.T, alias string, certDER []byte, password string) []byte {
-	t.Helper()
-
-	const jceksMagic = 0xcececece
-	const jceksVersion = 0x02
-	const trustedCertEntryTag uint32 = 2
-	const jceksIntegrityMagic = "Mighty Aphrodite"
-
-	// Encode integrity password (big-endian UTF-16)
-	var encodedPassword []byte
-	for _, r := range password {
-		encodedPassword = binary.BigEndian.AppendUint16(encodedPassword, uint16(r))
-	}
-
-	var body bytes.Buffer
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksMagic)))
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksVersion)))
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(1)))
-	require.NoError(t, binary.Write(&body, binary.BigEndian, trustedCertEntryTag))
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint16(len(alias))))
-	_, err := body.WriteString(alias)
-	require.NoError(t, err)
-	require.NoError(t, binary.Write(&body, binary.BigEndian, time.Now().UnixMilli()))
-	certType := "X.509"
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint16(len(certType))))
-	_, err = body.WriteString(certType)
-	require.NoError(t, err)
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(len(certDER))))
-	_, err = body.Write(certDER)
-	require.NoError(t, err)
-
-	h := sha1.New()
-	h.Write(encodedPassword)
-	h.Write([]byte(jceksIntegrityMagic))
-	h.Write(body.Bytes())
-	body.Write(h.Sum(nil))
-
-	return body.Bytes()
-}
 
 func mustMarshalASN1(t *testing.T, v interface{}) []byte {
 	t.Helper()
@@ -373,7 +336,7 @@ func TestReadJCEKSBlocksTrustedCert(t *testing.T) {
 	require.NoError(t, err)
 
 	password := "changeit"
-	jceksData := buildMinimalJCEKSForDecode(t, "alias", certDER, password)
+	jceksData := jcekstest.BuildMinimalJCEKS(t, "alias", certDER, password)
 
 	blocks, err := readJCEKSBlocks(bytes.NewReader(jceksData), password)
 	require.NoError(t, err)
@@ -485,7 +448,7 @@ func TestReadPKCS12BlocksWithCACerts(t *testing.T) {
 	var keyCount, certCount int
 	for _, block := range blocks {
 		switch block.Type {
-		case "EC PRIVATE KEY":
+		case "PRIVATE KEY":
 			keyCount++
 		case "CERTIFICATE":
 			certCount++
@@ -557,67 +520,13 @@ func TestReadJCEKSBlocksGetPrivateKeyError(t *testing.T) {
 
 	password := "changeit"
 	// Build a JCEKS with a private key entry using garbage as the encrypted key
-	jceksData := buildJCEKSWithPrivateKeyForDecode(t, "badkey", []byte{0x01, 0x02}, certDER, password)
+	jceksData := jcekstest.BuildJCEKSWithPrivateKey(t, "badkey", []byte{0x01, 0x02}, certDER, password)
 
 	_, err = readJCEKSBlocks(bytes.NewReader(jceksData), password)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "unable to parse keystore")
+	assert.Contains(t, err.Error(), "unable to recover private key 'badkey'")
 }
 
-// buildJCEKSWithPrivateKeyForDecode constructs a JCEKS binary containing one private key entry.
-func buildJCEKSWithPrivateKeyForDecode(t *testing.T, alias string, encryptedKeyDER []byte, certDER []byte, password string) []byte {
-	t.Helper()
-
-	const jceksMagic = 0xcececece
-	const jceksVersion = 0x02
-	const privateKeyEntryTag uint32 = 1
-	const jceksIntegrityMagic = "Mighty Aphrodite"
-
-	var encodedPassword []byte
-	for _, r := range password {
-		encodedPassword = binary.BigEndian.AppendUint16(encodedPassword, uint16(r))
-	}
-
-	var body bytes.Buffer
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksMagic)))
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksVersion)))
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(1)))
-	require.NoError(t, binary.Write(&body, binary.BigEndian, privateKeyEntryTag))
-
-	// Alias
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint16(len(alias))))
-	_, err := body.WriteString(alias)
-	require.NoError(t, err)
-
-	// Timestamp
-	require.NoError(t, binary.Write(&body, binary.BigEndian, time.Now().UnixMilli()))
-
-	// Encrypted key bytes
-	require.NoError(t, binary.Write(&body, binary.BigEndian, int32(len(encryptedKeyDER))))
-	_, err = body.Write(encryptedKeyDER)
-	require.NoError(t, err)
-
-	// Certificate count: 1
-	require.NoError(t, binary.Write(&body, binary.BigEndian, int32(1)))
-
-	// Certificate
-	certType := "X.509"
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint16(len(certType))))
-	_, err = body.WriteString(certType)
-	require.NoError(t, err)
-	require.NoError(t, binary.Write(&body, binary.BigEndian, int32(len(certDER))))
-	_, err = body.Write(certDER)
-	require.NoError(t, err)
-
-	// Integrity hash
-	h := sha1.New()
-	h.Write(encodedPassword)
-	h.Write([]byte(jceksIntegrityMagic))
-	h.Write(body.Bytes())
-	body.Write(h.Sum(nil))
-
-	return body.Bytes()
-}
 
 func TestFormatDetectionP7bExtension(t *testing.T) {
 	reader := bufio.NewReaderSize(bytes.NewReader([]byte("----")), 4)
@@ -663,8 +572,84 @@ B0WlBgRiZld3JfFBuJu6xk1a8+XwwlGOgEsggepjkrAXbjbqnUMAKOJkjFIyIPvk
 nkOOZ6U4eEju7H1S46qlN9ZmUmSrrjwec3H7CnvxQ0ncEyZXlEiTlbO2JQI=
 -----END CERTIFICATE-----`)
 
-	blocks, err := readCertsFromStream(bytes.NewReader(pemData), " PEM ", "")
+	blocks, err := readCertsFromStream(bytes.NewReader(pemData), "PEM", "")
 	require.NoError(t, err)
 	require.Len(t, blocks, 1)
 	assert.Equal(t, "CERTIFICATE", blocks[0].Type)
+}
+
+func TestReadPEMBlocksInterleavedText(t *testing.T) {
+	// CA bundles often have human-readable text between PEM blocks.
+	pemData := []byte(`Some human-readable description of cert 1
+-----BEGIN CERTIFICATE-----
+MIIBkTCB+wIJALRiMLAh2wL8MA0GCSqGSIb3DQEBCwUAMBExDzANBgNVBAMMBnRl
+c3QxMB4XDTI1MDEwMTAwMDAwMFoXDTI2MDEwMTAwMDAwMFowETEPMA0GA1UEAwwG
+dGVzdDEwXDANBgkqhkiG9w0BAQEFAANLADBIAkEA0Z3VS5JJcds3xf0gSfLEtEjn
+Muqy+97YHUBzBKAFMnb8NSOqCjrfBfRkzgEiXsAy+D/UCHfaAT6JxVwrZJwG7wID
+AQABo1MwUTAdBgNVHQ4EFgQUJoSwCjjFC5CV1wxN0JPMeIMGeDAwHwYDVR0jBBgw
+FoAUJoSwCjjFC5CV1wxN0JPMeIMGeDAwDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG
+9w0BAQsFAANBALT0VU3k6GZ4LoYk8lFMvTOngqOMw0P3cIjotylvCMfiSi+cPJUb
+sN/VD/VaFh4z7E44BFKP/A42Y+BBjjj4X6A=
+-----END CERTIFICATE-----
+Some human-readable description of cert 2
+-----BEGIN CERTIFICATE-----
+MIIBkTCB+wIJALRiMLAh2wL9MA0GCSqGSIb3DQEBCwUAMBExDzANBgNVBAMMBnRl
+c3QyMB4XDTI1MDEwMTAwMDAwMFoXDTI2MDEwMTAwMDAwMFowETEPMA0GA1UEAwwG
+dGVzdDIwXDANBgkqhkiG9w0BAQEFAANLADBIAkEA0Z3VS5JJcds3xf0gSfLEtEjn
+Muqy+97YHUBzBKAFMnb8NSOqCjrfBfRkzgEiXsAy+D/UCHfaAT6JxVwrZJwG7wID
+AQABo1MwUTAdBgNVHQ4EFgQUJoSwCjjFC5CV1wxN0JPMeIMGeDAwHwYDVR0jBBgw
+FoAUJoSwCjjFC5CV1wxN0JPMeIMGeDAwDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG
+9w0BAQsFAANBALT0VU3k6GZ4LoYk8lFMvTOngqOMw0P3cIjotylvCMfiSi+cPJUb
+sN/VD/VaFh4z7E44BFKP/A42Y+BBjjj4X6A=
+-----END CERTIFICATE-----
+Trailing text after last cert
+`)
+
+	blocks, err := readPEMBlocks(bytes.NewReader(pemData))
+	require.NoError(t, err)
+	require.Len(t, blocks, 2, "should parse both PEM blocks despite interleaved text")
+	assert.Equal(t, "CERTIFICATE", blocks[0].Type)
+	assert.Equal(t, "CERTIFICATE", blocks[1].Type)
+}
+
+func TestReadPKCS12BlocksRSA(t *testing.T) {
+	// Generate RSA key and self-signed cert
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(time.Hour),
+	}
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &rsaKey.PublicKey, rsaKey)
+	require.NoError(t, err)
+	cert, err := x509.ParseCertificate(certDER)
+	require.NoError(t, err)
+
+	password := "test-password"
+	pfxData, err := pkcs12.Modern2023.Encode(rsaKey, cert, nil, password)
+	require.NoError(t, err)
+
+	blocks, err := readPKCS12Blocks(bytes.NewReader(pfxData), password)
+	require.NoError(t, err)
+
+	require.Len(t, blocks, 2, "should have 1 key + 1 cert")
+	var keyCount, certCount int
+	for _, block := range blocks {
+		switch block.Type {
+		case "PRIVATE KEY":
+			keyCount++
+			// Verify the key round-trips correctly
+			recovered, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+			require.NoError(t, err)
+			recoveredRSA, ok := recovered.(*rsa.PrivateKey)
+			require.True(t, ok)
+			assert.Equal(t, rsaKey.D.Bytes(), recoveredRSA.D.Bytes())
+		case "CERTIFICATE":
+			certCount++
+		}
+	}
+	assert.Equal(t, 1, keyCount, "should have 1 private key")
+	assert.Equal(t, 1, certCount, "should have 1 certificate")
 }

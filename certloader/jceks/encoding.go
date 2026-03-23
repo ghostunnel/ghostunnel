@@ -40,7 +40,7 @@ func readBytes(r io.Reader, maxLen uint) ([]byte, error) {
 		return nil, ErrInvalidJCEKSData
 	}
 	if uint(length) > maxLen {
-		return nil, fmt.Errorf("%w: data field of size %d bytes exceeds maximimum length of %d",
+		return nil, fmt.Errorf("%w: data field of size %d bytes exceeds maximum length of %d",
 			ErrJCEKSDataTooLarge, length, maxLen)
 	}
 	buf := make([]byte, length)

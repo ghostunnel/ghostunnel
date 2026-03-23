@@ -26,7 +26,6 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha1"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
@@ -46,7 +45,7 @@ func buildMinimalJCEKS(t *testing.T, alias string, certDER []byte, password stri
 	t.Helper()
 
 	// Encode integrity password
-	encodedPassword, err := encodeIntegrityPassword(password)
+	encodedPassword, err := EncodeIntegrityPassword(password)
 	require.NoError(t, err)
 
 	// Build the body (everything that gets hashed)
@@ -82,14 +81,9 @@ func buildMinimalJCEKS(t *testing.T, alias string, certDER []byte, password stri
 	require.NoError(t, err)
 
 	// Compute integrity hash
-	h := sha1.New()
-	h.Write(encodedPassword)
-	h.Write([]byte(jceksIntegrityMagic))
+	h := MakeIntegrityHash(encodedPassword)
 	h.Write(body.Bytes())
-	digest := h.Sum(nil)
-
-	// Append digest
-	body.Write(digest)
+	body.Write(h.Sum(nil))
 
 	return body.Bytes()
 }
@@ -232,7 +226,7 @@ func encryptPBEWithMD5AndDES3CBC(t *testing.T, pkcs8DER []byte, password string)
 func buildJCEKSWithPrivateKey(t *testing.T, alias string, encryptedKeyDER []byte, certDER []byte, password string) []byte {
 	t.Helper()
 
-	encodedPassword, err := encodeIntegrityPassword(password)
+	encodedPassword, err := EncodeIntegrityPassword(password)
 	require.NoError(t, err)
 
 	var body bytes.Buffer
@@ -273,9 +267,7 @@ func buildJCEKSWithPrivateKey(t *testing.T, alias string, encryptedKeyDER []byte
 	require.NoError(t, err)
 
 	// Integrity hash
-	h := sha1.New()
-	h.Write(encodedPassword)
-	h.Write([]byte(jceksIntegrityMagic))
+	h := MakeIntegrityHash(encodedPassword)
 	h.Write(body.Bytes())
 	body.Write(h.Sum(nil))
 
@@ -708,6 +700,34 @@ func TestReadModifiedUTF8OutsideBMP(t *testing.T) {
 	assert.Contains(t, err.Error(), "outside basic multilingual plane")
 }
 
+func TestReadModifiedUTF8HighSurrogateNotFollowedByLow(t *testing.T) {
+	// High surrogate D83D (0xED 0xA0 0xBD) followed by non-surrogate 3-byte
+	// sequence (0xE4 0xB8 0x96 = '世') instead of a low surrogate.
+	input := []byte{0xED, 0xA0, 0xBD, 0xE4, 0xB8, 0x96}
+	_, err := readModifiedUTF8(bytes.NewReader(input))
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, errInvalidModifiedUTF8)
+	assert.Contains(t, err.Error(), "invalid modified surrogate")
+}
+
+func TestReadModifiedUTF8TwoHighSurrogates(t *testing.T) {
+	// Two consecutive high surrogates: D83D D83D
+	// D83D → 0xED 0xA0 0xBD
+	input := []byte{0xED, 0xA0, 0xBD, 0xED, 0xA0, 0xBD}
+	_, err := readModifiedUTF8(bytes.NewReader(input))
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, errInvalidModifiedUTF8)
+	assert.Contains(t, err.Error(), "invalid supplementary character")
+}
+
+func TestReadModifiedUTF8SurrogateUnexpectedEOF(t *testing.T) {
+	// High surrogate D83D followed by truncated data (only 2 more bytes)
+	input := []byte{0xED, 0xA0, 0xBD, 0xED, 0xB8}
+	_, err := readModifiedUTF8(bytes.NewReader(input))
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, io.ErrUnexpectedEOF)
+}
+
 // --- pkcs5Unpad tests ---
 
 func TestPkcs5UnpadValid(t *testing.T) {
@@ -754,18 +774,18 @@ func TestValidatePasswordValid(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// --- encodeIntegrityPassword tests ---
+// --- EncodeIntegrityPassword tests ---
 
 func TestEncodeIntegrityPasswordAboveBMP(t *testing.T) {
 	// Emoji U+1F600 is above U+FFFF, should be rejected
-	_, err := encodeIntegrityPassword("\U0001F600")
+	_, err := EncodeIntegrityPassword("\U0001F600")
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, ErrInvalidPassword)
 	assert.Contains(t, err.Error(), "unsupported codepoints")
 }
 
 func TestEncodeIntegrityPasswordEmpty(t *testing.T) {
-	_, err := encodeIntegrityPassword("")
+	_, err := EncodeIntegrityPassword("")
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, ErrInvalidPassword)
 }
@@ -790,7 +810,7 @@ func TestParseWithOptionsConfigError(t *testing.T) {
 func buildJCEKSWithTag(t *testing.T, tag uint32, password string) []byte {
 	t.Helper()
 
-	encodedPassword, err := encodeIntegrityPassword(password)
+	encodedPassword, err := EncodeIntegrityPassword(password)
 	require.NoError(t, err)
 
 	var body bytes.Buffer
@@ -800,9 +820,7 @@ func buildJCEKSWithTag(t *testing.T, tag uint32, password string) []byte {
 	require.NoError(t, binary.Write(&body, binary.BigEndian, tag))
 	// Don't need more data — parser will error on the tag before reading further
 
-	h := sha1.New()
-	h.Write(encodedPassword)
-	h.Write([]byte(jceksIntegrityMagic))
+	h := MakeIntegrityHash(encodedPassword)
 	h.Write(body.Bytes())
 	body.Write(h.Sum(nil))
 
@@ -834,7 +852,7 @@ func TestParseWithOptionsUnknownEntryTag(t *testing.T) {
 func buildJCEKSWithPrivateKeyNoCerts(t *testing.T, alias string, encryptedKeyDER []byte, password string) []byte {
 	t.Helper()
 
-	encodedPassword, err := encodeIntegrityPassword(password)
+	encodedPassword, err := EncodeIntegrityPassword(password)
 	require.NoError(t, err)
 
 	var body bytes.Buffer
@@ -856,9 +874,7 @@ func buildJCEKSWithPrivateKeyNoCerts(t *testing.T, alias string, encryptedKeyDER
 	// 0 certificates
 	require.NoError(t, binary.Write(&body, binary.BigEndian, int32(0)))
 
-	h := sha1.New()
-	h.Write(encodedPassword)
-	h.Write([]byte(jceksIntegrityMagic))
+	h := MakeIntegrityHash(encodedPassword)
 	h.Write(body.Bytes())
 	body.Write(h.Sum(nil))
 
@@ -974,7 +990,7 @@ func TestRecoverUnsupportedKeyAlgorithm(t *testing.T) {
 
 	_, _, err = ks.GetPrivateKeyAndCerts("unsupported", []byte(password))
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrUnsupportedJCEKSData)
+	assert.ErrorIs(t, err, ErrDecryptionFailed)
 }
 
 // --- Truncated entry tests ---
@@ -982,7 +998,7 @@ func TestRecoverUnsupportedKeyAlgorithm(t *testing.T) {
 func TestParsePrivateKeyTruncatedAlias(t *testing.T) {
 	// JCEKS with private key tag but no alias data
 	password := "changeit"
-	encodedPassword, err := encodeIntegrityPassword(password)
+	encodedPassword, err := EncodeIntegrityPassword(password)
 	require.NoError(t, err)
 
 	var body bytes.Buffer
@@ -992,9 +1008,7 @@ func TestParsePrivateKeyTruncatedAlias(t *testing.T) {
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(privateKeyEntryTag)))
 	// EOF here — no alias
 
-	h := sha1.New()
-	h.Write(encodedPassword)
-	h.Write([]byte(jceksIntegrityMagic))
+	h := MakeIntegrityHash(encodedPassword)
 	h.Write(body.Bytes())
 	body.Write(h.Sum(nil))
 
@@ -1005,7 +1019,7 @@ func TestParsePrivateKeyTruncatedAlias(t *testing.T) {
 
 func TestParsePrivateKeyTruncatedDate(t *testing.T) {
 	password := "changeit"
-	encodedPassword, err := encodeIntegrityPassword(password)
+	encodedPassword, err := EncodeIntegrityPassword(password)
 	require.NoError(t, err)
 
 	var body bytes.Buffer
@@ -1019,9 +1033,7 @@ func TestParsePrivateKeyTruncatedDate(t *testing.T) {
 	body.WriteString(alias)
 	// EOF here — no date
 
-	h := sha1.New()
-	h.Write(encodedPassword)
-	h.Write([]byte(jceksIntegrityMagic))
+	h := MakeIntegrityHash(encodedPassword)
 	h.Write(body.Bytes())
 	body.Write(h.Sum(nil))
 
@@ -1032,7 +1044,7 @@ func TestParsePrivateKeyTruncatedDate(t *testing.T) {
 
 func TestParseTrustedCertTruncatedDate(t *testing.T) {
 	password := "changeit"
-	encodedPassword, err := encodeIntegrityPassword(password)
+	encodedPassword, err := EncodeIntegrityPassword(password)
 	require.NoError(t, err)
 
 	var body bytes.Buffer
@@ -1045,9 +1057,7 @@ func TestParseTrustedCertTruncatedDate(t *testing.T) {
 	body.WriteString(alias)
 	// EOF — no date
 
-	h := sha1.New()
-	h.Write(encodedPassword)
-	h.Write([]byte(jceksIntegrityMagic))
+	h := MakeIntegrityHash(encodedPassword)
 	h.Write(body.Bytes())
 	body.Write(h.Sum(nil))
 
@@ -1058,7 +1068,7 @@ func TestParseTrustedCertTruncatedDate(t *testing.T) {
 
 func TestParseTrustedCertTruncatedCert(t *testing.T) {
 	password := "changeit"
-	encodedPassword, err := encodeIntegrityPassword(password)
+	encodedPassword, err := EncodeIntegrityPassword(password)
 	require.NoError(t, err)
 
 	var body bytes.Buffer
@@ -1072,9 +1082,7 @@ func TestParseTrustedCertTruncatedCert(t *testing.T) {
 	require.NoError(t, binary.Write(&body, binary.BigEndian, time.Now().UnixMilli()))
 	// EOF — no certificate data
 
-	h := sha1.New()
-	h.Write(encodedPassword)
-	h.Write([]byte(jceksIntegrityMagic))
+	h := MakeIntegrityHash(encodedPassword)
 	h.Write(body.Bytes())
 	body.Write(h.Sum(nil))
 
@@ -1195,6 +1203,24 @@ func TestRecoverPBEBadIterations(t *testing.T) {
 	assert.Contains(t, err.Error(), "unexpected iteration count")
 }
 
+func TestRecoverPBEExcessiveIterations(t *testing.T) {
+	params := pbeParameters{Salt: make([]byte, 8), Iterations: maxPBEIterations + 1}
+	paramsBytes, err := asn1.Marshal(params)
+	require.NoError(t, err)
+
+	epki := encryptedPrivateKeyInfo{
+		Algo: pkix.AlgorithmIdentifier{
+			Algorithm:  oidPBEWithMD5AndDES3CBC,
+			Parameters: asn1.RawValue{FullBytes: paramsBytes},
+		},
+		EncryptedKey: make([]byte, 16),
+	}
+
+	_, err = recoverPBEWithMD5AndDES3CBC(epki, []byte("changeit"))
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unexpected iteration count")
+}
+
 func TestRecoverPBEBlockSizeMismatch(t *testing.T) {
 	params := pbeParameters{Salt: make([]byte, 8), Iterations: 1}
 	paramsBytes, err := asn1.Marshal(params)
@@ -1270,7 +1296,7 @@ func TestParseJKSMagic(t *testing.T) {
 	require.NoError(t, err)
 
 	password := "changeit"
-	encodedPassword, err := encodeIntegrityPassword(password)
+	encodedPassword, err := EncodeIntegrityPassword(password)
 	require.NoError(t, err)
 
 	var body bytes.Buffer
@@ -1288,9 +1314,7 @@ func TestParseJKSMagic(t *testing.T) {
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(len(certDER))))
 	body.Write(certDER)
 
-	h := sha1.New()
-	h.Write(encodedPassword)
-	h.Write([]byte(jceksIntegrityMagic))
+	h := MakeIntegrityHash(encodedPassword)
 	h.Write(body.Bytes())
 	body.Write(h.Sum(nil))
 

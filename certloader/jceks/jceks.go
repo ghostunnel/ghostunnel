@@ -53,9 +53,8 @@ const (
 )
 
 var (
-	oidPublicKeyRSA     = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 1}
-	oidPublicKeyEC      = asn1.ObjectIdentifier{1, 2, 840, 10045, 2, 1}
-	oidPublicKeyED25519 = asn1.ObjectIdentifier{1, 3, 101, 112}
+	oidPublicKeyRSA = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 1}
+	oidPublicKeyEC  = asn1.ObjectIdentifier{1, 2, 840, 10045, 2, 1}
 )
 
 type encryptedPrivateKeyInfo struct {
@@ -76,10 +75,10 @@ type ecPrivateKey struct {
 	PublicKey     asn1.BitString        `asn1:"optional,explicit,tag:1"`
 }
 
-// encodeIntegrityPassword transforms a password string into the byte sequence that the JCEKS format defines as input to
+// EncodeIntegrityPassword transforms a password string into the byte sequence that the JCEKS format defines as input to
 // the integrity protection hash. The format does not support all possible password strings, so the function returns
 // ErrInvalidPassword for invalid passwords.
-func encodeIntegrityPassword(password string) ([]byte, error) {
+func EncodeIntegrityPassword(password string) ([]byte, error) {
 	if len(password) < 1 {
 		return nil, fmt.Errorf("%w: empty passwords are not interoperable", ErrInvalidPassword)
 	}
@@ -97,8 +96,8 @@ func encodeIntegrityPassword(password string) ([]byte, error) {
 	return integrityPassword, nil
 }
 
-// makeIntegrityHash initializes the hash function used to check JCEKS file integrity.
-func makeIntegrityHash(encodedPassword []byte) hash.Hash {
+// MakeIntegrityHash initializes the hash function used to check JCEKS file integrity.
+func MakeIntegrityHash(encodedPassword []byte) hash.Hash {
 	h := sha1.New()
 	h.Write(encodedPassword)
 	h.Write([]byte(jceksIntegrityMagic))

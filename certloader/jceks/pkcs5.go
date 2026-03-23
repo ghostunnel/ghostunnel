@@ -33,7 +33,7 @@ func pkcs5Unpad(ciphertext []byte) ([]byte, error) {
 	}
 
 	pad := ciphertext[len(ciphertext)-1]
-	if pad > des.BlockSize {
+	if pad == 0 || pad > des.BlockSize {
 		return nil, ErrInvalidCiphertext
 	}
 	if subtle.ConstantTimeCompare(ciphertext[len(ciphertext)-int(pad):], bytes.Repeat([]byte{pad}, int(pad))) != 1 {

@@ -110,10 +110,10 @@ func makeParseConfig(opts ...ParseOption) (*parseConfig, error) {
 		}
 	}
 
-	if cfg.maxCertBytes <= 0 {
+	if cfg.maxCertBytes == 0 {
 		cfg.maxCertBytes = defaultMaxCertBytes
 	}
-	if cfg.maxPrivateKeyBytes <= 0 {
+	if cfg.maxPrivateKeyBytes == 0 {
 		cfg.maxPrivateKeyBytes = defaultMaxPrivateKeyBytes
 	}
 
@@ -151,11 +151,11 @@ func (ks *KeyStore) ParseWithOptions(r io.Reader, password []byte, options ...Pa
 
 	var md hash.Hash
 	if password != nil {
-		encodedPassword, err := encodeIntegrityPassword(string(password))
+		encodedPassword, err := EncodeIntegrityPassword(string(password))
 		if err != nil {
 			return err
 		}
-		md = makeIntegrityHash(encodedPassword)
+		md = MakeIntegrityHash(encodedPassword)
 		r = io.TeeReader(r, md)
 	}
 
@@ -319,7 +319,7 @@ func (ks *KeyStore) parsePrivateKey(r io.Reader, cfg *parseConfig) error {
 	for j := 0; j < int(nCerts); j++ {
 		cert, err := readCertificate(r, cfg.maxCertBytes)
 		if err != nil {
-			return nil
+			return err
 		}
 		entry.certs = append(entry.certs, cert)
 	}
@@ -369,14 +369,7 @@ func (e *privateKeyEntry) Recover(password []byte) (crypto.PrivateKey, error) {
 		return nil, ErrDecryptionFailed
 	}
 
-	if privKey.Algo.Algorithm.Equal(oidPublicKeyRSA) {
-		sk, err := x509.ParsePKCS1PrivateKey(privKey.PrivateKey)
-		if err != nil {
-			return nil, ErrDecryptionFailed
-		}
-
-		return sk, nil
-	}
+	// EC needs special handling: re-inject curve OID from algorithm parameters
 	if privKey.Algo.Algorithm.Equal(oidPublicKeyEC) {
 		key := ecPrivateKey{}
 		oid := asn1.ObjectIdentifier{}
@@ -389,23 +382,22 @@ func (e *privateKeyEntry) Recover(password []byte) (crypto.PrivateKey, error) {
 			return nil, ErrDecryptionFailed
 		}
 		key.NamedCurveOID = oid
-		raw, _ := asn1.Marshal(key)
+		raw, err := asn1.Marshal(key)
+		if err != nil {
+			return nil, ErrDecryptionFailed
+		}
 
 		return x509.ParseECPrivateKey(raw)
 	}
-	if privKey.Algo.Algorithm.Equal(oidPublicKeyED25519) {
-		// ED25519 keys in JCEKS are stored as PKCS#8 structures.
-		// Re-wrap as PKCS#8 and parse using the standard library.
-		pkcs8, err := asn1.Marshal(privKey)
-		if err != nil {
-			return nil, ErrDecryptionFailed
-		}
-		sk, err := x509.ParsePKCS8PrivateKey(pkcs8)
-		if err != nil {
-			return nil, ErrDecryptionFailed
-		}
-		return sk, nil
-	}
 
-	return nil, fmt.Errorf("%w: unsupported private-key algorithm", ErrUnsupportedJCEKSData)
+	// RSA, ED25519, and anything else PKCS#8 supports: marshal as PKCS#8 and parse
+	pkcs8, err := asn1.Marshal(privKey)
+	if err != nil {
+		return nil, ErrDecryptionFailed
+	}
+	sk, err := x509.ParsePKCS8PrivateKey(pkcs8)
+	if err != nil {
+		return nil, ErrDecryptionFailed
+	}
+	return sk, nil
 }

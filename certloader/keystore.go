@@ -73,7 +73,7 @@ func CertificateFromKeystore(keystorePath, keystorePassword, caBundlePath string
 func (c *keystoreCertificate) Reload() error {
 	var pemBlocks []*pem.Block
 	for _, path := range c.keystorePaths {
-		blocks, err := readPEM(path, c.keystorePassword, c.format)
+		blocks, err := readCertificateFile(path, c.keystorePassword, c.format)
 		if err != nil {
 			return err
 		}

@@ -39,6 +39,7 @@ const (
 	pbeMD5DES3CBCSaltLen     = 8
 	pbeMD5DES3CBCHalfSaltLen = pbeMD5DES3CBCSaltLen / 2
 	pbeMD5DES3CBCKeyLen      = 3 * (64 / 8)
+	maxPBEIterations         = 10_000_000
 )
 
 // pbeParameters is the ASN.1 structure stored in the Parameters of the encryptedPrivateKeyInfo algorithm.
@@ -99,7 +100,7 @@ func recoverPBEWithMD5AndDES3CBC(protectedKeyInfo encryptedPrivateKeyInfo, passw
 	}
 
 	iterations := params.Iterations
-	if iterations < 1 {
+	if iterations < 1 || iterations > maxPBEIterations {
 		return privateKeyInfo{}, fmt.Errorf("unexpected iteration count: %d", iterations)
 	}
 
