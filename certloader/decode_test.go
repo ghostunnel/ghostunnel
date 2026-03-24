@@ -293,13 +293,6 @@ func TestReadCertsFromStreamUnknown(t *testing.T) {
 }
 
 
-func mustMarshalASN1(t *testing.T, v interface{}) []byte {
-	t.Helper()
-	data, err := asn1.Marshal(v)
-	require.NoError(t, err)
-	return data
-}
-
 // --- readJCEKSBlocks tests ---
 
 func TestReadJCEKSBlocksTrustedCert(t *testing.T) {

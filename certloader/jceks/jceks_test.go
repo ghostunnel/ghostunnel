@@ -40,6 +40,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var oidPublicKeyRSA = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 1}
+
 // buildMinimalJCEKS constructs a minimal JCEKS binary containing one trusted certificate entry.
 func buildMinimalJCEKS(t *testing.T, alias string, certDER []byte, password string) []byte {
 	t.Helper()
@@ -127,7 +129,7 @@ func TestLoadFromReaderInvalidMagic(t *testing.T) {
 	data := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02}
 	_, err := LoadFromReader(bytes.NewReader(data), []byte("password"))
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrInvalidJCEKSData)
+	assert.ErrorIs(t, err, errInvalidJCEKSData)
 }
 
 func TestLoadFromReaderBadPassword(t *testing.T) {
@@ -147,31 +149,7 @@ func TestLoadFromReaderBadPassword(t *testing.T) {
 
 	_, err = LoadFromReader(bytes.NewReader(jceksData), []byte("wrong-password"))
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrIntegrityProtectionViolation)
-}
-
-func TestKeyStoreString(t *testing.T) {
-	pub, priv, err := ed25519.GenerateKey(rand.Reader)
-	require.NoError(t, err)
-
-	template := &x509.Certificate{
-		SerialNumber: big.NewInt(1),
-		Subject:      pkix.Name{CommonName: "test"},
-		NotBefore:    time.Now().Add(-time.Hour),
-		NotAfter:     time.Now().Add(time.Hour),
-	}
-	certDER, err := x509.CreateCertificate(rand.Reader, template, template, pub, priv)
-	require.NoError(t, err)
-
-	password := "changeit"
-	jceksData := buildMinimalJCEKS(t, "myalias", certDER, password)
-
-	ks, err := LoadFromReader(bytes.NewReader(jceksData), []byte(password))
-	require.NoError(t, err)
-
-	str := ks.String()
-	assert.Contains(t, str, "myalias")
-	assert.Contains(t, str, "trusted-cert")
+	assert.ErrorIs(t, err, errIntegrityProtectionViolation)
 }
 
 // pkcs5Pad applies PKCS#5 padding to plaintext for the given block size.
@@ -455,7 +433,7 @@ func TestRecoverWrongPassword(t *testing.T) {
 
 	// Try to recover with a different password
 	_, _, err = ks.GetPrivateKeyAndCerts("mykey", []byte("wrong-password"))
-	assert.ErrorIs(t, err, ErrDecryptionFailed)
+	assert.ErrorIs(t, err, errDecryptionFailed)
 }
 
 func TestRecoverUnsupportedAlgorithm(t *testing.T) {
@@ -484,7 +462,7 @@ func TestRecoverUnsupportedAlgorithm(t *testing.T) {
 	require.NoError(t, err)
 
 	_, _, err = ks.GetPrivateKeyAndCerts("mykey", []byte(password))
-	assert.ErrorIs(t, err, ErrUnsupportedJCEKSData)
+	assert.ErrorIs(t, err, errUnsupportedJCEKSData)
 }
 
 func TestGetPrivateKeyAndCertsNonExistent(t *testing.T) {
@@ -512,14 +490,6 @@ func TestGetPrivateKeyAndCertsNonExistent(t *testing.T) {
 	assert.Nil(t, certs)
 }
 
-func TestPrivateKeyEntryString(t *testing.T) {
-	entry := &privateKeyEntry{
-		timestamp: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
-	}
-	str := entry.String()
-	assert.Contains(t, str, "private-key")
-	assert.Contains(t, str, "2025")
-}
 
 func TestWithMaxCertificateBytes(t *testing.T) {
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
@@ -539,9 +509,9 @@ func TestWithMaxCertificateBytes(t *testing.T) {
 
 	// Set a very small max cert size to trigger an error
 	ks := new(KeyStore)
-	err = ks.ParseWithOptions(bytes.NewReader(jceksData), []byte(password), WithMaxCertificateBytes(10))
+	err = ks.parseWithOptions(bytes.NewReader(jceksData), []byte(password), withMaxCertificateBytes(10))
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrInvalidJCEKSData)
+	assert.ErrorIs(t, err, errInvalidJCEKSData)
 }
 
 func TestWithMaxPrivateKeyBytes(t *testing.T) {
@@ -561,33 +531,9 @@ func TestWithMaxPrivateKeyBytes(t *testing.T) {
 	jceksData := buildJCEKSWithPrivateKey(t, "mykey", encryptedKey, certDER, password)
 
 	ks := new(KeyStore)
-	err = ks.ParseWithOptions(bytes.NewReader(jceksData), []byte(password), WithMaxPrivateKeyBytes(10))
+	err = ks.parseWithOptions(bytes.NewReader(jceksData), []byte(password), withMaxPrivateKeyBytes(10))
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrInvalidJCEKSData)
-}
-
-func TestKeyStoreStringWithPrivateKey(t *testing.T) {
-	certDER, key := generateRSACert(t)
-	password := "changeit"
-
-	pkcs1DER := x509.MarshalPKCS1PrivateKey(key)
-	pki := privateKeyInfo{
-		Version:    0,
-		Algo:       pkix.AlgorithmIdentifier{Algorithm: oidPublicKeyRSA},
-		PrivateKey: pkcs1DER,
-	}
-	pkcs8DER, err := asn1.Marshal(pki)
-	require.NoError(t, err)
-
-	encryptedKey := encryptPBEWithMD5AndDES3CBC(t, pkcs8DER, password)
-	jceksData := buildJCEKSWithPrivateKey(t, "myrsakey", encryptedKey, certDER, password)
-
-	ks, err := LoadFromReader(bytes.NewReader(jceksData), []byte(password))
-	require.NoError(t, err)
-
-	str := ks.String()
-	assert.Contains(t, str, "myrsakey")
-	assert.Contains(t, str, "private-key")
+	assert.ErrorIs(t, err, errInvalidJCEKSData)
 }
 
 func TestParseHeaderVersionMismatch(t *testing.T) {
@@ -599,7 +545,7 @@ func TestParseHeaderVersionMismatch(t *testing.T) {
 	ks := new(KeyStore)
 	err := ks.Parse(&buf, nil)
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrInvalidJCEKSData)
+	assert.ErrorIs(t, err, errInvalidJCEKSData)
 	assert.Contains(t, err.Error(), "unexpected version")
 }
 
@@ -740,33 +686,33 @@ func TestPkcs5UnpadValid(t *testing.T) {
 
 func TestPkcs5UnpadTooShort(t *testing.T) {
 	_, err := pkcs5Unpad([]byte{0x01})
-	assert.ErrorIs(t, err, ErrInvalidCiphertext)
+	assert.ErrorIs(t, err, errInvalidCiphertext)
 }
 
 func TestPkcs5UnpadBadPadding(t *testing.T) {
 	// Last byte says 3 bytes of padding, but they don't match
 	input := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x02, 0x02, 0x03}
 	_, err := pkcs5Unpad(input)
-	assert.ErrorIs(t, err, ErrInvalidCiphertext)
+	assert.ErrorIs(t, err, errInvalidCiphertext)
 }
 
 func TestPkcs5UnpadPadTooLarge(t *testing.T) {
 	// Pad byte = 9, larger than block size of 8
 	input := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x09}
 	_, err := pkcs5Unpad(input)
-	assert.ErrorIs(t, err, ErrInvalidCiphertext)
+	assert.ErrorIs(t, err, errInvalidCiphertext)
 }
 
 // --- validatePasswordPBEWithMD5AndDES3CBC tests ---
 
 func TestValidatePasswordEmpty(t *testing.T) {
 	err := validatePasswordPBEWithMD5AndDES3CBC([]byte{})
-	assert.ErrorIs(t, err, ErrInvalidPassword)
+	assert.ErrorIs(t, err, errInvalidPassword)
 }
 
 func TestValidatePasswordInvalidChars(t *testing.T) {
 	err := validatePasswordPBEWithMD5AndDES3CBC([]byte{0x01})
-	assert.ErrorIs(t, err, ErrInvalidPassword)
+	assert.ErrorIs(t, err, errInvalidPassword)
 }
 
 func TestValidatePasswordValid(t *testing.T) {
@@ -780,17 +726,17 @@ func TestEncodeIntegrityPasswordAboveBMP(t *testing.T) {
 	// Emoji U+1F600 is above U+FFFF, should be rejected
 	_, err := EncodeIntegrityPassword("\U0001F600")
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrInvalidPassword)
+	assert.ErrorIs(t, err, errInvalidPassword)
 	assert.Contains(t, err.Error(), "unsupported codepoints")
 }
 
 func TestEncodeIntegrityPasswordEmpty(t *testing.T) {
 	_, err := EncodeIntegrityPassword("")
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrInvalidPassword)
+	assert.ErrorIs(t, err, errInvalidPassword)
 }
 
-// --- makeParseConfig / ParseWithOptions config error ---
+// --- makeParseConfig / parseWithOptions config error ---
 
 type errOption struct{}
 
@@ -800,12 +746,12 @@ func (e errOption) applyParseOption(*parseConfig) error {
 
 func TestParseWithOptionsConfigError(t *testing.T) {
 	ks := new(KeyStore)
-	err := ks.ParseWithOptions(bytes.NewReader([]byte{}), nil, errOption{})
+	err := ks.parseWithOptions(bytes.NewReader([]byte{}), nil, errOption{})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to configure parser")
 }
 
-// --- ParseWithOptions entry tag tests ---
+// --- parseWithOptions entry tag tests ---
 
 func buildJCEKSWithTag(t *testing.T, tag uint32, password string) []byte {
 	t.Helper()
@@ -833,7 +779,7 @@ func TestParseWithOptionsSecretKeyEntry(t *testing.T) {
 
 	_, err := LoadFromReader(bytes.NewReader(data), []byte(password))
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrUnsupportedJCEKSData)
+	assert.ErrorIs(t, err, errUnsupportedJCEKSData)
 	assert.Contains(t, err.Error(), "secret key entry")
 }
 
@@ -843,7 +789,7 @@ func TestParseWithOptionsUnknownEntryTag(t *testing.T) {
 
 	_, err := LoadFromReader(bytes.NewReader(data), []byte(password))
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrUnsupportedJCEKSData)
+	assert.ErrorIs(t, err, errUnsupportedJCEKSData)
 	assert.Contains(t, err.Error(), "unknown entry tag")
 }
 
@@ -903,7 +849,7 @@ func TestGetPrivateKeyNoCertificates(t *testing.T) {
 
 	_, _, err = ks.GetPrivateKeyAndCerts("nokey", []byte(password))
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrInvalidJCEKSData)
+	assert.ErrorIs(t, err, errInvalidJCEKSData)
 	assert.Contains(t, err.Error(), "key has no certificates")
 }
 
@@ -938,7 +884,7 @@ func TestGetCertNonExistentAlias(t *testing.T) {
 func TestParseHeaderReadMagicError(t *testing.T) {
 	_, err := LoadFromReader(bytes.NewReader([]byte{}), []byte("pw"))
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrInvalidJCEKSData)
+	assert.ErrorIs(t, err, errInvalidJCEKSData)
 }
 
 func TestParseHeaderReadVersionError(t *testing.T) {
@@ -948,7 +894,7 @@ func TestParseHeaderReadVersionError(t *testing.T) {
 
 	_, err := LoadFromReader(&buf, nil)
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrInvalidJCEKSData)
+	assert.ErrorIs(t, err, errInvalidJCEKSData)
 }
 
 // --- Recover error paths ---
@@ -965,7 +911,7 @@ func TestRecoverASN1UnmarshalError(t *testing.T) {
 
 	_, _, err = ks.GetPrivateKeyAndCerts("badkey", []byte(password))
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrInvalidJCEKSData)
+	assert.ErrorIs(t, err, errInvalidJCEKSData)
 	assert.Contains(t, err.Error(), "failed to parse private key as DER")
 }
 
@@ -990,7 +936,7 @@ func TestRecoverUnsupportedKeyAlgorithm(t *testing.T) {
 
 	_, _, err = ks.GetPrivateKeyAndCerts("unsupported", []byte(password))
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrDecryptionFailed)
+	assert.ErrorIs(t, err, errDecryptionFailed)
 }
 
 // --- Truncated entry tests ---
@@ -1014,7 +960,7 @@ func TestParsePrivateKeyTruncatedAlias(t *testing.T) {
 
 	_, err = LoadFromReader(&body, []byte(password))
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrInvalidJCEKSData)
+	assert.ErrorIs(t, err, errInvalidJCEKSData)
 }
 
 func TestParsePrivateKeyTruncatedDate(t *testing.T) {
@@ -1039,7 +985,7 @@ func TestParsePrivateKeyTruncatedDate(t *testing.T) {
 
 	_, err = LoadFromReader(&body, []byte(password))
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrInvalidJCEKSData)
+	assert.ErrorIs(t, err, errInvalidJCEKSData)
 }
 
 func TestParseTrustedCertTruncatedDate(t *testing.T) {
@@ -1063,7 +1009,7 @@ func TestParseTrustedCertTruncatedDate(t *testing.T) {
 
 	_, err = LoadFromReader(&body, []byte(password))
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrInvalidJCEKSData)
+	assert.ErrorIs(t, err, errInvalidJCEKSData)
 }
 
 func TestParseTrustedCertTruncatedCert(t *testing.T) {
@@ -1088,7 +1034,7 @@ func TestParseTrustedCertTruncatedCert(t *testing.T) {
 
 	_, err = LoadFromReader(&body, []byte(password))
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrInvalidJCEKSData)
+	assert.ErrorIs(t, err, errInvalidJCEKSData)
 }
 
 // --- encoding.go error path tests ---
@@ -1098,7 +1044,7 @@ func TestReadBytesNegativeLength(t *testing.T) {
 	buf := bytes.NewReader([]byte{0xFF, 0xFF, 0xFF, 0xFF})
 	_, err := readBytes(buf, 1024)
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrInvalidJCEKSData)
+	assert.ErrorIs(t, err, errInvalidJCEKSData)
 }
 
 func TestReadBytesReadFullError(t *testing.T) {
@@ -1117,7 +1063,7 @@ func TestReadBytesExceedsMaxLen(t *testing.T) {
 
 	_, err := readBytes(&buf, 10) // max=10, but length=1000
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrJCEKSDataTooLarge)
+	assert.ErrorIs(t, err, errJCEKSDataTooLarge)
 }
 
 func TestReadDateError(t *testing.T) {
@@ -1138,7 +1084,7 @@ func TestReadCertificateUnsupportedType(t *testing.T) {
 
 	_, err := readCertificate(&buf, defaultMaxCertBytes)
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrUnsupportedJCEKSData)
+	assert.ErrorIs(t, err, errUnsupportedJCEKSData)
 	assert.Contains(t, err.Error(), "unable to handle certificate type")
 }
 
@@ -1252,7 +1198,7 @@ func TestRecoverPBEBadASN1Params(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// --- ParseWithOptions with nil password (no integrity check) ---
+// --- parseWithOptions with nil password (no integrity check) ---
 
 func TestParseWithOptionsNilPassword(t *testing.T) {
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
@@ -1333,7 +1279,7 @@ func TestParseReadEntryCountError(t *testing.T) {
 	ks := new(KeyStore)
 	err := ks.Parse(&buf, nil)
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrInvalidJCEKSData)
+	assert.ErrorIs(t, err, errInvalidJCEKSData)
 	assert.Contains(t, err.Error(), "failed to read entry count")
 }
 
@@ -1348,6 +1294,6 @@ func TestParseReadEntryTagError(t *testing.T) {
 	ks := new(KeyStore)
 	err := ks.Parse(&buf, nil)
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrInvalidJCEKSData)
+	assert.ErrorIs(t, err, errInvalidJCEKSData)
 	assert.Contains(t, err.Error(), "failed to read entry")
 }

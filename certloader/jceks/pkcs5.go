@@ -29,15 +29,15 @@ import (
 
 func pkcs5Unpad(ciphertext []byte) ([]byte, error) {
 	if len(ciphertext) < des.BlockSize {
-		return nil, ErrInvalidCiphertext
+		return nil, errInvalidCiphertext
 	}
 
 	pad := ciphertext[len(ciphertext)-1]
 	if pad == 0 || pad > des.BlockSize {
-		return nil, ErrInvalidCiphertext
+		return nil, errInvalidCiphertext
 	}
 	if subtle.ConstantTimeCompare(ciphertext[len(ciphertext)-int(pad):], bytes.Repeat([]byte{pad}, int(pad))) != 1 {
-		return nil, ErrInvalidCiphertext
+		return nil, errInvalidCiphertext
 	}
 
 	return ciphertext[:len(ciphertext)-int(pad)], nil

@@ -37,11 +37,11 @@ func readBytes(r io.Reader, maxLen uint) ([]byte, error) {
 		return nil, err
 	}
 	if length < 0 {
-		return nil, ErrInvalidJCEKSData
+		return nil, errInvalidJCEKSData
 	}
 	if uint(length) > maxLen {
 		return nil, fmt.Errorf("%w: data field of size %d bytes exceeds maximum length of %d",
-			ErrJCEKSDataTooLarge, length, maxLen)
+			errJCEKSDataTooLarge, length, maxLen)
 	}
 	buf := make([]byte, length)
 	_, err = io.ReadFull(r, buf)
@@ -89,7 +89,7 @@ func readCertificate(r io.Reader, maxLen uint) (*x509.Certificate, error) {
 		return nil, err
 	}
 	if certType != x509CertTag {
-		return nil, fmt.Errorf("%w: unable to handle certificate type: %s", ErrUnsupportedJCEKSData, certType)
+		return nil, fmt.Errorf("%w: unable to handle certificate type: %s", errUnsupportedJCEKSData, certType)
 	}
 	certDER, err := readBytes(r, maxLen)
 	if err != nil {

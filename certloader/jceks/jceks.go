@@ -37,9 +37,7 @@ import (
 	"math"
 )
 
-var (
-	ErrInvalidPassword = errors.New("password is unsupported by JCEKS format")
-)
+var errInvalidPassword = errors.New("password is unsupported by JCEKS format")
 
 const (
 	jceksMagic                 = 0xcececece
@@ -52,10 +50,7 @@ const (
 	jceksIntegrityMagic        = "Mighty Aphrodite"
 )
 
-var (
-	oidPublicKeyRSA = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 1}
-	oidPublicKeyEC  = asn1.ObjectIdentifier{1, 2, 840, 10045, 2, 1}
-)
+var oidPublicKeyEC = asn1.ObjectIdentifier{1, 2, 840, 10045, 2, 1}
 
 type encryptedPrivateKeyInfo struct {
 	Algo         pkix.AlgorithmIdentifier
@@ -77,14 +72,14 @@ type ecPrivateKey struct {
 
 // EncodeIntegrityPassword transforms a password string into the byte sequence that the JCEKS format defines as input to
 // the integrity protection hash. The format does not support all possible password strings, so the function returns
-// ErrInvalidPassword for invalid passwords.
+// errInvalidPassword for invalid passwords.
 func EncodeIntegrityPassword(password string) ([]byte, error) {
 	if len(password) < 1 {
-		return nil, fmt.Errorf("%w: empty passwords are not interoperable", ErrInvalidPassword)
+		return nil, fmt.Errorf("%w: empty passwords are not interoperable", errInvalidPassword)
 	}
 	for _, r := range password {
 		if r > math.MaxUint16 {
-			return nil, fmt.Errorf("%w: password contains unsupported codepoints", ErrInvalidPassword)
+			return nil, fmt.Errorf("%w: password contains unsupported codepoints", errInvalidPassword)
 		}
 	}
 

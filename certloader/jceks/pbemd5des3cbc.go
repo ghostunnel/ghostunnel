@@ -72,11 +72,11 @@ func derivePBEWithMD5AndDES3CBCParams(password []byte, salt []byte, iterations u
 
 func validatePasswordPBEWithMD5AndDES3CBC(password []byte) error {
 	if len(password) < 1 {
-		return fmt.Errorf("%w: empty passwords are not interoperable", ErrInvalidPassword)
+		return fmt.Errorf("%w: empty passwords are not interoperable", errInvalidPassword)
 	}
 	for _, b := range password {
 		if b < 0x20 || b > 0x7E {
-			return fmt.Errorf("%w: invalid characters", ErrInvalidPassword)
+			return fmt.Errorf("%w: invalid characters", errInvalidPassword)
 		}
 	}
 

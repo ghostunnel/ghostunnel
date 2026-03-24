@@ -32,17 +32,16 @@ import (
 	"io"
 	"maps"
 	"slices"
-	"strings"
 	"time"
 )
 
 var (
-	ErrInvalidCiphertext            = errors.New("invalid ciphertext")
-	ErrInvalidJCEKSData             = errors.New("invalid JCEKS data")
-	ErrJCEKSDataTooLarge            = errors.New("JCEKS data too large")
-	ErrUnsupportedJCEKSData         = errors.New("unsupported JCEKS data")
-	ErrIntegrityProtectionViolation = errors.New("integrity protection violation")
-	ErrDecryptionFailed             = errors.New("decryption failed with the given password")
+	errInvalidCiphertext            = errors.New("invalid ciphertext")
+	errInvalidJCEKSData             = errors.New("invalid JCEKS data")
+	errJCEKSDataTooLarge            = errors.New("JCEKS data too large")
+	errUnsupportedJCEKSData         = errors.New("unsupported JCEKS data")
+	errIntegrityProtectionViolation = errors.New("integrity protection violation")
+	errDecryptionFailed             = errors.New("decryption failed with the given password")
 )
 
 const (
@@ -52,8 +51,7 @@ const (
 
 // KeyStore represents the contents of a parsed JCEKS keystore. It can contain a variety of entries, each identified by
 // a unique alias string. Currently, we only support trusted certificate and private key entries. The zero value
-// represents an empty keystore that is ready to use, but most callers should immediately call Parse, ParseWithOptions,
-// or create a KeyStore using LoadFromReader.
+// represents an empty keystore that is ready to use, but most callers should use LoadFromReader.
 type KeyStore struct {
 	trustedCerts map[string]*trustedCertEntry
 	privateKeys  map[string]*privateKeyEntry
@@ -70,17 +68,9 @@ type privateKeyEntry struct {
 	certs        []*x509.Certificate
 }
 
-func (e *privateKeyEntry) String() string {
-	return fmt.Sprintf("private-key: %s", e.timestamp)
-}
-
 type trustedCertEntry struct {
 	timestamp time.Time
 	cert      *x509.Certificate
-}
-
-func (e *trustedCertEntry) String() string {
-	return fmt.Sprintf("trusted-cert: %s", e.timestamp)
 }
 
 type parseConfig struct {
@@ -88,8 +78,7 @@ type parseConfig struct {
 	maxPrivateKeyBytes uint
 }
 
-// ParseOption modifies the behavior of KeyStore.ParseWithOptions.
-type ParseOption interface {
+type parseOption interface {
 	applyParseOption(cfg *parseConfig) error
 }
 
@@ -101,7 +90,7 @@ func (f simpleParseOptionFunc) applyParseOption(cfg *parseConfig) error {
 	return nil
 }
 
-func makeParseConfig(opts ...ParseOption) (*parseConfig, error) {
+func makeParseConfig(opts ...parseOption) (*parseConfig, error) {
 	var cfg parseConfig
 	for _, opt := range opts {
 		err := opt.applyParseOption(&cfg)
@@ -120,15 +109,13 @@ func makeParseConfig(opts ...ParseOption) (*parseConfig, error) {
 	return &cfg, nil
 }
 
-// WithMaxCertificateBytes sets the maximum size of certificates contained in the JCEKS file in bytes.
-func WithMaxCertificateBytes(maxBytes uint) ParseOption {
+func withMaxCertificateBytes(maxBytes uint) parseOption {
 	return simpleParseOptionFunc(func(cfg *parseConfig) {
 		cfg.maxCertBytes = maxBytes
 	})
 }
 
-// WithMaxPrivateKeyBytes sets the maximum size of private keys contained in the JCEKS file in bytes.
-func WithMaxPrivateKeyBytes(maxBytes uint) ParseOption {
+func withMaxPrivateKeyBytes(maxBytes uint) parseOption {
 	return simpleParseOptionFunc(func(cfg *parseConfig) {
 		cfg.maxPrivateKeyBytes = maxBytes
 	})
@@ -136,11 +123,10 @@ func WithMaxPrivateKeyBytes(maxBytes uint) ParseOption {
 
 // Parse parses the key store from the specified reader using default settings.
 func (ks *KeyStore) Parse(r io.Reader, password []byte) error {
-	return ks.ParseWithOptions(r, password)
+	return ks.parseWithOptions(r, password)
 }
 
-// ParseWithOptions parses the key store from the specified reader.
-func (ks *KeyStore) ParseWithOptions(r io.Reader, password []byte, options ...ParseOption) error {
+func (ks *KeyStore) parseWithOptions(r io.Reader, password []byte, options ...parseOption) error {
 	ks.trustedCerts = make(map[string]*trustedCertEntry)
 	ks.privateKeys = make(map[string]*privateKeyEntry)
 
@@ -161,37 +147,37 @@ func (ks *KeyStore) ParseWithOptions(r io.Reader, password []byte, options ...Pa
 
 	version, err := parseHeader(r)
 	if err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidJCEKSData, err)
+		return fmt.Errorf("%w: %w", errInvalidJCEKSData, err)
 	}
 	if version != jceksVersion {
 		return fmt.Errorf("%w: unexpected version: %d != %d",
-			ErrInvalidJCEKSData, version, jceksVersion)
+			errInvalidJCEKSData, version, jceksVersion)
 	}
 
 	count, err := readInt32(r)
 	if err != nil {
-		return fmt.Errorf("%w: failed to read entry count", ErrInvalidJCEKSData)
+		return fmt.Errorf("%w: failed to read entry count", errInvalidJCEKSData)
 	}
 	for i := 0; i < int(count); i++ {
 		tag, err := readUint32(r)
 		if err != nil {
-			return fmt.Errorf("%w: failed to read entry %d tag", ErrInvalidJCEKSData, i)
+			return fmt.Errorf("%w: failed to read entry %d tag", errInvalidJCEKSData, i)
 		}
 		switch tag {
 		case privateKeyEntryTag:
 			err := ks.parsePrivateKey(r, cfg)
 			if err != nil {
-				return fmt.Errorf("%w: failed to parse private key entry %d: %w", ErrInvalidJCEKSData, i, err)
+				return fmt.Errorf("%w: failed to parse private key entry %d: %w", errInvalidJCEKSData, i, err)
 			}
 		case trustedCertEntryTag:
 			err := ks.parseTrustedCert(r, cfg)
 			if err != nil {
-				return fmt.Errorf("%w: failed to parse certificate entry %d: %w", ErrInvalidJCEKSData, i, err)
+				return fmt.Errorf("%w: failed to parse certificate entry %d: %w", errInvalidJCEKSData, i, err)
 			}
 		case secretKeyEntryTag:
-			return fmt.Errorf("%w: file contains a secret key entry", ErrUnsupportedJCEKSData)
+			return fmt.Errorf("%w: file contains a secret key entry", errUnsupportedJCEKSData)
 		default:
-			return fmt.Errorf("%w: unknown entry tag %d", ErrUnsupportedJCEKSData, tag)
+			return fmt.Errorf("%w: unknown entry tag %d", errUnsupportedJCEKSData, tag)
 		}
 	}
 
@@ -200,11 +186,11 @@ func (ks *KeyStore) ParseWithOptions(r io.Reader, password []byte, options ...Pa
 		actual := make([]byte, len(computed))
 		_, err := io.ReadFull(r, actual)
 		if err != nil {
-			return fmt.Errorf("%w: failed to read integrity checksum: %w", ErrInvalidJCEKSData, err)
+			return fmt.Errorf("%w: failed to read integrity checksum: %w", errInvalidJCEKSData, err)
 		}
 		if subtle.ConstantTimeCompare(computed, actual) != 1 {
 			return fmt.Errorf("%w: keystore was tampered with or password was incorrect",
-				ErrIntegrityProtectionViolation)
+				errIntegrityProtectionViolation)
 		}
 	}
 
@@ -221,7 +207,7 @@ func (ks *KeyStore) GetPrivateKeyAndCerts(alias string, password []byte) (
 	}
 
 	if len(entry.certs) < 1 {
-		return nil, nil, fmt.Errorf("%w: key has no certificates", ErrInvalidJCEKSData)
+		return nil, nil, fmt.Errorf("%w: key has no certificates", errInvalidJCEKSData)
 	}
 	key, err = entry.Recover(password)
 	if err != nil {
@@ -249,24 +235,6 @@ func (ks *KeyStore) ListPrivateKeys() []string {
 // ListCerts lists the names of the certs stored in the key store.
 func (ks *KeyStore) ListCerts() []string {
 	return slices.Sorted(maps.Keys(ks.trustedCerts))
-}
-
-func (ks *KeyStore) String() string {
-	m := make(map[string]fmt.Stringer, len(ks.trustedCerts)+len(ks.privateKeys))
-	for k, v := range ks.trustedCerts {
-		m[k] = v
-	}
-	for k, v := range ks.privateKeys {
-		m[k] = v
-	}
-
-	var buf strings.Builder
-	for _, k := range slices.Sorted(maps.Keys(m)) {
-		_, _ = fmt.Fprintf(&buf, "%s\n", k)
-		_, _ = fmt.Fprintf(&buf, "  %s\n", m[k])
-	}
-
-	return buf.String()
 }
 
 // LoadFromReader loads the key store from the specified reader.
@@ -356,17 +324,17 @@ func (e *privateKeyEntry) Recover(password []byte) (crypto.PrivateKey, error) {
 	var eKey encryptedPrivateKeyInfo
 	_, err := asn1.Unmarshal(e.protectedKey, &eKey)
 	if err != nil {
-		return nil, fmt.Errorf("%w: failed to parse private key as DER: %w", ErrInvalidJCEKSData, err)
+		return nil, fmt.Errorf("%w: failed to parse private key as DER: %w", errInvalidJCEKSData, err)
 	}
 
 	if !eKey.Algo.Algorithm.Equal(oidPBEWithMD5AndDES3CBC) {
 		return nil, fmt.Errorf("%w: unsupported encrypted-private-key algorithm: %v",
-			ErrUnsupportedJCEKSData, eKey.Algo.Algorithm)
+			errUnsupportedJCEKSData, eKey.Algo.Algorithm)
 	}
 
 	privKey, err := recoverPBEWithMD5AndDES3CBC(eKey, password)
 	if err != nil {
-		return nil, ErrDecryptionFailed
+		return nil, errDecryptionFailed
 	}
 
 	// EC needs special handling: re-inject curve OID from algorithm parameters
@@ -375,16 +343,16 @@ func (e *privateKeyEntry) Recover(password []byte) (crypto.PrivateKey, error) {
 		oid := asn1.ObjectIdentifier{}
 		_, err := asn1.Unmarshal(privKey.PrivateKey, &key)
 		if err != nil {
-			return nil, ErrDecryptionFailed
+			return nil, errDecryptionFailed
 		}
 		_, err = asn1.Unmarshal(privKey.Algo.Parameters.FullBytes, &oid)
 		if err != nil {
-			return nil, ErrDecryptionFailed
+			return nil, errDecryptionFailed
 		}
 		key.NamedCurveOID = oid
 		raw, err := asn1.Marshal(key)
 		if err != nil {
-			return nil, ErrDecryptionFailed
+			return nil, errDecryptionFailed
 		}
 
 		return x509.ParseECPrivateKey(raw)
@@ -393,11 +361,11 @@ func (e *privateKeyEntry) Recover(password []byte) (crypto.PrivateKey, error) {
 	// RSA, ED25519, and anything else PKCS#8 supports: marshal as PKCS#8 and parse
 	pkcs8, err := asn1.Marshal(privKey)
 	if err != nil {
-		return nil, ErrDecryptionFailed
+		return nil, errDecryptionFailed
 	}
 	sk, err := x509.ParsePKCS8PrivateKey(pkcs8)
 	if err != nil {
-		return nil, ErrDecryptionFailed
+		return nil, errDecryptionFailed
 	}
 	return sk, nil
 }
