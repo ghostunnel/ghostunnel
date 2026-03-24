@@ -268,3 +268,38 @@ func TestLoadTrustStoreInvalid(t *testing.T) {
 	_, err = LoadTrustStore(cert.Name())
 	assert.NotNil(t, err, "should not read non-existent file")
 }
+
+func TestKeystoreCertificateReloadBadCABundle(t *testing.T) {
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "test"},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+	}
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, pub, priv)
+	require.NoError(t, err)
+
+	pkcs8, err := x509.MarshalPKCS8PrivateKey(priv)
+	require.NoError(t, err)
+
+	certFile, err := os.CreateTemp("", "ghostunnel-test-*.pem")
+	require.NoError(t, err)
+	defer os.Remove(certFile.Name())
+	_, err = certFile.Write(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}))
+	require.NoError(t, err)
+	certFile.Close()
+
+	keyFile, err := os.CreateTemp("", "ghostunnel-test-*.pem")
+	require.NoError(t, err)
+	defer os.Remove(keyFile.Name())
+	_, err = keyFile.Write(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: pkcs8}))
+	require.NoError(t, err)
+	keyFile.Close()
+
+	_, err = CertificateFromPEMFiles(certFile.Name(), keyFile.Name(), "/nonexistent/ca-bundle.pem")
+	assert.Error(t, err)
+}

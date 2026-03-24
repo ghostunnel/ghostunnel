@@ -1297,3 +1297,152 @@ func TestParseReadEntryTagError(t *testing.T) {
 	assert.ErrorIs(t, err, errInvalidJCEKSData)
 	assert.Contains(t, err.Error(), "failed to read entry")
 }
+
+func TestParsePrivateKeyTruncatedProtectedKey(t *testing.T) {
+	password := "changeit"
+	encodedPassword, err := EncodeIntegrityPassword(password)
+	require.NoError(t, err)
+
+	var body bytes.Buffer
+	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksMagic)))
+	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksVersion)))
+	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(1)))
+	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(privateKeyEntryTag)))
+	alias := "a"
+	require.NoError(t, binary.Write(&body, binary.BigEndian, uint16(len(alias))))
+	body.WriteString(alias)
+	require.NoError(t, binary.Write(&body, binary.BigEndian, time.Now().UnixMilli()))
+	// EOF — no protectedKey length prefix
+
+	h := MakeIntegrityHash(encodedPassword)
+	h.Write(body.Bytes())
+	body.Write(h.Sum(nil))
+
+	_, err = LoadFromReader(bytes.NewReader(body.Bytes()), []byte(password))
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, errInvalidJCEKSData)
+}
+
+func TestParsePrivateKeyTruncatedCertCount(t *testing.T) {
+	password := "changeit"
+	encodedPassword, err := EncodeIntegrityPassword(password)
+	require.NoError(t, err)
+
+	var body bytes.Buffer
+	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksMagic)))
+	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksVersion)))
+	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(1)))
+	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(privateKeyEntryTag)))
+	alias := "a"
+	require.NoError(t, binary.Write(&body, binary.BigEndian, uint16(len(alias))))
+	body.WriteString(alias)
+	require.NoError(t, binary.Write(&body, binary.BigEndian, time.Now().UnixMilli()))
+	// protectedKey: 4 bytes
+	require.NoError(t, binary.Write(&body, binary.BigEndian, int32(4)))
+	body.Write([]byte{0x30, 0x02, 0x05, 0x00})
+	// EOF — no cert count
+
+	h := MakeIntegrityHash(encodedPassword)
+	h.Write(body.Bytes())
+	body.Write(h.Sum(nil))
+
+	_, err = LoadFromReader(bytes.NewReader(body.Bytes()), []byte(password))
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, errInvalidJCEKSData)
+}
+
+func TestRecoverECGarbagePrivateKey(t *testing.T) {
+	certDER, _ := generateECDSACert(t)
+	password := "changeit"
+
+	curveOID := asn1.ObjectIdentifier{1, 2, 840, 10045, 3, 1, 7} // P-256
+	curveOIDBytes, err := asn1.Marshal(curveOID)
+	require.NoError(t, err)
+
+	pki := privateKeyInfo{
+		Version: 0,
+		Algo: pkix.AlgorithmIdentifier{
+			Algorithm:  oidPublicKeyEC,
+			Parameters: asn1.RawValue{FullBytes: curveOIDBytes},
+		},
+		PrivateKey: []byte{0x01, 0x02, 0x03}, // not valid ecPrivateKey ASN.1
+	}
+	pkcs8DER, err := asn1.Marshal(pki)
+	require.NoError(t, err)
+
+	encryptedKey := encryptPBEWithMD5AndDES3CBC(t, pkcs8DER, password)
+	jceksData := buildJCEKSWithPrivateKey(t, "ecbad", encryptedKey, certDER, password)
+
+	ks, err := LoadFromReader(bytes.NewReader(jceksData), []byte(password))
+	require.NoError(t, err)
+
+	_, _, err = ks.GetPrivateKeyAndCerts("ecbad", []byte(password))
+	assert.ErrorIs(t, err, errDecryptionFailed)
+}
+
+func TestRecoverECGarbageAlgoParameters(t *testing.T) {
+	certDER, key := generateECDSACert(t)
+	password := "changeit"
+
+	ecDER, err := x509.MarshalECPrivateKey(key)
+	require.NoError(t, err)
+	var ecKey ecPrivateKey
+	_, err = asn1.Unmarshal(ecDER, &ecKey)
+	require.NoError(t, err)
+	ecKey.NamedCurveOID = nil
+	strippedDER, err := asn1.Marshal(ecKey)
+	require.NoError(t, err)
+
+	pki := privateKeyInfo{
+		Version: 0,
+		Algo: pkix.AlgorithmIdentifier{
+			Algorithm:  oidPublicKeyEC,
+			Parameters: asn1.RawValue{FullBytes: []byte{0x01, 0x02}}, // garbage
+		},
+		PrivateKey: strippedDER,
+	}
+	pkcs8DER, err := asn1.Marshal(pki)
+	require.NoError(t, err)
+
+	encryptedKey := encryptPBEWithMD5AndDES3CBC(t, pkcs8DER, password)
+	jceksData := buildJCEKSWithPrivateKey(t, "ecbad2", encryptedKey, certDER, password)
+
+	ks, err := LoadFromReader(bytes.NewReader(jceksData), []byte(password))
+	require.NoError(t, err)
+
+	_, _, err = ks.GetPrivateKeyAndCerts("ecbad2", []byte(password))
+	assert.ErrorIs(t, err, errDecryptionFailed)
+}
+
+func TestRecoverPBEDecryptsToGarbageASN1(t *testing.T) {
+	certDER, _ := generateRSACert(t)
+	password := "changeit"
+
+	// Data that is not valid ASN.1
+	garbagePayload := []byte("this-is-not-asn1")
+	encryptedKey := encryptPBEWithMD5AndDES3CBC(t, garbagePayload, password)
+	jceksData := buildJCEKSWithPrivateKey(t, "garbage", encryptedKey, certDER, password)
+
+	ks, err := LoadFromReader(bytes.NewReader(jceksData), []byte(password))
+	require.NoError(t, err)
+
+	_, _, err = ks.GetPrivateKeyAndCerts("garbage", []byte(password))
+	assert.ErrorIs(t, err, errDecryptionFailed)
+}
+
+// errByteReader is an io.ByteReader that always returns an error.
+type errByteReader struct{ err error }
+
+func (r *errByteReader) ReadByte() (byte, error) { return 0, r.err }
+func (r *errByteReader) Read([]byte) (int, error) { return 0, r.err }
+
+func TestReadModifiedUTF8NonEOFError(t *testing.T) {
+	_, err := readModifiedUTF8(&errByteReader{errors.New("device error")})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to read rune byte 1")
+}
+
+func TestReadBytesEmptyReader(t *testing.T) {
+	_, err := readBytes(bytes.NewReader([]byte{}), 1024)
+	assert.Error(t, err)
+}

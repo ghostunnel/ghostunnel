@@ -626,3 +626,9 @@ func TestReadPKCS12BlocksRSA(t *testing.T) {
 	assert.Equal(t, 1, keyCount, "should have 1 private key")
 	assert.Equal(t, 1, certCount, "should have 1 certificate")
 }
+
+func TestReadPEMBlocksIOError(t *testing.T) {
+	_, err := readPEMBlocks(&errReader{errors.New("disk failure")})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "error reading PEM data")
+}
