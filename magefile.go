@@ -373,7 +373,7 @@ func (Test) Unit(ctx context.Context) error {
 		return fmt.Errorf("failed to create coverage directory: %w", err)
 	}
 
-	return sh.Run("go", "test", "-v", "-covermode=count", "-coverprofile=coverage/unit-test.profile", "./...")
+	return sh.Run("go", "test", "-v", "-covermode=count", "-coverpkg", ".,./auth,./certloader,./certloader/jceks,./proxy,./wildcard,./socket", "-coverprofile=coverage/unit-test.profile", "./...")
 }
 
 // Integration runs the integration tests in parallel.
@@ -581,7 +581,7 @@ func (Test) Coverage(ctx context.Context) error {
 	lines := strings.Split(string(mergeOutput), "\n")
 	var filtered []string
 	for _, line := range lines {
-		if !strings.Contains(line, "internal/test") {
+		if !strings.Contains(line, "internal/test") && !strings.Contains(line, "jcekstest") {
 			filtered = append(filtered, line)
 		}
 	}
