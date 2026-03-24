@@ -38,8 +38,9 @@ import (
 
 	"software.sslmate.com/src/go-pkcs12"
 
+	"github.com/smallstep/pkcs7"
+
 	"github.com/ghostunnel/ghostunnel/certloader/jceks"
-	"github.com/ghostunnel/ghostunnel/certloader/pkcs7"
 )
 
 const (
@@ -143,10 +144,10 @@ func readDERBlocks(reader io.Reader) ([]*pem.Block, error) {
 		return blocks, nil
 	}
 
-	p7bCerts, err1 := pkcs7.ExtractCertificates(data)
+	p7, err1 := pkcs7.Parse(data)
 	if err1 == nil {
 		var blocks []*pem.Block
-		for _, cert := range p7bCerts {
+		for _, cert := range p7.Certificates {
 			blocks = append(blocks, encodeX509ToPEM(cert))
 		}
 		return blocks, nil

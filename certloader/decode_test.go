@@ -34,6 +34,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/smallstep/pkcs7"
+
 	"github.com/ghostunnel/ghostunnel/certloader/jceks/jcekstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -232,30 +234,8 @@ func TestReadDERBlocksX509(t *testing.T) {
 func TestReadDERBlocksPKCS7(t *testing.T) {
 	certDER := generateSelfSignedCertDER(t)
 
-	// Build a minimal PKCS#7 SignedData envelope in DER format
-	signedData := struct {
-		Version          int
-		DigestAlgorithms asn1.RawValue `asn1:"set"`
-		ContentInfo      asn1.RawValue
-		Certificates     []asn1.RawValue `asn1:"tag:0,optional,set"`
-		SignerInfos      asn1.RawValue   `asn1:"set"`
-	}{
-		Version:          1,
-		DigestAlgorithms: asn1.RawValue{Tag: 17, Class: asn1.ClassUniversal, IsCompound: true, Bytes: []byte{}},
-		ContentInfo:      asn1.RawValue{FullBytes: mustMarshalASN1(t, asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 1})},
-		Certificates:     []asn1.RawValue{{FullBytes: certDER}},
-		SignerInfos:      asn1.RawValue{Tag: 17, Class: asn1.ClassUniversal, IsCompound: true, Bytes: []byte{}},
-	}
-
-	envelope := struct {
-		Type       asn1.ObjectIdentifier
-		SignedData interface{} `asn1:"tag:0,explicit,optional"`
-	}{
-		Type:       asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 2},
-		SignedData: signedData,
-	}
-
-	p7Data, err := asn1.Marshal(envelope)
+	// Build a PKCS#7 SignedData envelope using the smallstep library
+	p7Data, err := pkcs7.DegenerateCertificate(certDER)
 	require.NoError(t, err)
 
 	blocks, err := readDERBlocks(bytes.NewReader(p7Data))

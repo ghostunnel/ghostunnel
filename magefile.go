@@ -355,7 +355,7 @@ func (Git) Clean(ctx context.Context) error {
 
 // build builds the *test* binary with coverage instrumentation.
 func (Test) build() error {
-	return sh.Run("go", "test", "-c", "-covermode=count", "-coverpkg", ".,./auth,./certloader,./certloader/jceks,./certloader/pkcs7,./proxy,./wildcard,./socket")
+	return sh.Run("go", "test", "-c", "-covermode=count", "-coverpkg", ".,./auth,./certloader,./certloader/jceks,./proxy,./wildcard,./socket")
 }
 
 // All runs both unit and integration tests, then merges coverage.

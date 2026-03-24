@@ -1078,6 +1078,10 @@ github.com/sirupsen/logrus
 # github.com/sivchari/containedctx v1.0.3
 ## explicit; go 1.17
 github.com/sivchari/containedctx
+# github.com/smallstep/pkcs7 v0.2.1
+## explicit; go 1.14
+github.com/smallstep/pkcs7
+github.com/smallstep/pkcs7/internal/legacy/x509
 # github.com/sonatard/noctx v0.4.0
 ## explicit; go 1.23.0
 github.com/sonatard/noctx
