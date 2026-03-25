@@ -1,7 +1,6 @@
 package spiffetest
 
 import (
-	"crypto"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
@@ -29,45 +28,6 @@ func ParseCertificates(certsBytes []byte) ([]*x509.Certificate, error) {
 	}
 
 	return certs, nil
-}
-
-func ParsePrivateKey(keyBytes []byte) (crypto.PrivateKey, error) {
-	objects, err := parseBlocks(keyBytes, keyType)
-	if err != nil {
-		return nil, err
-	}
-	if len(objects) == 0 {
-		return nil, nil
-	}
-
-	privateKey, ok := objects[0].(crypto.PrivateKey)
-	if !ok {
-		return nil, fmt.Errorf("expected crypto.PrivateKey; got %T", objects[0])
-	}
-	return privateKey, nil
-}
-
-func EncodePKCS8PrivateKey(privateKey any) ([]byte, error) {
-	keyBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
-	if err != nil {
-		return nil, err
-	}
-
-	return pem.EncodeToMemory(&pem.Block{
-		Type:  keyType,
-		Bytes: keyBytes,
-	}), nil
-}
-
-func EncodeCertificates(certificates []*x509.Certificate) []byte {
-	pemBytes := []byte{}
-	for _, cert := range certificates {
-		pemBytes = append(pemBytes, pem.EncodeToMemory(&pem.Block{
-			Type:  certType,
-			Bytes: cert.Raw,
-		})...)
-	}
-	return pemBytes
 }
 
 func parseBlocks(blocksBytes []byte, expectedType string) ([]any, error) {
