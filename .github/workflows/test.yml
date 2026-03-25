@@ -30,6 +30,9 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: '3.11.x'
+      - name: Install test dependencies (Linux)
+        if: contains(matrix.os, 'ubuntu')
+        run: sudo apt-get update && sudo apt-get install -y default-jre-headless
       - name: Run tests
         run: go tool mage -v test:all
       - name: Codecov upload

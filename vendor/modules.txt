@@ -10,9 +10,6 @@ codeberg.org/chavacava/garif
 # codeberg.org/polyfloyd/go-errorlint v1.9.0
 ## explicit; go 1.24.0
 codeberg.org/polyfloyd/go-errorlint/errorlint
-# dario.cat/mergo v1.0.2
-## explicit; go 1.13
-dario.cat/mergo
 # dev.gaijin.team/go/exhaustruct/v4 v4.0.0
 ## explicit; go 1.24
 dev.gaijin.team/go/exhaustruct/v4/analyzer
@@ -57,15 +54,9 @@ github.com/BurntSushi/toml/internal
 # github.com/Djarvur/go-err113 v0.1.1
 ## explicit; go 1.23.0
 github.com/Djarvur/go-err113
-# github.com/Masterminds/goutils v1.1.1
-## explicit
-github.com/Masterminds/goutils
 # github.com/Masterminds/semver/v3 v3.4.0
 ## explicit; go 1.21
 github.com/Masterminds/semver/v3
-# github.com/Masterminds/sprig/v3 v3.3.0
-## explicit; go 1.21
-github.com/Masterminds/sprig/v3
 # github.com/Microsoft/go-winio v0.6.2
 ## explicit; go 1.21
 github.com/Microsoft/go-winio
@@ -583,15 +574,6 @@ github.com/golangci/swaggoswag
 # github.com/golangci/unconvert v0.0.0-20250410112200-a129a6e6413e
 ## explicit; go 1.23.0
 github.com/golangci/unconvert
-# github.com/google/certificate-transparency-go v1.3.3
-## explicit; go 1.24.0
-github.com/google/certificate-transparency-go
-github.com/google/certificate-transparency-go/asn1
-github.com/google/certificate-transparency-go/gossip/minimal/x509ext
-github.com/google/certificate-transparency-go/tls
-github.com/google/certificate-transparency-go/x509
-github.com/google/certificate-transparency-go/x509/pkix
-github.com/google/certificate-transparency-go/x509util
 # github.com/google/flatbuffers v25.12.19+incompatible
 ## explicit
 # github.com/google/go-cmp v0.7.0
@@ -638,9 +620,6 @@ github.com/hashicorp/golang-lru/v2/simplelru
 github.com/hexops/gotextdiff
 github.com/hexops/gotextdiff/myers
 github.com/hexops/gotextdiff/span
-# github.com/huandu/xstrings v1.5.0
-## explicit; go 1.12
-github.com/huandu/xstrings
 # github.com/inconshreveable/mousetrap v1.1.0
 ## explicit; go 1.18
 github.com/inconshreveable/mousetrap
@@ -843,15 +822,9 @@ github.com/miekg/dns
 # github.com/miekg/pkcs11 v1.1.1
 ## explicit; go 1.12
 github.com/miekg/pkcs11
-# github.com/mitchellh/copystructure v1.2.0
-## explicit; go 1.15
-github.com/mitchellh/copystructure
 # github.com/mitchellh/go-homedir v1.1.0
 ## explicit
 github.com/mitchellh/go-homedir
-# github.com/mitchellh/reflectwalk v1.0.2
-## explicit
-github.com/mitchellh/reflectwalk
 # github.com/moricho/tparallel v0.3.2
 ## explicit; go 1.20
 github.com/moricho/tparallel
@@ -968,9 +941,6 @@ github.com/open-policy-agent/opa/v1/types
 github.com/open-policy-agent/opa/v1/util
 github.com/open-policy-agent/opa/v1/util/decoding
 github.com/open-policy-agent/opa/v1/version
-# github.com/pelletier/go-toml v1.9.5
-## explicit; go 1.12
-github.com/pelletier/go-toml
 # github.com/pelletier/go-toml/v2 v2.2.4
 ## explicit; go 1.21.0
 github.com/pelletier/go-toml/v2
@@ -1102,15 +1072,16 @@ github.com/segmentio/asm/cpu/arm64
 github.com/segmentio/asm/cpu/cpuid
 github.com/segmentio/asm/cpu/x86
 github.com/segmentio/asm/internal/unsafebytes
-# github.com/shopspring/decimal v1.4.0
-## explicit; go 1.10
-github.com/shopspring/decimal
 # github.com/sirupsen/logrus v1.9.4
 ## explicit; go 1.17
 github.com/sirupsen/logrus
 # github.com/sivchari/containedctx v1.0.3
 ## explicit; go 1.17
 github.com/sivchari/containedctx
+# github.com/smallstep/pkcs7 v0.2.1
+## explicit; go 1.14
+github.com/smallstep/pkcs7
+github.com/smallstep/pkcs7/internal/legacy/x509
 # github.com/sonatard/noctx v0.4.0
 ## explicit; go 1.23.0
 github.com/sonatard/noctx
@@ -1156,11 +1127,6 @@ github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig
 github.com/spiffe/go-spiffe/v2/svid/jwtsvid
 github.com/spiffe/go-spiffe/v2/svid/x509svid
 github.com/spiffe/go-spiffe/v2/workloadapi
-# github.com/square/certigo v1.17.1
-## explicit; go 1.24.4
-github.com/square/certigo/jceks
-github.com/square/certigo/lib
-github.com/square/certigo/pkcs7
 # github.com/square/go-sq-metrics v0.0.0-20170531223841-ae72f332d0d9
 ## explicit
 github.com/square/go-sq-metrics
@@ -1245,9 +1211,6 @@ github.com/vektah/gqlparser/v2/validator/rules
 # github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad
 ## explicit
 github.com/wadey/gocovmerge
-# github.com/weppos/publicsuffix-go v0.50.3
-## explicit; go 1.24.0
-github.com/weppos/publicsuffix-go/publicsuffix
 # github.com/wrouesnel/go.connect-proxy-scheme v0.0.0-20240822095422-f6d0c8f327b9
 ## explicit; go 1.23
 github.com/wrouesnel/go.connect-proxy-scheme
@@ -1295,32 +1258,6 @@ github.com/zeebo/blake3/internal/alg/hash/hash_avx2
 github.com/zeebo/blake3/internal/alg/hash/hash_pure
 github.com/zeebo/blake3/internal/consts
 github.com/zeebo/blake3/internal/utils
-# github.com/zmap/zcrypto v0.0.0-20250129210703-03c45d0bae98
-## explicit; go 1.16
-github.com/zmap/zcrypto/cryptobyte
-github.com/zmap/zcrypto/cryptobyte/asn1
-github.com/zmap/zcrypto/dsa
-github.com/zmap/zcrypto/encoding/asn1
-github.com/zmap/zcrypto/internal/randutil
-github.com/zmap/zcrypto/json
-github.com/zmap/zcrypto/util
-github.com/zmap/zcrypto/x509
-github.com/zmap/zcrypto/x509/ct
-github.com/zmap/zcrypto/x509/pkix
-# github.com/zmap/zlint/v3 v3.6.8
-## explicit; go 1.24.0
-github.com/zmap/zlint/v3
-github.com/zmap/zlint/v3/lint
-github.com/zmap/zlint/v3/lints/apple
-github.com/zmap/zlint/v3/lints/cabf_br
-github.com/zmap/zlint/v3/lints/cabf_cs_br
-github.com/zmap/zlint/v3/lints/cabf_ev
-github.com/zmap/zlint/v3/lints/cabf_smime_br
-github.com/zmap/zlint/v3/lints/community
-github.com/zmap/zlint/v3/lints/etsi
-github.com/zmap/zlint/v3/lints/mozilla
-github.com/zmap/zlint/v3/lints/rfc
-github.com/zmap/zlint/v3/util
 # gitlab.com/bosi/decorder v0.4.2
 ## explicit; go 1.20
 gitlab.com/bosi/decorder
@@ -1370,14 +1307,10 @@ go.yaml.in/yaml/v2
 go.yaml.in/yaml/v3
 # golang.org/x/crypto v0.49.0
 ## explicit; go 1.25.0
-golang.org/x/crypto/bcrypt
-golang.org/x/crypto/blowfish
 golang.org/x/crypto/cryptobyte
 golang.org/x/crypto/cryptobyte/asn1
-golang.org/x/crypto/ed25519
 golang.org/x/crypto/ocsp
 golang.org/x/crypto/pbkdf2
-golang.org/x/crypto/scrypt
 # golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f
 ## explicit; go 1.22.0
 # golang.org/x/exp/typeparams v0.0.0-20251023183803-a4bb9ffd2546

@@ -1,4 +1,4 @@
-from subprocess import call, Popen, DEVNULL
+from subprocess import call, check_output, Popen, DEVNULL
 from tempfile import mkstemp, mkdtemp
 import atexit
 import json
@@ -184,12 +184,19 @@ def dump_goroutines():
 
 class RootCert:
     """Helper class to create root + signed certs"""
-    def __init__(self, name):
+    _KEYGEN = {
+        'ecdsa':   'openssl ecparam -name prime256v1 -genkey -noout -out {0}.key',
+        'rsa':     'openssl genrsa -out {0}.key 2048',
+        'ed25519': 'openssl genpkey -algorithm ed25519 -out {0}.key',
+    }
+
+    def __init__(self, name, algorithm='ecdsa'):
         self.name = name
+        self.algorithm = algorithm
         self.leaf_certs = []
         print_ok("generating {0}.key, {0}.crt".format(name))
         call(
-            'openssl ecparam -name prime256v1 -genkey -noout -out {0}.key'.format(name),
+            self._KEYGEN[algorithm].format(name),
             shell=True,
             stderr=DEVNULL)
         call(
@@ -197,12 +204,15 @@ class RootCert:
             shell=True)
         os.rename("{0}_temp.crt".format(name), "{0}.crt".format(name))
 
-    def create_signed_cert(self, cn_and_ou, san="IP:127.0.0.1,IP:::1,DNS:localhost"):
-        print_ok("generating {0}.key, {0}.crt, {0}.p12".format(cn_and_ou))
+    def create_signed_cert(self, cn_and_ou, san="IP:127.0.0.1,IP:::1,DNS:localhost", p12_password=''):
+        if p12_password is not None:
+            print_ok("generating {0}.key, {0}.crt, {0}.p12".format(cn_and_ou))
+        else:
+            print_ok("generating {0}.key, {0}.crt".format(cn_and_ou))
         fd, openssl_config = mkstemp(dir='.')
         os.write(fd, "extendedKeyUsage=clientAuth,serverAuth\n".encode('utf-8'))
         os.write(fd, "subjectAltName = {0},DNS:{1}".format(san, cn_and_ou).encode('utf-8'))
-        call("openssl ecparam -name prime256v1 -genkey -noout -out {0}.key".format(cn_and_ou),
+        call(self._KEYGEN[self.algorithm].format(cn_and_ou),
              shell=True, stderr=DEVNULL)
         call(
             "openssl req -new -key {0}.key -out {0}.csr -subj /CN={0}/C=US/ST=CA/O=ghostunnel/OU={0}".format(cn_and_ou),
@@ -215,11 +225,12 @@ class RootCert:
                 openssl_config),
             shell=True,
             stderr=DEVNULL)
-        call(
-            "openssl pkcs12 -export -out {0}_temp.p12 -in {0}_temp.crt -inkey {0}.key -password pass:".format(cn_and_ou),
-            shell=True)
         os.rename("{0}_temp.crt".format(cn_and_ou), "{0}.crt".format(cn_and_ou))
-        os.rename("{0}_temp.p12".format(cn_and_ou), "{0}.p12".format(cn_and_ou))
+        if p12_password is not None:
+            call(
+                "openssl pkcs12 -export -out {0}_temp.p12 -in {0}.crt -inkey {0}.key -password pass:{1}".format(cn_and_ou, p12_password),
+                shell=True)
+            os.rename("{0}_temp.p12".format(cn_and_ou), "{0}.p12".format(cn_and_ou))
         os.close(fd)
         os.remove(openssl_config)
         self.leaf_certs.append(cn_and_ou)
@@ -231,11 +242,42 @@ class RootCert:
     @staticmethod
     def cleanup_certs(names):
         for name in names:
-            for ext in ["crt", "key", "csr", "srl", "p12"]:
+            for ext in ["crt", "key", "csr", "srl", "p12", "jceks"]:
                 try:
                     os.remove('{0}.{1}'.format(name, ext))
                 except OSError:
                     pass
+
+def check_ed25519_support():
+    """Skip the test if OpenSSL does not support ED25519."""
+    try:
+        check_output('openssl genpkey -algorithm ed25519 -out /dev/null',
+                     shell=True, stderr=DEVNULL)
+    except Exception:
+        print_ok("SKIP (OpenSSL does not support ED25519)")
+        sys.exit(0)
+
+def check_keytool():
+    """Skip the test if keytool is not available."""
+    if not shutil.which('keytool'):
+        print_ok("SKIP (keytool not available)")
+        sys.exit(0)
+
+def convert_p12_to_jceks(p12_name, jceks_name, password):
+    """Convert a PKCS#12 keystore to JCEKS format using keytool.
+    Skips the test (sys.exit(0)) if the conversion fails."""
+    try:
+        os.remove('{0}.jceks'.format(jceks_name))
+    except OSError:
+        pass
+    ret = call('keytool -importkeystore '
+               '-srckeystore {0}.p12 -srcstoretype PKCS12 -srcstorepass {2} '
+               '-destkeystore {1}.jceks -deststoretype JCEKS -deststorepass {2} '
+               '-noprompt'.format(p12_name, jceks_name, password),
+               shell=True, stderr=DEVNULL)
+    if ret != 0:
+        print_ok("SKIP (keytool -importkeystore failed)")
+        sys.exit(0)
 
 def print_ok(msg):
     print(("\033[92m{0}\033[0m".format(msg)))

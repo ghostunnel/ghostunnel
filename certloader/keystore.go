@@ -1,5 +1,6 @@
 /*-
  * Copyright 2018 Square Inc.
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,7 +32,7 @@ type keystoreCertificate struct {
 	keystorePassword string
 	// Root CA bundle path
 	caBundlePath string
-	// File format as an indicator for certigo/lib
+	// File format indicator (e.g. "PEM", "PKCS12", "JCEKS", "DER", or "" for auto-detect)
 	format string
 	// Cached *tls.Certificate
 	cachedCertificate unsafe.Pointer
@@ -72,7 +73,7 @@ func CertificateFromKeystore(keystorePath, keystorePassword, caBundlePath string
 func (c *keystoreCertificate) Reload() error {
 	var pemBlocks []*pem.Block
 	for _, path := range c.keystorePaths {
-		blocks, err := readPEM(path, c.keystorePassword, c.format)
+		blocks, err := readCertificateFile(path, c.keystorePassword, c.format)
 		if err != nil {
 			return err
 		}
