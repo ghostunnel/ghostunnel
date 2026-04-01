@@ -31,7 +31,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		call := node.(*ast.CallExpr)
 		for _, arg := range call.Args {
@@ -54,7 +54,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					continue
 				}
 				report.Report(pass, arg, fmt.Sprintf("file mode '%s' evaluates to %#o; did you mean '0%s'?", lit.Value, v, lit.Value),
-					report.Fixes(edit.Fix("fix octal literal", edit.ReplaceWithString(arg, "0"+lit.Value))))
+					report.Fixes(edit.Fix("Fix octal literal", edit.ReplaceWithString(arg, "0"+lit.Value))))
 			}
 		}
 	}

@@ -14,14 +14,13 @@ import (
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "SA9008",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, buildir.Analyzer},
+		Requires: append([]*analysis.Analyzer{buildir.Analyzer}, code.RequiredAnalyzers...),
 	},
 	Doc: &lint.RawDocumentation{
 		Title: `\'else\' branch of a type assertion is probably not reading the right value`,
@@ -52,36 +51,32 @@ var Analyzer = SCAnalyzer.Analyzer
 
 var typeAssertionShadowingElseQ = pattern.MustParse(`(IfStmt (AssignStmt [obj@(Ident _) ok@(Ident _)] ":=" assert@(TypeAssertExpr obj _)) ok _ elseBranch)`)
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	// TODO(dh): without the IR-based verification, this check is able
 	// to find more bugs, but also more prone to false positives. It
 	// would be a good candidate for the 'codereview' category of
 	// checks.
 
 	irpkg := pass.ResultOf[buildir.Analyzer].(*buildir.IR).Pkg
-	fn := func(node ast.Node) {
-		m, ok := code.Match(pass, typeAssertionShadowingElseQ, node)
-		if !ok {
-			return
-		}
+	for _, m := range code.Matches(pass, typeAssertionShadowingElseQ) {
 		shadow := pass.TypesInfo.ObjectOf(m.State["obj"].(*ast.Ident))
 		shadowed := m.State["assert"].(*ast.TypeAssertExpr).X
 
 		path, exact := astutil.PathEnclosingInterval(code.File(pass, shadow), shadow.Pos(), shadow.Pos())
 		if !exact {
 			// TODO(dh): when can this happen?
-			return
+			continue
 		}
 		irfn := ir.EnclosingFunction(irpkg, path)
 		if irfn == nil {
 			// For example for functions named "_", because we don't generate IR for them.
-			return
+			continue
 		}
 
 		shadoweeIR, isAddr := irfn.ValueForExpr(m.State["obj"].(*ast.Ident))
 		if shadoweeIR == nil || isAddr {
 			// TODO(dh): is this possible?
-			return
+			continue
 		}
 
 		var branch ast.Node
@@ -91,7 +86,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		case []ast.Stmt:
 			branch = &ast.BlockStmt{List: br}
 		case nil:
-			return
+			continue
 		default:
 			panic(fmt.Sprintf("unexpected type %T", br))
 		}
@@ -125,6 +120,5 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			return true
 		})
 	}
-	code.Preorder(pass, fn, (*ast.IfStmt)(nil))
 	return nil, nil
 }

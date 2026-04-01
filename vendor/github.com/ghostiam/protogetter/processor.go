@@ -94,34 +94,11 @@ func (c *processor) process(n ast.Node) (*Result, error) {
 				return &Result{}, nil
 			}
 
-			for _, arg := range x.Args {
-				a, ok := arg.(*ast.SelectorExpr)
-				if !ok {
-					continue
-				}
-
-				if !isProtoMessage(c.info, a.X) {
-					continue
-				}
-
-				// If the argument is not a pointer,
-				// then we should not skip the check for using the getter.
-				_, isPtrArg := c.info.TypeOf(a).Underlying().(*types.Pointer)
-				if !isPtrArg {
-					continue
-				}
-
-				// If the getter also have a pointer,
-				// then we should not skip the check for using the getter.
-				getterHasPointer, _ := getterResultHasPointer(c.info, a.X, a.Sel.Name)
-				if getterHasPointer {
-					continue
-				}
-
-				c.filter.AddPos(a.Sel.Pos())
-			}
+			c.filterOptionalProtoSelectorExpr(x.Args)
 
 		case *ast.SelectorExpr:
+			c.filterOptionalProtoSelectorExpr(x.Args)
+
 			if !isProtoMessage(c.info, fun.X) {
 				return &Result{}, nil
 			}
@@ -223,6 +200,9 @@ func (c *processor) process(n ast.Node) (*Result, error) {
 			}
 		}
 
+	case *ast.ReturnStmt:
+		c.filterOptionalProtoSelectorExpr(x.Results)
+
 	default:
 		return nil, fmt.Errorf("not implemented for type: %s (%s)", reflect.TypeOf(x), formatNode(n))
 	}
@@ -235,6 +215,25 @@ func (c *processor) process(n ast.Node) (*Result, error) {
 		From: c.from.String(),
 		To:   c.to.String(),
 	}, nil
+}
+
+func (c *processor) filterOptionalProtoSelectorExpr(args []ast.Expr) {
+	for _, arg := range args {
+		a, ok := arg.(*ast.SelectorExpr)
+		if !ok {
+			continue
+		}
+
+		if !isProtoMessage(c.info, a.X) {
+			continue
+		}
+
+		if !isOptionalProto(c.info, a) {
+			continue
+		}
+
+		c.filter.AddPos(a.Sel.Pos())
+	}
 }
 
 func (c *processor) processInner(expr ast.Expr) {
@@ -361,6 +360,20 @@ func isProtoMessage(info *types.Info, expr ast.Expr) bool {
 	}
 
 	return false
+}
+
+func isOptionalProto(info *types.Info, a *ast.SelectorExpr) bool {
+	_, isPtrArg := info.TypeOf(a).Underlying().(*types.Pointer)
+	if !isPtrArg {
+		return false
+	}
+
+	getterHasPointer, _ := getterResultHasPointer(info, a.X, a.Sel.Name)
+	if getterHasPointer {
+		return false
+	}
+
+	return true
 }
 
 func typesNamed(info *types.Info, x ast.Expr) (*types.Named, bool) {

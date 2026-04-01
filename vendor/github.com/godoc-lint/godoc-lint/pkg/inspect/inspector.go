@@ -54,8 +54,10 @@ func (i *Inspector) GetAnalyzer() *analysis.Analyzer {
 	return i.analyzer
 }
 
-var topLevelOrphanCommentGroupPattern = regexp.MustCompile(`(?m)(?:^//.*\r?\n)+(?:\r?\n|\z)`)
-var disableDirectivePattern = regexp.MustCompile(`(?m)//godoclint:disable(?: *([^\r\n]+))?\r?$`)
+var (
+	topLevelOrphanCommentGroupPattern = regexp.MustCompile(`(?m)(?:^//.*\r?\n)+(?:\r?\n|\z)`)
+	disableDirectivePattern           = regexp.MustCompile(`(?m)//godoclint:disable(?: *([^\r\n]+))?\r?$`)
+)
 
 func (i *Inspector) run(pass *analysis.Pass) (any, error) {
 	if len(pass.Files) == 0 {

@@ -881,4 +881,7 @@ const (
 	Return
 	// Call represents a string passed as an argument to a function call (e.g., f("foo"))
 	Call
+	// CompositeLit represents a string inside a composite literal
+	// (e.g., []string{"foo"}, map[string]string{"k": "v"}, MyStruct{Field: "foo"})
+	CompositeLit
 )

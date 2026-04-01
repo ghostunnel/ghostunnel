@@ -5,6 +5,24 @@ Inspects source code for security problems by scanning the Go AST and SSA code r
 
 <img src="https://securego.io/img/gosec.png" width="320">
 
+## Quick links
+
+- [GitHub Action](#github-action)
+- [Local installation](#local-installation)
+- [Quick start](#quick-start)
+- [Common usage patterns](#common-usage-patterns)
+- [Selecting rules](#selecting-rules)
+- [Output formats](#output-formats)
+
+> ⚠️ Container image migration notice: `gosec` images was migrated from Docker Hub to `ghcr.io/securego/gosec`.
+> Starting with release `v2.24.7` the image is no longer published in Docker Hub.
+
+## Features
+
+- **Pattern-based rules** for detecting common security issues in Go code
+- **SSA-based analyzers** for type conversions, slice bounds, and crypto issues
+- **Taint analysis** for tracking data flow from user input to dangerous functions (SQL injection, command injection, path traversal, SSRF, XSS, log injection)
+
 ## License
 
 Licensed under the Apache License, Version 2.0 (the "License").
@@ -20,38 +38,17 @@ You may obtain a copy of the License [here](http://www.apache.org/licenses/LICEN
 [![GoDoc](https://pkg.go.dev/badge/github.com/securego/gosec/v2)](https://pkg.go.dev/github.com/securego/gosec/v2)
 [![Docs](https://readthedocs.org/projects/docs/badge/?version=latest)](https://securego.io/)
 [![Downloads](https://img.shields.io/github/downloads/securego/gosec/total.svg)](https://github.com/securego/gosec/releases)
-[![Docker Pulls](https://img.shields.io/docker/pulls/securego/gosec.svg)](https://hub.docker.com/r/securego/gosec/tags)
+[![GHCR](https://img.shields.io/badge/ghcr.io-securego%2Fgosec-blue)](https://github.com/orgs/securego/packages/container/package/gosec)
 [![Slack](https://img.shields.io/badge/Slack-4A154B?style=for-the-badge&logo=slack&logoColor=white)](http://securego.slack.com)
 [![go-recipes](https://raw.githubusercontent.com/nikolaydubina/go-recipes/main/badge.svg?raw=true)](https://github.com/nikolaydubina/go-recipes)
 
-## Install
-
-### CI Installation
-
-```bash
-# binary will be $(go env GOPATH)/bin/gosec
-curl -sfL https://raw.githubusercontent.com/securego/gosec/master/install.sh | sh -s -- -b $(go env GOPATH)/bin vX.Y.Z
-
-# or install it into ./bin/
-curl -sfL https://raw.githubusercontent.com/securego/gosec/master/install.sh | sh -s vX.Y.Z
-
-# In alpine linux (as it does not come with curl by default)
-wget -O - -q https://raw.githubusercontent.com/securego/gosec/master/install.sh | sh -s vX.Y.Z
-
-# If you want to use the checksums provided on the "Releases" page
-# then you will have to download a tar.gz file for your operating system instead of a binary file
-wget https://github.com/securego/gosec/releases/download/vX.Y.Z/gosec_vX.Y.Z_OS.tar.gz
-
-# The file will be in the current folder where you run the command
-# and you can check the checksum like this
-echo "<check sum from the check sum file>  gosec_vX.Y.Z_OS.tar.gz" | sha256sum -c -
-
-gosec --help
-```
+## Installation
 
 ### GitHub Action
 
 You can run `gosec` as a GitHub action as follows:
+
+Use the versioned  tag with `@master` which is pinned to the latest stable release. This will provide a stable behavior.
 
 ```yaml
 name: Run Gosec
@@ -72,6 +69,38 @@ jobs:
         uses: actions/checkout@v3
       - name: Run Gosec Security Scanner
         uses: securego/gosec@master
+        with:
+          args: ./...
+```
+
+#### Scanning Projects with Private Modules
+
+If your project imports private Go modules, you need to configure authentication so that `gosec` can fetch the dependencies. Set the following environment variables in your workflow:
+
+- `GOPRIVATE`: A comma-separated list of module path prefixes that should be considered private (e.g., `github.com/your-org/*`).
+- `GITHUB_AUTHENTICATION_TOKEN`: A GitHub token with read access to your private repositories.
+
+```yaml
+name: Run Gosec
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    env:
+      GO111MODULE: on
+      GOPRIVATE: github.com/your-org/*
+      GITHUB_AUTHENTICATION_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v3
+      - name: Run Gosec Security Scanner
+        uses: securego/gosec@v2
         with:
           args: ./...
 ```
@@ -101,7 +130,7 @@ jobs:
       - name: Checkout Source
         uses: actions/checkout@v3
       - name: Run Gosec Security Scanner
-        uses: securego/gosec@master
+        uses: securego/gosec@v2
         with:
           # we let the report trigger content trigger a failure using the GitHub Security features.
           args: '-no-fail -fmt sarif -out results.sarif ./...'
@@ -112,11 +141,47 @@ jobs:
           sarif_file: results.sarif
 ```
 
+### Go Analysis
+
+The `goanalysis` package provides a [`golang.org/x/tools/go/analysis.Analyzer`](https://pkg.go.dev/golang.org/x/tools/go/analysis) for integration with tools that support the standard Go analysis interface, such as Bazel's [nogo](https://github.com/bazelbuild/rules_go/blob/master/go/nogo.rst) framework:
+
+```starlark
+nogo(
+    name = "nogo",
+    deps = [
+        "@com_github_securego_gosec_v2//goanalysis",
+        # add more analyzers as needed
+    ],
+    visibility = ["//visibility:public"],
+)
+```
+
 ### Local Installation
+
+gosec requires Go 1.25 or newer.
 
 ```bash
 go install github.com/securego/gosec/v2/cmd/gosec@latest
 ```
+
+## Quick start
+
+```bash
+# Scan all packages in current module
+gosec ./...
+
+# Write JSON report
+gosec -fmt json -out results.json ./...
+
+# Write SARIF report for code scanning
+gosec -fmt sarif -out results.sarif ./...
+```
+
+### Exit codes
+
+- `0`: scan finished without unsuppressed findings/errors
+- `1`: at least one unsuppressed finding or processing error
+- Use `-no-fail` to always return `0`
 
 ## Usage
 
@@ -127,51 +192,21 @@ directory you can supply `./...` as the input argument.
 
 ### Available rules
 
-- G101: Look for hard coded credentials
-- G102: Bind to all interfaces
-- G103: Audit the use of unsafe block
-- G104: Audit errors not checked
-- G106: Audit the use of ssh.InsecureIgnoreHostKey
-- G107: Url provided to HTTP request as taint input
-- G108: Profiling endpoint automatically exposed on /debug/pprof
-- G109: Potential Integer overflow made by strconv.Atoi result conversion to int16/32
-- G110: Potential DoS vulnerability via decompression bomb
-- G111: Potential directory traversal
-- G112: Potential slowloris attack
-- G114: Use of net/http serve function that has no support for setting timeouts
-- G115: Potential integer overflow when converting between integer types
-- G201: SQL query construction using format string
-- G202: SQL query construction using string concatenation
-- G203: Use of unescaped data in HTML templates
-- G204: Audit use of command execution
-- G301: Poor file permissions used when creating a directory
-- G302: Poor file permissions used with chmod
-- G303: Creating tempfile using a predictable path
-- G304: File path provided as taint input
-- G305: File traversal when extracting zip/tar archive
-- G306: Poor file permissions used when writing to a new file
-- G307: Poor file permissions used when creating a file with os.Create
-- G401: Detect the usage of MD5 or SHA1
-- G402: Look for bad TLS connection settings
-- G403: Ensure minimum RSA key length of 2048 bits
-- G404: Insecure random number source (rand)
-- G405: Detect the usage of DES or RC4
-- G406: Detect the usage of MD4 or RIPEMD160
-- G407: Detect the usage of hardcoded Initialization Vector(IV)/Nonce
-- G501: Import blocklist: crypto/md5
-- G502: Import blocklist: crypto/des
-- G503: Import blocklist: crypto/rc4
-- G504: Import blocklist: net/http/cgi
-- G505: Import blocklist: crypto/sha1
-- G506: Import blocklist: golang.org/x/crypto/md4
-- G507: Import blocklist: golang.org/x/crypto/ripemd160
-- G601: Implicit memory aliasing of items from a range statement (only for Go 1.21 or lower)
-- G602: Slice access out of bounds
+gosec includes rules across these categories:
+
+- `G1xx`: general secure coding issues (for example hardcoded credentials, unsafe usage, HTTP hardening, cookie security)
+- `G2xx`: injection risks in query/template/command construction
+- `G3xx`: file and path handling risks (permissions, traversal, temp files, archive extraction)
+- `G4xx`: crypto and TLS weaknesses
+- `G5xx`: blocklisted imports
+- `G6xx`: Go-specific correctness/security checks (for example range aliasing and slice bounds)
+- `G7xx`: taint analysis rules (SQL injection, command injection, path traversal, SSRF, XSS, log, SMTP injection, SSTI and unsafe deserialization)
+
+For the full list, rule descriptions, and per-rule configuration, see [RULES.md](RULES.md).
 
 ### Retired rules
 
 - G105: Audit the use of math/big.Int.Exp - [CVE is fixed](https://github.com/golang/go/issues/15184)
-- G113: Usage of Rat.SetString in math/big with an overflow (CVE-2022-23772). This affected Go <1.16.14 and Go <1.17.7, which are no longer supported by gosec. 
 - G307: Deferring a method which returns an error - causing more inconvenience than fixing a security issue, despite the details from this [blog post](https://www.joeshaw.org/dont-defer-close-on-writable-files/)
 
 ### Selecting rules
@@ -212,6 +247,45 @@ A number of global settings can be provided in a configuration file as follows:
 $ gosec -conf config.json .
 ```
 
+### Path-Based Rule Exclusions
+
+Large repositories with multiple components may need different security rules
+for different paths. Use `exclude-rules` to suppress specific rules for specific
+paths.
+
+**Configuration File:**
+```json
+{
+  "exclude-rules": [
+    {
+      "path": "cmd/.*",
+      "rules": ["G204", "G304"]
+    },
+    {
+      "path": "scripts/.*",
+      "rules": ["*"]
+    }
+  ]
+}
+```
+
+**CLI Flag:**
+```bash
+# Exclude G204 and G304 from cmd/ directory
+gosec --exclude-rules="cmd/.*:G204,G304" ./...
+
+# Exclude all rules from scripts/ directory  
+gosec --exclude-rules="scripts/.*:*" ./...
+
+# Multiple exclusions
+gosec --exclude-rules="cmd/.*:G204,G304;test/.*:G101" ./...
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `path` | string (regex) | Regular expression matched against file paths |
+| `rules` | []string | Rule IDs to exclude. Use `*` to exclude all rules |
+
 #### Rule Configuration
 
 Some rules accept configuration flags as well; these flags are documented in [RULES.md](https://github.com/securego/gosec/blob/master/RULES.md).
@@ -224,8 +298,14 @@ The Go module version is parsed using the `go list` command which in some cases 
 
 ### Dependencies
 
-gosec will fetch automatically the dependencies of the code which is being analyzed when go module is turned on (e.g.`GO111MODULE=on`). If this is not the case,
-the dependencies need to be explicitly downloaded by running the `go get -d` command before the scan.
+gosec loads packages using Go modules. In most projects, dependencies are resolved automatically during scanning.
+
+If dependencies are missing, run:
+
+```bash
+go mod tidy
+go mod download
+```
 
 ### Excluding test files and folders
 
@@ -310,7 +390,7 @@ As with all automated detection tools, there will be cases of false positives.
 In cases where gosec reports a failure that has been manually verified as being safe,
 it is possible to annotate the code with a comment that starts with `#nosec`.
 
-The `#nosec` comment should have the format `#nosec [RuleList] [-- Justification]`.
+The `#nosec` comment should have the format `#nosec [RuleList] [- Justification]`.
 
 The `#nosec` comment needs to be placed on the line where the warning is reported.
 
@@ -356,18 +436,16 @@ gosec -nosec=true ./...
 ### Tracking suppressions
 
 As described above, we could suppress violations externally (using `-include`/
-`-exclude`) or inline (using `#nosec` annotations) in gosec. This suppression
-inflammation can be used to generate corresponding signals for auditing
-purposes.
+`-exclude`) or inline (using `#nosec` annotations). Suppression metadata can be emitted for auditing.
 
-We could track suppressions by the `-track-suppressions` flag as follows:
+Enable suppression tracking with `-track-suppressions`:
 
 ```bash
 gosec -track-suppressions -exclude=G101 -fmt=sarif -out=results.sarif ./...
 ```
 
 - For external suppressions, gosec records suppression info where `kind` is
-`external` and `justification` is a certain sentence "Globally suppressed".
+`external` and `justification` is `Globally suppressed.`.
 - For inline suppressions, gosec records suppression info where `kind` is
 `inSource` and `justification` is the text after two or more dashes in the
 comment.
@@ -385,7 +463,7 @@ gosec -tags debug,ignore ./...
 
 ### Output formats
 
-gosec currently supports `text`, `json`, `yaml`, `csv`, `sonarqube`, `JUnit XML`, `html` and `golint` output formats. By default
+gosec supports `text`, `json`, `yaml`, `csv`, `junit-xml`, `html`, `sonarqube`, `golint`, and `sarif`. By default,
 results will be reported to stdout, but can also be written to an output
 file. The output format is controlled by the `-fmt` flag, and the output file is controlled by the `-out` flag as follows:
 
@@ -394,8 +472,8 @@ file. The output format is controlled by the `-fmt` flag, and the output file is
 $ gosec -fmt=json -out=results.json *.go
 ```
 
-Results will be reported to stdout as well as to the provided output file by `-stdout` flag. The `-verbose` flag overrides the
-output format when stdout the results while saving them in the output file
+Use `-stdout` to print results while also writing `-out`.
+Use `-verbose` to override stdout format while preserving the file format.
 ```bash
 # Write output in json format to results.json as well as stdout
 $ gosec -fmt=json -out=results.json -stdout *.go
@@ -406,102 +484,28 @@ $ gosec -fmt=json -out=results.json -stdout -verbose=text *.go
 
 **Note:** gosec generates the [generic issue import format](https://docs.sonarqube.org/latest/analysis/generic-issue/) for SonarQube, and a report has to be imported into SonarQube using `sonar.externalIssuesReportPaths=path/to/gosec-report.json`.
 
+## Common usage patterns
+
+```bash
+# Fail only on medium+ severity findings
+gosec -severity medium ./...
+
+# Fail only on medium+ confidence findings
+gosec -confidence medium ./...
+
+# Exclude specific rules for specific paths
+gosec --exclude-rules="cmd/.*:G204,G304;scripts/.*:*" ./...
+
+# Exclude generated files in scan
+gosec -exclude-generated ./...
+
+# Include test files in scan
+gosec -tests ./...
+```
+
 ## Development
 
-[CONTRIBUTING.md](https://github.com/securego/gosec/blob/master/CONTRIBUTING.md) contains detailed information about adding new rules to gosec.
-
-### Build
-
-You can build the binary with:
-
-```bash
-make
-```
-
-### Note on Sarif Types Generation
-
-Install the tool with :
-
-```bash
-go get -u github.com/a-h/generate/cmd/schema-generate
-```
-
-Then generate the types with :
-
-```bash
-schema-generate -i sarif-schema-2.1.0.json -o mypath/types.go
-```
-
-Most of the MarshallJSON/UnmarshalJSON are removed except the one for PropertyBag which is handy to inline the additional properties. The rest can be removed.
-The URI,ID, UUID, GUID were renamed so it fits the Go convention defined [here](https://github.com/golang/lint/blob/master/lint.go#L700)
-
-### Tests
-
-You can run all unit tests using:
-
-```bash
-make test
-```
-
-### Release
-
-You can create a release by tagging the version as follows:
-
-``` bash
-git tag v1.0.0 -m "Release version v1.0.0"
-git push origin v1.0.0
-```
-
-The GitHub [release workflow](.github/workflows/release.yml) triggers immediately after the tag is pushed upstream. This flow will
-release the binaries using the [goreleaser](https://goreleaser.com/actions/) action and then it will build and publish the docker image into Docker Hub.
-
-The released artifacts are signed using [cosign](https://docs.sigstore.dev/). You can use the public key from [cosign.pub](cosign.pub)
-file to verify the signature of docker image and binaries files.
-
-The docker image signature can be verified with the following command:
-```
-cosign verify --key cosign.pub securego/gosec:<TAG>
-```
-
-The binary files signature can be verified with the following command:
-```
-cosign verify-blob --key cosign.pub --signature gosec_<VERSION>_darwin_amd64.tar.gz.sig  gosec_<VERSION>_darwin_amd64.tar.gz
-```
-
-### Docker image
-
-You can also build locally the docker image by using the command:
-
-```bash
-make image
-```
-
-You can run the `gosec` tool in a container against your local Go project. You only have to mount the project
-into a volume as follows:
-
-```bash
-docker run --rm -it -w /<PROJECT>/ -v <YOUR PROJECT PATH>/<PROJECT>:/<PROJECT> securego/gosec /<PROJECT>/...
-```
-
-**Note:** the current working directory needs to be set with `-w` option in order to get successfully resolved the dependencies from go module file
-
-### Generate TLS rule
-
-The configuration of TLS rule can be generated from [Mozilla's TLS ciphers recommendation](https://statics.tls.security.mozilla.org/server-side-tls-conf.json).
-
-First you need to install the generator tool:
-
-```bash
-go get github.com/securego/gosec/v2/cmd/tlsconfig/...
-```
-
-You can invoke now the `go generate` in the root of the project:
-
-```bash
-go generate ./...
-```
-
-This will generate the `rules/tls_config.go` file which will contain the current ciphers recommendation from Mozilla.
+Development documentation was moved to [DEVELOPMENT.md](DEVELOPMENT.md).
 
 ## Who is using gosec?
 

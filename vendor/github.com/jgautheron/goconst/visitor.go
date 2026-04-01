@@ -116,9 +116,35 @@ func (v *treeVisitor) Visit(node ast.Node) ast.Visitor {
 				v.addString(lit.Value, lit.Pos(), Call)
 			}
 		}
+
+	// []string{"foo"}, map[string]string{"k": "v"}, struct{A string}{A: "foo"}
+	case *ast.CompositeLit:
+		for _, item := range t.Elts {
+			v.addCompositeLiteralElement(item)
+		}
 	}
 
 	return v
+}
+
+func (v *treeVisitor) addCompositeLiteralElement(node ast.Expr) {
+	if lit, ok := node.(*ast.BasicLit); ok && v.isSupported(lit.Kind) {
+		v.addString(lit.Value, lit.Pos(), CompositeLit)
+		return
+	}
+
+	kv, ok := node.(*ast.KeyValueExpr)
+	if !ok {
+		return
+	}
+
+	if keyLit, ok := kv.Key.(*ast.BasicLit); ok && v.isSupported(keyLit.Kind) {
+		v.addString(keyLit.Value, keyLit.Pos(), CompositeLit)
+	}
+
+	if valueLit, ok := kv.Value.(*ast.BasicLit); ok && v.isSupported(valueLit.Kind) {
+		v.addString(valueLit.Value, valueLit.Pos(), CompositeLit)
+	}
 }
 
 // addString adds a string in the map along with its position in the tree.
@@ -175,29 +201,21 @@ func (v *treeVisitor) addString(str string, pos token.Pos, typ Type) {
 	// Use interned string to reduce memory usage - identical strings share the same memory
 	internedStr := InternString(unquotedStr)
 
-	// Update the count first, this is faster than appending to slices
-	count := v.p.IncrementStringCount(internedStr)
+	// Update the count for fast threshold checks in ProcessResults
+	v.p.IncrementStringCount(internedStr)
 
-	// Only continue if we're still adding the position to the map
-	// or if count has reached threshold
-	if count == 1 || count == v.p.minOccurrences {
-		// Lock to safely update the shared map
-		v.p.stringMutex.Lock()
-		defer v.p.stringMutex.Unlock()
+	// Record every occurrence so that position lists and display counts stay accurate
+	v.p.stringMutex.Lock()
+	defer v.p.stringMutex.Unlock()
 
-		_, exists := v.p.strs[internedStr]
-		if !exists {
-			v.p.strs[internedStr] = make([]ExtendedPos, 0, v.p.minOccurrences) // Preallocate with expected size
-		}
-
-		// Create an optimized position record
-		newPos := ExtendedPos{
-			packageName: InternString(v.packageName), // Intern the package name to reduce memory
-			Position:    v.fileSet.Position(pos),
-		}
-
-		v.p.strs[internedStr] = append(v.p.strs[internedStr], newPos)
+	if _, exists := v.p.strs[internedStr]; !exists {
+		v.p.strs[internedStr] = make([]ExtendedPos, 0, v.p.minOccurrences)
 	}
+
+	v.p.strs[internedStr] = append(v.p.strs[internedStr], ExtendedPos{
+		packageName: InternString(v.packageName),
+		Position:    v.fileSet.Position(pos),
+	})
 }
 
 // addConst adds a const in the map along with its position in the tree.

@@ -132,7 +132,7 @@ func NewLinterBuilder() *LinterBuilder {
 }
 
 // Build loads all the "internal" linters.
-// The configuration is use for the linter settings.
+// The configuration is used for the linter settings.
 func (LinterBuilder) Build(cfg *config.Config) ([]*linter.Config, error) {
 	if cfg == nil {
 		return nil, nil
@@ -532,6 +532,7 @@ func (LinterBuilder) Build(cfg *config.Config) ([]*linter.Config, error) {
 		linter.NewConfig(noinlineerr.New()).
 			WithSince("v2.2.0").
 			WithLoadForGoAnalysis().
+			WithAutoFix().
 			WithURL("https://github.com/AlwxSin/noinlineerr"),
 
 		linter.NewConfig(nonamedreturns.New(&cfg.Linters.Settings.NoNamedReturns)).
@@ -556,6 +557,7 @@ func (LinterBuilder) Build(cfg *config.Config) ([]*linter.Config, error) {
 
 		linter.NewConfig(prealloc.New(&cfg.Linters.Settings.Prealloc)).
 			WithSince("v1.19.0").
+			WithLoadForGoAnalysis().
 			WithURL("https://github.com/alexkohler/prealloc"),
 
 		linter.NewConfig(predeclared.New(&cfg.Linters.Settings.Predeclared)).
@@ -619,7 +621,7 @@ func (LinterBuilder) Build(cfg *config.Config) ([]*linter.Config, error) {
 		linter.NewConfig(swaggo.New()).
 			WithSince("v2.2.0").
 			WithAutoFix().
-			WithURL("https://github.com/swaggo/swaggo"),
+			WithURL("https://github.com/swaggo/swag"),
 
 		linter.NewConfig(tagalign.New(&cfg.Linters.Settings.TagAlign)).
 			WithSince("v1.53.0").

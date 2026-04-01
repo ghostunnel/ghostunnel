@@ -9,9 +9,10 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"golang.org/x/tools/go/analysis"
+
 	"github.com/godoc-lint/godoc-lint/pkg/model"
 	"github.com/godoc-lint/godoc-lint/pkg/util"
-	"golang.org/x/tools/go/analysis"
 )
 
 const maxLenRule = model.MaxLenRule

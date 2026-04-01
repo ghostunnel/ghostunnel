@@ -13,14 +13,13 @@ import (
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "S1004",
 		Run:      CheckBytesCompare,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
+		Requires: append([]*analysis.Analyzer{generated.Analyzer}, code.RequiredAnalyzers...),
 	},
 	Doc: &lint.RawDocumentation{
 		Title:   `Replace call to \'bytes.Compare\' with \'bytes.Equal\'`,
@@ -39,17 +38,12 @@ var (
 	checkBytesCompareRn = pattern.MustParse(`(UnaryExpr "!" (CallExpr (SelectorExpr (Ident "bytes") (Ident "Equal")) args))`)
 )
 
-func CheckBytesCompare(pass *analysis.Pass) (interface{}, error) {
+func CheckBytesCompare(pass *analysis.Pass) (any, error) {
 	if pass.Pkg.Path() == "bytes" || pass.Pkg.Path() == "bytes_test" {
 		// the bytes package is free to use bytes.Compare as it sees fit
 		return nil, nil
 	}
-	fn := func(node ast.Node) {
-		m, ok := code.Match(pass, checkBytesCompareQ, node)
-		if !ok {
-			return
-		}
-
+	for node, m := range code.Matches(pass, checkBytesCompareQ) {
 		args := report.RenderArgs(pass, m.State["args"].([]ast.Expr))
 		prefix := ""
 		if m.State["op"].(token.Token) == token.NEQ {
@@ -59,14 +53,13 @@ func CheckBytesCompare(pass *analysis.Pass) (interface{}, error) {
 		var fix analysis.SuggestedFix
 		switch tok := m.State["op"].(token.Token); tok {
 		case token.EQL:
-			fix = edit.Fix("simplify use of bytes.Compare", edit.ReplaceWithPattern(pass.Fset, node, checkBytesCompareRe, m.State))
+			fix = edit.Fix("Simplify use of bytes.Compare", edit.ReplaceWithPattern(pass.Fset, node, checkBytesCompareRe, m.State))
 		case token.NEQ:
-			fix = edit.Fix("simplify use of bytes.Compare", edit.ReplaceWithPattern(pass.Fset, node, checkBytesCompareRn, m.State))
+			fix = edit.Fix("Simplify use of bytes.Compare", edit.ReplaceWithPattern(pass.Fset, node, checkBytesCompareRn, m.State))
 		default:
 			panic(fmt.Sprintf("unexpected token %v", tok))
 		}
 		report.Report(pass, node, fmt.Sprintf("should use %sbytes.Equal(%s) instead", prefix, args), report.FilterGenerated(), report.Fixes(fix))
 	}
-	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
 	return nil, nil
 }

@@ -12,7 +12,7 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
-const version = "wsl version v5.3.0"
+const version = "wsl version v5.6.0"
 
 func NewAnalyzer(config *Configuration) *analysis.Analyzer {
 	wa := &wslAnalyzer{config: config}
@@ -156,7 +156,7 @@ type multiStringValue struct {
 func (m *multiStringValue) Set(value string) error {
 	var s []string
 
-	for _, v := range strings.Split(value, ",") {
+	for v := range strings.SplitSeq(value, ",") {
 		s = append(s, strings.TrimSpace(v))
 	}
 

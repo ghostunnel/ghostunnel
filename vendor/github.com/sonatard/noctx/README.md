@@ -67,6 +67,7 @@ https://github.com/sonatard/noctx/blob/b768dab1764733f7f69c5075b7497eff4c58f260/
 - [net/http - NewRequest](https://pkg.go.dev/net/http#NewRequest)
 - [net/http - NewRequestWithContext](https://pkg.go.dev/net/http#NewRequestWithContext)
 - [net/http - Request.WithContext](https://pkg.go.dev/net/http#Request.WithContext)
+- [net/http/httptest - NewRequest](https://pkg.go.dev/net/http/httptest#NewRequest)
 
 ## net package
 

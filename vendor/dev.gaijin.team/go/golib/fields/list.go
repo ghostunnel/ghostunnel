@@ -44,7 +44,7 @@ func (l List) ToDict() Dict {
 //	}
 func (l List) All() iter.Seq2[string, any] {
 	return func(yield func(string, any) bool) {
-		for i := 0; i < len(l); i++ {
+		for i := range len(l) {
 			if !yield(l[i].K, l[i].V) {
 				return
 			}

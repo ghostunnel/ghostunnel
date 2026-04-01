@@ -14,14 +14,13 @@ import (
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "S1001",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
+		Requires: append([]*analysis.Analyzer{generated.Analyzer}, code.RequiredAnalyzers...),
 	},
 	Doc: &lint.RawDocumentation{
 		Title: `Replace for loop with call to copy`,
@@ -58,7 +57,7 @@ var (
 				[(AssignStmt (IndexExpr dst key) "=" (IndexExpr src key))]))`)
 )
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	// TODO revisit once range doesn't require a structural type
 
 	isInvariant := func(k, v types.Object, node ast.Expr) bool {
@@ -95,12 +94,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 	}
 
-	fn := func(node ast.Node) {
-		m, ok := code.Match(pass, checkLoopCopyQ, node)
-		if !ok {
-			return
-		}
-
+	for node, m := range code.Matches(pass, checkLoopCopyQ) {
 		src := m.State["src"].(ast.Expr)
 		dst := m.State["dst"].(ast.Expr)
 
@@ -110,32 +104,32 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			v = pass.TypesInfo.ObjectOf(value.(*ast.Ident))
 		}
 		if !isInvariant(k, v, dst) {
-			return
+			continue
 		}
 		if !isInvariant(k, v, src) {
 			// For example: 'for i := range foo()'
-			return
+			continue
 		}
 
 		Tsrc := pass.TypesInfo.TypeOf(src)
 		Tdst := pass.TypesInfo.TypeOf(dst)
 		TsrcElem, TsrcArray, TsrcPointer, ok := elType(Tsrc)
 		if !ok {
-			return
+			continue
 		}
 		if TsrcPointer {
 			Tsrc = Tsrc.Underlying().(*types.Pointer).Elem()
 		}
 		TdstElem, TdstArray, TdstPointer, ok := elType(Tdst)
 		if !ok {
-			return
+			continue
 		}
 		if TdstPointer {
 			Tdst = Tdst.Underlying().(*types.Pointer).Elem()
 		}
 
 		if !types.Identical(TsrcElem, TdstElem) {
-			return
+			continue
 		}
 
 		if TsrcArray && TdstArray && types.Identical(Tsrc, Tdst) {
@@ -158,7 +152,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			report.Report(pass, node, "should copy arrays using assignment instead of using a loop",
 				report.FilterGenerated(),
 				report.ShortRange(),
-				report.Fixes(edit.Fix("replace loop with assignment", edit.ReplaceWithNode(pass.Fset, node, r))))
+				report.Fixes(edit.Fix("Replace loop with assignment", edit.ReplaceWithNode(pass.Fset, node, r))))
 		} else {
 			tv, err := types.Eval(pass.Fset, pass.Pkg, node.Pos(), "copy")
 			if err == nil && tv.IsBuiltin() {
@@ -186,12 +180,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				opts := []report.Option{
 					report.ShortRange(),
 					report.FilterGenerated(),
-					report.Fixes(edit.Fix("replace loop with call to copy()", edit.ReplaceWithNode(pass.Fset, node, r))),
+					report.Fixes(edit.Fix("Replace loop with call to copy()", edit.ReplaceWithNode(pass.Fset, node, r))),
 				}
 				report.Report(pass, node, fmt.Sprintf("should use copy(%s, %s) instead of a loop", to, from), opts...)
 			}
 		}
 	}
-	code.Preorder(pass, fn, (*ast.ForStmt)(nil), (*ast.RangeStmt)(nil))
 	return nil, nil
 }

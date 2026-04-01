@@ -40,6 +40,8 @@ type Program struct {
 	methodSets   typeutil.Map[*methodSet] // maps type to its concrete methodSet
 	runtimeTypes typeutil.Map[bool]       // types for which rtypes are needed
 	canon        typeutil.Map[types.Type] // type canonicalization map
+
+	noReturn func(*types.Func) bool
 }
 
 // A Package is a single analyzed Go package containing Members for
@@ -386,7 +388,6 @@ type Function struct {
 	Exit      *BasicBlock   // The function's exit block
 	AnonFuncs []*Function   // anonymous functions (from FuncLit, RangeStmt) directly beneath this one
 	referrers []Instruction // referring instructions (iff Parent() != nil)
-	NoReturn  NoReturn      // Calling this function will always terminate control flow.
 
 	goversion string // Go version of syntax (NB: init is special)
 
@@ -429,8 +430,7 @@ func (m *instanceWrapperMap) At(key *types.TypeList) *Function {
 	}
 
 	var hash uint32
-	for i := 0; i < key.Len(); i++ {
-		t := key.At(i)
+	for t := range key.Types() {
 		hash += m.h.Hash(t)
 	}
 
@@ -452,8 +452,7 @@ func (m *instanceWrapperMap) Set(key *types.TypeList, val *Function) {
 	}
 
 	var hash uint32
-	for i := 0; i < key.Len(); i++ {
-		t := key.At(i)
+	for t := range key.Types() {
 		hash += m.h.Hash(t)
 	}
 	for i, e := range m.entries[hash] {
@@ -472,15 +471,6 @@ func (m *instanceWrapperMap) Set(key *types.TypeList, val *Function) {
 func (m *instanceWrapperMap) Len() int {
 	return m.len
 }
-
-type NoReturn uint8
-
-const (
-	Returns NoReturn = iota
-	AlwaysExits
-	AlwaysUnwinds
-	NeverReturns
-)
 
 type constValue struct {
 	c   Constant

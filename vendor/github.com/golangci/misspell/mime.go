@@ -126,6 +126,7 @@ func isTextFile(raw []byte) bool {
 	// allow any text/ type with utf-8 encoding.
 	// DetectContentType sometimes returns charset=utf-16 for XML stuff in which case ignore.
 	mime := http.DetectContentType(raw)
+
 	return strings.HasPrefix(mime, "text/") && strings.HasSuffix(mime, "charset=utf-8")
 }
 
@@ -173,18 +174,23 @@ func ReadTextFile(filename string) (string, error) {
 	// if input is large, read the first 512 bytes to sniff type
 	// if not-text, then exit
 	isText := false
+
 	if fstat.Size() > 50000 {
 		var fin *os.File
+
 		fin, err = os.Open(filename)
 		if err != nil {
 			return "", fmt.Errorf("unable to open large file %q: %w", filename, err)
 		}
 		defer fin.Close()
+
 		buf := make([]byte, 512)
+
 		_, err = io.ReadFull(fin, buf)
 		if err != nil {
 			return "", fmt.Errorf("unable to read 512 bytes from %q: %w", filename, err)
 		}
+
 		if !isTextFile(buf) {
 			return "", nil
 		}
@@ -202,5 +208,6 @@ func ReadTextFile(filename string) (string, error) {
 	if !isText && !isTextFile(raw) {
 		return "", nil
 	}
+
 	return string(raw), nil
 }

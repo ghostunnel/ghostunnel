@@ -37,7 +37,7 @@ var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	fn := func(node ast.Node) {
 		if code.IsInTest(pass, node) {
 			return
@@ -81,7 +81,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 		report.Report(pass, expr, fmt.Sprintf("should omit comparison to bool constant, can be simplified to %s", r),
 			report.FilterGenerated(),
-			report.Fixes(edit.Fix("simplify bool comparison", edit.ReplaceWithString(expr, r))))
+			report.Fixes(edit.Fix("Simplify bool comparison", edit.ReplaceWithString(expr, r))))
 	}
 	code.Preorder(pass, fn, (*ast.BinaryExpr)(nil))
 	return nil, nil

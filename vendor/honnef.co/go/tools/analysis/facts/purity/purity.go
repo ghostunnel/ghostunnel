@@ -27,7 +27,7 @@ var Analyzer = &analysis.Analyzer{
 	Run:        purity,
 	Requires:   []*analysis.Analyzer{buildir.Analyzer},
 	FactTypes:  []analysis.Fact{(*IsPure)(nil)},
-	ResultType: reflect.TypeOf(Result{}),
+	ResultType: reflect.TypeFor[Result](),
 }
 
 var pureStdlib = map[string]struct{}{
@@ -104,7 +104,7 @@ var pureStdlib = map[string]struct{}{
 	"(time.Time).ZoneBounds":          {},
 }
 
-func purity(pass *analysis.Pass) (interface{}, error) {
+func purity(pass *analysis.Pass) (any, error) {
 	seen := map[*ir.Function]struct{}{}
 	irpkg := pass.ResultOf[buildir.Analyzer].(*buildir.IR).Pkg
 	var check func(fn *ir.Function) (ret bool)
@@ -154,8 +154,8 @@ func purity(pass *analysis.Pass) (interface{}, error) {
 			case *types.Basic:
 				return true
 			case *types.Struct:
-				for i := 0; i < u.NumFields(); i++ {
-					if !isBasic(u.Field(i).Type()) {
+				for field := range u.Fields() {
+					if !isBasic(field.Type()) {
 						return false
 					}
 				}

@@ -65,9 +65,20 @@ var ruleToCWE = map[string]string{
 	"G110": "409",
 	"G111": "22",
 	"G112": "400",
+	"G707": "93",
+	"G708": "94",
+	"G709": "502",
 	"G114": "676",
 	"G115": "190",
 	"G116": "838",
+	"G117": "499",
+	"G118": "400",
+	"G119": "200",
+	"G120": "400",
+	"G121": "346",
+	"G122": "367",
+	"G123": "295",
+	"G124": "614",
 	"G201": "89",
 	"G202": "89",
 	"G203": "79",
@@ -85,6 +96,7 @@ var ruleToCWE = map[string]string{
 	"G405": "327",
 	"G406": "328",
 	"G407": "1204",
+	"G408": "287",
 	"G501": "327",
 	"G502": "327",
 	"G503": "327",
@@ -94,6 +106,12 @@ var ruleToCWE = map[string]string{
 	"G507": "327",
 	"G601": "118",
 	"G602": "118",
+	"G701": "89",
+	"G702": "78",
+	"G703": "22",
+	"G704": "918",
+	"G705": "79",
+	"G706": "117",
 }
 
 // Issue is returned by a gosec rule if it discovers an issue with the scanned code.
@@ -127,10 +145,26 @@ func (i *Issue) FileLocation() string {
 // MetaData is embedded in all gosec rules. The Severity, Confidence and What message
 // will be passed through to reported issues.
 type MetaData struct {
-	ID         string
+	RuleID     string
 	Severity   Score
 	Confidence Score
 	What       string
+}
+
+// NewMetaData creates a new MetaData object
+func NewMetaData(id, what string, severity, confidence Score) MetaData {
+	return MetaData{
+		RuleID:     id,
+		What:       what,
+		Severity:   severity,
+		Confidence: confidence,
+	}
+}
+
+// ID returns the rule ID. This satisfies part of the gosec.Rule interface
+// when MetaData is embedded in a rule struct.
+func (m MetaData) ID() string {
+	return m.RuleID
 }
 
 // MarshalJSON is used convert a Score object into a JSON representation
@@ -185,8 +219,16 @@ func codeSnippetEndLine(node ast.Node, fobj *token.File) int64 {
 // New creates a new Issue
 func New(fobj *token.File, node ast.Node, ruleID, desc string, severity, confidence Score) *Issue {
 	name := fobj.Name()
-	line := GetLine(fobj, node)
-	col := strconv.Itoa(fobj.Position(node.Pos()).Column)
+	var line string
+	var col string
+
+	if node == nil {
+		line = "0"
+		col = "0"
+	} else {
+		line = GetLine(fobj, node)
+		col = strconv.Itoa(fobj.Position(node.Pos()).Column)
+	}
 
 	var code string
 	if node == nil {

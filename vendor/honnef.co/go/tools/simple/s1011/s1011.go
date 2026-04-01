@@ -15,14 +15,13 @@ import (
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "S1011",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer, purity.Analyzer},
+		Requires: append([]*analysis.Analyzer{generated.Analyzer, purity.Analyzer}, code.RequiredAnalyzers...),
 	},
 	Doc: &lint.RawDocumentation{
 		Title: `Use a single \'append\' to concatenate two slices`,
@@ -74,28 +73,23 @@ var checkLoopAppendQ = pattern.MustParse(`
 		[(AssignStmt val@(Object _) ":=" (IndexExpr x idx))
 		(AssignStmt [lhs] "=" [(CallExpr (Builtin "append") [lhs val])])]))`)
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	pure := pass.ResultOf[purity.Analyzer].(purity.Result)
 
-	fn := func(node ast.Node) {
-		m, ok := code.Match(pass, checkLoopAppendQ, node)
-		if !ok {
-			return
-		}
-
+	for node, m := range code.Matches(pass, checkLoopAppendQ) {
 		if val, ok := m.State["val"].(types.Object); ok && code.RefersTo(pass, m.State["lhs"].(ast.Expr), val) {
-			return
+			continue
 		}
 
 		if m.State["idx"] != nil && code.MayHaveSideEffects(pass, m.State["x"].(ast.Expr), pure) {
 			// When using an index-based loop, x gets evaluated repeatedly and thus should be pure.
 			// This doesn't matter for value-based loops, because x only gets evaluated once.
-			return
+			continue
 		}
 
 		if idx, ok := m.State["idx"].(types.Object); ok && code.RefersTo(pass, m.State["lhs"].(ast.Expr), idx) {
 			// The lhs mustn't refer to the index loop variable.
-			return
+			continue
 		}
 
 		if code.MayHaveSideEffects(pass, m.State["lhs"].(ast.Expr), pure) {
@@ -110,13 +104,13 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			// 	}
 			//
 			// The dynamic nature of the lhs might also affect the value of the index.
-			return
+			continue
 		}
 
 		src := pass.TypesInfo.TypeOf(m.State["x"].(ast.Expr))
 		dst := pass.TypesInfo.TypeOf(m.State["lhs"].(ast.Expr))
 		if !types.Identical(src, dst) {
-			return
+			continue
 		}
 
 		r := &ast.AssignStmt{
@@ -137,8 +131,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		report.Report(pass, node, fmt.Sprintf("should replace loop with %s", report.Render(pass, r)),
 			report.ShortRange(),
 			report.FilterGenerated(),
-			report.Fixes(edit.Fix("replace loop with call to append", edit.ReplaceWithNode(pass.Fset, node, r))))
+			report.Fixes(edit.Fix("Replace loop with call to append", edit.ReplaceWithNode(pass.Fset, node, r))))
 	}
-	code.Preorder(pass, fn, (*ast.RangeStmt)(nil))
 	return nil, nil
 }

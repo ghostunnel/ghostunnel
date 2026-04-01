@@ -127,13 +127,13 @@ func (doc *Documentation) format(markdown bool, metadata bool) string {
 	if doc.Before != "" {
 		fmt.Fprintln(b, "Before:")
 		fmt.Fprintln(b, "")
-		for _, line := range strings.Split(doc.Before, "\n") {
+		for line := range strings.SplitSeq(doc.Before, "\n") {
 			fmt.Fprint(b, "    ", line, "\n")
 		}
 		fmt.Fprintln(b, "")
 		fmt.Fprintln(b, "After:")
 		fmt.Fprintln(b, "")
-		for _, line := range strings.Split(doc.After, "\n") {
+		for line := range strings.SplitSeq(doc.After, "\n") {
 			fmt.Fprint(b, "    ", line, "\n")
 		}
 		fmt.Fprintln(b, "")
@@ -168,7 +168,7 @@ func (doc *Documentation) String() string {
 
 // ExhaustiveTypeSwitch panics when called. It can be used to ensure
 // that type switches are exhaustive.
-func ExhaustiveTypeSwitch(v interface{}) {
+func ExhaustiveTypeSwitch(v any) {
 	panic(fmt.Sprintf("internal error: unhandled case %T", v))
 }
 

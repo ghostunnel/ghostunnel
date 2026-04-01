@@ -3,7 +3,10 @@ package sqlbuilders
 
 import (
 	"go/ast"
+	"go/types"
 )
+
+const entPkgPath = "entgo.io/ent"
 
 // EntChecker checks entgo.io/ent for SELECT * patterns.
 type EntChecker struct{}
@@ -18,26 +21,15 @@ func (c *EntChecker) Name() string {
 	return "ent"
 }
 
-// IsApplicable checks if the call might be from ent.
-func (c *EntChecker) IsApplicable(call *ast.CallExpr) bool {
+// IsApplicable checks if the call is from ent using type information.
+func (c *EntChecker) IsApplicable(info *types.Info, call *ast.CallExpr) bool {
 	sel, ok := call.Fun.(*ast.SelectorExpr)
 	if !ok {
 		return false
 	}
 
-	// ent methods that could result in SELECT *
-	entMethods := []string{
-		"Query", "All", "Only", "OnlyX", "First", "FirstX",
-		"QueryContext", "Select",
-	}
-
-	for _, method := range entMethods {
-		if sel.Sel.Name == method {
-			return true
-		}
-	}
-
-	return false
+	// Check if the receiver type is from ent package
+	return IsTypeFromPackage(info, sel.X, entPkgPath)
 }
 
 // CheckSelectStar checks for SELECT * in ent calls.

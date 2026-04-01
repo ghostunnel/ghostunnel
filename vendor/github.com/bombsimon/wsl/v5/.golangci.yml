@@ -66,6 +66,10 @@ linters:
       - comments
       - common-false-positives
       - std-error-handling
+    rules:
+      - path: cmd/golangci-lint-migrate
+        linters:
+          - godoclint
 
 issues:
   max-issues-per-linter: 0

@@ -2,7 +2,7 @@ package mage
 
 // this template uses the "data"
 
-// var only for tests
+// var only for tests.
 var mageMainfileTplString = `//go:build ignore
 // +build ignore
 
@@ -12,7 +12,7 @@ import (
 	"context"
 	_flag "flag"
 	_fmt "fmt"
-	_ioutil "io/ioutil"
+	_io "io"
 	_log "log"
 	"os"
 	"os/signal"
@@ -203,8 +203,8 @@ Options:
 	// targetColor returns the ANSI color which should be used to colorize targets.
 	targetColor := func() string {
 		s, exists := os.LookupEnv("MAGEFILE_TARGET_COLOR")
-		if exists == true {
-			if c, ok := getAnsiColor(s); ok == true {
+		if exists {
+			if c, ok := getAnsiColor(s); ok {
 				return c
 			}
 		}
@@ -349,7 +349,7 @@ Options:
 
 	_log.SetFlags(0)
 	if !args.Verbose {
-		_log.SetOutput(_ioutil.Discard)
+		_log.SetOutput(_io.Discard)
 	}
 	logger := _log.New(os.Stderr, "", 0)
 	if args.List {
@@ -372,7 +372,9 @@ Options:
 				_fmt.Println({{printf "%q" .Comment}})
 				_fmt.Println()
 				{{end}}
-				_fmt.Print("Usage:\n\n\t{{$.BinaryName}} {{lower .TargetName}}{{range .RequiredArgs}} <{{.Name}}>{{end}}{{range .OptionalArgs}} [-{{.Name}}=<{{.Type}}>]{{end}}\n\n")
+				_fmt.Print("Usage:\n\n\t{{$.BinaryName}} {{lower .TargetName}}{{range .RequiredArgs}} <{{.Name}}>{{end}}{{if .MultipleOptionalArgs}} [<flags>]{{else}}{{range .OptionalArgs}} [-{{.Name}}=<{{.Type}}>]{{end}}{{end}}\n\n")
+				{{if .ShowFlagDocs}}_fmt.Print({{printf "%q" .FlagDocsString}})
+				{{end -}}
 				var aliases []string
 				{{- $name := .Name -}}
 				{{- $recv := .Receiver -}}
@@ -391,7 +393,9 @@ Options:
 				_fmt.Println({{printf "%q" .Comment}})
 				_fmt.Println()
 				{{end}}
-				_fmt.Print("Usage:\n\n\t{{$.BinaryName}} {{lower .TargetName}}{{range .RequiredArgs}} <{{.Name}}>{{end}}{{range .OptionalArgs}} [-{{.Name}}=<{{.Type}}>]{{end}}\n\n")
+				_fmt.Print("Usage:\n\n\t{{$.BinaryName}} {{lower .TargetName}}{{range .RequiredArgs}} <{{.Name}}>{{end}}{{if .MultipleOptionalArgs}} [<flags>]{{else}}{{range .OptionalArgs}} [-{{.Name}}=<{{.Type}}>]{{end}}{{end}}\n\n")
+				{{if .ShowFlagDocs}}_fmt.Print({{printf "%q" .FlagDocsString}})
+				{{end -}}
 				var aliases []string
 				{{- $name := .Name -}}
 				{{- $recv := .Receiver -}}

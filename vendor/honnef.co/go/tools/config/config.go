@@ -59,7 +59,7 @@ func dirAST(files []*ast.File, fset *token.FileSet) string {
 var Analyzer = &analysis.Analyzer{
 	Name: "config",
 	Doc:  "loads configuration for the current package tree",
-	Run: func(pass *analysis.Pass) (interface{}, error) {
+	Run: func(pass *analysis.Pass) (any, error) {
 		dir := dirAST(pass.Files, pass.Fset)
 		if dir == "" {
 			cfg := DefaultConfig
@@ -72,7 +72,7 @@ var Analyzer = &analysis.Analyzer{
 		return &cfg, nil
 	},
 	RunDespiteErrors: true,
-	ResultType:       reflect.TypeOf((*Config)(nil)),
+	ResultType:       reflect.TypeFor[*Config](),
 }
 
 func For(pass *analysis.Pass) *Config {
@@ -174,6 +174,7 @@ var DefaultConfig = Config{
 		"XSS", "SIP", "RTP", "AMQP", "DB", "TS",
 	},
 	DotImportWhitelist: []string{
+		"simd/archsimd",
 		"github.com/mmcloughlin/avo/build",
 		"github.com/mmcloughlin/avo/operand",
 		"github.com/mmcloughlin/avo/reg",
@@ -193,8 +194,10 @@ func parseConfigs(dir string) ([]Config, error) {
 
 	// TODO(dh): consider stopping at the GOPATH/module boundary
 	for dir != "" {
-		f, err := os.Open(filepath.Join(dir, ConfigName))
-		if os.IsNotExist(err) {
+		path := filepath.Join(dir, ConfigName)
+		fi, err := os.Stat(path)
+		if os.IsNotExist(err) || (err == nil && !fi.Mode().IsRegular()) {
+			// walk up
 			ndir := filepath.Dir(dir)
 			if ndir == dir {
 				break
@@ -205,6 +208,15 @@ func parseConfigs(dir string) ([]Config, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		// There is a small TOCTOU window here, but we're fine with reporting an
+		// error if the source tree is modified concurrently in weird ways while
+		// running Staticcheck.
+		f, err := os.Open(path)
+		if err != nil {
+			return nil, err
+		}
+
 		var cfg Config
 		_, err = toml.NewDecoder(f).Decode(&cfg)
 		f.Close()

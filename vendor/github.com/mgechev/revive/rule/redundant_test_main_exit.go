@@ -7,7 +7,7 @@ import (
 	"github.com/mgechev/revive/lint"
 )
 
-// RedundantTestMainExitRule suggests removing Exit call in TestMain function for test files.
+// RedundantTestMainExitRule suggests removing redundant [os.Exit] or [syscall.Exit] calls in TestMain function.
 type RedundantTestMainExitRule struct{}
 
 // Apply applies the rule to given file.
@@ -65,6 +65,11 @@ func (w *lintRedundantTestMainExit) Visit(node ast.Node) ast.Visitor {
 	}
 
 	pkg := id.Name
+	// skip flag calls because they are commonly used in TestMain
+	if pkg == "flag" {
+		return w
+	}
+
 	fn := fc.Sel.Name
 	if isCallToExitFunction(pkg, fn, ce.Args) {
 		w.onFailure(lint.Failure{

@@ -171,15 +171,15 @@ func (prog *Program) needMethods(T types.Type, skip bool) {
 		if !mset.complete {
 			mset.complete = true
 			n := tmset.Len()
-			for i := 0; i < n; i++ {
+			for i := range n {
 				prog.addMethod(mset, tmset.At(i))
 			}
 		}
 	}
 
 	// Recursion over signatures of each method.
-	for i := 0; i < tmset.Len(); i++ {
-		sig := tmset.At(i).Type().(*types.Signature)
+	for method := range tmset.Methods() {
+		sig := method.Type().(*types.Signature)
 		prog.needMethods(sig.Params(), false)
 		prog.needMethods(sig.Results(), false)
 	}

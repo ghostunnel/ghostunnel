@@ -1,4 +1,3 @@
-// Package fields provides types and functions for working with key-value fields.
 package fields
 
 import (

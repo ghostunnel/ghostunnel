@@ -34,3 +34,9 @@ test: unit-test test-cli
 goimports:
 	go install golang.org/x/tools/cmd/goimports@latest
 	goimports -w -local="github.com/nunnatsa/ginkgolinter" $(shell find . -type f -name '*.go' ! -path "*/vendor/*")
+
+build-txtar-updater:
+	go build -o bin/ ./tools/txtar_updater
+
+update-txtar: build-txtar-updater
+	bin/txtar_updater --target-dir="./tests/testdata" --source-dir="./testdata/src/a"

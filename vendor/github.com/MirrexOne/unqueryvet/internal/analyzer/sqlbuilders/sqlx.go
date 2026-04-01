@@ -4,8 +4,11 @@ package sqlbuilders
 import (
 	"go/ast"
 	"go/token"
+	"go/types"
 	"strings"
 )
+
+const sqlxPkgPath = "github.com/jmoiron/sqlx"
 
 // SQLxChecker checks github.com/jmoiron/sqlx for SELECT * patterns.
 type SQLxChecker struct{}
@@ -20,28 +23,15 @@ func (c *SQLxChecker) Name() string {
 	return "sqlx"
 }
 
-// IsApplicable checks if the call might be from sqlx.
-func (c *SQLxChecker) IsApplicable(call *ast.CallExpr) bool {
+// IsApplicable checks if the call is from sqlx using type information.
+func (c *SQLxChecker) IsApplicable(info *types.Info, call *ast.CallExpr) bool {
 	sel, ok := call.Fun.(*ast.SelectorExpr)
 	if !ok {
 		return false
 	}
 
-	// sqlx methods that take SQL queries
-	sqlxMethods := []string{
-		"Select", "Get", "Queryx", "QueryRowx",
-		"NamedQuery", "NamedExec", "MustExec",
-		"Preparex", "PreparexContext", "PrepareNamed",
-		"Rebind", "In",
-	}
-
-	for _, method := range sqlxMethods {
-		if sel.Sel.Name == method {
-			return true
-		}
-	}
-
-	return false
+	// Check if the receiver type is from sqlx package
+	return IsTypeFromPackage(info, sel.X, sqlxPkgPath)
 }
 
 // CheckSelectStar checks for SELECT * in sqlx calls.

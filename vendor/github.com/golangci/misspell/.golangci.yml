@@ -37,7 +37,7 @@ linters:
     - tparallel
     - varnamelen
     - wrapcheck
-    - wsl # FIXME(ldez) must be fixed
+    - wsl # deprecated
 
   settings:
     depguard:

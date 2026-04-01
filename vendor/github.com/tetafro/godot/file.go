@@ -87,6 +87,8 @@ func (pf *parsedFile) getComments(scope Scope, exclude []*regexp.Regexp) []comme
 
 // getBlockComments gets comments from the inside of top level blocks:
 // var (...), const (...).
+//
+//nolint:cyclop
 func (pf *parsedFile) getBlockComments(exclude []*regexp.Regexp) []comment {
 	var comments []comment
 	for _, decl := range pf.file.Decls {
@@ -109,12 +111,14 @@ func (pf *parsedFile) getBlockComments(exclude []*regexp.Regexp) []comment {
 			// Skip comments that are not top-level for this block
 			// (the block itself is top level, so comments inside this block
 			// would be on column 2)
-			//nolint:gomnd
 			if pf.fset.Position(c.Pos()).Column != 2 {
 				continue
 			}
 			firstLine := pf.fset.Position(c.Pos()).Line
 			lastLine := pf.fset.Position(c.End()).Line
+			if firstLine < 1 || lastLine < firstLine || lastLine > len(pf.lines) {
+				continue // broken consistency, probably by the `//line` directive
+			}
 			comments = append(comments, comment{
 				lines: pf.lines[firstLine-1 : lastLine],
 				text:  getText(c, exclude),
@@ -127,7 +131,7 @@ func (pf *parsedFile) getBlockComments(exclude []*regexp.Regexp) []comment {
 
 // getTopLevelComments gets all top level comments.
 func (pf *parsedFile) getTopLevelComments(exclude []*regexp.Regexp) []comment {
-	var comments []comment //nolint:prealloc
+	var comments []comment
 	for _, c := range pf.file.Comments {
 		if c == nil || len(c.List) == 0 {
 			continue
@@ -137,6 +141,9 @@ func (pf *parsedFile) getTopLevelComments(exclude []*regexp.Regexp) []comment {
 		}
 		firstLine := pf.fset.Position(c.Pos()).Line
 		lastLine := pf.fset.Position(c.End()).Line
+		if firstLine < 1 || lastLine < firstLine || lastLine > len(pf.lines) {
+			continue // broken consistency, probably by the `//line` directive
+		}
 		comments = append(comments, comment{
 			lines: pf.lines[firstLine-1 : lastLine],
 			text:  getText(c, exclude),
@@ -148,7 +155,7 @@ func (pf *parsedFile) getTopLevelComments(exclude []*regexp.Regexp) []comment {
 
 // getDeclarationComments gets top level declaration comments.
 func (pf *parsedFile) getDeclarationComments(exclude []*regexp.Regexp) []comment {
-	var comments []comment //nolint:prealloc
+	var comments []comment
 	for _, decl := range pf.file.Decls {
 		var cg *ast.CommentGroup
 		switch d := decl.(type) {
@@ -164,6 +171,9 @@ func (pf *parsedFile) getDeclarationComments(exclude []*regexp.Regexp) []comment
 
 		firstLine := pf.fset.Position(cg.Pos()).Line
 		lastLine := pf.fset.Position(cg.End()).Line
+		if firstLine < 1 || lastLine < firstLine || lastLine > len(pf.lines) {
+			continue // broken consistency, probably by the `//line` directive
+		}
 		comments = append(comments, comment{
 			lines: pf.lines[firstLine-1 : lastLine],
 			text:  getText(cg, exclude),
@@ -175,13 +185,16 @@ func (pf *parsedFile) getDeclarationComments(exclude []*regexp.Regexp) []comment
 
 // getNoInlineComments gets all except inline comments.
 func (pf *parsedFile) getNoInlineComments(exclude []*regexp.Regexp) []comment {
-	var comments []comment //nolint:prealloc
+	var comments []comment
 	for _, c := range pf.file.Comments {
 		if c == nil || len(c.List) == 0 {
 			continue
 		}
 		firstLine := pf.fset.Position(c.Pos()).Line
 		lastLine := pf.fset.Position(c.End()).Line
+		if firstLine < 1 || lastLine < firstLine || lastLine > len(pf.lines) {
+			continue // broken consistency, probably by the `//line` directive
+		}
 
 		c := comment{
 			lines: pf.lines[firstLine-1 : lastLine],
@@ -203,13 +216,16 @@ func (pf *parsedFile) getNoInlineComments(exclude []*regexp.Regexp) []comment {
 
 // getAllComments gets every single comment from the file.
 func (pf *parsedFile) getAllComments(exclude []*regexp.Regexp) []comment {
-	var comments []comment //nolint:prealloc
+	var comments []comment
 	for _, c := range pf.file.Comments {
 		if c == nil || len(c.List) == 0 {
 			continue
 		}
 		firstLine := pf.fset.Position(c.Pos()).Line
 		lastLine := pf.fset.Position(c.End()).Line
+		if firstLine < 1 || lastLine < firstLine || lastLine > len(pf.lines) {
+			continue // broken consistency, probably by the `//line` directive
+		}
 		comments = append(comments, comment{
 			lines: pf.lines[firstLine-1 : lastLine],
 			start: pf.fset.Position(c.List[0].Slash),

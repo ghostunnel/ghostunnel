@@ -41,3 +41,16 @@ Thumbs.db
 *.log
 go.work
 .golangci.local.yml
+
+# Build tools (downloaded by Taskfile/Gradle)
+.tools/
+.task/
+
+# VS Code extension build artifacts
+extensions/vscode/node_modules/
+extensions/vscode/out/
+extensions/vscode/*.vsix
+*.vsix
+
+# Claude Code
+.claude/

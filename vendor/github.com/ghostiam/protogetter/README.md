@@ -54,13 +54,35 @@ v := m.Foo.Bar.Baz.Int
 
 which simplifies the code and makes it more reliable.
 
-## Installation
+## Usage
+
+### Recommended way — via golangci-lint
+
+Protogetter is integrated into [golangci-lint](https://github.com/golangci/golangci-lint) and can be run together with other linters. This is the preferred way to use it in most projects.
+
+Example minimal `.golangci.yml` configuration:
+
+```yaml
+linters:
+  enable:
+    - protogetter
+```
+
+Run:
+
+```bash
+golangci-lint run ./...
+```
+
+## Standalone usage
+
+### Installation
 
 ```bash
 go install github.com/ghostiam/protogetter/cmd/protogetter@latest
 ```
 
-## Usage
+### Direct run
 
 To run the linter:
 ```bash

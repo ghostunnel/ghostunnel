@@ -14,6 +14,7 @@ import (
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
+	"golang.org/x/tools/go/ast/inspector"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
@@ -44,12 +45,13 @@ var (
 	checkBytesBufferConversionsRb = pattern.MustParse(`(CallExpr (SelectorExpr recv (Ident "Bytes")) [])`)
 )
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	if pass.Pkg.Path() == "bytes" || pass.Pkg.Path() == "bytes_test" {
 		// The bytes package can use itself however it wants
 		return nil, nil
 	}
-	fn := func(node ast.Node, stack []ast.Node) {
+	fn := func(c inspector.Cursor) {
+		node := c.Node()
 		m, ok := code.Match(pass, checkBytesBufferConversionsQ, node)
 		if !ok {
 			return
@@ -59,7 +61,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 		typ := pass.TypesInfo.TypeOf(call.Fun)
 		if types.Unalias(typ) == types.Universe.Lookup("string").Type() && code.IsCallTo(pass, call.Args[0], "(*bytes.Buffer).Bytes") {
-			if _, ok := stack[len(stack)-2].(*ast.IndexExpr); ok {
+			if _, ok := c.Parent().Node().(*ast.IndexExpr); ok {
 				// Don't flag m[string(buf.Bytes())] – thanks to a
 				// compiler optimization, this is actually faster than
 				// m[buf.String()]
@@ -68,16 +70,18 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 			report.Report(pass, call, fmt.Sprintf("should use %v.String() instead of %v", report.Render(pass, sel.X), report.Render(pass, call)),
 				report.FilterGenerated(),
-				report.Fixes(edit.Fix("simplify conversion", edit.ReplaceWithPattern(pass.Fset, node, checkBytesBufferConversionsRs, m.State))))
+				report.Fixes(edit.Fix("Simplify conversion", edit.ReplaceWithPattern(pass.Fset, node, checkBytesBufferConversionsRs, m.State))))
 		} else if typ, ok := types.Unalias(typ).(*types.Slice); ok &&
 			types.Unalias(typ.Elem()) == types.Universe.Lookup("byte").Type() &&
 			code.IsCallTo(pass, call.Args[0], "(*bytes.Buffer).String") {
 			report.Report(pass, call, fmt.Sprintf("should use %v.Bytes() instead of %v", report.Render(pass, sel.X), report.Render(pass, call)),
 				report.FilterGenerated(),
-				report.Fixes(edit.Fix("simplify conversion", edit.ReplaceWithPattern(pass.Fset, node, checkBytesBufferConversionsRb, m.State))))
+				report.Fixes(edit.Fix("Simplify conversion", edit.ReplaceWithPattern(pass.Fset, node, checkBytesBufferConversionsRb, m.State))))
 		}
 
 	}
-	code.PreorderStack(pass, fn, (*ast.CallExpr)(nil))
+	for c := range code.Cursor(pass).Preorder((*ast.CallExpr)(nil)) {
+		fn(c)
+	}
 	return nil, nil
 }
