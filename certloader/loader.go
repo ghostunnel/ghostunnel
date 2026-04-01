@@ -21,7 +21,6 @@ import (
 	"bufio"
 	"crypto/x509"
 	"encoding/pem"
-	"errors"
 	"fmt"
 	"os"
 )
@@ -91,7 +90,7 @@ func LoadTrustStore(caBundlePath string) (*x509.CertPool, error) {
 	bundle := x509.NewCertPool()
 	ok := bundle.AppendCertsFromPEM(caBundleBytes)
 	if !ok {
-		return nil, errors.New("unable to read certificates from CA bundle")
+		return nil, ErrNoCACerts
 	}
 
 	return bundle, nil

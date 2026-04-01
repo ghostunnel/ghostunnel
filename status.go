@@ -185,7 +185,10 @@ func (s *statusHandler) status(ctx context.Context) statusResponse {
 func (s *statusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	resp := s.status(r.Context())
 	out, err := json.Marshal(resp)
-	panicOnError(err)
+	if err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if !resp.Ok {

@@ -458,7 +458,7 @@ func run(args []string) error {
 	// Logger
 	err := initLogger(useSyslog(), *quiet)
 	if err != nil {
-		return fmt.Errorf("unable to set up logger: %v", err)
+		return fmt.Errorf("unable to set up logger: %w", err)
 	}
 
 	logger.SetPrefix(fmt.Sprintf("[%d] ", os.Getpid()))
@@ -664,7 +664,11 @@ func serverListen(env *Environment) error {
 		return err
 	}
 
-	serverConfig := mustGetServerConfig(env.tlsConfigSource, config)
+	serverConfig, err := getServerConfig(env.tlsConfigSource, config)
+	if err != nil {
+		logger.Printf("error: unable to get server TLS config: %s", err)
+		return err
+	}
 
 	p := proxy.New(
 		certloader.NewListener(listener, serverConfig),
@@ -807,7 +811,10 @@ func (env *Environment) serveStatus() error {
 		}
 		config.ClientAuth = tls.NoClientCert
 
-		serverConfig := mustGetServerConfig(env.tlsConfigSource, config)
+		serverConfig, err := getServerConfig(env.tlsConfigSource, config)
+		if err != nil {
+			return err
+		}
 		listener = certloader.NewListener(listener, serverConfig)
 	}
 
@@ -903,7 +910,10 @@ func clientBackendDialer(
 		}
 	}
 
-	clientConfig := mustGetClientConfig(tlsConfigSource, config)
+	clientConfig, err := getClientConfig(tlsConfigSource, config)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to get client TLS config: %w", err)
+	}
 	d := certloader.DialerWithCertificate(clientConfig, *connectTimeout, dialer)
 	return func(ctx context.Context) (net.Conn, error) {
 			return d.DialContext(ctx, network, address)
@@ -969,18 +979,10 @@ func getTLSConfigSource(disableAuth bool) (certloader.TLSConfigSource, error) {
 	return certloader.TLSConfigSourceFromCertificate(cert, logger), nil
 }
 
-func mustGetServerConfig(source certloader.TLSConfigSource, config *tls.Config) certloader.TLSServerConfig {
-	serverConfig, err := source.GetServerConfig(config)
-	if err != nil {
-		panic(err)
-	}
-	return serverConfig
+func getServerConfig(source certloader.TLSConfigSource, config *tls.Config) (certloader.TLSServerConfig, error) {
+	return source.GetServerConfig(config)
 }
 
-func mustGetClientConfig(source certloader.TLSConfigSource, config *tls.Config) certloader.TLSClientConfig {
-	clientConfig, err := source.GetClientConfig(config)
-	if err != nil {
-		panic(err)
-	}
-	return clientConfig
+func getClientConfig(source certloader.TLSConfigSource, config *tls.Config) (certloader.TLSClientConfig, error) {
+	return source.GetClientConfig(config)
 }

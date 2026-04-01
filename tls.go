@@ -131,7 +131,7 @@ func buildConfig(enabledCipherSuites string, maxTLSVersion string) (*tls.Config,
 	if maxTLSVersion != "" {
 		maxVer, err := parseTLSVersion(maxTLSVersion)
 		if err != nil {
-			return nil, fmt.Errorf("invalid max TLS version: %v", err)
+			return nil, fmt.Errorf("invalid max TLS version: %w", err)
 		}
 		config.MaxVersion = maxVer
 	}

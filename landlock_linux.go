@@ -90,7 +90,7 @@ func setupLandlock() error {
 
 		rule, err := ruleFromStringAddress(*addr, landlock.BindTCP)
 		if err != nil {
-			return fmt.Errorf("error processing argument '%s' for landlock rule: %v", *addr, err)
+			return fmt.Errorf("error processing argument '%s' for landlock rule: %w", *addr, err)
 		}
 		if rule != nil {
 			netRules = append(netRules, rule)
@@ -110,7 +110,7 @@ func setupLandlock() error {
 
 		rule, err := ruleFromStringAddress(*addr, landlock.ConnectTCP)
 		if err != nil {
-			return fmt.Errorf("error processing argument '%s' for landlock rule: %v", *addr, err)
+			return fmt.Errorf("error processing argument '%s' for landlock rule: %w", *addr, err)
 		}
 		if rule != nil {
 			netRules = append(netRules, rule)
@@ -156,7 +156,7 @@ func setupLandlock() error {
 
 		rule, err := ruleFromTCPAddress(*addr, landlock.ConnectTCP)
 		if err != nil {
-			return fmt.Errorf("error processing argument '%s' for landlock rule: %v", *addr, err)
+			return fmt.Errorf("error processing argument '%s' for landlock rule: %w", *addr, err)
 		}
 		if rule != nil {
 			netRules = append(netRules, rule)
@@ -171,7 +171,7 @@ func setupLandlock() error {
 
 		rule, err := ruleFromURL(*url, landlock.ConnectTCP)
 		if err != nil {
-			return fmt.Errorf("error processing argument '%s' for landlock rule: %v", *url, err)
+			return fmt.Errorf("error processing argument '%s' for landlock rule: %w", *url, err)
 		}
 		if rule != nil {
 			netRules = append(netRules, rule)

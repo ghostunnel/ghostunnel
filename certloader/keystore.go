@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"sync/atomic"
 	"unsafe"
 )
@@ -75,7 +76,7 @@ func (c *keystoreCertificate) Reload() error {
 	for _, path := range c.keystorePaths {
 		blocks, err := readCertificateFile(path, c.keystorePassword, c.format)
 		if err != nil {
-			return err
+			return fmt.Errorf("reading certificate file %q: %w", path, err)
 		}
 		pemBlocks = append(pemBlocks, blocks...)
 	}
@@ -87,17 +88,17 @@ func (c *keystoreCertificate) Reload() error {
 
 	certAndKey, err := tls.X509KeyPair(pemBytes, pemBytes)
 	if err != nil {
-		return err
+		return fmt.Errorf("parsing X509 key pair: %w", err)
 	}
 
 	certAndKey.Leaf, err = x509.ParseCertificate(certAndKey.Certificate[0])
 	if err != nil {
-		return err
+		return fmt.Errorf("parsing leaf certificate: %w", err)
 	}
 
 	bundle, err := LoadTrustStore(c.caBundlePath)
 	if err != nil {
-		return err
+		return fmt.Errorf("loading trust store: %w", err)
 	}
 
 	atomic.StorePointer(&c.cachedCertificate, unsafe.Pointer(&certAndKey))

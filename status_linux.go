@@ -32,15 +32,15 @@ const (
 )
 
 // getMonotonicUsec gets time via CLOCK_MONOTONIC for reload messages
-func getMonotonicUsec() int64 {
+func getMonotonicUsec() (int64, error) {
 	var ts syscall.Timespec
 	_, _, errno := syscall.Syscall(syscall.SYS_CLOCK_GETTIME, clock_monotonic_clkid, uintptr(unsafe.Pointer(&ts)), 0)
 	if errno != 0 {
-		panic("Unable to get current time from SYS_CLOCK_GETTIME")
+		return 0, fmt.Errorf("SYS_CLOCK_GETTIME failed: %w", errno)
 	}
 	sec, nsec := ts.Unix()
 	// 1s is 1e6µs, 1ns is 1/1000µs
-	return (sec * 1e6) + (nsec / 1000)
+	return (sec * 1e6) + (nsec / 1000), nil
 }
 
 // systemdNotifyStatus sends a message to systemd to inform that we're ready.
@@ -56,7 +56,12 @@ func systemdNotifyReady() {
 
 // systemdNotifyReloading sends a message to systemd to inform that we're reloading.
 func systemdNotifyReloading() {
-	msg := fmt.Sprintf("%s\nMONOTONIC_USEC=%d", daemon.SdNotifyReloading, getMonotonicUsec())
+	usec, err := getMonotonicUsec()
+	if err != nil {
+		_, _ = daemon.SdNotify(false, daemon.SdNotifyReloading)
+		return
+	}
+	msg := fmt.Sprintf("%s\nMONOTONIC_USEC=%d", daemon.SdNotifyReloading, usec)
 	_, _ = daemon.SdNotify(false, msg)
 }
 
@@ -87,6 +92,4 @@ func systemdHandleWatchdog(isHealthy func() bool, shutdown chan bool) error {
 			return nil
 		}
 	}
-	//nolint:govet
-	panic("unreachable")
 }

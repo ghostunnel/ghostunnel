@@ -477,26 +477,20 @@ func (f *failingTLSConfigSource) GetServerConfig(base *tls.Config) (certloader.T
 	return nil, errors.New("test error: GetServerConfig failed")
 }
 
-func TestMustGetServerConfigPanicsOnError(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("expected panic when GetServerConfig fails")
-		}
-	}()
-
+func TestGetServerConfigReturnsError(t *testing.T) {
 	source := &failingTLSConfigSource{}
-	mustGetServerConfig(source, nil)
+	_, err := getServerConfig(source, nil)
+	if err == nil {
+		t.Error("expected error when GetServerConfig fails")
+	}
 }
 
-func TestMustGetClientConfigPanicsOnError(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("expected panic when GetClientConfig fails")
-		}
-	}()
-
+func TestGetClientConfigReturnsError(t *testing.T) {
 	source := &failingTLSConfigSource{}
-	mustGetClientConfig(source, nil)
+	_, err := getClientConfig(source, nil)
+	if err == nil {
+		t.Error("expected error when GetClientConfig fails")
+	}
 }
 
 // writeTempFile creates a temp file with the given content and returns its path.
