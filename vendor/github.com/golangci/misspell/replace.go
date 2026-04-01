@@ -42,6 +42,7 @@ func New() *Replacer {
 		Replacements: DictMain,
 	}
 	r.Compile()
+
 	return &r
 }
 
@@ -54,8 +55,10 @@ func (r *Replacer) RemoveRule(ignore []string) {
 		if inArray(ignore, r.Replacements[i]) {
 			continue
 		}
+
 		newWords = append(newWords, r.Replacements[i:i+2]...)
 	}
+
 	r.engine = nil
 	r.Replacements = newWords
 }
@@ -75,6 +78,7 @@ func (r *Replacer) Compile() {
 	for i := 0; i < len(r.Replacements); i += 2 {
 		r.corrected[r.Replacements[i]] = r.Replacements[i+1]
 	}
+
 	r.engine = NewStringReplacer(r.Replacements...)
 }
 
@@ -86,7 +90,9 @@ func (r *Replacer) ReplaceGo(input string) (string, []Diff) {
 	s.Mode = scanner.ScanIdents | scanner.ScanFloats | scanner.ScanChars | scanner.ScanStrings | scanner.ScanRawStrings | scanner.ScanComments
 	lastPos := 0
 	output := ""
+
 Loop:
+
 	for {
 		switch s.Scan() {
 		case scanner.Comment:
@@ -109,19 +115,23 @@ Loop:
 		// no changes, no copies
 		return input, nil
 	}
+
 	if lastPos < len(input) {
 		output += input[lastPos:]
 	}
+
 	diffs := make([]Diff, 0, 8)
 	buf := bytes.NewBuffer(make([]byte, 0, max(len(input), len(output))+100))
 	// faster that making a bytes.Buffer and bufio.ReadString
 	outlines := strings.SplitAfter(output, "\n")
+
 	inlines := strings.SplitAfter(input, "\n")
 	for i := range inlines {
 		if inlines[i] == outlines[i] {
 			buf.WriteString(outlines[i])
 			continue
 		}
+
 		r.recheckLine(inlines[i], i+1, buf, func(d Diff) {
 			diffs = append(diffs, d)
 		})
@@ -136,16 +146,19 @@ func (r *Replacer) Replace(input string) (string, []Diff) {
 	if input == output {
 		return input, nil
 	}
+
 	diffs := make([]Diff, 0, 8)
 	buf := bytes.NewBuffer(make([]byte, 0, max(len(input), len(output))+100))
 	// faster that making a bytes.Buffer and bufio.ReadString
 	outlines := strings.SplitAfter(output, "\n")
+
 	inlines := strings.SplitAfter(input, "\n")
 	for i := range inlines {
 		if inlines[i] == outlines[i] {
 			buf.WriteString(outlines[i])
 			continue
 		}
+
 		r.recheckLine(inlines[i], i+1, buf, func(d Diff) {
 			diffs = append(diffs, d)
 		})
@@ -162,7 +175,9 @@ func (r *Replacer) ReplaceReader(raw io.Reader, w io.Writer, next func(Diff)) er
 		line    string
 		lineNum int
 	)
+
 	reader := bufio.NewReader(raw)
+
 	for err == nil {
 		lineNum++
 		line, err = reader.ReadString('\n')
@@ -181,6 +196,7 @@ func (r *Replacer) ReplaceReader(raw io.Reader, w io.Writer, next func(Diff)) er
 		// but it can be inaccurate, so we need to double-check
 		r.recheckLine(line, lineNum, w, next)
 	}
+
 	return nil
 }
 
@@ -206,6 +222,7 @@ func (r *Replacer) recheckLine(s string, lineNum int, buf io.Writer, next func(D
 	idx := wordRegexp.FindAllStringIndex(redacted, -1)
 	for _, ab := range idx {
 		word := s[ab[0]:ab[1]]
+
 		newword := r.engine.Replace(word)
 		if newword == word {
 			// no replacement done
@@ -222,6 +239,7 @@ func (r *Replacer) recheckLine(s string, lineNum int, buf io.Writer, next func(D
 			// word got corrected into something we know
 			io.WriteString(buf, s[first:ab[0]])
 			io.WriteString(buf, newword)
+
 			first = ab[1]
 			next(Diff{
 				FullLine:  s,
@@ -230,9 +248,11 @@ func (r *Replacer) recheckLine(s string, lineNum int, buf io.Writer, next func(D
 				Corrected: newword,
 				Column:    ab[0],
 			})
+
 			continue
 		}
 		// Word got corrected into something unknown. Ignore it
 	}
+
 	io.WriteString(buf, s[first:])
 }

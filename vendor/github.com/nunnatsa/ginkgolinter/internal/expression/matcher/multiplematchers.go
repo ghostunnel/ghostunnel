@@ -24,18 +24,18 @@ func (m *MultipleMatchersMatcher) MatcherName() string {
 	return and
 }
 
-func newMultipleMatchersMatcher(matherType Type, orig, clone []ast.Expr, pass *analysis.Pass, handler gomegahandler.Handler) (*MultipleMatchersMatcher, bool) {
+func newMultipleMatchersMatcher(matherType Type, orig, clone []ast.Expr, pass *analysis.Pass, handler *gomegahandler.Handler) *MultipleMatchersMatcher {
 	matchers := make([]*Matcher, len(orig))
 
 	for i := range orig {
 		nestedOrig, ok := orig[i].(*ast.CallExpr)
 		if !ok {
-			return nil, false
+			return nil
 		}
 
-		m, ok := New(nestedOrig, clone[i].(*ast.CallExpr), pass, handler)
-		if !ok {
-			return nil, false
+		m := New(nestedOrig, clone[i].(*ast.CallExpr), pass, handler)
+		if m == nil {
+			return nil
 		}
 
 		m.reverseLogic = false
@@ -46,7 +46,7 @@ func newMultipleMatchersMatcher(matherType Type, orig, clone []ast.Expr, pass *a
 	return &MultipleMatchersMatcher{
 		matherType: matherType,
 		matchers:   matchers,
-	}, true
+	}
 }
 
 func (m *MultipleMatchersMatcher) Len() int {

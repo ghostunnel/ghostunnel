@@ -1,9 +1,104 @@
-# Checks
+# Checks and configuration
+
+## Table of content
+
+- [Checks](#checks)
+  - [`after-block`](#after-block)
+  - [`append`](#append)
+  - [`assign`](#assign)
+  - [`assign-exclusive`](#assign-exclusive)
+  - [`assign-expr`](#assign-expr)
+  - [`branch`](#branch)
+  - [`decl`](#decl)
+  - [`defer`](#defer)
+  - [`err`](#err)
+  - [`expr`](#expr)
+  - [`for`](#for)
+  - [`go`](#go)
+  - [`if`](#if)
+  - [`inc-dec`](#inc-dec)
+  - [`label`](#label)
+  - [`leading-whitespace`](#leading-whitespace)
+  - [`range`](#range)
+  - [`return`](#return)
+  - [`select`](#select)
+  - [`send`](#send)
+  - [`switch`](#switch)
+  - [`trailing-whitespace`](#trailing-whitespace)
+  - [`type-switch`](#type-switch)
+- [Configuration](#configuration)
+  - [`allow-first-in-block`](#allow-first-in-block)
+  - [`allow-whole-block`](#allow-whole-block)
+  - [`case-max-lines`](#case-max-lines)
+
+## Checks
 
 This document describes all the checks done by `wsl` with examples of what's not
 allowed and what's allowed.
 
-## `assign`
+### `after-block`
+
+Block statements (`if`, `for`, `switch`, etc.) should be followed by a blank
+line to visually separate them from subsequent code.
+
+> **NOTE** An exception is made for `defer` statements that follow an
+> `if err != nil` block when the defer references a variable assigned on the
+> line above the if statement. This is a common pattern for resource cleanup.
+
+<table>
+<thead><tr><th>Bad</th><th>Good</th></tr></thead>
+<tbody>
+<tr><td valign="top">
+
+```go
+if true {
+    fmt.Println("hello")
+} // 1
+fmt.Println("world")
+
+for i := 0; i < 3; i++ {
+    fmt.Println(i)
+} // 2
+x := 1
+```
+
+</td><td valign="top">
+
+```go
+if true {
+    fmt.Println("hello")
+}
+
+fmt.Println("world")
+
+for i := 0; i < 3; i++ {
+    fmt.Println(i)
+}
+
+x := 1
+
+// Exception: defer after error check
+f, err := os.Open("file.txt")
+if err != nil {
+    return err
+}
+defer f.Close()
+```
+
+</td></tr>
+
+<tr><td valign="top">
+
+<sup>1</sup> Missing whitespace after block
+
+<sup>2</sup> Missing whitespace after block
+
+</td><td valign="top">
+
+</td></tr>
+</tbody></table>
+
+### `assign`
 
 Assign (`foo := bar`) or re-assignments (`foo = bar`) should only be cuddled
 with other assignments or increment/decrement.
@@ -58,7 +153,7 @@ c := 3
 </td></tr>
 </tbody></table>
 
-## `branch`
+### `branch`
 
 > Configurable via `branch-max-lines`
 
@@ -114,7 +209,7 @@ for {
 </td></tr>
 </tbody></table>
 
-## `decl`
+### `decl`
 
 Declarations should never be cuddled. When grouping multiple declarations
 together they should be declared in the same group with parenthesis into a
@@ -182,7 +277,7 @@ var a string
 </td></tr>
 </tbody></table>
 
-## `defer`
+### `defer`
 
 Deferring execution should only be used directly in the context of what's being
 deferred and there should only be one statement above.
@@ -247,10 +342,16 @@ defer m.Unlock()
 </td></tr>
 </tbody></table>
 
-## `expr`
+### `expr`
 
 Expressions can be multiple things and a big part of them are not handled by
 `wsl`. However all function calls are expressions which can be verified.
+
+> **NOTE** This is one of the few rules with non-configurable exceptions. Given
+> the idiomatic way to acquire and release mutex locks and the fact that the
+> `sync` mutex from the standard library is so widely used, any call to `Lock`,
+> `RWLock`, or `TryLock` can be cuddled above any other statement(s) and
+> similarly `Unlock` and `RWUnlock` can be cuddled below any other statement(s).
 
 <table>
 <thead><tr><th>Bad</th><th>Good</th></tr></thead>
@@ -261,6 +362,12 @@ Expressions can be multiple things and a big part of them are not handled by
 a := 1
 b := 2
 fmt.Println("not b") // 1
+
+mu.Lock()
+for _, item := range items {
+    // Safely work with item
+}
+mu.Unlock()
 ```
 
 </td><td valign="top">
@@ -286,7 +393,7 @@ fmt.Println(a)
 </td></tr>
 </tbody></table>
 
-## `for`
+### `for`
 
 > Configurable via `allow-first-in-block` to allow cuddling if the variable is
 > used _first_ in the block (enabled by default).
@@ -368,7 +475,7 @@ for {
 </td></tr>
 </tbody></table>
 
-## `go`
+### `go`
 
 <table>
 <thead><tr><th>Bad</th><th>Good</th></tr></thead>
@@ -418,7 +525,7 @@ go Fn(someArg)
 </td></tr>
 </tbody></table>
 
-## `if`
+### `if`
 
 > Configurable via `allow-first-in-block` to allow cuddling if the variable is
 > used _first_ in the block (enabled by default).
@@ -542,7 +649,7 @@ if xUsedLaterInBlock() {
 </td></tr>
 </tbody></table>
 
-## `inc-dec`
+### `inc-dec`
 
 <table>
 <thead><tr><th>Bad</th><th>Good</th></tr></thead>
@@ -587,7 +694,7 @@ j++
 </td></tr>
 </tbody></table>
 
-## `label`
+### `label`
 
 Labels should never be cuddled. Labels in itself is often a symptom of big scope
 and split context and because of that should always have an empty line above.
@@ -633,7 +740,7 @@ L2:
 </td></tr>
 </tbody></table>
 
-## `range`
+### `range`
 
 > Configurable via `allow-first-in-block` to allow cuddling if the variable is
 > used _first_ in the block (enabled by default).
@@ -709,7 +816,7 @@ for _, v := range s2 {
 </td></tr>
 </tbody></table>
 
-## `return`
+### `return`
 
 > Configurable via `branch-max-lines`
 
@@ -761,7 +868,7 @@ func Fn() int {
 </td></tr>
 </tbody></table>
 
-## `select`
+### `select`
 
 Identifiers used in case arms of select statements are allowed to be cuddled.
 
@@ -829,7 +936,7 @@ case <-stop:
 </td></tr>
 </tbody></table>
 
-## `send`
+### `send`
 
 Send statements should only be cuddled with a single variable that is used on
 the line above.
@@ -871,7 +978,7 @@ b := 1
 </td></tr>
 </tbody></table>
 
-## `switch`
+### `switch`
 
 In addition to checking the switch condition, switch statements also checks
 identifiers in all case arms. If a variable is used in one or more of the case
@@ -972,7 +1079,7 @@ case 2:
 </td></tr>
 </tbody></table>
 
-## `type-switch`
+### `type-switch`
 
 > Configurable via `allow-first-in-block` to allow cuddling if the variable is
 > used _first_ in the block (enabled by default).
@@ -1051,7 +1158,7 @@ case int64:
 </td></tr>
 </tbody></table>
 
-## `append`
+### `append`
 
 Append enables strict `append` checking where assignments that are
 re-assignments with `append` (e.g. `x = append(x, y)`) is only allowed to be
@@ -1098,7 +1205,7 @@ s = append(s, 2)
 </td></tr>
 </tbody></table>
 
-## `assign-exclusive`
+### `assign-exclusive`
 
 Assign exclusive does not allow mixing new assignments (`:=`) with
 re-assignments (`=`).
@@ -1140,7 +1247,7 @@ d = 4
 </td></tr>
 </tbody></table>
 
-## `assign-expr`
+### `assign-expr`
 
 Assignments are allowed to be cuddled with expressions, primarily to support
 mixing assignments and function calls which can often make sense in shorter
@@ -1178,7 +1285,7 @@ t1.Fn3()
 </td></tr>
 </tbody></table>
 
-## `err`
+### `err`
 
 <table>
 <thead><tr><th>Bad</th><th>Good</th></tr></thead>
@@ -1213,7 +1320,7 @@ if err != nil {
 </td></tr>
 </tbody></table>
 
-## `leading-whitespace`
+### `leading-whitespace`
 
 <table>
 <thead><tr><th>Bad</th><th>Good</th></tr></thead>
@@ -1239,7 +1346,7 @@ if true {
 
 </tbody></table>
 
-## `trailing-whitespace`
+### `trailing-whitespace`
 
 <table>
 <thead><tr><th>Bad</th><th>Good</th></tr></thead>
@@ -1314,3 +1421,126 @@ if anotherVariable {
     }
 }
 ```
+
+### `case-max-lines`
+
+When set to a value greater than 0, case clauses in `switch` and `select`
+statements that exceed this number of lines will require a blank line before the
+next case. Setting this to 1 will make it always enabled.
+
+Comments between case clauses are handled based on their indentation:
+
+- **Indented comments** (deeper than `case`) are treated as trailing comments
+  that belong to the current case body.
+- **Left-aligned comments** (at the same level as `case`) are treated as leading
+  comments that belong to the next case.
+
+The blank line is placed at the transition point between trailing and leading
+content. This means:
+
+- If all comments are indented, the blank line goes before the next `case`.
+- If all comments are left-aligned, the blank line goes after the last
+  statement.
+- If comments transition from indented to left-aligned, the blank line goes at
+  the transition point.
+
+Additionally, left-aligned comments must be flush against the next `case` - no
+blank line is allowed between them. This ensures consistent formatting where
+leading comments are visually attached to the case they describe.
+
+<table>
+<thead><tr><th>Bad</th><th>Good</th></tr></thead>
+<tbody>
+<tr><td valign="top">
+
+```go
+switch n {
+case 1:
+    fmt.Println("hello")
+case 2: // 1
+    fmt.Println("world")
+}
+
+switch n {
+case 1:
+    fmt.Println("hello")
+    // Trailing comment
+case 2: // 2
+    fmt.Println("world")
+}
+
+switch n {
+case 1:
+    fmt.Println("hello")
+    // Trailing comment
+// Leading comment
+case 2: // 3
+    fmt.Println("world")
+}
+
+switch n {
+case 1:
+    fmt.Println("hello")
+// Leading comment
+
+case 2: // 4
+    fmt.Println("world")
+}
+```
+
+</td><td valign="top">
+
+```go
+switch n {
+case 1:
+    fmt.Println("hello")
+
+case 2:
+    fmt.Println("world")
+}
+
+switch n {
+case 1:
+    fmt.Println("hello")
+    // Trailing comment
+
+case 2:
+    fmt.Println("world")
+}
+
+switch n {
+case 1:
+    fmt.Println("hello")
+    // Trailing comment
+
+// Leading comment
+case 2:
+    fmt.Println("world")
+}
+
+switch n {
+case 1:
+    fmt.Println("hello")
+
+// Leading comment
+case 2:
+    fmt.Println("world")
+}
+```
+
+</td></tr>
+
+<tr><td valign="top">
+
+<sup>1</sup> Missing blank line after case body
+
+<sup>2</sup> Missing blank line after trailing comment
+
+<sup>3</sup> Missing blank line at transition (after trailing comment)
+
+<sup>4</sup> Unnecessary blank line before case (after leading comment)
+
+</td><td valign="top">
+
+</td></tr>
+</tbody></table>

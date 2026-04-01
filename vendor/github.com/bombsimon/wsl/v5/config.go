@@ -33,14 +33,16 @@ const (
 	CheckSwitch
 	CheckTypeSwitch
 
-	// Check append only allows assignments of `append` to be cuddled with other
+	// CheckAfterBlock ensures there's a newline after each block.
+	CheckAfterBlock
+	// CheckAppend only allows assignments of `append` to be cuddled with other
 	// assignments if it's a variable used in the append statement, e.g.
 	//
 	// a := 1
 	// x = append(x, a)
 	// .
 	CheckAppend
-	// Assign exclusive only allows assignments of either new variables or
+	// CheckAssignExclusive only allows assignments of either new variables or
 	// re-assignment of existing ones, e.g.
 	//
 	// a := 1
@@ -59,8 +61,8 @@ const (
 	// t1.Fn3()
 	// .
 	CheckAssignExpr
-	// Force error checking to follow immediately after an error variable is
-	// assigned, e.g.
+	// CheckErr force error checking to follow immediately after an error
+	// variable is assigned, e.g.
 	//
 	// _, err := someFn()
 	// if err != nil {
@@ -71,6 +73,7 @@ const (
 	CheckLeadingWhitespace
 	CheckTrailingWhitespace
 
+	//nolint:godoclint // No need to document
 	// CheckTypes only used for reporting.
 	CheckCaseTrailingNewline
 )
@@ -95,6 +98,7 @@ func (c CheckType) String() string {
 		"switch",
 		"type-switch",
 		//
+		"after-block",
 		"append",
 		"assign-exclusive",
 		"assign-expr",
@@ -210,6 +214,7 @@ func AllChecks() CheckSet {
 	c := DefaultChecks()
 	c.Add(CheckAssignExclusive)
 	c.Add(CheckAssignExpr)
+	c.Add(CheckAfterBlock)
 
 	return c
 }
@@ -261,6 +266,8 @@ func CheckFromString(s string) (CheckType, error) {
 	case "type-switch":
 		return CheckTypeSwitch, nil
 
+	case "after-block":
+		return CheckAfterBlock, nil
 	case "append":
 		return CheckAppend, nil
 	case "assign-exclusive":

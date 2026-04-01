@@ -82,7 +82,7 @@ func getTypeInfo(typ fakereflect.TypeAndCanAddr) (*typeInfo, error) {
 	tinfo := &typeInfo{}
 	if typ.IsStruct() && !typeutil.IsTypeWithName(typ.Type, "encoding/xml.Name") {
 		n := typ.NumField()
-		for i := 0; i < n; i++ {
+		for i := range n {
 			f := typ.Field(i)
 			if (!f.IsExported() && !f.Anonymous) || f.Tag.Get("xml") == "-" {
 				continue // Private field
@@ -276,13 +276,6 @@ func lookupXMLName(typ fakereflect.TypeAndCanAddr) (xmlname *fieldInfo) {
 	return nil
 }
 
-func min(a, b int) int {
-	if a <= b {
-		return a
-	}
-	return b
-}
-
 // addFieldInfo adds finfo to tinfo.fields if there are no
 // conflicts, or if conflicts arise from previous fields that were
 // obtained from deeper embedded structures than finfo. In the latter
@@ -303,7 +296,7 @@ Loop:
 			continue
 		}
 		minl := min(len(newf.parents), len(oldf.parents))
-		for p := 0; p < minl; p++ {
+		for p := range minl {
 			if oldf.parents[p] != newf.parents[p] {
 				continue Loop
 			}

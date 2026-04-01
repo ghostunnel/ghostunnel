@@ -24,13 +24,8 @@ import (
 
 // Looks for net.Listen("0.0.0.0") or net.Listen(":8080")
 type bindsToAllNetworkInterfaces struct {
-	issue.MetaData
-	calls   gosec.CallList
+	callListRule
 	pattern *regexp.Regexp
-}
-
-func (r *bindsToAllNetworkInterfaces) ID() string {
-	return r.MetaData.ID
 }
 
 func (r *bindsToAllNetworkInterfaces) Match(n ast.Node, c *gosec.Context) (*issue.Issue, error) {
@@ -42,14 +37,14 @@ func (r *bindsToAllNetworkInterfaces) Match(n ast.Node, c *gosec.Context) (*issu
 		arg := callExpr.Args[1]
 		if bl, ok := arg.(*ast.BasicLit); ok {
 			if arg, err := gosec.GetString(bl); err == nil {
-				if r.pattern.MatchString(arg) {
+				if gosec.RegexMatchWithCache(r.pattern, arg) {
 					return c.NewIssue(n, r.ID(), r.What, r.Severity, r.Confidence), nil
 				}
 			}
 		} else if ident, ok := arg.(*ast.Ident); ok {
 			values := gosec.GetIdentStringValues(ident)
 			for _, value := range values {
-				if r.pattern.MatchString(value) {
+				if gosec.RegexMatchWithCache(r.pattern, value) {
 					return c.NewIssue(n, r.ID(), r.What, r.Severity, r.Confidence), nil
 				}
 			}
@@ -57,7 +52,7 @@ func (r *bindsToAllNetworkInterfaces) Match(n ast.Node, c *gosec.Context) (*issu
 	} else if len(callExpr.Args) > 0 {
 		values := gosec.GetCallStringArgsValues(callExpr.Args[0], c)
 		for _, value := range values {
-			if r.pattern.MatchString(value) {
+			if gosec.RegexMatchWithCache(r.pattern, value) {
 				return c.NewIssue(n, r.ID(), r.What, r.Severity, r.Confidence), nil
 			}
 		}
@@ -68,17 +63,10 @@ func (r *bindsToAllNetworkInterfaces) Match(n ast.Node, c *gosec.Context) (*issu
 // NewBindsToAllNetworkInterfaces detects socket connections that are setup to
 // listen on all network interfaces.
 func NewBindsToAllNetworkInterfaces(id string, _ gosec.Config) (gosec.Rule, []ast.Node) {
-	calls := gosec.NewCallList()
-	calls.Add("net", "Listen")
-	calls.Add("crypto/tls", "Listen")
-	return &bindsToAllNetworkInterfaces{
-		calls:   calls,
-		pattern: regexp.MustCompile(`^(0.0.0.0|:).*$`),
-		MetaData: issue.MetaData{
-			ID:         id,
-			Severity:   issue.Medium,
-			Confidence: issue.High,
-			What:       "Binds to all network interfaces",
-		},
-	}, []ast.Node{(*ast.CallExpr)(nil)}
+	rule := &bindsToAllNetworkInterfaces{
+		callListRule: newCallListRule(id, "Binds to all network interfaces", issue.Medium, issue.High),
+		pattern:      regexp.MustCompile(`^(0.0.0.0|:).*$`),
+	}
+	rule.Add("net", "Listen").Add("crypto/tls", "Listen")
+	return rule, []ast.Node{(*ast.CallExpr)(nil)}
 }

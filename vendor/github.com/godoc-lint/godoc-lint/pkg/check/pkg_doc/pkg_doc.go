@@ -43,8 +43,10 @@ func (r *PkgDocChecker) Apply(actx *model.AnalysisContext) error {
 	return nil
 }
 
-const commandPkgName = "main"
-const commandTestPkgName = "main_test"
+const (
+	commandPkgName     = "main"
+	commandTestPkgName = "main_test"
+)
 
 func checkPkgDocRule(actx *model.AnalysisContext) {
 	if !actx.Config.IsAnyRuleApplicable(model.RuleSet{}.Add(pkgDocRule)) {
@@ -115,7 +117,7 @@ func checkPkgDocRule(actx *model.AnalysisContext) {
 	}
 }
 
-func checkPkgDocPrefix(text string, packageName string) (string, bool) {
+func checkPkgDocPrefix(text, packageName string) (string, bool) {
 	expectedPrefix := "Package " + packageName
 	if !strings.HasPrefix(text, expectedPrefix) {
 		return expectedPrefix, false

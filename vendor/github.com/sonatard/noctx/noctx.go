@@ -39,15 +39,16 @@ var ngFuncMessages = map[string]string{
 	"net.LookupAddr":   "must not be called. use (*net.Resolver).LookupAddr with a context",
 
 	// net/http
-	"net/http.Get":                "must not be called. use net/http.NewRequestWithContext and (*net/http.Client).Do(*http.Request)",
-	"net/http.Head":               "must not be called. use net/http.NewRequestWithContext and (*net/http.Client).Do(*http.Request)",
-	"net/http.Post":               "must not be called. use net/http.NewRequestWithContext and (*net/http.Client).Do(*http.Request)",
-	"net/http.PostForm":           "must not be called. use net/http.NewRequestWithContext and (*net/http.Client).Do(*http.Request)",
-	"(*net/http.Client).Get":      "must not be called. use (*net/http.Client).Do(*http.Request)",
-	"(*net/http.Client).Head":     "must not be called. use (*net/http.Client).Do(*http.Request)",
-	"(*net/http.Client).Post":     "must not be called. use (*net/http.Client).Do(*http.Request)",
-	"(*net/http.Client).PostForm": "must not be called. use (*net/http.Client).Do(*http.Request)",
-	"net/http.NewRequest":         "must not be called. use net/http.NewRequestWithContext",
+	"net/http.Get":                 "must not be called. use net/http.NewRequestWithContext and (*net/http.Client).Do(*http.Request)",
+	"net/http.Head":                "must not be called. use net/http.NewRequestWithContext and (*net/http.Client).Do(*http.Request)",
+	"net/http.Post":                "must not be called. use net/http.NewRequestWithContext and (*net/http.Client).Do(*http.Request)",
+	"net/http.PostForm":            "must not be called. use net/http.NewRequestWithContext and (*net/http.Client).Do(*http.Request)",
+	"(*net/http.Client).Get":       "must not be called. use (*net/http.Client).Do(*http.Request)",
+	"(*net/http.Client).Head":      "must not be called. use (*net/http.Client).Do(*http.Request)",
+	"(*net/http.Client).Post":      "must not be called. use (*net/http.Client).Do(*http.Request)",
+	"(*net/http.Client).PostForm":  "must not be called. use (*net/http.Client).Do(*http.Request)",
+	"net/http.NewRequest":          "must not be called. use net/http.NewRequestWithContext",
+	"net/http/httptest.NewRequest": "must not be called. use net/http/httptest.NewRequestWithContext",
 
 	// database/sql
 	"(*database/sql.DB).Begin":      "must not be called. use (*database/sql.DB).BeginTx",

@@ -15,6 +15,7 @@ import (
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
+	"golang.org/x/tools/go/ast/inspector"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
@@ -46,10 +47,11 @@ y := T2(x)`,
 
 var Analyzer = SCAnalyzer.Analyzer
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	// TODO(dh): support conversions between type parameters
-	fn := func(node ast.Node, stack []ast.Node) {
-		if unary, ok := stack[len(stack)-2].(*ast.UnaryExpr); ok && unary.Op == token.AND {
+	fn := func(c inspector.Cursor) {
+		node := c.Node()
+		if unary, ok := c.Parent().Node().(*ast.UnaryExpr); ok && unary.Op == token.AND {
 			// Do not suggest type conversion between pointers
 			return
 		}
@@ -182,8 +184,10 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		report.Report(pass, node,
 			fmt.Sprintf("should convert %s (type %s) to %s instead of using struct literal", ident.Name, types.TypeString(typ2, types.RelativeTo(pass.Pkg)), types.TypeString(typ1, types.RelativeTo(pass.Pkg))),
 			report.FilterGenerated(),
-			report.Fixes(edit.Fix("use type conversion", edit.ReplaceWithNode(pass.Fset, node, r))))
+			report.Fixes(edit.Fix("Use type conversion", edit.ReplaceWithNode(pass.Fset, node, r))))
 	}
-	code.PreorderStack(pass, fn, (*ast.CompositeLit)(nil))
+	for c := range code.Cursor(pass).Preorder((*ast.CompositeLit)(nil)) {
+		fn(c)
+	}
 	return nil, nil
 }

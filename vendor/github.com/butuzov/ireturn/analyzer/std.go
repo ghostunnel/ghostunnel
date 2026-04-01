@@ -1,4 +1,4 @@
-// Code generated using std.sh; DO NOT EDIT.
+// Code generated using generate-std.sh; DO NOT EDIT.
 
 // We will ignore that fact that some of packages
 // were removed from stdlib.
@@ -211,4 +211,10 @@ var std = map[string]struct{}{
 	"crypto/pbkdf2":  {},
 	"crypto/sha3":    {},
 	"weak":           {},
+	// added in Go v1.25 in compare to v1.24 (docker image)
+	"testing/synctest": {},
+	// added in Go v1.26 in compare to v1.25 (docker image)
+	"crypto/hpke":            {},
+	"crypto/mlkem/mlkemtest": {},
+	"testing/cryptotest":     {},
 }

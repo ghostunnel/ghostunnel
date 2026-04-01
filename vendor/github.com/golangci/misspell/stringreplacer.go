@@ -99,6 +99,7 @@ func (t *trieNode) add(key, val string, priority int, r *genericReplacer) {
 			t.value = val
 			t.priority = priority
 		}
+
 		return
 	}
 
@@ -110,6 +111,7 @@ func (t *trieNode) add(key, val string, priority int, r *genericReplacer) {
 				break
 			}
 		}
+
 		switch n {
 		case len(t.prefix):
 			t.next.add(key[n:], val, priority, r)
@@ -126,12 +128,14 @@ func (t *trieNode) add(key, val string, priority int, r *genericReplacer) {
 					next:   t.next,
 				}
 			}
+
 			keyNode := new(trieNode)
 			t.table = make([]*trieNode, r.tableSize)
 			t.table[r.mapping[t.prefix[0]]] = prefixNode
 			t.table[r.mapping[key[0]]] = keyNode
 			t.prefix = ""
 			t.next = nil
+
 			keyNode.add(key[1:], val, priority, r)
 		default:
 			// Insert new node after the common section of the prefix.
@@ -143,6 +147,7 @@ func (t *trieNode) add(key, val string, priority int, r *genericReplacer) {
 			t.next = next
 			next.add(key[n:], val, priority, r)
 		}
+
 		return
 	}
 
@@ -152,7 +157,9 @@ func (t *trieNode) add(key, val string, priority int, r *genericReplacer) {
 		if t.table[m] == nil {
 			t.table[m] = new(trieNode)
 		}
+
 		t.table[m].add(key[1:], val, priority, r)
+
 		return
 	}
 
@@ -187,6 +194,7 @@ func makeGenericReplacer(oldnew []string) *genericReplacer {
 	}
 
 	var index byte
+
 	for i, b := range r.mapping {
 		if b == 0 {
 			r.mapping[i] = byte(r.tableSize)
@@ -201,19 +209,25 @@ func makeGenericReplacer(oldnew []string) *genericReplacer {
 	for i := 0; i < len(oldnew); i += 2 {
 		r.root.add(strings.ToLower(oldnew[i]), oldnew[i+1], len(oldnew)-i, r)
 	}
+
 	return r
 }
 
 func (r *genericReplacer) Replace(s string) string {
 	buf := make(appendSliceWriter, 0, len(s))
 	r.WriteString(&buf, s)
+
 	return string(buf)
 }
 
 func (r *genericReplacer) WriteString(w io.Writer, s string) (n int, err error) {
 	sw := getStringWriter(w)
-	var last, wn int
-	var prevMatchEmpty bool
+
+	var (
+		last, wn       int
+		prevMatchEmpty bool
+	)
+
 	for i := 0; i <= len(s); {
 		// Fast path: s[i] is not a prefix of any pattern.
 		if i != len(s) && r.root.priority == 0 {
@@ -226,6 +240,7 @@ func (r *genericReplacer) WriteString(w io.Writer, s string) (n int, err error) 
 
 		// Ignore the empty match iff the previous loop found the empty match.
 		val, keylen, match := r.lookup(s[i:], prevMatchEmpty)
+
 		prevMatchEmpty = match && keylen == 0
 		if match {
 			orig := s[i : i+keylen]
@@ -245,28 +260,37 @@ func (r *genericReplacer) WriteString(w io.Writer, s string) (n int, err error) 
 					val = strings.ToUpper(val[:1]) + strings.ToLower(val[1:])
 				}
 			}
+
 			wn, err = sw.WriteString(s[last:i])
 			n += wn
+
 			if err != nil {
-				return
+				return n, err
 			}
+
 			// debug helper: log.Printf("%d: Going to correct %q with %q", i, s[i:i+keylen], val)
 			wn, err = sw.WriteString(val)
 			n += wn
+
 			if err != nil {
-				return
+				return n, err
 			}
+
 			i += keylen
 			last = i
+
 			continue
 		}
+
 		i++
 	}
+
 	if last != len(s) {
 		wn, err = sw.WriteString(s[last:])
 		n += wn
 	}
-	return
+
+	return n, err
 }
 
 func (r *genericReplacer) lookup(s string, ignoreRoot bool) (val string, keylen int, found bool) {
@@ -275,6 +299,7 @@ func (r *genericReplacer) lookup(s string, ignoreRoot bool) (val string, keylen 
 	bestPriority := 0
 	node := &r.root
 	n := 0
+
 	for node != nil {
 		if node.priority > bestPriority && (!ignoreRoot || node != &r.root) {
 			bestPriority = node.priority
@@ -286,11 +311,13 @@ func (r *genericReplacer) lookup(s string, ignoreRoot bool) (val string, keylen 
 		if s == "" {
 			break
 		}
+
 		if node.table != nil {
 			index := r.mapping[ByteToLower(s[0])]
 			if int(index) == r.tableSize {
 				break
 			}
+
 			node = node.table[index]
 			s = s[1:]
 			n++
@@ -302,7 +329,8 @@ func (r *genericReplacer) lookup(s string, ignoreRoot bool) (val string, keylen 
 			break
 		}
 	}
-	return
+
+	return val, keylen, found
 }
 
 type appendSliceWriter []byte
@@ -332,5 +360,6 @@ func getStringWriter(w io.Writer) io.StringWriter {
 	if !ok {
 		sw = stringWriter{w}
 	}
+
 	return sw
 }

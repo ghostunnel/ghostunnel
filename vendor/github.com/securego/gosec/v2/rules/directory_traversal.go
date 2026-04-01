@@ -13,10 +13,6 @@ type traversal struct {
 	issue.MetaData
 }
 
-func (r *traversal) ID() string {
-	return r.MetaData.ID
-}
-
 func (r *traversal) Match(n ast.Node, ctx *gosec.Context) (*issue.Issue, error) {
 	switch node := n.(type) {
 	case *ast.CallExpr:
@@ -31,7 +27,7 @@ func (r *traversal) matchCallExpr(assign *ast.CallExpr, ctx *gosec.Context) (*is
 			if fun, ok2 := assign.Fun.(*ast.SelectorExpr); ok2 {
 				if x, ok3 := fun.X.(*ast.Ident); ok3 {
 					str := x.Name + "." + fun.Sel.Name + "(" + basiclit.Value + ")"
-					if r.pattern.MatchString(str) {
+					if gosec.RegexMatchWithCache(r.pattern, str) {
 						return ctx.NewIssue(assign, r.ID(), r.What, r.Severity, r.Confidence), nil
 					}
 				}
@@ -54,12 +50,7 @@ func NewDirectoryTraversal(id string, conf gosec.Config) (gosec.Rule, []ast.Node
 	}
 
 	return &traversal{
-		pattern: regexp.MustCompile(pattern),
-		MetaData: issue.MetaData{
-			ID:         id,
-			What:       "Potential directory traversal",
-			Confidence: issue.Medium,
-			Severity:   issue.Medium,
-		},
+		pattern:  regexp.MustCompile(pattern),
+		MetaData: issue.NewMetaData(id, "Potential directory traversal", issue.Medium, issue.Medium),
 	}, []ast.Node{(*ast.CallExpr)(nil)}
 }

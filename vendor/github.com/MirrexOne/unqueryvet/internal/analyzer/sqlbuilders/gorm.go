@@ -4,8 +4,11 @@ package sqlbuilders
 import (
 	"go/ast"
 	"go/token"
+	"go/types"
 	"strings"
 )
+
+const gormPkgPath = "gorm.io/gorm"
 
 // GORMChecker checks gorm.io/gorm for SELECT * patterns.
 type GORMChecker struct{}
@@ -20,35 +23,15 @@ func (c *GORMChecker) Name() string {
 	return "gorm"
 }
 
-// IsApplicable checks if the call might be from GORM.
-func (c *GORMChecker) IsApplicable(call *ast.CallExpr) bool {
+// IsApplicable checks if the call is from GORM using type information.
+func (c *GORMChecker) IsApplicable(info *types.Info, call *ast.CallExpr) bool {
 	sel, ok := call.Fun.(*ast.SelectorExpr)
 	if !ok {
 		return false
 	}
 
-	// GORM methods to check
-	gormMethods := []string{
-		"Select", "Find", "First", "Last", "Take", "Scan",
-		"Model", "Table", "Raw", "Exec", "Pluck",
-		"Preload", "Joins", "Where", "Or", "Not",
-	}
-
-	for _, method := range gormMethods {
-		if sel.Sel.Name == method {
-			return true
-		}
-	}
-
-	// Check for gorm package or DB type
-	if ident, ok := sel.X.(*ast.Ident); ok {
-		lowerName := strings.ToLower(ident.Name)
-		if lowerName == "gorm" || lowerName == "db" {
-			return true
-		}
-	}
-
-	return false
+	// Check if the receiver type is from gorm package
+	return IsTypeFromPackage(info, sel.X, gormPkgPath)
 }
 
 // CheckSelectStar checks for SELECT * in GORM calls.
@@ -58,88 +41,84 @@ func (c *GORMChecker) CheckSelectStar(call *ast.CallExpr) *SelectStarViolation {
 		return nil
 	}
 
-	methodName := sel.Sel.Name
-
-	// Check db.Select("*")
-	if methodName == "Select" {
-		for _, arg := range call.Args {
-			if lit, ok := arg.(*ast.BasicLit); ok && lit.Kind == token.STRING {
-				value := strings.Trim(lit.Value, "`\"")
-				if value == "*" {
-					return &SelectStarViolation{
-						Pos:     call.Pos(),
-						End:     call.End(),
-						Message: "GORM Select(\"*\") - explicitly specify columns",
-						Builder: "gorm",
-						Context: "explicit_star",
-					}
-				}
-				// Check for SELECT * in raw SQL inside Select
-				upperValue := strings.ToUpper(value)
-				if strings.Contains(upperValue, "SELECT *") {
-					return &SelectStarViolation{
-						Pos:     call.Pos(),
-						End:     call.End(),
-						Message: "GORM Select() contains SELECT * - specify columns explicitly",
-						Builder: "gorm",
-						Context: "raw_select_star",
-					}
-				}
-			}
-		}
-	}
-
-	// Check db.Raw("SELECT * FROM ...")
-	if methodName == "Raw" {
-		for _, arg := range call.Args {
-			if lit, ok := arg.(*ast.BasicLit); ok && lit.Kind == token.STRING {
-				value := strings.Trim(lit.Value, "`\"")
-				upperValue := strings.ToUpper(value)
-				if strings.Contains(upperValue, "SELECT *") {
-					return &SelectStarViolation{
-						Pos:     call.Pos(),
-						End:     call.End(),
-						Message: "GORM Raw() with SELECT * - specify columns explicitly",
-						Builder: "gorm",
-						Context: "raw_select_star",
-					}
-				}
-			}
-		}
-	}
-
-	// Check db.Exec("SELECT * FROM ...")
-	if methodName == "Exec" {
-		for _, arg := range call.Args {
-			if lit, ok := arg.(*ast.BasicLit); ok && lit.Kind == token.STRING {
-				value := strings.Trim(lit.Value, "`\"")
-				upperValue := strings.ToUpper(value)
-				if strings.Contains(upperValue, "SELECT *") {
-					return &SelectStarViolation{
-						Pos:     call.Pos(),
-						End:     call.End(),
-						Message: "GORM Exec() with SELECT * - specify columns explicitly",
-						Builder: "gorm",
-						Context: "raw_select_star",
-					}
-				}
-			}
-		}
+	switch sel.Sel.Name {
+	case "Select":
+		return c.checkSelectMethod(call)
+	case "Raw":
+		return c.checkRawMethod(call, "GORM Raw() with SELECT * - specify columns explicitly")
+	case "Exec":
+		return c.checkRawMethod(call, "GORM Exec() with SELECT * - specify columns explicitly")
 	}
 
 	return nil
 }
 
+// checkSelectMethod checks db.Select() for star patterns
+func (c *GORMChecker) checkSelectMethod(call *ast.CallExpr) *SelectStarViolation {
+	for _, arg := range call.Args {
+		lit, ok := arg.(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			continue
+		}
+
+		value := strings.Trim(lit.Value, "`\"")
+		if value == "*" {
+			return &SelectStarViolation{
+				Pos:     call.Pos(),
+				End:     call.End(),
+				Message: "GORM Select(\"*\") - explicitly specify columns",
+				Builder: "gorm",
+				Context: "explicit_star",
+			}
+		}
+
+		if strings.Contains(strings.ToUpper(value), "SELECT *") {
+			return &SelectStarViolation{
+				Pos:     call.Pos(),
+				End:     call.End(),
+				Message: "GORM Select() contains SELECT * - specify columns explicitly",
+				Builder: "gorm",
+				Context: "raw_select_star",
+			}
+		}
+	}
+	return nil
+}
+
+// checkRawMethod checks db.Raw() or db.Exec() for SELECT * patterns
+func (c *GORMChecker) checkRawMethod(call *ast.CallExpr, message string) *SelectStarViolation {
+	for _, arg := range call.Args {
+		lit, ok := arg.(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			continue
+		}
+
+		value := strings.Trim(lit.Value, "`\"")
+		if strings.Contains(strings.ToUpper(value), "SELECT *") {
+			return &SelectStarViolation{
+				Pos:     call.Pos(),
+				End:     call.End(),
+				Message: message,
+				Builder: "gorm",
+				Context: "raw_select_star",
+			}
+		}
+	}
+	return nil
+}
+
 // CheckChainedCalls checks method chains for SELECT * patterns.
+// gormChainState tracks state while traversing GORM call chain
+type gormChainState struct {
+	hasModel  bool
+	hasSelect bool
+	modelCall *ast.CallExpr
+}
+
 func (c *GORMChecker) CheckChainedCalls(call *ast.CallExpr) []*SelectStarViolation {
 	var violations []*SelectStarViolation
+	state := &gormChainState{}
 
-	// Track chain state
-	hasModel := false
-	hasSelect := false
-	var modelCall *ast.CallExpr
-
-	// Traverse the call chain
 	current := call
 	for current != nil {
 		sel, ok := current.Fun.(*ast.SelectorExpr)
@@ -147,49 +126,10 @@ func (c *GORMChecker) CheckChainedCalls(call *ast.CallExpr) []*SelectStarViolati
 			break
 		}
 
-		switch sel.Sel.Name {
-		case "Model", "Table":
-			hasModel = true
-			modelCall = current
-		case "Select":
-			hasSelect = true
-			// Check for "*" argument
-			for _, arg := range current.Args {
-				if lit, ok := arg.(*ast.BasicLit); ok && lit.Kind == token.STRING {
-					value := strings.Trim(lit.Value, "`\"")
-					if value == "*" {
-						violations = append(violations, &SelectStarViolation{
-							Pos:     current.Pos(),
-							End:     current.End(),
-							Message: "GORM Select(\"*\") in chain - specify columns explicitly",
-							Builder: "gorm",
-							Context: "chained_star",
-						})
-					}
-				}
-			}
-		case "Find", "First", "Last", "Take", "Scan":
-			// Terminal methods - check if we have Model without Select
-			if hasModel && !hasSelect && modelCall != nil {
-				violations = append(violations, &SelectStarViolation{
-					Pos:     modelCall.Pos(),
-					End:     current.End(),
-					Message: "GORM Model() with Find/First without Select() defaults to SELECT *",
-					Builder: "gorm",
-					Context: "implicit_star",
-				})
-			}
-		case "Preload":
-			// Preload often uses SELECT * for eager loading - this is common but worth flagging
-			if len(current.Args) > 0 {
-				// Only flag if there's no second argument (no custom SQL)
-				if len(current.Args) == 1 {
-					// Could add a warning about Preload SELECT *
-				}
-			}
+		if v := c.processGormChainMethod(sel.Sel.Name, current, state); v != nil {
+			violations = append(violations, v)
 		}
 
-		// Move to the next call in the chain
 		if innerCall, ok := sel.X.(*ast.CallExpr); ok {
 			current = innerCall
 		} else {
@@ -198,4 +138,53 @@ func (c *GORMChecker) CheckChainedCalls(call *ast.CallExpr) []*SelectStarViolati
 	}
 
 	return violations
+}
+
+// processGormChainMethod processes a single method in the GORM call chain
+func (c *GORMChecker) processGormChainMethod(methodName string, current *ast.CallExpr, state *gormChainState) *SelectStarViolation {
+	switch methodName {
+	case "Model", "Table":
+		state.hasModel = true
+		state.modelCall = current
+	case "Select":
+		state.hasSelect = true
+		return c.checkGormSelectArgs(current)
+	case "Find", "First", "Last", "Take", "Scan":
+		return c.checkGormTerminalMethod(current, state)
+	}
+	return nil
+}
+
+// checkGormSelectArgs checks Select() arguments for "*"
+func (c *GORMChecker) checkGormSelectArgs(current *ast.CallExpr) *SelectStarViolation {
+	for _, arg := range current.Args {
+		lit, ok := arg.(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			continue
+		}
+		if strings.Trim(lit.Value, "`\"") == "*" {
+			return &SelectStarViolation{
+				Pos:     current.Pos(),
+				End:     current.End(),
+				Message: "GORM Select(\"*\") in chain - specify columns explicitly",
+				Builder: "gorm",
+				Context: "chained_star",
+			}
+		}
+	}
+	return nil
+}
+
+// checkGormTerminalMethod checks terminal methods (Find, First, etc.) for implicit SELECT *
+func (c *GORMChecker) checkGormTerminalMethod(current *ast.CallExpr, state *gormChainState) *SelectStarViolation {
+	if state.hasModel && !state.hasSelect && state.modelCall != nil {
+		return &SelectStarViolation{
+			Pos:     state.modelCall.Pos(),
+			End:     current.End(),
+			Message: "GORM Model() with Find/First without Select() defaults to SELECT *",
+			Builder: "gorm",
+			Context: "implicit_star",
+		}
+	}
+	return nil
 }

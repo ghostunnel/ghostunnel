@@ -4,8 +4,8 @@
 # 4d63.com/gochecknoglobals v0.2.2
 ## explicit; go 1.18
 4d63.com/gochecknoglobals/checknoglobals
-# codeberg.org/chavacava/garif v0.2.0
-## explicit; go 1.23
+# codeberg.org/chavacava/garif v0.2.1
+## explicit; go 1.25
 codeberg.org/chavacava/garif
 # codeberg.org/polyfloyd/go-errorlint v1.9.0
 ## explicit; go 1.24.0
@@ -16,7 +16,7 @@ dev.gaijin.team/go/exhaustruct/v4/analyzer
 dev.gaijin.team/go/exhaustruct/v4/internal/comment
 dev.gaijin.team/go/exhaustruct/v4/internal/pattern
 dev.gaijin.team/go/exhaustruct/v4/internal/structure
-# dev.gaijin.team/go/golib v0.6.0
+# dev.gaijin.team/go/golib v0.8.1
 ## explicit; go 1.24
 dev.gaijin.team/go/golib/e
 dev.gaijin.team/go/golib/fields
@@ -64,7 +64,7 @@ github.com/Microsoft/go-winio/internal/fs
 github.com/Microsoft/go-winio/internal/socket
 github.com/Microsoft/go-winio/internal/stringbuffer
 github.com/Microsoft/go-winio/pkg/guid
-# github.com/MirrexOne/unqueryvet v1.4.0
+# github.com/MirrexOne/unqueryvet v1.5.4
 ## explicit; go 1.24.0
 github.com/MirrexOne/unqueryvet
 github.com/MirrexOne/unqueryvet/internal/analyzer
@@ -77,7 +77,7 @@ github.com/OpenPeeDeeP/depguard/v2/internal/utils
 # github.com/agnivade/levenshtein v1.2.1
 ## explicit; go 1.21
 github.com/agnivade/levenshtein
-# github.com/alecthomas/chroma/v2 v2.21.1
+# github.com/alecthomas/chroma/v2 v2.23.1
 ## explicit; go 1.22
 github.com/alecthomas/chroma/v2
 github.com/alecthomas/chroma/v2/formatters
@@ -98,7 +98,7 @@ github.com/alecthomas/units
 # github.com/alexkohler/nakedret/v2 v2.0.6
 ## explicit; go 1.23.0
 github.com/alexkohler/nakedret/v2
-# github.com/alexkohler/prealloc v1.0.1
+# github.com/alexkohler/prealloc v1.1.0
 ## explicit; go 1.24.0
 github.com/alexkohler/prealloc/pkg
 # github.com/alfatraining/structtag v1.0.0
@@ -132,8 +132,8 @@ github.com/blizzy78/varnamelen
 # github.com/bombsimon/wsl/v4 v4.7.0
 ## explicit; go 1.23
 github.com/bombsimon/wsl/v4
-# github.com/bombsimon/wsl/v5 v5.3.0
-## explicit; go 1.23.0
+# github.com/bombsimon/wsl/v5 v5.6.0
+## explicit; go 1.24.0
 github.com/bombsimon/wsl/v5
 # github.com/breml/bidichk v0.3.3
 ## explicit; go 1.23.0
@@ -141,8 +141,8 @@ github.com/breml/bidichk/pkg/bidichk
 # github.com/breml/errchkjson v0.4.1
 ## explicit; go 1.23.0
 github.com/breml/errchkjson
-# github.com/butuzov/ireturn v0.4.0
-## explicit; go 1.23.0
+# github.com/butuzov/ireturn v0.4.1
+## explicit; go 1.25.0
 github.com/butuzov/ireturn/analyzer
 github.com/butuzov/ireturn/analyzer/internal/config
 github.com/butuzov/ireturn/analyzer/internal/types
@@ -177,26 +177,28 @@ github.com/cespare/xxhash/v2
 # github.com/charithe/durationcheck v0.0.11
 ## explicit; go 1.16
 github.com/charithe/durationcheck
-# github.com/charmbracelet/colorprofile v0.2.3-0.20250311203215-f60798e515dc
-## explicit; go 1.18
+# github.com/charmbracelet/colorprofile v0.4.3
+## explicit; go 1.25.0
 github.com/charmbracelet/colorprofile
 # github.com/charmbracelet/lipgloss v1.1.0
 ## explicit; go 1.18
 github.com/charmbracelet/lipgloss
-# github.com/charmbracelet/x/ansi v0.8.0
-## explicit; go 1.18
+# github.com/charmbracelet/x/ansi v0.11.6
+## explicit; go 1.24.2
 github.com/charmbracelet/x/ansi
-github.com/charmbracelet/x/ansi/kitty
 github.com/charmbracelet/x/ansi/parser
-# github.com/charmbracelet/x/cellbuf v0.0.13-0.20250311204145-2c3ea96c31dd
-## explicit; go 1.18
+# github.com/charmbracelet/x/cellbuf v0.0.15
+## explicit; go 1.24.2
 github.com/charmbracelet/x/cellbuf
-# github.com/charmbracelet/x/term v0.2.1
-## explicit; go 1.18
+# github.com/charmbracelet/x/term v0.2.2
+## explicit; go 1.24.0
 github.com/charmbracelet/x/term
 # github.com/ckaznocha/intrange v0.3.1
 ## explicit; go 1.23.0
 github.com/ckaznocha/intrange
+# github.com/clipperhouse/displaywidth v0.11.0
+## explicit; go 1.18
+github.com/clipperhouse/displaywidth
 # github.com/clipperhouse/uax29/v2 v2.7.0
 ## explicit; go 1.18
 github.com/clipperhouse/uax29/v2/graphemes
@@ -211,8 +213,8 @@ github.com/curioswitch/go-reassign/internal/analyzer
 # github.com/cyberdelia/go-metrics-graphite v0.0.0-20161219230853-39f87cc3b432
 ## explicit
 github.com/cyberdelia/go-metrics-graphite
-# github.com/daixiang0/gci v0.13.7
-## explicit; go 1.21
+# github.com/daixiang0/gci v0.14.0
+## explicit; go 1.24.0
 github.com/daixiang0/gci/pkg/config
 github.com/daixiang0/gci/pkg/format
 github.com/daixiang0/gci/pkg/gci
@@ -239,8 +241,8 @@ github.com/deathowl/go-metrics-prometheus
 # github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.1
 ## explicit; go 1.17
 github.com/decred/dcrd/dcrec/secp256k1/v4
-# github.com/denis-tingaikin/go-header v0.5.0
-## explicit; go 1.21
+# github.com/denis-tingaikin/go-header v1.0.0
+## explicit; go 1.23.0
 github.com/denis-tingaikin/go-header
 # github.com/dgraph-io/ristretto/v2 v2.4.0
 ## explicit; go 1.24.0
@@ -275,7 +277,7 @@ github.com/fsnotify/fsnotify/internal
 # github.com/fzipp/gocyclo v0.6.0
 ## explicit; go 1.18
 github.com/fzipp/gocyclo
-# github.com/ghostiam/protogetter v0.3.18
+# github.com/ghostiam/protogetter v0.3.20
 ## explicit; go 1.24.0
 github.com/ghostiam/protogetter
 # github.com/go-critic/go-critic v0.14.3
@@ -285,7 +287,7 @@ github.com/go-critic/go-critic/checkers/internal/astwalk
 github.com/go-critic/go-critic/checkers/internal/lintutil
 github.com/go-critic/go-critic/checkers/rulesdata
 github.com/go-critic/go-critic/linter
-# github.com/go-jose/go-jose/v4 v4.1.3
+# github.com/go-jose/go-jose/v4 v4.1.4
 ## explicit; go 1.24.0
 github.com/go-jose/go-jose/v4
 github.com/go-jose/go-jose/v4/cipher
@@ -341,7 +343,7 @@ github.com/goccy/go-json/internal/encoder/vm_color_indent
 github.com/goccy/go-json/internal/encoder/vm_indent
 github.com/goccy/go-json/internal/errors
 github.com/goccy/go-json/internal/runtime
-# github.com/godoc-lint/godoc-lint v0.11.1
+# github.com/godoc-lint/godoc-lint v0.11.2
 ## explicit; go 1.24.0
 github.com/godoc-lint/godoc-lint/pkg/analysis
 github.com/godoc-lint/godoc-lint/pkg/check
@@ -382,8 +384,8 @@ github.com/golangci/go-printf-func-name/pkg/analyzer
 # github.com/golangci/gofmt v0.0.0-20250106114630-d62b90e6713d
 ## explicit; go 1.22.0
 github.com/golangci/gofmt/gofmt
-# github.com/golangci/golangci-lint/v2 v2.8.0
-## explicit; go 1.24.0
+# github.com/golangci/golangci-lint/v2 v2.11.4
+## explicit; go 1.25.0
 github.com/golangci/golangci-lint/v2/cmd/golangci-lint
 github.com/golangci/golangci-lint/v2/internal/cache
 github.com/golangci/golangci-lint/v2/internal/errorutil
@@ -392,10 +394,9 @@ github.com/golangci/golangci-lint/v2/internal/go/cache
 github.com/golangci/golangci-lint/v2/internal/go/cacheprog
 github.com/golangci/golangci-lint/v2/internal/go/mmap
 github.com/golangci/golangci-lint/v2/internal/go/quoted
-github.com/golangci/golangci-lint/v2/internal/x/tools/analysisflags
-github.com/golangci/golangci-lint/v2/internal/x/tools/analysisinternal
 github.com/golangci/golangci-lint/v2/internal/x/tools/diff
 github.com/golangci/golangci-lint/v2/internal/x/tools/diff/lcs
+github.com/golangci/golangci-lint/v2/internal/x/tools/driverutil
 github.com/golangci/golangci-lint/v2/pkg/commands
 github.com/golangci/golangci-lint/v2/pkg/commands/internal
 github.com/golangci/golangci-lint/v2/pkg/commands/internal/migrate
@@ -551,7 +552,7 @@ github.com/golangci/golangci-lint/v2/pkg/report
 github.com/golangci/golangci-lint/v2/pkg/result
 github.com/golangci/golangci-lint/v2/pkg/result/processors
 github.com/golangci/golangci-lint/v2/pkg/timeutils
-# github.com/golangci/golines v0.14.0
+# github.com/golangci/golines v0.15.0
 ## explicit; go 1.24.0
 github.com/golangci/golines/shorten
 github.com/golangci/golines/shorten/internal
@@ -559,7 +560,7 @@ github.com/golangci/golines/shorten/internal/annotation
 github.com/golangci/golines/shorten/internal/comments
 github.com/golangci/golines/shorten/internal/graph
 github.com/golangci/golines/shorten/internal/tags
-# github.com/golangci/misspell v0.7.0
+# github.com/golangci/misspell v0.8.0
 ## explicit; go 1.23.0
 github.com/golangci/misspell
 # github.com/golangci/plugin-module-register v0.1.2
@@ -608,7 +609,7 @@ github.com/hashicorp/go-immutable-radix/v2
 # github.com/hashicorp/go-syslog v1.0.0
 ## explicit
 github.com/hashicorp/go-syslog
-# github.com/hashicorp/go-version v1.8.0
+# github.com/hashicorp/go-version v1.9.0
 ## explicit
 github.com/hashicorp/go-version
 # github.com/hashicorp/golang-lru/v2 v2.0.7
@@ -626,8 +627,8 @@ github.com/inconshreveable/mousetrap
 # github.com/integralist/go-findroot v0.0.0-20160518114804-ac90681525dc
 ## explicit
 github.com/integralist/go-findroot/find
-# github.com/jgautheron/goconst v1.8.2
-## explicit; go 1.16
+# github.com/jgautheron/goconst v1.9.0
+## explicit; go 1.23
 github.com/jgautheron/goconst
 # github.com/jingyugao/rowserrcheck v1.1.1
 ## explicit; go 1.13
@@ -644,7 +645,7 @@ github.com/karamaru-alpha/copyloopvar
 # github.com/kavu/go_reuseport v1.5.0
 ## explicit
 github.com/kavu/go_reuseport
-# github.com/kisielk/errcheck v1.9.0
+# github.com/kisielk/errcheck v1.10.0
 ## explicit; go 1.22.0
 github.com/kisielk/errcheck/errcheck
 # github.com/kkHAIKE/contextcheck v1.1.6
@@ -708,7 +709,7 @@ github.com/lestrrat-go/dsig-secp256k1
 # github.com/lestrrat-go/httpcc v1.0.1
 ## explicit; go 1.16
 github.com/lestrrat-go/httpcc
-# github.com/lestrrat-go/httprc/v3 v3.0.4
+# github.com/lestrrat-go/httprc/v3 v3.0.5
 ## explicit; go 1.23.0
 github.com/lestrrat-go/httprc/v3
 github.com/lestrrat-go/httprc/v3/errsink
@@ -747,20 +748,20 @@ github.com/lestrrat-go/jwx/v3/transform
 # github.com/lestrrat-go/option/v2 v2.0.0
 ## explicit; go 1.23
 github.com/lestrrat-go/option/v2
-# github.com/letsencrypt/pkcs11key/v4 v4.0.0
-## explicit; go 1.12
+# github.com/letsencrypt/pkcs11key/v4 v4.0.1
+## explicit; go 1.17
 github.com/letsencrypt/pkcs11key/v4
 # github.com/libdns/libdns v1.1.1
 ## explicit; go 1.18
 github.com/libdns/libdns
-# github.com/lucasb-eyer/go-colorful v1.2.0
+# github.com/lucasb-eyer/go-colorful v1.4.0
 ## explicit; go 1.12
 github.com/lucasb-eyer/go-colorful
 # github.com/macabu/inamedparam v0.2.0
 ## explicit; go 1.23.0
 github.com/macabu/inamedparam
-# github.com/magefile/mage v1.16.1
-## explicit; go 1.12
+# github.com/magefile/mage v1.17.1
+## explicit; go 1.18
 github.com/magefile/mage
 github.com/magefile/mage/internal
 github.com/magefile/mage/mage
@@ -794,13 +795,14 @@ github.com/mattn/go-isatty
 # github.com/mattn/go-runewidth v0.0.21
 ## explicit; go 1.20
 github.com/mattn/go-runewidth
-# github.com/mgechev/revive v1.13.0
-## explicit; go 1.24.0
+# github.com/mgechev/revive v1.15.0
+## explicit; go 1.25.0
 github.com/mgechev/revive/config
 github.com/mgechev/revive/formatter
 github.com/mgechev/revive/internal/astutils
 github.com/mgechev/revive/internal/ifelse
 github.com/mgechev/revive/internal/rule
+github.com/mgechev/revive/internal/syncset
 github.com/mgechev/revive/internal/typeparams
 github.com/mgechev/revive/lint
 github.com/mgechev/revive/logging
@@ -819,7 +821,7 @@ github.com/mholt/archiver
 # github.com/miekg/dns v1.1.72
 ## explicit; go 1.24.0
 github.com/miekg/dns
-# github.com/miekg/pkcs11 v1.1.1
+# github.com/miekg/pkcs11 v1.1.2
 ## explicit; go 1.12
 github.com/miekg/pkcs11
 # github.com/mitchellh/go-homedir v1.1.0
@@ -845,8 +847,8 @@ github.com/nishanths/exhaustive
 # github.com/nishanths/predeclared v0.2.2
 ## explicit; go 1.14
 github.com/nishanths/predeclared/passes/predeclared
-# github.com/nunnatsa/ginkgolinter v0.21.2
-## explicit; go 1.24.0
+# github.com/nunnatsa/ginkgolinter v0.23.0
+## explicit; go 1.25.0
 github.com/nunnatsa/ginkgolinter
 github.com/nunnatsa/ginkgolinter/config
 github.com/nunnatsa/ginkgolinter/internal/expression
@@ -868,7 +870,7 @@ github.com/nunnatsa/ginkgolinter/version
 # github.com/nwaples/rardecode v1.1.3
 ## explicit
 github.com/nwaples/rardecode
-# github.com/open-policy-agent/opa v1.14.1
+# github.com/open-policy-agent/opa v1.15.1
 ## explicit; go 1.25.0
 github.com/open-policy-agent/opa/capabilities
 github.com/open-policy-agent/opa/internal/bundle
@@ -941,11 +943,10 @@ github.com/open-policy-agent/opa/v1/types
 github.com/open-policy-agent/opa/v1/util
 github.com/open-policy-agent/opa/v1/util/decoding
 github.com/open-policy-agent/opa/v1/version
-# github.com/pelletier/go-toml/v2 v2.2.4
+# github.com/pelletier/go-toml/v2 v2.3.0
 ## explicit; go 1.21.0
 github.com/pelletier/go-toml/v2
 github.com/pelletier/go-toml/v2/internal/characters
-github.com/pelletier/go-toml/v2/internal/danger
 github.com/pelletier/go-toml/v2/internal/tracker
 github.com/pelletier/go-toml/v2/unstable
 # github.com/pierrec/lz4 v2.6.1+incompatible
@@ -1035,8 +1036,8 @@ github.com/rogpeppe/go-internal/robustio
 # github.com/ryancurrah/gomodguard v1.4.1
 ## explicit; go 1.23.0
 github.com/ryancurrah/gomodguard
-# github.com/ryanrolds/sqlclosecheck v0.5.1
-## explicit; go 1.20
+# github.com/ryanrolds/sqlclosecheck v0.6.0
+## explicit; go 1.25.0
 github.com/ryanrolds/sqlclosecheck/pkg/analyzer
 # github.com/sagikazarmark/locafero v0.12.0
 ## explicit; go 1.23.0
@@ -1056,13 +1057,15 @@ github.com/sashamelentyev/interfacebloat/pkg/analyzer
 ## explicit; go 1.23.0
 github.com/sashamelentyev/usestdlibvars/pkg/analyzer
 github.com/sashamelentyev/usestdlibvars/pkg/analyzer/internal/mapping
-# github.com/securego/gosec/v2 v2.22.11
-## explicit; go 1.24.0
+# github.com/securego/gosec/v2 v2.25.0
+## explicit; go 1.25.0
 github.com/securego/gosec/v2
 github.com/securego/gosec/v2/analyzers
 github.com/securego/gosec/v2/cwe
+github.com/securego/gosec/v2/internal/ssautil
 github.com/securego/gosec/v2/issue
 github.com/securego/gosec/v2/rules
+github.com/securego/gosec/v2/taint
 # github.com/segmentio/asm v1.2.1
 ## explicit; go 1.18
 github.com/segmentio/asm/base64
@@ -1082,7 +1085,7 @@ github.com/sivchari/containedctx
 ## explicit; go 1.14
 github.com/smallstep/pkcs7
 github.com/smallstep/pkcs7/internal/legacy/x509
-# github.com/sonatard/noctx v0.4.0
+# github.com/sonatard/noctx v0.5.1
 ## explicit; go 1.23.0
 github.com/sonatard/noctx
 # github.com/sourcegraph/go-diff v0.7.0
@@ -1136,7 +1139,7 @@ github.com/ssgreg/nlreturn/v2/pkg/nlreturn
 # github.com/stbenjam/no-sprintf-host-port v0.3.1
 ## explicit; go 1.24.0
 github.com/stbenjam/no-sprintf-host-port/pkg/analyzer
-# github.com/stretchr/objx v0.5.2
+# github.com/stretchr/objx v0.5.3
 ## explicit; go 1.20
 github.com/stretchr/objx
 # github.com/stretchr/testify v1.11.1
@@ -1151,11 +1154,11 @@ github.com/subosito/gotenv
 # github.com/tchap/go-patricia/v2 v2.3.3
 ## explicit; go 1.16
 github.com/tchap/go-patricia/v2/patricia
-# github.com/tetafro/godot v1.5.4
+# github.com/tetafro/godot v1.5.6
 ## explicit; go 1.22
 github.com/tetafro/godot
-# github.com/timakin/bodyclose v0.0.0-20241222091800-1db5c5ca4d67
-## explicit; go 1.12
+# github.com/timakin/bodyclose v0.0.0-20260129054331-73d1f95b84b4
+## explicit; go 1.22
 github.com/timakin/bodyclose/passes/bodyclose
 # github.com/timonwong/loggercheck v0.11.0
 ## explicit; go 1.22.0
@@ -1185,8 +1188,8 @@ github.com/ultraware/funlen
 # github.com/ultraware/whitespace v0.2.0
 ## explicit; go 1.20
 github.com/ultraware/whitespace
-# github.com/uudashr/gocognit v1.2.0
-## explicit; go 1.19
+# github.com/uudashr/gocognit v1.2.1
+## explicit; go 1.24.0
 github.com/uudashr/gocognit
 # github.com/uudashr/iface v1.4.1
 ## explicit; go 1.23.0
@@ -1267,7 +1270,7 @@ go-simpler.org/musttag
 # go-simpler.org/sloglint v0.11.1
 ## explicit; go 1.23.0
 go-simpler.org/sloglint
-# go.augendre.info/arangolint v0.3.1
+# go.augendre.info/arangolint v0.4.0
 ## explicit; go 1.24.0
 go.augendre.info/arangolint/pkg/analyzer
 # go.augendre.info/fatcontext v0.9.0
@@ -1277,11 +1280,6 @@ go.augendre.info/fatcontext/pkg/analyzer
 ## explicit; go 1.25.0
 # go.opentelemetry.io/otel/sdk/metric v1.42.0
 ## explicit; go 1.25.0
-# go.uber.org/automaxprocs v1.6.0
-## explicit; go 1.20
-go.uber.org/automaxprocs/internal/cgroups
-go.uber.org/automaxprocs/internal/runtime
-go.uber.org/automaxprocs/maxprocs
 # go.uber.org/multierr v1.11.0
 ## explicit; go 1.19
 go.uber.org/multierr
@@ -1311,10 +1309,8 @@ golang.org/x/crypto/cryptobyte
 golang.org/x/crypto/cryptobyte/asn1
 golang.org/x/crypto/ocsp
 golang.org/x/crypto/pbkdf2
-# golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f
-## explicit; go 1.22.0
-# golang.org/x/exp/typeparams v0.0.0-20251023183803-a4bb9ffd2546
-## explicit; go 1.24.0
+# golang.org/x/exp/typeparams v0.0.0-20260312153236-7ab1446f8b90
+## explicit; go 1.25.0
 golang.org/x/exp/typeparams
 # golang.org/x/mod v0.34.0
 ## explicit; go 1.25.0
@@ -1432,6 +1428,9 @@ golang.org/x/tools/go/ast/astutil
 golang.org/x/tools/go/ast/edge
 golang.org/x/tools/go/ast/inspector
 golang.org/x/tools/go/buildutil
+golang.org/x/tools/go/callgraph
+golang.org/x/tools/go/callgraph/cha
+golang.org/x/tools/go/callgraph/internal/chautil
 golang.org/x/tools/go/cfg
 golang.org/x/tools/go/gcexportdata
 golang.org/x/tools/go/internal/cgo
@@ -1468,7 +1467,7 @@ golang.org/x/tools/internal/typesinternal
 golang.org/x/tools/internal/typesinternal/typeindex
 golang.org/x/tools/internal/versions
 golang.org/x/tools/refactor/satisfy
-# google.golang.org/genproto/googleapis/rpc v0.0.0-20260319201613-d00831a3d3e7
+# google.golang.org/genproto/googleapis/rpc v0.0.0-20260401024825-9d38bb4040a9
 ## explicit; go 1.25.0
 google.golang.org/genproto/googleapis/rpc/status
 # google.golang.org/grpc v1.79.3
@@ -1574,8 +1573,8 @@ google.golang.org/protobuf/types/known/timestamppb
 # gopkg.in/yaml.v3 v3.0.1
 ## explicit
 gopkg.in/yaml.v3
-# honnef.co/go/tools v0.6.1
-## explicit; go 1.23
+# honnef.co/go/tools v0.7.0
+## explicit; go 1.25.0
 honnef.co/go/tools/analysis/callcheck
 honnef.co/go/tools/analysis/code
 honnef.co/go/tools/analysis/edit
@@ -1593,8 +1592,10 @@ honnef.co/go/tools/go/ast/astutil
 honnef.co/go/tools/go/ir
 honnef.co/go/tools/go/ir/irutil
 honnef.co/go/tools/go/types/typeutil
+honnef.co/go/tools/internal/analysisinternal/typeindex
 honnef.co/go/tools/internal/passes/buildir
 honnef.co/go/tools/internal/sharedcheck
+honnef.co/go/tools/internal/typesinternal/typeindex
 honnef.co/go/tools/knowledge
 honnef.co/go/tools/pattern
 honnef.co/go/tools/printf

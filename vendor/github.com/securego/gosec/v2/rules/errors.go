@@ -27,10 +27,6 @@ type noErrorCheck struct {
 	whitelist gosec.CallList
 }
 
-func (r *noErrorCheck) ID() string {
-	return r.MetaData.ID
-}
-
 func returnsError(callExpr *ast.CallExpr, ctx *gosec.Context) int {
 	if tv := ctx.Info.TypeOf(callExpr); tv != nil {
 		switch t := tv.(type) {
@@ -89,6 +85,7 @@ func NewNoErrorCheck(id string, conf gosec.Config) (gosec.Rule, []ast.Node) {
 	whitelist.Add("io.PipeWriter", "CloseWithError")
 	whitelist.Add("hash.Hash", "Write")
 	whitelist.Add("os", "Unsetenv")
+	whitelist.Add("rand", "Read")
 
 	if configured, ok := conf[id]; ok {
 		if whitelisted, ok := configured.(map[string]interface{}); ok {
@@ -101,12 +98,7 @@ func NewNoErrorCheck(id string, conf gosec.Config) (gosec.Rule, []ast.Node) {
 	}
 
 	return &noErrorCheck{
-		MetaData: issue.MetaData{
-			ID:         id,
-			Severity:   issue.Low,
-			Confidence: issue.High,
-			What:       "Errors unhandled",
-		},
+		MetaData:  issue.NewMetaData(id, "Errors unhandled", issue.Low, issue.High),
 		whitelist: whitelist,
 	}, []ast.Node{(*ast.AssignStmt)(nil), (*ast.ExprStmt)(nil)}
 }

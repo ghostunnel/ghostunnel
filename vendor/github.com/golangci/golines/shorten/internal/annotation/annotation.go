@@ -62,6 +62,9 @@ func HasRecursive[T dst.Node](node T) bool {
 
 	case *dst.FieldList:
 		return slices.ContainsFunc(n.List, HasRecursive)
+
+	case *dst.CompositeLit:
+		return slices.ContainsFunc(n.Elts, HasRecursive)
 	}
 
 	return false

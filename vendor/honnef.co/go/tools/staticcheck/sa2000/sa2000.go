@@ -10,14 +10,13 @@ import (
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "SA2000",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer},
+		Requires: code.RequiredAnalyzers,
 	},
 	Doc: &lint.RawDocumentation{
 		Title:    `\'sync.WaitGroup.Add\' called inside the goroutine, leading to a race condition`,
@@ -36,13 +35,10 @@ var checkWaitgroupAddQ = pattern.MustParse(`
 				_
 				call@(CallExpr (Symbol "(*sync.WaitGroup).Add") _):_) _))`)
 
-func run(pass *analysis.Pass) (interface{}, error) {
-	fn := func(node ast.Node) {
-		if m, ok := code.Match(pass, checkWaitgroupAddQ, node); ok {
-			call := m.State["call"].(ast.Node)
-			report.Report(pass, call, fmt.Sprintf("should call %s before starting the goroutine to avoid a race", report.Render(pass, call)))
-		}
+func run(pass *analysis.Pass) (any, error) {
+	for _, m := range code.Matches(pass, checkWaitgroupAddQ) {
+		call := m.State["call"].(ast.Node)
+		report.Report(pass, call, fmt.Sprintf("should call %s before starting the goroutine to avoid a race", report.Render(pass, call)))
 	}
-	code.Preorder(pass, fn, (*ast.GoStmt)(nil))
 	return nil, nil
 }

@@ -7,6 +7,7 @@ func ByteToUpper(x byte) byte {
 	c := b - byte(0x61)
 	d := ^(b - byte(0x7b))
 	e := (c & d) & (^x & 0x7f)
+
 	return x - (e >> 2)
 }
 
@@ -16,6 +17,7 @@ func ByteToLower(eax byte) byte {
 	ebx := eax&byte(0x7f) + byte(0x25)
 	ebx = ebx&byte(0x7f) + byte(0x1a)
 	ebx = ((ebx & ^eax) >> 2) & byte(0x20)
+
 	return eax + ebx
 }
 
@@ -32,18 +34,21 @@ func StringEqualFold(s1, s2 string) bool {
 	if len(s1) != len(s2) {
 		return false
 	}
+
 	for i := range len(s1) {
 		c1 := s1[i]
 		c2 := s2[i]
 		// c1 & c2
 		if c1 != c2 {
 			c1 |= 'a' - 'A'
+
 			c2 |= 'a' - 'A'
 			if c1 != c2 || c1 < 'a' || c1 > 'z' {
 				return false
 			}
 		}
 	}
+
 	return true
 }
 
@@ -53,8 +58,10 @@ func StringHasPrefixFold(s1, s2 string) bool {
 	if len(s1) < len(s2) {
 		return false
 	}
+
 	if len(s1) == len(s2) {
 		return StringEqualFold(s1, s2)
 	}
+
 	return StringEqualFold(s1[:len(s2)], s2)
 }

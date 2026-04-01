@@ -24,6 +24,7 @@ var (
 //	TODO: windows style.
 func RemovePath(s string) string {
 	out := bytes.Buffer{}
+
 	var idx int
 	for s != "" {
 		if idx = strings.IndexByte(s, '/'); idx == -1 {
@@ -36,6 +37,7 @@ func RemovePath(s string) string {
 		}
 
 		var chclass string
+
 		switch s[idx] {
 		case '/', ' ', '\n', '\t', '\r':
 			chclass = " \n\r\t"
@@ -46,6 +48,7 @@ func RemovePath(s string) string {
 		default:
 			out.WriteString(s[:idx+2])
 			s = s[idx+2:]
+
 			continue
 		}
 
@@ -59,6 +62,7 @@ func RemovePath(s string) string {
 			break
 		}
 	}
+
 	return out.String()
 }
 

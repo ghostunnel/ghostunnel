@@ -8,6 +8,16 @@ import (
 var (
 	errorType         *gotypes.Interface
 	gomegaMatcherType *gotypes.Interface
+	tbTypes           = []*gotypes.Interface{
+		// In practice, interfaces which mimick testing.TB probably implement
+		// more than one of these at the same time. But for ImplementsTB
+		// it's sufficient to have just one method which can be used
+		// to report a test failure.
+		tbInterface("Error", false),
+		tbInterface("Errorf", true),
+		tbInterface("Fatal", false),
+		tbInterface("Fatalf", true),
+	}
 )
 
 func init() {
@@ -75,4 +85,33 @@ func ImplementsError(t gotypes.Type) bool {
 // ImplementsGomegaMatcher checks if a type implements the GomegaMatcher interface
 func ImplementsGomegaMatcher(t gotypes.Type) bool {
 	return t != nil && gotypes.Implements(t, gomegaMatcherType)
+}
+
+// ImplementsTB checks if the argument type implements any of the methods in testing.TB which
+// can be used to report test failures. Such a type is a potential alternative to a Gomega
+// parameter in some Gomega wrappers.
+func ImplementsTB(t gotypes.Type) bool {
+	for _, tbType := range tbTypes {
+		if gotypes.Implements(t, tbType) {
+			return true
+		}
+	}
+	return false
+}
+
+// tbInterface generates an interface type with exactly one method
+// which has the given name and Printf or Println signature.
+func tbInterface(name string, printf bool) *gotypes.Interface {
+	var params []*gotypes.Var
+	if printf {
+		params = append(params, gotypes.NewVar(0, nil, "", gotypes.Typ[gotypes.String]))
+	}
+	params = append(params, gotypes.NewVar(0, nil, "", gotypes.NewSlice(gotypes.Universe.Lookup("any").Type())))
+	signature := gotypes.NewSignatureType(nil, nil, nil,
+		gotypes.NewTuple(params...),
+		gotypes.NewTuple(),
+		true,
+	)
+	method := gotypes.NewFunc(0, nil, name, signature)
+	return gotypes.NewInterfaceType([]*gotypes.Func{method}, nil)
 }

@@ -117,10 +117,12 @@ func (r *StartWithNameChecker) Apply(actx *model.AnalysisContext) error {
 	return nil
 }
 
-var startPattern = regexp.MustCompile(`^(?:(A|a|AN|An|an|THE|The|the) )?(?P<symbol_name>.+?)\b`)
-var startPatternSymbolNameIndex = startPattern.SubexpIndex("symbol_name")
+var (
+	startPattern                = regexp.MustCompile(`^(?:(A|a|AN|An|an|THE|The|the) )?(?P<symbol_name>.+?)\b`)
+	startPatternSymbolNameIndex = startPattern.SubexpIndex("symbol_name")
+)
 
-func matchSymbolName(text string, symbol string) bool {
+func matchSymbolName(text, symbol string) bool {
 	head := strings.SplitN(text, "\n", 2)[0]
 	head, _ = strings.CutPrefix(head, "\r")
 	head = strings.SplitN(head, " ", 2)[0]

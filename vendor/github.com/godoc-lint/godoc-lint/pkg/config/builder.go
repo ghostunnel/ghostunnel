@@ -319,7 +319,7 @@ func transferPrimitiveOptions(target *model.RuleOptions, source *PlainRuleOption
 	transferIfNotNil(&target.NoUnusedLinkIncludeTests, source.NoUnusedLinkIncludeTests)
 }
 
-func transferIfNotNil[T any](dst *T, src *T) {
+func transferIfNotNil[T any](dst, src *T) {
 	if src == nil {
 		return
 	}

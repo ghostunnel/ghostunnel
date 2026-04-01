@@ -16,11 +16,17 @@ import (
 var Analyzer = &analysis.Analyzer{
 	Name: "bodyclose",
 	Doc:  Doc,
-	Run:  new(runner).run,
+	Run:  run,
 	Requires: []*analysis.Analyzer{
 		buildssa.Analyzer,
 	},
 }
+
+func init() {
+	Analyzer.Flags.BoolVar(&checkConsumptionFlag, "check-consumption", false, "also check that response body is consumed")
+}
+
+var checkConsumptionFlag bool
 
 const (
 	Doc = "checks whether HTTP response body is closed successfully"
@@ -30,18 +36,21 @@ const (
 )
 
 type runner struct {
-	pass      *analysis.Pass
-	resObj    types.Object
-	resTyp    *types.Pointer
-	bodyObj   types.Object
-	closeMthd *types.Func
-	skipFile  map[*ast.File]bool
+	pass             *analysis.Pass
+	resObj           types.Object
+	resTyp           *types.Pointer
+	bodyObj          types.Object
+	closeMthd        *types.Func
+	skipFile         map[*ast.File]bool
+	checkConsumption bool
 }
 
-// run executes an analysis for the pass. The receiver is passed
-// by value because this func is called in parallel for different passes.
-func (r runner) run(pass *analysis.Pass) (interface{}, error) {
-	r.pass = pass
+// run executes an analysis for the pass
+func run(pass *analysis.Pass) (interface{}, error) {
+	r := runner{
+		pass:             pass,
+		checkConsumption: checkConsumptionFlag,
+	}
 	funcs := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs
 
 	r.resObj = analysisutil.LookupFromImports(pass.Pkg.Imports(), nethttpPath, "Response")
@@ -96,7 +105,11 @@ FuncLoop:
 			for i := range b.Instrs {
 				pos := b.Instrs[i].Pos()
 				if r.isopen(b, i) {
-					pass.Reportf(pos, "response body must be closed")
+					if r.checkConsumption {
+						pass.Reportf(pos, "response body must be closed and consumed")
+					} else {
+						pass.Reportf(pos, "response body must be closed")
+					}
 				}
 			}
 		}
@@ -216,11 +229,8 @@ func (r *runner) isopen(b *ssa.BasicBlock, i int) bool {
 					if len(*bOp.Referrers()) == 0 {
 						return true
 					}
-					ccalls := *bOp.Referrers()
-					for _, ccall := range ccalls {
-						if r.isCloseCall(ccall) {
-							return false
-						}
+					if r.isBodyProperlyHandled(bOp) {
+						return false
 					}
 				}
 			case *ssa.Phi: // Called in the higher-level block
@@ -242,11 +252,8 @@ func (r *runner) isopen(b *ssa.BasicBlock, i int) bool {
 							if len(*bOp.Referrers()) == 0 {
 								return true
 							}
-							ccalls := *bOp.Referrers()
-							for _, ccall := range ccalls {
-								if r.isCloseCall(ccall) {
-									return false
-								}
+							if r.isBodyProperlyHandled(bOp) {
+								return false
 							}
 						}
 					}
@@ -268,6 +275,7 @@ func (r *runner) getReqCall(instr ssa.Instruction) (*ssa.Call, bool) {
 		strings.Contains(callType, "net/http.ResponseController") {
 		return nil, false
 	}
+
 	return call, true
 }
 
@@ -298,6 +306,102 @@ func (r *runner) getBodyOp(instr ssa.Instruction) (*ssa.UnOp, bool) {
 		return nil, false
 	}
 	return op, true
+}
+
+// isBodyProperlyHandled checks if response body is properly handled (closed and optionally consumed based on flag)
+func (r *runner) isBodyProperlyHandled(bOp *ssa.UnOp) bool {
+	ccalls := *bOp.Referrers()
+
+	for _, ccall := range ccalls {
+		if r.isCloseCall(ccall) {
+			// Early return if consumption checking is disabled
+			if !r.checkConsumption {
+				return true
+			}
+			// Close found and consumption checking enabled - check consumption
+			return r.hasConsumptionForBody(bOp)
+		}
+	}
+
+	// No close call found
+	return false
+}
+
+// hasConsumptionForBody searches the function for consumption calls that use the specific response body
+func (r *runner) hasConsumptionForBody(bodyOp *ssa.UnOp) bool {
+	fn := bodyOp.Block().Parent()
+
+	// Search for consumption functions that specifically consume this response body
+	for _, block := range fn.Blocks {
+		for _, blockInstr := range block.Instrs {
+			if call, ok := blockInstr.(*ssa.Call); ok {
+				if r.isConsumptionFunction(call) && r.isCallUsingBody(call, bodyOp) {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+// isCallUsingBody checks if a consumption function call uses the specific response body
+func (r *runner) isCallUsingBody(call *ssa.Call, responseBodyOp *ssa.UnOp) bool {
+	// Get the FieldAddr of the response body we're checking
+	responseBodyFieldAddr, ok := responseBodyOp.X.(*ssa.FieldAddr)
+	if !ok {
+		return false
+	}
+
+	// Check if any argument to the call refers to this specific response body
+	for _, arg := range call.Call.Args {
+		if r.isArgumentMatchingBody(arg, responseBodyFieldAddr) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isArgumentMatchingBody checks if a function argument refers to the same response body instance
+func (r *runner) isArgumentMatchingBody(arg ssa.Value, responseBodyFieldAddr *ssa.FieldAddr) bool {
+	switch v := arg.(type) {
+	case *ssa.FieldAddr:
+		// Direct field access - check if it's accessing Body field of same response
+		return v.X == responseBodyFieldAddr.X && v.Field == responseBodyFieldAddr.Field
+	case *ssa.UnOp:
+		// Dereference of field access - check if it's dereferencing the same response body field
+		if fieldAddr, ok := v.X.(*ssa.FieldAddr); ok {
+			return fieldAddr.X == responseBodyFieldAddr.X && fieldAddr.Field == responseBodyFieldAddr.Field
+		}
+	case *ssa.ChangeInterface:
+		// Type conversion - check if it converts the response body
+		if unOp, ok := v.X.(*ssa.UnOp); ok {
+			if fieldAddr, ok := unOp.X.(*ssa.FieldAddr); ok {
+				return fieldAddr.X == responseBodyFieldAddr.X && fieldAddr.Field == responseBodyFieldAddr.Field
+			}
+		}
+	}
+	return false
+}
+
+func (r *runner) isConsumptionFunction(call *ssa.Call) bool {
+	if call.Call.StaticCallee() != nil {
+		callee := call.Call.StaticCallee()
+		if callee.Pkg != nil {
+			pkg := callee.Pkg.Pkg.Path()
+			name := callee.Name()
+
+			// Check for known consumption functions
+			if (pkg == "io" && (name == "Copy" || name == "ReadAll")) ||
+				(pkg == "io/ioutil" && name == "ReadAll") ||
+				(pkg == "encoding/json" && name == "NewDecoder") ||
+				(pkg == "bufio" && (name == "NewScanner" || name == "NewReader")) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (r *runner) isCloseCall(ccall ssa.Instruction) bool {

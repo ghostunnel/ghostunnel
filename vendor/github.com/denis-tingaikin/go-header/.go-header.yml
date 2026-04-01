@@ -1,8 +1,7 @@
-values:
-  regexp:
-    copyright-holder: Copyright \(c\) {{mod-year-range}} Denis Tingaikin
-template: |
-  {{copyright-holder}}
+vars:
+  copyright_holder: "{{ .MOD_YEAR_RANGE}} Denis Tingaikin"
+template: |-
+  Copyright (c) {{ .copyright_holder }}
 
   SPDX-License-Identifier: Apache-2.0
 

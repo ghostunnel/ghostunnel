@@ -338,6 +338,10 @@ type Or struct {
 	Nodes []Node
 }
 
+type And struct {
+	Nodes []Node
+}
+
 type Not struct {
 	Node Node
 }
@@ -346,6 +350,12 @@ type Not struct {
 // It is constant even under varying build tags.
 type TrulyConstantExpression struct {
 	Value Node
+}
+
+type IndexSymbol struct {
+	Path  string
+	Type  string
+	Ident string
 }
 
 func stringify(n Node) string {
@@ -408,15 +418,30 @@ func (el Ellipsis) String() string                  { return stringify(el) }
 func (not Not) String() string                      { return stringify(not) }
 func (lit IntegerLiteral) String() string           { return stringify(lit) }
 func (expr TrulyConstantExpression) String() string { return stringify(expr) }
+func (sym IndexSymbol) String() string {
+	return fmt.Sprintf("(IndexSymbol %q %q %q)", sym.Path, sym.Type, sym.Ident)
+}
 
 func (or Or) String() string {
-	s := "(Or"
+	var s strings.Builder
+	s.WriteString("(Or")
 	for _, node := range or.Nodes {
-		s += " "
-		s += node.String()
+		s.WriteString(" ")
+		s.WriteString(node.String())
 	}
-	s += ")"
-	return s
+	s.WriteString(")")
+	return s.String()
+}
+
+func (and And) String() string {
+	var s strings.Builder
+	s.WriteString("(And")
+	for _, node := range and.Nodes {
+		s.WriteString(" ")
+		s.WriteString(node.String())
+	}
+	s.WriteString(")")
+	return s.String()
 }
 
 func isProperList(l List) bool {
@@ -514,6 +539,7 @@ func (Object) isNode()                  {}
 func (Symbol) isNode()                  {}
 func (Ellipsis) isNode()                {}
 func (Or) isNode()                      {}
+func (And) isNode()                     {}
 func (List) isNode()                    {}
 func (String) isNode()                  {}
 func (Token) isNode()                   {}
@@ -522,3 +548,4 @@ func (Binding) isNode()                 {}
 func (Not) isNode()                     {}
 func (IntegerLiteral) isNode()          {}
 func (TrulyConstantExpression) isNode() {}
+func (IndexSymbol) isNode()             {}

@@ -4,8 +4,11 @@ package sqlbuilders
 import (
 	"go/ast"
 	"go/token"
+	"go/types"
 	"strings"
 )
+
+const sqlboilerPkgPath = "github.com/volatiletech/sqlboiler"
 
 // SQLBoilerChecker checks github.com/volatiletech/sqlboiler for SELECT * patterns.
 type SQLBoilerChecker struct{}
@@ -20,29 +23,30 @@ func (c *SQLBoilerChecker) Name() string {
 	return "sqlboiler"
 }
 
-// IsApplicable checks if the call might be from sqlboiler.
-func (c *SQLBoilerChecker) IsApplicable(call *ast.CallExpr) bool {
+// IsApplicable checks if the call is from sqlboiler using type information.
+func (c *SQLBoilerChecker) IsApplicable(info *types.Info, call *ast.CallExpr) bool {
 	sel, ok := call.Fun.(*ast.SelectorExpr)
 	if !ok {
 		return false
 	}
 
-	// SQLBoiler methods
-	sqlboilerMethods := []string{
-		"All", "One", "Count", "Exists",
-		"Select", "Load", "Reload",
+	// Check if the receiver type is from sqlboiler package
+	if IsTypeFromPackage(info, sel.X, sqlboilerPkgPath) {
+		return true
 	}
 
-	for _, method := range sqlboilerMethods {
-		if sel.Sel.Name == method {
-			return true
-		}
-	}
-
-	// Check for qm (query mods) package
+	// Check for qm (query mods) package - verify via type info
 	if ident, ok := sel.X.(*ast.Ident); ok {
-		if ident.Name == "qm" {
-			return true
+		if info != nil {
+			if obj := info.Uses[ident]; obj != nil {
+				// For package-level function calls like qm.Select(), obj is *types.PkgName
+				if pkgName, ok := obj.(*types.PkgName); ok {
+					pkgPath := pkgName.Imported().Path()
+					if len(pkgPath) >= len(sqlboilerPkgPath) && pkgPath[:len(sqlboilerPkgPath)] == sqlboilerPkgPath {
+						return true
+					}
+				}
+			}
 		}
 	}
 
@@ -98,29 +102,16 @@ func (c *SQLBoilerChecker) CheckChainedCalls(call *ast.CallExpr) []*SelectStarVi
 	if sel.Sel.Name == "All" || sel.Sel.Name == "One" {
 		// Look for the model call that might have query mods
 		if innerCall, ok := sel.X.(*ast.CallExpr); ok {
-			// Check query mod arguments for Select("*")
+			// Check if there's a qm.Select in the arguments
+			// Note: qm.Select("*") is already detected by CheckSelectStar when
+			// the analyzer visits that CallExpr, so we only check for hasSelect here
 			hasSelect := false
 			for _, arg := range innerCall.Args {
-				// Check if this is a qm.Select call
 				if callExpr, ok := arg.(*ast.CallExpr); ok {
 					if innerSel, ok := callExpr.Fun.(*ast.SelectorExpr); ok {
 						if innerSel.Sel.Name == "Select" {
 							hasSelect = true
-							// Check for "*"
-							for _, selectArg := range callExpr.Args {
-								if lit, ok := selectArg.(*ast.BasicLit); ok && lit.Kind == token.STRING {
-									value := strings.Trim(lit.Value, "`\"")
-									if value == "*" {
-										violations = append(violations, &SelectStarViolation{
-											Pos:     callExpr.Pos(),
-											End:     callExpr.End(),
-											Message: "SQLBoiler qm.Select(\"*\") - specify columns explicitly",
-											Builder: "sqlboiler",
-											Context: "explicit_star",
-										})
-									}
-								}
-							}
+							break
 						}
 					}
 				}

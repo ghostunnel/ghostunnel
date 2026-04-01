@@ -44,14 +44,14 @@ func (m *WithTransformMatcher) GetFuncType() gotypes.Type {
 	return m.funcType
 }
 
-func getNestedMatcher(orig, clone *ast.CallExpr, offset int, pass *analysis.Pass, handler gomegahandler.Handler) (*Matcher, bool) {
+func getNestedMatcher(orig, clone *ast.CallExpr, offset int, pass *analysis.Pass, handler *gomegahandler.Handler) *Matcher {
 	if origNested, ok := orig.Args[offset].(*ast.CallExpr); ok {
 		cloneNested := clone.Args[offset].(*ast.CallExpr)
 
 		return New(origNested, cloneNested, pass, handler)
 	}
 
-	return nil, false
+	return nil
 }
 
 func newWithTransformMatcher(fun ast.Expr, nested *Matcher, pass *analysis.Pass) *WithTransformMatcher {

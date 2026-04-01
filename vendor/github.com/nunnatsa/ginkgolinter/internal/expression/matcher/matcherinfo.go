@@ -53,7 +53,7 @@ type Info interface {
 	MatcherName() string
 }
 
-func getMatcherInfo(orig, clone *ast.CallExpr, matcherName string, pass *analysis.Pass, handler gomegahandler.Handler) Info {
+func getMatcherInfo(orig, clone *ast.CallExpr, matcherName string, pass *analysis.Pass, handler *gomegahandler.Handler) Info {
 	switch matcherName {
 	case equal:
 		return newEqualMatcher(orig.Args[0], clone.Args[0], pass)
@@ -97,14 +97,14 @@ func getMatcherInfo(orig, clone *ast.CallExpr, matcherName string, pass *analysi
 		return newMatchErrorMatcher(orig.Args, pass)
 
 	case haveValue:
-		if nestedMatcher, ok := getNestedMatcher(orig, clone, 0, pass, handler); ok {
+		if nestedMatcher := getNestedMatcher(orig, clone, 0, pass, handler); nestedMatcher != nil {
 			return &HaveValueMatcher{
 				nested: nestedMatcher,
 			}
 		}
 
 	case withTransform:
-		if nestedMatcher, ok := getNestedMatcher(orig, clone, 1, pass, handler); ok {
+		if nestedMatcher := getNestedMatcher(orig, clone, 1, pass, handler); nestedMatcher != nil {
 			return newWithTransformMatcher(orig.Args[0], nestedMatcher, pass)
 		}
 
@@ -116,7 +116,7 @@ func getMatcherInfo(orig, clone *ast.CallExpr, matcherName string, pass *analysi
 			matcherType |= AndMatherType
 		}
 
-		if m, ok := newMultipleMatchersMatcher(matcherType, orig.Args, clone.Args, pass, handler); ok {
+		if m := newMultipleMatchersMatcher(matcherType, orig.Args, clone.Args, pass, handler); m != nil {
 			return m
 		}
 

@@ -5,14 +5,25 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"iter"
 	"reflect"
+	"strings"
 )
 
 type Pattern struct {
 	Root Node
-	// Relevant contains instances of ast.Node that could potentially
+	// EntryNodes contains instances of ast.Node that could potentially
 	// initiate a successful match of the pattern.
-	Relevant map[reflect.Type]struct{}
+	EntryNodes []ast.Node
+
+	// SymbolsPattern is a pattern consisting or Any, Or, And, and IndexSymbol,
+	// that can be used to implement fast rejection of whole packages using
+	// typeindex.
+	SymbolsPattern Node
+
+	// If non-empty, all possible candidate nodes for this pattern can be found
+	// by finding all call expressions for this list of symbols.
+	RootCallSymbols []IndexSymbol
 
 	// Mapping from binding index to binding name
 	Bindings []string
@@ -27,16 +38,183 @@ func MustParse(s string) Pattern {
 	return pat
 }
 
-func roots(node Node, m map[reflect.Type]struct{}) {
+func symbolToIndexSymbol(name string) IndexSymbol {
+	if len(name) == 0 {
+		return IndexSymbol{}
+	}
+	if name[0] == '(' {
+		end := strings.IndexAny(name, ")")
+		// Ensure there's a ), and also that there are at least two more
+		// characters after it, for a dot and an identifier.
+		if end == -1 || end > len(name)-2 {
+			return IndexSymbol{}
+		}
+		pathAndType := strings.TrimPrefix(name[1:end], "*")
+		dot := strings.LastIndex(pathAndType, ".")
+		if dot == -1 {
+			return IndexSymbol{}
+		}
+		path := pathAndType[:dot]
+		typ := pathAndType[dot+1:]
+		ident := name[end+2:]
+		return IndexSymbol{path, typ, ident}
+	} else {
+		dot := strings.LastIndex(name, ".")
+		if dot == -1 {
+			return IndexSymbol{"", "", name}
+		}
+		path := name[:dot]
+		ident := name[dot+1:]
+		return IndexSymbol{path, "", ident}
+	}
+}
+
+func collectSymbols(node Node, inSymbol bool) Node {
+	and := func(c Node, out *And) {
+		switch cc := c.(type) {
+		case And:
+			out.Nodes = append(out.Nodes, cc.Nodes...)
+		case Any:
+		case nil:
+		default:
+			out.Nodes = append(out.Nodes, c)
+		}
+	}
+
+	switch node := node.(type) {
+	case Or:
+		s := Or{}
+		for _, el := range node.Nodes {
+			c := collectSymbols(el, inSymbol)
+			switch cc := c.(type) {
+			case Or:
+				s.Nodes = append(s.Nodes, cc.Nodes...)
+			case Any:
+				return Any{}
+			case nil:
+			default:
+				s.Nodes = append(s.Nodes, c)
+			}
+		}
+		switch len(s.Nodes) {
+		case 0:
+			return nil
+		case 1:
+			return s.Nodes[0]
+		default:
+			return s
+		}
+	case Not, Token, nil:
+		return Any{}
+	case Symbol:
+		return collectSymbols(node.Name, true)
+	case String:
+		if !inSymbol {
+			return Any{}
+		}
+		// In logically correct patterns, all Strings that are children of
+		// Symbols describe the names of symbols.
+		return symbolToIndexSymbol(string(node))
+	case Binding:
+		return collectSymbols(node.Node, inSymbol)
+	case Any:
+		return Any{}
+	case List:
+		var out And
+		and(collectSymbols(node.Head, inSymbol), &out)
+		and(collectSymbols(node.Tail, inSymbol), &out)
+		switch len(out.Nodes) {
+		case 0:
+			return Any{}
+		case 1:
+			return out.Nodes[0]
+		default:
+			return out
+		}
+	default:
+		var out And
+		rv := reflect.ValueOf(node)
+		for i := range rv.NumField() {
+			c := collectSymbols(rv.Field(i).Interface().(Node), inSymbol)
+			and(c, &out)
+		}
+		switch len(out.Nodes) {
+		case 0:
+			return Any{}
+		case 1:
+			return out.Nodes[0]
+		default:
+			return out
+		}
+	}
+}
+
+func collectRootCallSymbols(node Node) []IndexSymbol {
+	root, ok := node.(CallExpr)
+	if !ok {
+		return nil
+	}
+
+	var names []String
+	var handleSymName func(name Node) bool
+	handleSymName = func(name Node) bool {
+		switch name := name.(type) {
+		case String:
+			names = append(names, name)
+		case Or:
+			for _, node := range name.Nodes {
+				if name, ok := node.(String); ok {
+					names = append(names, name)
+				} else {
+					return false
+				}
+			}
+		case Binding:
+			return handleSymName(name.Node)
+		default:
+			return false
+		}
+		return true
+	}
+	var handleRootFun func(node Node) bool
+	handleRootFun = func(node Node) bool {
+		switch fun := node.(type) {
+		case Binding:
+			return handleRootFun(fun.Node)
+		case Symbol:
+			return handleSymName(fun.Name)
+		case Or:
+			for _, node := range fun.Nodes {
+				if sym, ok := node.(Symbol); !ok || !handleSymName(sym.Name) {
+					return false
+				}
+			}
+			return true
+		default:
+			return false
+		}
+	}
+	if !handleRootFun(root.Fun) {
+		return nil
+	}
+
+	out := make([]IndexSymbol, len(names))
+	for i, name := range names {
+		out[i] = symbolToIndexSymbol(string(name))
+	}
+	return out
+}
+
+func collectEntryNodes(node Node, m map[reflect.Type]struct{}) {
 	switch node := node.(type) {
 	case Or:
 		for _, el := range node.Nodes {
-			roots(el, m)
+			collectEntryNodes(el, m)
 		}
 	case Not:
-		roots(node.Node, m)
+		collectEntryNodes(node.Node, m)
 	case Binding:
-		roots(node.Node, m)
+		collectEntryNodes(node.Node, m)
 	case Nil, nil:
 		// this branch is reached via bindings
 		for _, T := range allTypes {
@@ -54,100 +232,100 @@ func roots(node Node, m map[reflect.Type]struct{}) {
 }
 
 var allTypes = []reflect.Type{
-	reflect.TypeOf((*ast.RangeStmt)(nil)),
-	reflect.TypeOf((*ast.AssignStmt)(nil)),
-	reflect.TypeOf((*ast.IndexExpr)(nil)),
-	reflect.TypeOf((*ast.Ident)(nil)),
-	reflect.TypeOf((*ast.ValueSpec)(nil)),
-	reflect.TypeOf((*ast.GenDecl)(nil)),
-	reflect.TypeOf((*ast.BinaryExpr)(nil)),
-	reflect.TypeOf((*ast.ForStmt)(nil)),
-	reflect.TypeOf((*ast.ArrayType)(nil)),
-	reflect.TypeOf((*ast.DeferStmt)(nil)),
-	reflect.TypeOf((*ast.MapType)(nil)),
-	reflect.TypeOf((*ast.ReturnStmt)(nil)),
-	reflect.TypeOf((*ast.SliceExpr)(nil)),
-	reflect.TypeOf((*ast.StarExpr)(nil)),
-	reflect.TypeOf((*ast.UnaryExpr)(nil)),
-	reflect.TypeOf((*ast.SendStmt)(nil)),
-	reflect.TypeOf((*ast.SelectStmt)(nil)),
-	reflect.TypeOf((*ast.ImportSpec)(nil)),
-	reflect.TypeOf((*ast.IfStmt)(nil)),
-	reflect.TypeOf((*ast.GoStmt)(nil)),
-	reflect.TypeOf((*ast.Field)(nil)),
-	reflect.TypeOf((*ast.SelectorExpr)(nil)),
-	reflect.TypeOf((*ast.StructType)(nil)),
-	reflect.TypeOf((*ast.KeyValueExpr)(nil)),
-	reflect.TypeOf((*ast.FuncType)(nil)),
-	reflect.TypeOf((*ast.FuncLit)(nil)),
-	reflect.TypeOf((*ast.FuncDecl)(nil)),
-	reflect.TypeOf((*ast.ChanType)(nil)),
-	reflect.TypeOf((*ast.CallExpr)(nil)),
-	reflect.TypeOf((*ast.CaseClause)(nil)),
-	reflect.TypeOf((*ast.CommClause)(nil)),
-	reflect.TypeOf((*ast.CompositeLit)(nil)),
-	reflect.TypeOf((*ast.EmptyStmt)(nil)),
-	reflect.TypeOf((*ast.SwitchStmt)(nil)),
-	reflect.TypeOf((*ast.TypeSwitchStmt)(nil)),
-	reflect.TypeOf((*ast.TypeAssertExpr)(nil)),
-	reflect.TypeOf((*ast.TypeSpec)(nil)),
-	reflect.TypeOf((*ast.InterfaceType)(nil)),
-	reflect.TypeOf((*ast.BranchStmt)(nil)),
-	reflect.TypeOf((*ast.IncDecStmt)(nil)),
-	reflect.TypeOf((*ast.BasicLit)(nil)),
+	reflect.TypeFor[*ast.RangeStmt](),
+	reflect.TypeFor[*ast.AssignStmt](),
+	reflect.TypeFor[*ast.IndexExpr](),
+	reflect.TypeFor[*ast.Ident](),
+	reflect.TypeFor[*ast.ValueSpec](),
+	reflect.TypeFor[*ast.GenDecl](),
+	reflect.TypeFor[*ast.BinaryExpr](),
+	reflect.TypeFor[*ast.ForStmt](),
+	reflect.TypeFor[*ast.ArrayType](),
+	reflect.TypeFor[*ast.DeferStmt](),
+	reflect.TypeFor[*ast.MapType](),
+	reflect.TypeFor[*ast.ReturnStmt](),
+	reflect.TypeFor[*ast.SliceExpr](),
+	reflect.TypeFor[*ast.StarExpr](),
+	reflect.TypeFor[*ast.UnaryExpr](),
+	reflect.TypeFor[*ast.SendStmt](),
+	reflect.TypeFor[*ast.SelectStmt](),
+	reflect.TypeFor[*ast.ImportSpec](),
+	reflect.TypeFor[*ast.IfStmt](),
+	reflect.TypeFor[*ast.GoStmt](),
+	reflect.TypeFor[*ast.Field](),
+	reflect.TypeFor[*ast.SelectorExpr](),
+	reflect.TypeFor[*ast.StructType](),
+	reflect.TypeFor[*ast.KeyValueExpr](),
+	reflect.TypeFor[*ast.FuncType](),
+	reflect.TypeFor[*ast.FuncLit](),
+	reflect.TypeFor[*ast.FuncDecl](),
+	reflect.TypeFor[*ast.ChanType](),
+	reflect.TypeFor[*ast.CallExpr](),
+	reflect.TypeFor[*ast.CaseClause](),
+	reflect.TypeFor[*ast.CommClause](),
+	reflect.TypeFor[*ast.CompositeLit](),
+	reflect.TypeFor[*ast.EmptyStmt](),
+	reflect.TypeFor[*ast.SwitchStmt](),
+	reflect.TypeFor[*ast.TypeSwitchStmt](),
+	reflect.TypeFor[*ast.TypeAssertExpr](),
+	reflect.TypeFor[*ast.TypeSpec](),
+	reflect.TypeFor[*ast.InterfaceType](),
+	reflect.TypeFor[*ast.BranchStmt](),
+	reflect.TypeFor[*ast.IncDecStmt](),
+	reflect.TypeFor[*ast.BasicLit](),
 }
 
 var nodeToASTTypes = map[reflect.Type][]reflect.Type{
-	reflect.TypeOf(String("")):                nil,
-	reflect.TypeOf(Token(0)):                  nil,
-	reflect.TypeOf(List{}):                    {reflect.TypeOf((*ast.BlockStmt)(nil)), reflect.TypeOf((*ast.FieldList)(nil))},
-	reflect.TypeOf(Builtin{}):                 {reflect.TypeOf((*ast.Ident)(nil))},
-	reflect.TypeOf(Object{}):                  {reflect.TypeOf((*ast.Ident)(nil))},
-	reflect.TypeOf(Symbol{}):                  {reflect.TypeOf((*ast.Ident)(nil)), reflect.TypeOf((*ast.SelectorExpr)(nil))},
-	reflect.TypeOf(Any{}):                     allTypes,
-	reflect.TypeOf(RangeStmt{}):               {reflect.TypeOf((*ast.RangeStmt)(nil))},
-	reflect.TypeOf(AssignStmt{}):              {reflect.TypeOf((*ast.AssignStmt)(nil))},
-	reflect.TypeOf(IndexExpr{}):               {reflect.TypeOf((*ast.IndexExpr)(nil))},
-	reflect.TypeOf(Ident{}):                   {reflect.TypeOf((*ast.Ident)(nil))},
-	reflect.TypeOf(ValueSpec{}):               {reflect.TypeOf((*ast.ValueSpec)(nil))},
-	reflect.TypeOf(GenDecl{}):                 {reflect.TypeOf((*ast.GenDecl)(nil))},
-	reflect.TypeOf(BinaryExpr{}):              {reflect.TypeOf((*ast.BinaryExpr)(nil))},
-	reflect.TypeOf(ForStmt{}):                 {reflect.TypeOf((*ast.ForStmt)(nil))},
-	reflect.TypeOf(ArrayType{}):               {reflect.TypeOf((*ast.ArrayType)(nil))},
-	reflect.TypeOf(DeferStmt{}):               {reflect.TypeOf((*ast.DeferStmt)(nil))},
-	reflect.TypeOf(MapType{}):                 {reflect.TypeOf((*ast.MapType)(nil))},
-	reflect.TypeOf(ReturnStmt{}):              {reflect.TypeOf((*ast.ReturnStmt)(nil))},
-	reflect.TypeOf(SliceExpr{}):               {reflect.TypeOf((*ast.SliceExpr)(nil))},
-	reflect.TypeOf(StarExpr{}):                {reflect.TypeOf((*ast.StarExpr)(nil))},
-	reflect.TypeOf(UnaryExpr{}):               {reflect.TypeOf((*ast.UnaryExpr)(nil))},
-	reflect.TypeOf(SendStmt{}):                {reflect.TypeOf((*ast.SendStmt)(nil))},
-	reflect.TypeOf(SelectStmt{}):              {reflect.TypeOf((*ast.SelectStmt)(nil))},
-	reflect.TypeOf(ImportSpec{}):              {reflect.TypeOf((*ast.ImportSpec)(nil))},
-	reflect.TypeOf(IfStmt{}):                  {reflect.TypeOf((*ast.IfStmt)(nil))},
-	reflect.TypeOf(GoStmt{}):                  {reflect.TypeOf((*ast.GoStmt)(nil))},
-	reflect.TypeOf(Field{}):                   {reflect.TypeOf((*ast.Field)(nil))},
-	reflect.TypeOf(SelectorExpr{}):            {reflect.TypeOf((*ast.SelectorExpr)(nil))},
-	reflect.TypeOf(StructType{}):              {reflect.TypeOf((*ast.StructType)(nil))},
-	reflect.TypeOf(KeyValueExpr{}):            {reflect.TypeOf((*ast.KeyValueExpr)(nil))},
-	reflect.TypeOf(FuncType{}):                {reflect.TypeOf((*ast.FuncType)(nil))},
-	reflect.TypeOf(FuncLit{}):                 {reflect.TypeOf((*ast.FuncLit)(nil))},
-	reflect.TypeOf(FuncDecl{}):                {reflect.TypeOf((*ast.FuncDecl)(nil))},
-	reflect.TypeOf(ChanType{}):                {reflect.TypeOf((*ast.ChanType)(nil))},
-	reflect.TypeOf(CallExpr{}):                {reflect.TypeOf((*ast.CallExpr)(nil))},
-	reflect.TypeOf(CaseClause{}):              {reflect.TypeOf((*ast.CaseClause)(nil))},
-	reflect.TypeOf(CommClause{}):              {reflect.TypeOf((*ast.CommClause)(nil))},
-	reflect.TypeOf(CompositeLit{}):            {reflect.TypeOf((*ast.CompositeLit)(nil))},
-	reflect.TypeOf(EmptyStmt{}):               {reflect.TypeOf((*ast.EmptyStmt)(nil))},
-	reflect.TypeOf(SwitchStmt{}):              {reflect.TypeOf((*ast.SwitchStmt)(nil))},
-	reflect.TypeOf(TypeSwitchStmt{}):          {reflect.TypeOf((*ast.TypeSwitchStmt)(nil))},
-	reflect.TypeOf(TypeAssertExpr{}):          {reflect.TypeOf((*ast.TypeAssertExpr)(nil))},
-	reflect.TypeOf(TypeSpec{}):                {reflect.TypeOf((*ast.TypeSpec)(nil))},
-	reflect.TypeOf(InterfaceType{}):           {reflect.TypeOf((*ast.InterfaceType)(nil))},
-	reflect.TypeOf(BranchStmt{}):              {reflect.TypeOf((*ast.BranchStmt)(nil))},
-	reflect.TypeOf(IncDecStmt{}):              {reflect.TypeOf((*ast.IncDecStmt)(nil))},
-	reflect.TypeOf(BasicLit{}):                {reflect.TypeOf((*ast.BasicLit)(nil))},
-	reflect.TypeOf(IntegerLiteral{}):          {reflect.TypeOf((*ast.BasicLit)(nil)), reflect.TypeOf((*ast.UnaryExpr)(nil))},
-	reflect.TypeOf(TrulyConstantExpression{}): allTypes, // this is an over-approximation, which is fine
+	reflect.TypeFor[String]():                  nil,
+	reflect.TypeFor[Token]():                   nil,
+	reflect.TypeFor[List]():                    {reflect.TypeFor[*ast.BlockStmt](), reflect.TypeFor[*ast.FieldList]()},
+	reflect.TypeFor[Builtin]():                 {reflect.TypeFor[*ast.Ident]()},
+	reflect.TypeFor[Object]():                  {reflect.TypeFor[*ast.Ident]()},
+	reflect.TypeFor[Symbol]():                  {reflect.TypeFor[*ast.Ident](), reflect.TypeFor[*ast.SelectorExpr]()},
+	reflect.TypeFor[Any]():                     allTypes,
+	reflect.TypeFor[RangeStmt]():               {reflect.TypeFor[*ast.RangeStmt]()},
+	reflect.TypeFor[AssignStmt]():              {reflect.TypeFor[*ast.AssignStmt]()},
+	reflect.TypeFor[IndexExpr]():               {reflect.TypeFor[*ast.IndexExpr]()},
+	reflect.TypeFor[Ident]():                   {reflect.TypeFor[*ast.Ident]()},
+	reflect.TypeFor[ValueSpec]():               {reflect.TypeFor[*ast.ValueSpec]()},
+	reflect.TypeFor[GenDecl]():                 {reflect.TypeFor[*ast.GenDecl]()},
+	reflect.TypeFor[BinaryExpr]():              {reflect.TypeFor[*ast.BinaryExpr]()},
+	reflect.TypeFor[ForStmt]():                 {reflect.TypeFor[*ast.ForStmt]()},
+	reflect.TypeFor[ArrayType]():               {reflect.TypeFor[*ast.ArrayType]()},
+	reflect.TypeFor[DeferStmt]():               {reflect.TypeFor[*ast.DeferStmt]()},
+	reflect.TypeFor[MapType]():                 {reflect.TypeFor[*ast.MapType]()},
+	reflect.TypeFor[ReturnStmt]():              {reflect.TypeFor[*ast.ReturnStmt]()},
+	reflect.TypeFor[SliceExpr]():               {reflect.TypeFor[*ast.SliceExpr]()},
+	reflect.TypeFor[StarExpr]():                {reflect.TypeFor[*ast.StarExpr]()},
+	reflect.TypeFor[UnaryExpr]():               {reflect.TypeFor[*ast.UnaryExpr]()},
+	reflect.TypeFor[SendStmt]():                {reflect.TypeFor[*ast.SendStmt]()},
+	reflect.TypeFor[SelectStmt]():              {reflect.TypeFor[*ast.SelectStmt]()},
+	reflect.TypeFor[ImportSpec]():              {reflect.TypeFor[*ast.ImportSpec]()},
+	reflect.TypeFor[IfStmt]():                  {reflect.TypeFor[*ast.IfStmt]()},
+	reflect.TypeFor[GoStmt]():                  {reflect.TypeFor[*ast.GoStmt]()},
+	reflect.TypeFor[Field]():                   {reflect.TypeFor[*ast.Field]()},
+	reflect.TypeFor[SelectorExpr]():            {reflect.TypeFor[*ast.SelectorExpr]()},
+	reflect.TypeFor[StructType]():              {reflect.TypeFor[*ast.StructType]()},
+	reflect.TypeFor[KeyValueExpr]():            {reflect.TypeFor[*ast.KeyValueExpr]()},
+	reflect.TypeFor[FuncType]():                {reflect.TypeFor[*ast.FuncType]()},
+	reflect.TypeFor[FuncLit]():                 {reflect.TypeFor[*ast.FuncLit]()},
+	reflect.TypeFor[FuncDecl]():                {reflect.TypeFor[*ast.FuncDecl]()},
+	reflect.TypeFor[ChanType]():                {reflect.TypeFor[*ast.ChanType]()},
+	reflect.TypeFor[CallExpr]():                {reflect.TypeFor[*ast.CallExpr]()},
+	reflect.TypeFor[CaseClause]():              {reflect.TypeFor[*ast.CaseClause]()},
+	reflect.TypeFor[CommClause]():              {reflect.TypeFor[*ast.CommClause]()},
+	reflect.TypeFor[CompositeLit]():            {reflect.TypeFor[*ast.CompositeLit]()},
+	reflect.TypeFor[EmptyStmt]():               {reflect.TypeFor[*ast.EmptyStmt]()},
+	reflect.TypeFor[SwitchStmt]():              {reflect.TypeFor[*ast.SwitchStmt]()},
+	reflect.TypeFor[TypeSwitchStmt]():          {reflect.TypeFor[*ast.TypeSwitchStmt]()},
+	reflect.TypeFor[TypeAssertExpr]():          {reflect.TypeFor[*ast.TypeAssertExpr]()},
+	reflect.TypeFor[TypeSpec]():                {reflect.TypeFor[*ast.TypeSpec]()},
+	reflect.TypeFor[InterfaceType]():           {reflect.TypeFor[*ast.InterfaceType]()},
+	reflect.TypeFor[BranchStmt]():              {reflect.TypeFor[*ast.BranchStmt]()},
+	reflect.TypeFor[IncDecStmt]():              {reflect.TypeFor[*ast.IncDecStmt]()},
+	reflect.TypeFor[BasicLit]():                {reflect.TypeFor[*ast.BasicLit]()},
+	reflect.TypeFor[IntegerLiteral]():          {reflect.TypeFor[*ast.BasicLit](), reflect.TypeFor[*ast.UnaryExpr]()},
+	reflect.TypeFor[TrulyConstantExpression](): allTypes, // this is an over-approximation, which is fine
 }
 
 var requiresTypeInfo = map[string]bool{
@@ -162,10 +340,10 @@ type Parser struct {
 	// Allow nodes that rely on type information
 	AllowTypeInfo bool
 
-	lex   *lexer
-	cur   item
-	last  *item
-	items chan item
+	f        *token.File
+	cur      item
+	last     *item
+	nextItem func() (item, bool)
 
 	bindings map[string]int
 }
@@ -183,26 +361,27 @@ func (p *Parser) bindingIndex(name string) int {
 }
 
 func (p *Parser) Parse(s string) (Pattern, error) {
+	f := token.NewFileSet().AddFile("<input>", -1, len(s))
+
+	// Run the lexer iterator as a coroutine.
+	// The parser will call 'next' to consume each item.
+	// After the parser returns, we must call 'stop' to
+	// terminate the coroutine.
+	next, stop := iter.Pull(lex(f, s))
+	defer stop()
+
 	p.cur = item{}
 	p.last = nil
-	p.items = nil
+	p.f = f
+	p.nextItem = next
 
-	fset := token.NewFileSet()
-	p.lex = &lexer{
-		f:     fset.AddFile("<input>", -1, len(s)),
-		input: s,
-		items: make(chan item),
-	}
-	go p.lex.run()
-	p.items = p.lex.items
+	// Parse.
 	root, err := p.node()
 	if err != nil {
-		// drain lexer if parsing failed
-		for range p.lex.items {
-		}
 		return Pattern{}, err
 	}
-	if item := <-p.lex.items; item.typ != itemEOF {
+	// Consume final EOF token.
+	if item, ok := next(); !ok || item.typ != itemEOF {
 		return Pattern{}, fmt.Errorf("unexpected token %s after end of pattern", item.typ)
 	}
 
@@ -215,12 +394,21 @@ func (p *Parser) Parse(s string) (Pattern, error) {
 		bindings[idx] = name
 	}
 
-	relevant := map[reflect.Type]struct{}{}
-	roots(root, relevant)
+	_, isSymbol := root.(Symbol)
+	sym := collectSymbols(root, isSymbol)
+	rootSyms := collectRootCallSymbols(root)
+	relevantMap := map[reflect.Type]struct{}{}
+	collectEntryNodes(root, relevantMap)
+	relevantNodes := make([]ast.Node, 0, len(relevantMap))
+	for k := range relevantMap {
+		relevantNodes = append(relevantNodes, reflect.Zero(k).Interface().(ast.Node))
+	}
 	return Pattern{
-		Root:     root,
-		Relevant: relevant,
-		Bindings: bindings,
+		Root:            root,
+		EntryNodes:      relevantNodes,
+		SymbolsPattern:  sym,
+		RootCallSymbols: rootSyms,
+		Bindings:        bindings,
 	}, nil
 }
 
@@ -231,7 +419,7 @@ func (p *Parser) next() item {
 		return n
 	}
 	var ok bool
-	p.cur, ok = <-p.items
+	p.cur, ok = p.nextItem()
 	if !ok {
 		p.cur = item{typ: eof}
 	}
@@ -269,7 +457,7 @@ func (p *Parser) unexpectedToken(valid string) error {
 		got = "'" + p.cur.typ.String() + "'"
 	}
 
-	pos := p.lex.f.Position(token.Pos(p.cur.pos))
+	pos := p.f.Position(token.Pos(p.cur.pos))
 	return fmt.Errorf("%s: expected %s, found %s", pos, valid, got)
 }
 
@@ -363,58 +551,58 @@ func (p *Parser) populateNode(typ string, objs []Node) (Node, error) {
 }
 
 var structNodes = map[string]reflect.Type{
-	"Any":                     reflect.TypeOf(Any{}),
-	"Ellipsis":                reflect.TypeOf(Ellipsis{}),
-	"List":                    reflect.TypeOf(List{}),
-	"Binding":                 reflect.TypeOf(Binding{}),
-	"RangeStmt":               reflect.TypeOf(RangeStmt{}),
-	"AssignStmt":              reflect.TypeOf(AssignStmt{}),
-	"IndexExpr":               reflect.TypeOf(IndexExpr{}),
-	"Ident":                   reflect.TypeOf(Ident{}),
-	"Builtin":                 reflect.TypeOf(Builtin{}),
-	"ValueSpec":               reflect.TypeOf(ValueSpec{}),
-	"GenDecl":                 reflect.TypeOf(GenDecl{}),
-	"BinaryExpr":              reflect.TypeOf(BinaryExpr{}),
-	"ForStmt":                 reflect.TypeOf(ForStmt{}),
-	"ArrayType":               reflect.TypeOf(ArrayType{}),
-	"DeferStmt":               reflect.TypeOf(DeferStmt{}),
-	"MapType":                 reflect.TypeOf(MapType{}),
-	"ReturnStmt":              reflect.TypeOf(ReturnStmt{}),
-	"SliceExpr":               reflect.TypeOf(SliceExpr{}),
-	"StarExpr":                reflect.TypeOf(StarExpr{}),
-	"UnaryExpr":               reflect.TypeOf(UnaryExpr{}),
-	"SendStmt":                reflect.TypeOf(SendStmt{}),
-	"SelectStmt":              reflect.TypeOf(SelectStmt{}),
-	"ImportSpec":              reflect.TypeOf(ImportSpec{}),
-	"IfStmt":                  reflect.TypeOf(IfStmt{}),
-	"GoStmt":                  reflect.TypeOf(GoStmt{}),
-	"Field":                   reflect.TypeOf(Field{}),
-	"SelectorExpr":            reflect.TypeOf(SelectorExpr{}),
-	"StructType":              reflect.TypeOf(StructType{}),
-	"KeyValueExpr":            reflect.TypeOf(KeyValueExpr{}),
-	"FuncType":                reflect.TypeOf(FuncType{}),
-	"FuncLit":                 reflect.TypeOf(FuncLit{}),
-	"FuncDecl":                reflect.TypeOf(FuncDecl{}),
-	"ChanType":                reflect.TypeOf(ChanType{}),
-	"CallExpr":                reflect.TypeOf(CallExpr{}),
-	"CaseClause":              reflect.TypeOf(CaseClause{}),
-	"CommClause":              reflect.TypeOf(CommClause{}),
-	"CompositeLit":            reflect.TypeOf(CompositeLit{}),
-	"EmptyStmt":               reflect.TypeOf(EmptyStmt{}),
-	"SwitchStmt":              reflect.TypeOf(SwitchStmt{}),
-	"TypeSwitchStmt":          reflect.TypeOf(TypeSwitchStmt{}),
-	"TypeAssertExpr":          reflect.TypeOf(TypeAssertExpr{}),
-	"TypeSpec":                reflect.TypeOf(TypeSpec{}),
-	"InterfaceType":           reflect.TypeOf(InterfaceType{}),
-	"BranchStmt":              reflect.TypeOf(BranchStmt{}),
-	"IncDecStmt":              reflect.TypeOf(IncDecStmt{}),
-	"BasicLit":                reflect.TypeOf(BasicLit{}),
-	"Object":                  reflect.TypeOf(Object{}),
-	"Symbol":                  reflect.TypeOf(Symbol{}),
-	"Or":                      reflect.TypeOf(Or{}),
-	"Not":                     reflect.TypeOf(Not{}),
-	"IntegerLiteral":          reflect.TypeOf(IntegerLiteral{}),
-	"TrulyConstantExpression": reflect.TypeOf(TrulyConstantExpression{}),
+	"Any":                     reflect.TypeFor[Any](),
+	"Ellipsis":                reflect.TypeFor[Ellipsis](),
+	"List":                    reflect.TypeFor[List](),
+	"Binding":                 reflect.TypeFor[Binding](),
+	"RangeStmt":               reflect.TypeFor[RangeStmt](),
+	"AssignStmt":              reflect.TypeFor[AssignStmt](),
+	"IndexExpr":               reflect.TypeFor[IndexExpr](),
+	"Ident":                   reflect.TypeFor[Ident](),
+	"Builtin":                 reflect.TypeFor[Builtin](),
+	"ValueSpec":               reflect.TypeFor[ValueSpec](),
+	"GenDecl":                 reflect.TypeFor[GenDecl](),
+	"BinaryExpr":              reflect.TypeFor[BinaryExpr](),
+	"ForStmt":                 reflect.TypeFor[ForStmt](),
+	"ArrayType":               reflect.TypeFor[ArrayType](),
+	"DeferStmt":               reflect.TypeFor[DeferStmt](),
+	"MapType":                 reflect.TypeFor[MapType](),
+	"ReturnStmt":              reflect.TypeFor[ReturnStmt](),
+	"SliceExpr":               reflect.TypeFor[SliceExpr](),
+	"StarExpr":                reflect.TypeFor[StarExpr](),
+	"UnaryExpr":               reflect.TypeFor[UnaryExpr](),
+	"SendStmt":                reflect.TypeFor[SendStmt](),
+	"SelectStmt":              reflect.TypeFor[SelectStmt](),
+	"ImportSpec":              reflect.TypeFor[ImportSpec](),
+	"IfStmt":                  reflect.TypeFor[IfStmt](),
+	"GoStmt":                  reflect.TypeFor[GoStmt](),
+	"Field":                   reflect.TypeFor[Field](),
+	"SelectorExpr":            reflect.TypeFor[SelectorExpr](),
+	"StructType":              reflect.TypeFor[StructType](),
+	"KeyValueExpr":            reflect.TypeFor[KeyValueExpr](),
+	"FuncType":                reflect.TypeFor[FuncType](),
+	"FuncLit":                 reflect.TypeFor[FuncLit](),
+	"FuncDecl":                reflect.TypeFor[FuncDecl](),
+	"ChanType":                reflect.TypeFor[ChanType](),
+	"CallExpr":                reflect.TypeFor[CallExpr](),
+	"CaseClause":              reflect.TypeFor[CaseClause](),
+	"CommClause":              reflect.TypeFor[CommClause](),
+	"CompositeLit":            reflect.TypeFor[CompositeLit](),
+	"EmptyStmt":               reflect.TypeFor[EmptyStmt](),
+	"SwitchStmt":              reflect.TypeFor[SwitchStmt](),
+	"TypeSwitchStmt":          reflect.TypeFor[TypeSwitchStmt](),
+	"TypeAssertExpr":          reflect.TypeFor[TypeAssertExpr](),
+	"TypeSpec":                reflect.TypeFor[TypeSpec](),
+	"InterfaceType":           reflect.TypeFor[InterfaceType](),
+	"BranchStmt":              reflect.TypeFor[BranchStmt](),
+	"IncDecStmt":              reflect.TypeFor[IncDecStmt](),
+	"BasicLit":                reflect.TypeFor[BasicLit](),
+	"Object":                  reflect.TypeFor[Object](),
+	"Symbol":                  reflect.TypeFor[Symbol](),
+	"Or":                      reflect.TypeFor[Or](),
+	"Not":                     reflect.TypeFor[Not](),
+	"IntegerLiteral":          reflect.TypeFor[IntegerLiteral](),
+	"TrulyConstantExpression": reflect.TypeFor[TrulyConstantExpression](),
 }
 
 func (p *Parser) object() (Node, error) {

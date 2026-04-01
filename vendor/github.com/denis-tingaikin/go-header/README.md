@@ -1,18 +1,66 @@
 # go-header
 [![ci](https://github.com/denis-tingaikin/go-header/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/denis-tingaikin/go-header/actions/workflows/ci.yml)
 
-Go source code linter providing checks for license headers.
+Simple go source code linter providing checks for copyrgiht headers. 
+
+## Features
+
+| Feature                     | Status | Details                                  |
+|-----------------------------|--------|------------------------------------------|
+| ✅ **Copyright Headers**     | ✔️     | Supports all standard formats            |
+| ✅ **Parallel Processing**   | ✔️     | Processes files concurrently             |
+| ✅ **Comment Support**       | ✔️     | `//`, `/* */`, `/* * */`                 |
+| ✅ **Go/Analysis**           | ✔️     | Native Go tooling integration            |
+| ✅ **Regex Customization**   | ✔️     | User-defined pattern matching            |
+| ✅ **Automatic Year Checks** | ✔️     | Validates & updates copyright years      |
+| ✅ **Auto-Fix Files**        | ✔️     | In-place header corrections              |
+| ✅ **Go/Template Support**   | ✔️     | go templates can be used in headers      |
+| 🤔  **Multi-License Support** | ❌    | Does any one need this?                  |
+
+
 
 ## Installation
 
-For installation you can simply use `go get`.
+For installation you can simply use `go install`.
 
 ```bash
-go install github.com/denis-tingaikin/go-header/cmd/go-header
+go install github.com/denis-tingaikin/go-header/cmd/go-header@latest
 ```
+## Usage
 
+```bash
+  -V    print version and exit
+  -all
+        no effect (deprecated)
+  -c int
+        display offending line with this many lines of context (default -1)
+  -config string
+        path to config file (default ".go-header.yml")
+  -cpuprofile string
+        write CPU profile to this file
+  -debug string
+        debug flags, any subset of "fpstv"
+  -diff
+        with -fix, don't update the files, but print a unified diff
+  -fix
+        apply all suggested fixes
+  -flags
+        print analyzer flags in JSON
+  -json
+        emit JSON output
+  -memprofile string
+        write memory profile to this file
+  -source
+        no effect (deprecated)
+  -tags string
+        no effect (deprecated)
+  -test
+        indicates whether test files should be analyzed, too (default true)
+  -trace string
+        write trace log to this file
+  -v    no effect (deprecated)
+```
 ## Configuration
-
 To configuring `.go-header.yml` linter you simply need to fill the next fields:
 
 ```yaml
@@ -38,8 +86,8 @@ values:
 
 ## Bult-in values
 
-- **MOD-YEAR** - Returns the year when the file was modified.
-- **MOD-YEAR-RANGE** - Returns a year-range where the range starts from the  year when the file was modified.
+- **MOD_YEAR** - Returns the year when the file was modified.
+- **MOD_YEAR-RANGE** - Returns a year-range where the range starts from the  year when the file was modified.
 - **YEAR** - Expects current year. Example header value: `2020`.  Example of template using: `{{YEAR}}` or `{{year}}`.
 - **YEAR-RANGE** - Expects any valid year interval or current year. Example header value: `2020` or `2000-2020`. Example of template using: `{{year-range}}` or `{{YEAR-RANGE}}`.
 
@@ -48,7 +96,7 @@ values:
 `go-header` linter expects file paths on input. If you want to run `go-header` only on diff files, then you can use this command:
 
 ```bash
-go-header $(git diff --name-only | grep -E '.*\.go')
+go-header ./...
 ```
 
 ## Setup example
@@ -59,11 +107,11 @@ Create configuration file  `.go-header.yml` in the root of project.
 
 ```yaml
 ---
-values:
-  const:
-    MY COMPANY: mycompany.com
+vars:
+  DOMAIN: sales|product
+  MY_COMPANY: {{ .DOMAIN }}.mycompany.com
 template: |
-  {{ MY COMPANY }}
+  {{ .MY_COMPANY }}
   SPDX-License-Identifier: Apache-2.0
 
   Licensed under the Apache License, Version 2.0 (the "License");
@@ -80,4 +128,4 @@ template: |
 ```
 
 ### Step 2 
-You are ready! Execute `go-header ${PATH_TO_FILES}` from the root of the project. 
+Run `go-header ./...`

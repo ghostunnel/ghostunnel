@@ -11,14 +11,13 @@ import (
 	"honnef.co/go/tools/pattern"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
 var SCAnalyzer = lint.InitializeAnalyzer(&lint.Analyzer{
 	Analyzer: &analysis.Analyzer{
 		Name:     "S1033",
 		Run:      run,
-		Requires: []*analysis.Analyzer{inspect.Analyzer, generated.Analyzer},
+		Requires: append([]*analysis.Analyzer{generated.Analyzer}, code.RequiredAnalyzers...),
 	},
 	Doc: &lint.RawDocumentation{
 		Title:   `Unnecessary guard around call to \"delete\"`,
@@ -40,16 +39,12 @@ var checkGuardedDeleteQ = pattern.MustParse(`
 		[call@(CallExpr (Builtin "delete") [m key])]
 		nil)`)
 
-func run(pass *analysis.Pass) (interface{}, error) {
-	fn := func(node ast.Node) {
-		if m, ok := code.Match(pass, checkGuardedDeleteQ, node); ok {
-			report.Report(pass, node, "unnecessary guard around call to delete",
-				report.ShortRange(),
-				report.FilterGenerated(),
-				report.Fixes(edit.Fix("remove guard", edit.ReplaceWithNode(pass.Fset, node, m.State["call"].(ast.Node)))))
-		}
+func run(pass *analysis.Pass) (any, error) {
+	for node, m := range code.Matches(pass, checkGuardedDeleteQ) {
+		report.Report(pass, node, "unnecessary guard around call to delete",
+			report.ShortRange(),
+			report.FilterGenerated(),
+			report.Fixes(edit.Fix("Remove guard", edit.ReplaceWithNode(pass.Fset, node, m.State["call"].(ast.Node)))))
 	}
-
-	code.Preorder(pass, fn, (*ast.IfStmt)(nil))
 	return nil, nil
 }

@@ -9,12 +9,6 @@ import (
 
 const missingAssertionMessage = `%q: missing assertion method. Expected %s`
 
-type MissingAssertionRule struct{}
-
-func (r MissingAssertionRule) isApplied(gexp *expression.GomegaExpression) bool {
-	return gexp.IsMissingAssertion()
-}
-
 // MissingAssertionRule checks if the assertion method is missing. In this case, the test does not make any assertion.
 // This is mostly relevant for the async actual methods, that tend to be longer, and so harder to spot the missing assertion
 // by just reading the test code.
@@ -32,6 +26,12 @@ func (r MissingAssertionRule) isApplied(gexp *expression.GomegaExpression) bool 
 //		Eventually(func() error {
 //			return nil
 //		}).Should(Succeed())
+type MissingAssertionRule struct{}
+
+func (r MissingAssertionRule) isApplied(gexp *expression.GomegaExpression) bool {
+	return gexp.IsMissingAssertion()
+}
+
 func (r MissingAssertionRule) Apply(gexp *expression.GomegaExpression, _ config.Config, reportBuilder *reports.Builder) bool {
 	if !r.isApplied(gexp) {
 		return false

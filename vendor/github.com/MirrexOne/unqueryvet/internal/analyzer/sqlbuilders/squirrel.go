@@ -4,8 +4,11 @@ package sqlbuilders
 import (
 	"go/ast"
 	"go/token"
+	"go/types"
 	"strings"
 )
+
+const squirrelPkgPath = "github.com/Masterminds/squirrel"
 
 // SquirrelChecker checks github.com/Masterminds/squirrel for SELECT * patterns.
 type SquirrelChecker struct{}
@@ -20,29 +23,29 @@ func (c *SquirrelChecker) Name() string {
 	return "squirrel"
 }
 
-// IsApplicable checks if the call might be from Squirrel.
-func (c *SquirrelChecker) IsApplicable(call *ast.CallExpr) bool {
+// IsApplicable checks if the call is from Squirrel using type information.
+func (c *SquirrelChecker) IsApplicable(info *types.Info, call *ast.CallExpr) bool {
 	sel, ok := call.Fun.(*ast.SelectorExpr)
 	if !ok {
 		return false
 	}
 
-	// Squirrel methods to check
-	squirrelMethods := []string{
-		"Select", "Columns", "Column",
-		"SelectBuilder", "InsertBuilder", "UpdateBuilder", "DeleteBuilder",
+	// Check if the receiver type is from squirrel package
+	if IsTypeFromPackage(info, sel.X, squirrelPkgPath) {
+		return true
 	}
 
-	for _, method := range squirrelMethods {
-		if sel.Sel.Name == method {
-			return true
-		}
-	}
-
-	// Check for squirrel package prefix
+	// Check for package-level function calls like squirrel.Select()
 	if ident, ok := sel.X.(*ast.Ident); ok {
-		if ident.Name == "squirrel" || ident.Name == "sq" {
-			return true
+		if info != nil {
+			if obj := info.Uses[ident]; obj != nil {
+				if pkgName, ok := obj.(*types.PkgName); ok {
+					pkgPath := pkgName.Imported().Path()
+					if len(pkgPath) >= len(squirrelPkgPath) && pkgPath[:len(squirrelPkgPath)] == squirrelPkgPath {
+						return true
+					}
+				}
+			}
 		}
 	}
 
@@ -110,75 +113,28 @@ func (c *SquirrelChecker) CheckSelectStar(call *ast.CallExpr) *SelectStarViolati
 }
 
 // CheckChainedCalls checks method chains for SELECT * patterns.
+// squirrelChainState tracks state while traversing call chain
+type squirrelChainState struct {
+	hasSelect  bool
+	hasColumns bool
+	selectCall *ast.CallExpr
+}
+
 func (c *SquirrelChecker) CheckChainedCalls(call *ast.CallExpr) []*SelectStarViolation {
 	var violations []*SelectStarViolation
+	state := &squirrelChainState{}
 
-	// Traverse the call chain
 	current := call
-	hasSelect := false
-	hasColumns := false
-	var selectCall *ast.CallExpr
-
 	for current != nil {
 		sel, ok := current.Fun.(*ast.SelectorExpr)
 		if !ok {
 			break
 		}
 
-		switch sel.Sel.Name {
-		case "Select":
-			hasSelect = true
-			selectCall = current
-			// Check if Select has arguments
-			if len(current.Args) > 0 {
-				hasColumns = true
-				// Check for "*" argument
-				for _, arg := range current.Args {
-					if lit, ok := arg.(*ast.BasicLit); ok && lit.Kind == token.STRING {
-						value := strings.Trim(lit.Value, "`\"")
-						if value == "*" {
-							violations = append(violations, &SelectStarViolation{
-								Pos:     current.Pos(),
-								End:     current.End(),
-								Message: "Squirrel Select(\"*\") in chain - specify columns explicitly",
-								Builder: "squirrel",
-								Context: "chained_star",
-							})
-						}
-					}
-				}
-			}
-		case "Columns", "Column":
-			hasColumns = true
-			// Check for "*" in Columns/Column
-			for _, arg := range current.Args {
-				if lit, ok := arg.(*ast.BasicLit); ok && lit.Kind == token.STRING {
-					value := strings.Trim(lit.Value, "`\"")
-					if value == "*" {
-						violations = append(violations, &SelectStarViolation{
-							Pos:     current.Pos(),
-							End:     current.End(),
-							Message: "Squirrel Columns(\"*\") in chain - specify columns explicitly",
-							Builder: "squirrel",
-							Context: "chained_star",
-						})
-					}
-				}
-			}
-		case "From", "Where", "Join", "LeftJoin", "RightJoin", "InnerJoin":
-			// Terminal methods - check if we have Select without columns
-			if hasSelect && !hasColumns && selectCall != nil && len(selectCall.Args) == 0 {
-				violations = append(violations, &SelectStarViolation{
-					Pos:     selectCall.Pos(),
-					End:     selectCall.End(),
-					Message: "Squirrel Select() without columns in chain defaults to SELECT *",
-					Builder: "squirrel",
-					Context: "empty_select_chain",
-				})
-			}
+		if v := c.processChainMethod(sel.Sel.Name, current, state); v != nil {
+			violations = append(violations, v)
 		}
 
-		// Move to the next call in the chain
 		if innerCall, ok := sel.X.(*ast.CallExpr); ok {
 			current = innerCall
 		} else {
@@ -187,4 +143,72 @@ func (c *SquirrelChecker) CheckChainedCalls(call *ast.CallExpr) []*SelectStarVio
 	}
 
 	return violations
+}
+
+// processChainMethod processes a single method in the call chain
+func (c *SquirrelChecker) processChainMethod(methodName string, current *ast.CallExpr, state *squirrelChainState) *SelectStarViolation {
+	switch methodName {
+	case "Select":
+		return c.handleSelectMethod(current, state)
+	case "Columns", "Column":
+		return c.handleColumnsMethod(current, state)
+	case "From", "Where", "Join", "LeftJoin", "RightJoin", "InnerJoin":
+		return c.handleTerminalMethod(state)
+	}
+	return nil
+}
+
+// handleSelectMethod handles Select() calls in chain
+func (c *SquirrelChecker) handleSelectMethod(current *ast.CallExpr, state *squirrelChainState) *SelectStarViolation {
+	state.hasSelect = true
+	state.selectCall = current
+
+	if len(current.Args) == 0 {
+		return nil
+	}
+
+	state.hasColumns = true
+	if v := c.checkArgsForStar(current, "Squirrel Select(\"*\") in chain - specify columns explicitly"); v != nil {
+		return v
+	}
+	return nil
+}
+
+// handleColumnsMethod handles Columns()/Column() calls in chain
+func (c *SquirrelChecker) handleColumnsMethod(current *ast.CallExpr, state *squirrelChainState) *SelectStarViolation {
+	state.hasColumns = true
+	return c.checkArgsForStar(current, "Squirrel Columns(\"*\") in chain - specify columns explicitly")
+}
+
+// handleTerminalMethod handles terminal methods (From, Where, Join, etc.)
+func (c *SquirrelChecker) handleTerminalMethod(state *squirrelChainState) *SelectStarViolation {
+	if state.hasSelect && !state.hasColumns && state.selectCall != nil && len(state.selectCall.Args) == 0 {
+		return &SelectStarViolation{
+			Pos:     state.selectCall.Pos(),
+			End:     state.selectCall.End(),
+			Message: "Squirrel Select() without columns in chain defaults to SELECT *",
+			Builder: "squirrel",
+			Context: "empty_select_chain",
+		}
+	}
+	return nil
+}
+
+// checkArgsForStar checks if any argument is "*"
+func (c *SquirrelChecker) checkArgsForStar(call *ast.CallExpr, message string) *SelectStarViolation {
+	for _, arg := range call.Args {
+		if lit, ok := arg.(*ast.BasicLit); ok && lit.Kind == token.STRING {
+			value := strings.Trim(lit.Value, "`\"")
+			if value == "*" {
+				return &SelectStarViolation{
+					Pos:     call.Pos(),
+					End:     call.End(),
+					Message: message,
+					Builder: "squirrel",
+					Context: "chained_star",
+				}
+			}
+		}
+	}
+	return nil
 }

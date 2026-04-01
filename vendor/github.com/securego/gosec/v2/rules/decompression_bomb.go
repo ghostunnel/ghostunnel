@@ -17,6 +17,7 @@ package rules
 import (
 	"fmt"
 	"go/ast"
+	"go/types"
 
 	"github.com/securego/gosec/v2"
 	"github.com/securego/gosec/v2/issue"
@@ -28,52 +29,54 @@ type decompressionBombCheck struct {
 	copyCalls   gosec.CallList
 }
 
-func (d *decompressionBombCheck) ID() string {
-	return d.MetaData.ID
-}
-
 func containsReaderCall(node ast.Node, ctx *gosec.Context, list gosec.CallList) bool {
 	if list.ContainsPkgCallExpr(node, ctx, false) != nil {
 		return true
 	}
-	// Resolve type info of ident (for *archive/zip.File.Open)
+	// Resolve type info for selector calls like file.Open()
 	s, idt, _ := gosec.GetCallInfo(node, ctx)
 	return list.Contains(s, idt)
 }
 
 func (d *decompressionBombCheck) Match(node ast.Node, ctx *gosec.Context) (*issue.Issue, error) {
-	var readerVarObj map[*ast.Object]struct{}
+	var readerVars map[*types.Var]struct{}
 
-	// To check multiple lines, ctx.PassedValues is used to store temporary data.
+	// Use ctx.PassedValues for stateful tracking across statements.
 	if _, ok := ctx.PassedValues[d.ID()]; !ok {
-		readerVarObj = make(map[*ast.Object]struct{})
-		ctx.PassedValues[d.ID()] = readerVarObj
-	} else if pv, ok := ctx.PassedValues[d.ID()].(map[*ast.Object]struct{}); ok {
-		readerVarObj = pv
+		readerVars = make(map[*types.Var]struct{})
+		ctx.PassedValues[d.ID()] = readerVars
+	} else if pv, ok := ctx.PassedValues[d.ID()].(map[*types.Var]struct{}); ok {
+		readerVars = pv
 	} else {
-		return nil, fmt.Errorf("PassedValues[%s] of Context is not map[*ast.Object]struct{}, but %T", d.ID(), ctx.PassedValues[d.ID()])
+		return nil, fmt.Errorf("PassedValues[%s] of Context is not map[*types.Var]struct{}, but %T", d.ID(), ctx.PassedValues[d.ID()])
 	}
 
-	// io.Copy is a common function.
-	// To reduce false positives, This rule detects code which is used for compressed data only.
 	switch n := node.(type) {
 	case *ast.AssignStmt:
-		for _, expr := range n.Rhs {
+		for i, expr := range n.Rhs {
 			if callExpr, ok := expr.(*ast.CallExpr); ok && containsReaderCall(callExpr, ctx, d.readerCalls) {
-				if idt, ok := n.Lhs[0].(*ast.Ident); ok && idt.Name != "_" {
-					// Example:
-					//  r, _ := zlib.NewReader(buf)
-					//  Add r's Obj to readerVarObj map
-					readerVarObj[idt.Obj] = struct{}{}
+				if i < len(n.Lhs) {
+					if idt, ok := n.Lhs[i].(*ast.Ident); ok && idt.Name != "_" {
+						if obj := ctx.Info.ObjectOf(idt); obj != nil {
+							if v, ok := obj.(*types.Var); ok {
+								readerVars[v] = struct{}{}
+							}
+						}
+					}
 				}
 			}
 		}
 	case *ast.CallExpr:
 		if d.copyCalls.ContainsPkgCallExpr(n, ctx, false) != nil {
-			if idt, ok := n.Args[1].(*ast.Ident); ok {
-				if _, ok := readerVarObj[idt.Obj]; ok {
-					// Detect io.Copy(x, r)
-					return ctx.NewIssue(n, d.ID(), d.What, d.Severity, d.Confidence), nil
+			if len(n.Args) > 1 {
+				if idt, ok := n.Args[1].(*ast.Ident); ok {
+					if obj := ctx.Info.ObjectOf(idt); obj != nil {
+						if v, ok := obj.(*types.Var); ok {
+							if _, tracked := readerVars[v]; tracked {
+								return ctx.NewIssue(n, d.ID(), d.What, d.Severity, d.Confidence), nil
+							}
+						}
+					}
 				}
 			}
 		}
@@ -82,30 +85,23 @@ func (d *decompressionBombCheck) Match(node ast.Node, ctx *gosec.Context) (*issu
 	return nil, nil
 }
 
-// NewDecompressionBombCheck detects if there is potential DoS vulnerability via decompression bomb
+// NewDecompressionBombCheck detects potential DoS via decompression bomb
 func NewDecompressionBombCheck(id string, _ gosec.Config) (gosec.Rule, []ast.Node) {
-	readerCalls := gosec.NewCallList()
-	readerCalls.Add("compress/gzip", "NewReader")
-	readerCalls.AddAll("compress/zlib", "NewReader", "NewReaderDict")
-	readerCalls.Add("compress/bzip2", "NewReader")
-	readerCalls.AddAll("compress/flate", "NewReader", "NewReaderDict")
-	readerCalls.Add("compress/lzw", "NewReader")
-	readerCalls.Add("archive/tar", "NewReader")
-	readerCalls.Add("archive/zip", "NewReader")
-	readerCalls.Add("*archive/zip.File", "Open")
+	rule := &decompressionBombCheck{
+		MetaData:    issue.NewMetaData(id, "Potential DoS vulnerability via decompression bomb", issue.Medium, issue.Medium),
+		readerCalls: gosec.NewCallList(),
+		copyCalls:   gosec.NewCallList(),
+	}
+	rule.readerCalls.Add("compress/gzip", "NewReader")
+	rule.readerCalls.AddAll("compress/zlib", "NewReader", "NewReaderDict")
+	rule.readerCalls.Add("compress/bzip2", "NewReader")
+	rule.readerCalls.AddAll("compress/flate", "NewReader", "NewReaderDict")
+	rule.readerCalls.Add("compress/lzw", "NewReader")
+	rule.readerCalls.Add("archive/tar", "NewReader")
+	rule.readerCalls.Add("archive/zip", "NewReader")
+	rule.readerCalls.Add("*archive/zip.File", "Open")
 
-	copyCalls := gosec.NewCallList()
-	copyCalls.Add("io", "Copy")
-	copyCalls.Add("io", "CopyBuffer")
+	rule.copyCalls.AddAll("io", "Copy", "CopyBuffer")
 
-	return &decompressionBombCheck{
-		MetaData: issue.MetaData{
-			ID:         id,
-			Severity:   issue.Medium,
-			Confidence: issue.Medium,
-			What:       "Potential DoS vulnerability via decompression bomb",
-		},
-		readerCalls: readerCalls,
-		copyCalls:   copyCalls,
-	}, []ast.Node{(*ast.FuncDecl)(nil), (*ast.AssignStmt)(nil), (*ast.CallExpr)(nil)}
+	return rule, []ast.Node{(*ast.AssignStmt)(nil), (*ast.CallExpr)(nil)}
 }
