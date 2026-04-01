@@ -1,7 +1,6 @@
 module github.com/ghostunnel/ghostunnel
 
 require (
-	github.com/Microsoft/go-winio v0.6.2
 	github.com/alecthomas/kingpin/v2 v2.4.0
 	github.com/caddyserver/certmagic v0.25.2
 	github.com/coreos/go-systemd/v22 v22.7.0
@@ -11,7 +10,7 @@ require (
 	github.com/hashicorp/go-syslog v1.0.0
 	github.com/kavu/go_reuseport v1.5.0
 	github.com/landlock-lsm/go-landlock v0.7.0
-	github.com/letsencrypt/pkcs11key/v4 v4.0.0
+	github.com/letsencrypt/pkcs11key/v4 v4.0.1
 	github.com/magefile/mage v1.16.1
 	github.com/mholt/acmez v1.2.0
 	github.com/open-policy-agent/opa v1.14.1
@@ -48,6 +47,7 @@ require (
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/Djarvur/go-err113 v0.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
+	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/MirrexOne/unqueryvet v1.4.0 // indirect
 	github.com/OpenPeeDeeP/depguard/v2 v2.2.1 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
@@ -180,7 +180,7 @@ require (
 	github.com/mholt/acmez/v3 v3.1.6 // indirect
 	github.com/mholt/archiver v3.1.1+incompatible // indirect
 	github.com/miekg/dns v1.1.72 // indirect
-	github.com/miekg/pkcs11 v1.1.1 // indirect
+	github.com/miekg/pkcs11 v1.1.2 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/moricho/tparallel v0.3.2 // indirect
 	github.com/muesli/termenv v0.16.0 // indirect
