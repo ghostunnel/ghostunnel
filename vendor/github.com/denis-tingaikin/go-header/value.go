@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2025 Denis Tingaikin
+// Copyright (c) 2020-2024 Denis Tingaikin
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -19,17 +19,22 @@ package goheader
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 )
 
-type Value interface {
+type Calculable interface {
 	Calculate(map[string]Value) error
 	Get() string
 	Raw() string
-	Clone() Value
 }
 
-func calculateValue(calculable Value, values map[string]Value) (string, error) {
+type Value interface {
+	Calculable
+	Read(*Reader) Issue
+}
+
+func calculateValue(calculable Calculable, values map[string]Value) (string, error) {
 	sb := strings.Builder{}
 	r := calculable.Raw()
 	var endIndex int
@@ -40,8 +45,7 @@ func calculateValue(calculable Value, values map[string]Value) (string, error) {
 		if endIndex < 0 {
 			return "", errors.New("missed value ending")
 		}
-		subVal := strings.TrimSpace(r[startIndex+2 : endIndex])
-		subVal, _ = strings.CutPrefix(subVal, ".")
+		subVal := strings.ToLower(strings.TrimSpace(r[startIndex+2 : endIndex]))
 		if val := values[subVal]; val != nil {
 			if err := val.Calculate(values); err != nil {
 				return "", err
@@ -74,13 +78,6 @@ func (c *ConstValue) Raw() string {
 	return c.RawValue
 }
 
-func (c *ConstValue) Clone() Value {
-	return &ConstValue{
-		RawValue: c.RawValue,
-		Value:    c.Value,
-	}
-}
-
 func (c *ConstValue) Get() string {
 	if c.Value != "" {
 		return c.Value
@@ -92,15 +89,24 @@ func (c *ConstValue) String() string {
 	return c.Get()
 }
 
-type RegexpValue struct {
-	RawValue, Value string
+func (c *ConstValue) Read(s *Reader) Issue {
+	l := s.Location()
+	p := s.Position()
+	for _, ch := range c.Get() {
+		if ch != s.Peek() {
+			s.SetPosition(p)
+			f := s.ReadWhile(func(r rune) bool {
+				return r != '\n'
+			})
+			return NewIssueWithLocation(fmt.Sprintf("Expected:%v, Actual: %v", c.Get(), f), l)
+		}
+		s.Next()
+	}
+	return nil
 }
 
-func (r *RegexpValue) Clone() Value {
-	return &RegexpValue{
-		Value:    r.Value,
-		RawValue: r.RawValue,
-	}
+type RegexpValue struct {
+	RawValue, Value string
 }
 
 func (r *RegexpValue) Calculate(values map[string]Value) error {
@@ -124,6 +130,20 @@ func (r *RegexpValue) Get() string {
 
 func (r *RegexpValue) String() string {
 	return r.Get()
+}
+
+func (r *RegexpValue) Read(s *Reader) Issue {
+	l := s.Location()
+	p := regexp.MustCompile(r.Get())
+	pos := s.Position()
+	str := s.Finish()
+	s.SetPosition(pos)
+	indexes := p.FindAllIndex([]byte(str), -1)
+	if len(indexes) == 0 {
+		return NewIssueWithLocation(fmt.Sprintf("Pattern %v doesn't match.", p.String()), l)
+	}
+	s.SetPosition(pos + indexes[0][1])
+	return nil
 }
 
 var _ Value = &ConstValue{}

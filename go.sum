@@ -145,8 +145,8 @@ github.com/deathowl/go-metrics-prometheus v0.0.0-20221009205350-f2a1482ba35b h1:
 github.com/deathowl/go-metrics-prometheus v0.0.0-20221009205350-f2a1482ba35b/go.mod h1:kZ9Xvhj+PTMJ415unU/sutrnWDVqG0PDS/Sl4Rt3xkE=
 github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.1 h1:5RVFMOWjMyRy8cARdy79nAmgYw3hK/4HUq48LQ6Wwqo=
 github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.1/go.mod h1:ZXNYxsqcloTdSy/rNShjYzMhyjf0LaoftYK0p+A3h40=
-github.com/denis-tingaikin/go-header v1.0.0 h1:QIwZWb3jLC6pOp9NEFldiD8raqRmCE/n0VUdZKW32x8=
-github.com/denis-tingaikin/go-header v1.0.0/go.mod h1:NT3qKwqsXQYp8WHVgkwxL49qB5jsRmdr9dGQCDfpmZ0=
+github.com/denis-tingaikin/go-header v0.5.0 h1:SRdnP5ZKvcO9KKRP1KJrhFR3RrlGuD+42t4429eC9k8=
+github.com/denis-tingaikin/go-header v0.5.0/go.mod h1:mMenU5bWrok6Wl2UsZjy+1okegmwQ3UgWl4V1D8gjlY=
 github.com/dgraph-io/badger/v4 v4.9.1 h1:DocZXZkg5JJHJPtUErA0ibyHxOVUDVoXLSCV6t8NC8w=
 github.com/dgraph-io/badger/v4 v4.9.1/go.mod h1:5/MEx97uzdPUHR4KtkNt8asfI2T4JiEiQlV7kWUo8c0=
 github.com/dgraph-io/ristretto/v2 v2.4.0 h1:I/w09yLjhdcVD2QV192UJcq8dPBaAJb9pOuMyNy0XlU=
