@@ -868,7 +868,7 @@ github.com/nunnatsa/ginkgolinter/version
 # github.com/nwaples/rardecode v1.1.3
 ## explicit
 github.com/nwaples/rardecode
-# github.com/open-policy-agent/opa v1.14.1
+# github.com/open-policy-agent/opa v1.15.1
 ## explicit; go 1.25.0
 github.com/open-policy-agent/opa/capabilities
 github.com/open-policy-agent/opa/internal/bundle
