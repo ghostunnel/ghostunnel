@@ -8,7 +8,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	kingpin "github.com/alecthomas/kingpin/v2"
@@ -254,9 +253,7 @@ Project documentation: \fIhttps://github.com/ghostunnel/ghostunnel\fR
 func generateManPage(c *kingpin.ParseContext) error {
 	app.Writer(os.Stdout)
 	err := app.UsageForContextWithTemplate(c, 2, manPageTemplate)
-	if err != nil {
-		return fmt.Errorf("generating man page: %w", err)
-	}
+	panicOnError(err)
 	exitFunc(0)
-	return nil
+	return err
 }
