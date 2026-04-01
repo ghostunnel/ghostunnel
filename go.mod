@@ -1,7 +1,6 @@
 module github.com/ghostunnel/ghostunnel
 
 require (
-	github.com/Microsoft/go-winio v0.6.2
 	github.com/alecthomas/kingpin/v2 v2.4.0
 	github.com/caddyserver/certmagic v0.25.2
 	github.com/coreos/go-systemd/v22 v22.7.0
@@ -12,7 +11,7 @@ require (
 	github.com/kavu/go_reuseport v1.5.0
 	github.com/landlock-lsm/go-landlock v0.7.0
 	github.com/letsencrypt/pkcs11key/v4 v4.0.0
-	github.com/magefile/mage v1.16.1
+	github.com/magefile/mage v1.17.1
 	github.com/mholt/acmez v1.2.0
 	github.com/open-policy-agent/opa v1.14.1
 	github.com/pires/go-proxyproto v0.11.0
@@ -48,6 +47,7 @@ require (
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/Djarvur/go-err113 v0.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
+	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/MirrexOne/unqueryvet v1.4.0 // indirect
 	github.com/OpenPeeDeeP/depguard/v2 v2.2.1 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
