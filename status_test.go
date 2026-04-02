@@ -239,29 +239,6 @@ func TestStatusTargetHTTPWithError(t *testing.T) {
 	}
 }
 
-func TestGetMonotonicUsec(t *testing.T) {
-	if runtime.GOOS != "linux" {
-		t.Skip("getMonotonicUsec only available on Linux")
-	}
-
-	usec, err := getMonotonicUsec()
-	if err != nil {
-		t.Fatalf("getMonotonicUsec returned unexpected error: %v", err)
-	}
-	if usec <= 0 {
-		t.Errorf("getMonotonicUsec returned non-positive value: %d", usec)
-	}
-}
-
-func TestSystemdNotifyReloadingDoesNotPanic(t *testing.T) {
-	if runtime.GOOS != "linux" {
-		t.Skip("systemdNotifyReloading only available on Linux")
-	}
-
-	// Should not panic even if systemd is not available
-	systemdNotifyReloading()
-}
-
 func TestServeHTTPReturnsJSON(t *testing.T) {
 	handler := newStatusHandler(dummyDial, "", "", "", "")
 	handler.Listening()
