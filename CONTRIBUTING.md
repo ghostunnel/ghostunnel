@@ -7,28 +7,55 @@ When submitting code, please make efforts to follow existing conventions and
 style in order to keep the code as readable as possible. Please also make sure
 all tests pass by running `mage test:all`, and format your code with `go fmt`.
 
-## Build & Test Commands
+## Go Toolchain Setup
 
-This project uses [mage](https://magefile.org) as the build system (defined in `magefile.go`):
+This project requires Go 1.25.1+ (see `go.mod`). The default Go on PATH may be
+an older version (e.g. 1.24.x) which will fail with a version mismatch error.
+Multiple Go versions are installed side-by-side under `/usr/local/`:
+
+```
+/usr/local/go/         → default (may be older)
+/usr/local/go1.25.1/   → required by this project
+```
+
+To use the correct version, prepend it to your PATH before running any Go or
+mage commands:
 
 ```bash
-mage go:build              # Build binary
-mage go:lint               # Run golangci-lint (config: .golangci.yml)
-mage test:all              # Unit + integration tests with merged coverage
-mage test:unit             # Go unit tests only
-mage test:integration      # Python integration tests only
-mage test:docker           # Full suite in Docker (includes PKCS#11/SoftHSM)
-mage test:keys             # Generate test certificates in test-keys/
-mage docker:build          # Build Docker images
-mage -l                    # List all available targets
+export PATH="/usr/local/go1.25.1/bin:$PATH"
+go version   # should print: go version go1.25.1 linux/amd64
+```
+
+Mage is available as a Go tool dependency (no separate install needed):
+
+```bash
+go tool mage -l   # list all targets
+```
+
+## Build & Test Commands
+
+This project uses [mage](https://magefile.org) as the build system (defined in `magefile.go`).
+Invoke it via `go tool mage` (not a standalone `mage` binary):
+
+```bash
+go tool mage go:build              # Build binary
+go tool mage go:lint               # Run golangci-lint (config: .golangci.yml)
+go tool mage test:all              # Unit + integration tests with merged coverage
+go tool mage test:unit             # Go unit tests only
+go tool mage test:integration      # Python integration tests only
+go tool mage test:docker           # Full suite in Docker (includes PKCS#11/SoftHSM)
+go tool mage test:keys             # Generate test certificates in test-keys/
+go tool mage docker:build          # Build Docker images
+go tool mage -l                    # List all available targets
 ```
 
 ### Running a Single Test
 
 ```bash
-go test -v -run TestName ./...       # Single Go unit test
-go test -v ./auth/...                # All tests in a package
-cd tests && python3 test-name.py     # Single integration test
+go test -v -run TestName ./...                   # Single Go unit test
+go test -v ./auth/...                            # All tests in a package
+go tool mage test:single test-server-pem-rsa     # Single integration test (via mage)
+cd tests && python3 test-server-pem-rsa.py       # Single integration test (directly)
 ```
 
 ### Linting
@@ -52,14 +79,30 @@ run checks on a live instance. If you are adding new features or changing
 existing behavior, please add/update the integration tests in the `tests/`
 directory accordingly. The tests use the `tests/common.py` helper module.
 
-Integration tests run in parallel by default (up to `NumCPU`, capped at 16 by default).
-Set `GHOSTUNNEL_TEST_PARALLEL` to control the number of concurrent tests (may exceed the default cap):
+### Prerequisites
+
+1. **Go 1.25.1+** on PATH (see "Go Toolchain Setup" above).
+2. **Python 3** with packages used by the test harness (typically already available).
+3. **Test certificates** must be generated before the first run:
 
 ```bash
-GHOSTUNNEL_TEST_PARALLEL=4 mage test:integration
+go tool mage test:keys        # generates certs in test-keys/
 ```
 
-Test certificates are generated in `test-keys/` via `mage test:keys`.
+### Running Integration Tests
+
+```bash
+go tool mage test:integration                              # all integration tests
+go tool mage test:single test-server-pem-rsa               # single test by name
+GHOSTUNNEL_TEST_PARALLEL=4 go tool mage test:integration   # control parallelism
+```
+
+Integration tests run in parallel by default (up to `NumCPU`, capped at 16).
+Set `GHOSTUNNEL_TEST_PARALLEL` to control the number of concurrent tests (may exceed the default cap).
+
+The integration test runner first builds a coverage-instrumented test binary
+(`go test -c`), then runs each `tests/test-*.py` script against that binary.
+Each Python test starts a ghostunnel process, exercises it, and verifies behavior.
 
 ## Architecture Overview
 
