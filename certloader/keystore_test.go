@@ -21,7 +21,6 @@ import (
 	"os"
 	"runtime"
 	"testing"
-	"unsafe"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -141,9 +140,8 @@ func TestCertificateFromPEMFilesTrustStore(t *testing.T) {
 
 func TestGetCachedCertificateKeystore(t *testing.T) {
 	tlscert := &tls.Certificate{}
-	kscert := &keystoreCertificate{
-		cachedCertificate: unsafe.Pointer(tlscert),
-	}
+	kscert := &keystoreCertificate{}
+	kscert.cachedCertificate.Store(tlscert)
 
 	c, err := kscert.GetCertificate(nil)
 	assert.Nil(t, err, "should be able to read certificate")

@@ -25,7 +25,6 @@ import (
 	"log"
 	"os"
 	"testing"
-	"unsafe"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -44,9 +43,8 @@ func TestPKCS11GetTrustStore(t *testing.T) {
 		},
 	})
 
-	p11cert := &pkcs11Certificate{
-		cachedCertPool: unsafe.Pointer(pool),
-	}
+	p11cert := &pkcs11Certificate{}
+	p11cert.cachedCertPool.Store(pool)
 
 	result := p11cert.GetTrustStore()
 	assert.NotNil(t, result, "GetTrustStore should return the cached cert pool")
@@ -61,9 +59,8 @@ func TestGetCachedCertificatePKCS11(t *testing.T) {
 			},
 		},
 	}
-	p11cert := &pkcs11Certificate{
-		cachedCertificate: unsafe.Pointer(tlscert),
-	}
+	p11cert := &pkcs11Certificate{}
+	p11cert.cachedCertificate.Store(tlscert)
 
 	id := p11cert.GetIdentifier()
 	assert.Equal(t, id, "CN=test", "cert should not have empty id")

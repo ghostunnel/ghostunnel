@@ -23,7 +23,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"sync/atomic"
-	"unsafe"
 )
 
 type keystoreCertificate struct {
@@ -36,9 +35,9 @@ type keystoreCertificate struct {
 	// File format indicator (e.g. "PEM", "PKCS12", "JCEKS", "DER", or "" for auto-detect)
 	format string
 	// Cached *tls.Certificate
-	cachedCertificate unsafe.Pointer
+	cachedCertificate atomic.Pointer[tls.Certificate]
 	// Cached *x509.CertPool
-	cachedCertPool unsafe.Pointer
+	cachedCertPool atomic.Pointer[x509.CertPool]
 }
 
 // CertificateFromPEMFiles creates a reloadable certificate from a set of PEM files.
@@ -101,8 +100,8 @@ func (c *keystoreCertificate) Reload() error {
 		return fmt.Errorf("loading trust store: %w", err)
 	}
 
-	atomic.StorePointer(&c.cachedCertificate, unsafe.Pointer(&certAndKey))
-	atomic.StorePointer(&c.cachedCertPool, unsafe.Pointer(bundle))
+	c.cachedCertificate.Store(&certAndKey)
+	c.cachedCertPool.Store(bundle)
 
 	return nil
 }
@@ -115,15 +114,15 @@ func (c *keystoreCertificate) GetIdentifier() string {
 
 // GetCertificate retrieves the actual underlying tls.Certificate.
 func (c *keystoreCertificate) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-	return (*tls.Certificate)(atomic.LoadPointer(&c.cachedCertificate)), nil
+	return c.cachedCertificate.Load(), nil
 }
 
 // GetClientCertificate retrieves the actual underlying tls.Certificate.
 func (c *keystoreCertificate) GetClientCertificate(certInfo *tls.CertificateRequestInfo) (*tls.Certificate, error) {
-	return (*tls.Certificate)(atomic.LoadPointer(&c.cachedCertificate)), nil
+	return c.cachedCertificate.Load(), nil
 }
 
 // GetTrustStore returns the most up-to-date version of the trust store / CA bundle.
 func (c *keystoreCertificate) GetTrustStore() *x509.CertPool {
-	return (*x509.CertPool)(atomic.LoadPointer(&c.cachedCertPool))
+	return c.cachedCertPool.Load()
 }
