@@ -79,9 +79,8 @@ func (c *pkcs11Certificate) Reload() error {
 	// Reuse previously loaded PKCS11 private key if we already have it.
 	// We want to avoid reloading the key every time the cert reloads, as it's
 	// a potentially expensive operation that calls out into a shared library.
-	if c.cachedCertificate.Load() != nil {
+	if old := c.cachedCertificate.Load(); old != nil {
 		c.logger.Printf("pkcs11: re-using previously cached private key handle from module")
-		old, _ := c.GetCertificate(nil)
 		certAndKey.PrivateKey = old.PrivateKey
 	} else {
 		c.logger.Printf("pkcs11: loading private key for given certificate from module")

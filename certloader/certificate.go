@@ -22,10 +22,8 @@ import (
 	"sync/atomic"
 )
 
-// baseCertificate provides shared cached certificate and trust store fields
-// along with the common GetCertificate, GetClientCertificate, GetTrustStore,
-// and GetIdentifier method implementations. Concrete Certificate types embed
-// this struct and only need to implement Reload().
+// baseCertificate holds cached certificate and trust store pointers shared by
+// concrete Certificate types. Embed it and implement only Reload().
 type baseCertificate struct {
 	cachedCertificate atomic.Pointer[tls.Certificate]
 	cachedCertPool    atomic.Pointer[x509.CertPool]
@@ -36,7 +34,7 @@ func (b *baseCertificate) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls
 	return b.cachedCertificate.Load(), nil
 }
 
-// GetClientCertificate retrieves the actual underlying tls.Certificate.
+// GetClientCertificate retrieves the certificate for mTLS client authentication.
 func (b *baseCertificate) GetClientCertificate(certInfo *tls.CertificateRequestInfo) (*tls.Certificate, error) {
 	return b.cachedCertificate.Load(), nil
 }
@@ -48,8 +46,7 @@ func (b *baseCertificate) GetTrustStore() *x509.CertPool {
 
 // GetIdentifier returns an identifier for the certificate for logging.
 func (b *baseCertificate) GetIdentifier() string {
-	cert, _ := b.GetCertificate(nil)
-	return cert.Leaf.Subject.String()
+	return b.cachedCertificate.Load().Leaf.Subject.String()
 }
 
 // Certificate wraps a TLS certificate and supports reloading at runtime.
