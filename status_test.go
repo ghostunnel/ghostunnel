@@ -239,6 +239,30 @@ func TestStatusTargetHTTPWithError(t *testing.T) {
 	}
 }
 
+func TestServeHTTPReturnsJSON(t *testing.T) {
+	handler := newStatusHandler(dummyDial, "", "", "", "")
+	handler.Listening()
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/", nil))
+
+	if response.Code != 200 {
+		t.Errorf("expected status 200, got %d", response.Code)
+	}
+
+	var resp statusResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to unmarshal response body: %v", err)
+	}
+
+	if resp.Message != "listening" {
+		t.Errorf("expected message 'listening', got %q", resp.Message)
+	}
+	if !resp.Ok {
+		t.Error("expected ok=true when listening with working backend")
+	}
+}
+
 func TestSystemdStubsAreNoOps(t *testing.T) {
 	if runtime.GOOS == "linux" {
 		t.Skip("stubs are only compiled on non-Linux")

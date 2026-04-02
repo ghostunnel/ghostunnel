@@ -2,7 +2,6 @@ package certloader
 
 import (
 	"crypto/tls"
-	"errors"
 	"log"
 )
 
@@ -41,7 +40,7 @@ func (c *certTLSConfigSource) GetClientConfig(base *tls.Config) (TLSClientConfig
 
 func (c *certTLSConfigSource) GetServerConfig(base *tls.Config) (TLSServerConfig, error) {
 	if !c.CanServe() {
-		return nil, errors.New("certificate cannot be used as a server")
+		return nil, ErrNotServerCert
 	}
 	return newCertTLSConfig(c.cert, base), nil
 }

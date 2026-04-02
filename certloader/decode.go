@@ -93,7 +93,7 @@ func formatForFile(file *bufio.Reader, filename, format string) (string, error) 
 		return "PKCS12", nil
 	}
 
-	return "", fmt.Errorf("unable to guess file format")
+	return "", ErrUnknownFormat
 }
 
 // readCertsFromStream takes some input and converts it to PEM blocks.

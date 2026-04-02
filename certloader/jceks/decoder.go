@@ -139,7 +139,7 @@ func (ks *KeyStore) parseWithOptions(r io.Reader, password []byte, options ...pa
 	if password != nil {
 		encodedPassword, err := EncodeIntegrityPassword(string(password))
 		if err != nil {
-			return err
+			return fmt.Errorf("encoding integrity password: %w", err)
 		}
 		md = MakeIntegrityHash(encodedPassword)
 		r = io.TeeReader(r, md)
@@ -211,7 +211,7 @@ func (ks *KeyStore) GetPrivateKeyAndCerts(alias string, password []byte) (
 	}
 	key, err = entry.Recover(password)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("recovering private key %q: %w", alias, err)
 	}
 
 	return key, entry.certs, nil
@@ -251,7 +251,7 @@ func LoadFromReader(reader io.Reader, password []byte) (*KeyStore, error) {
 func parseHeader(r io.Reader) (uint32, error) {
 	magic, err := readUint32(r)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("reading magic: %w", err)
 	}
 	if magic != jceksMagic && magic != jksMagic {
 		return 0, fmt.Errorf("unexpected magic: %08x != (%08x || %08x)",
@@ -259,7 +259,7 @@ func parseHeader(r io.Reader) (uint32, error) {
 	}
 	version, err := readUint32(r)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("reading version: %w", err)
 	}
 	return version, nil
 }
@@ -267,27 +267,27 @@ func parseHeader(r io.Reader) (uint32, error) {
 func (ks *KeyStore) parsePrivateKey(r io.Reader, cfg *parseConfig) error {
 	alias, err := readString(r)
 	if err != nil {
-		return err
+		return fmt.Errorf("reading alias: %w", err)
 	}
 	entry := &privateKeyEntry{
 		certs: []*x509.Certificate{},
 	}
 	entry.timestamp, err = readDate(r)
 	if err != nil {
-		return err
+		return fmt.Errorf("reading timestamp: %w", err)
 	}
 	entry.protectedKey, err = readBytes(r, cfg.maxPrivateKeyBytes)
 	if err != nil {
-		return err
+		return fmt.Errorf("reading protected key: %w", err)
 	}
 	nCerts, err := readInt32(r)
 	if err != nil {
-		return err
+		return fmt.Errorf("reading certificate count: %w", err)
 	}
 	for j := 0; j < int(nCerts); j++ {
 		cert, err := readCertificate(r, cfg.maxCertBytes)
 		if err != nil {
-			return err
+			return fmt.Errorf("reading certificate %d: %w", j, err)
 		}
 		entry.certs = append(entry.certs, cert)
 	}
@@ -301,17 +301,17 @@ func (ks *KeyStore) parsePrivateKey(r io.Reader, cfg *parseConfig) error {
 func (ks *KeyStore) parseTrustedCert(r io.Reader, cfg *parseConfig) error {
 	alias, err := readString(r)
 	if err != nil {
-		return err
+		return fmt.Errorf("reading alias: %w", err)
 	}
 	entry := &trustedCertEntry{}
 	entry.timestamp, err = readDate(r)
 	if err != nil {
-		return err
+		return fmt.Errorf("reading timestamp: %w", err)
 	}
 
 	entry.cert, err = readCertificate(r, cfg.maxCertBytes)
 	if err != nil {
-		return err
+		return fmt.Errorf("reading certificate: %w", err)
 	}
 
 	ks.clearAlias(alias)

@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"errors"
 	"log"
 	"sync/atomic"
 	"time"
@@ -180,12 +179,12 @@ func (a *acmeTLSConfigSource) GetClientConfig(base *tls.Config) (TLSClientConfig
 	// exposed to the internet on tcp/443, then ACME is not suitable for obtaining client certs.
 	// It should not be possible for ghostunnel to attempt to use this TLSConfigSource when
 	// started in client mode.
-	return nil, errors.New("ACME is not supported in client mode")
+	return nil, ErrACMENotSupportedClient
 }
 
 func (a *acmeTLSConfigSource) GetServerConfig(base *tls.Config) (TLSServerConfig, error) {
 	if !a.CanServe() {
-		return nil, errors.New("ACME certificate currently unavailable")
+		return nil, ErrACMECertUnavailable
 	}
 	if base == nil {
 		base = new(tls.Config)
