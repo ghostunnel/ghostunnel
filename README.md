@@ -64,7 +64,7 @@ started is to use a package like [cloudflare/cfssl](https://github.com/cloudflar
 For testing and development purposes, you can generate test certificates using:
 
     # Generate test certificates and keys
-    mage test:keys
+    go tool mage test:keys
 
 This will create a `test-keys` directory with all the necessary certificates and keys
 for testing. **Note: These are test certificates only and should NOT be used in production.**
@@ -78,16 +78,17 @@ built directly via Github Actions on the latest available images. If you need
 compatibility for specific OS versions we recommend building yourself.
 
 Ghostunnel uses the [mage][mage] build system, a make/rake-like build tool using
-Go. You can build Ghostunnel with the [mage][mage] commands shown below.
+Go. Mage is available as a Go tool dependency (no separate install needed). You
+can build Ghostunnel with the commands shown below.
 
     # Compile binary
-    mage go:build
+    go tool mage go:build
 
     # Build containers
-    mage docker:build
+    go tool mage docker:build
 
-You can also run `mage -l` to view all build targets and add `-v` to mage commands
-to get more verbose output.
+You can also run `go tool mage -l` to view all build targets and add `-v` to
+mage commands to get more verbose output.
 
 [rel]: https://github.com/ghostunnel/ghostunnel/releases
 [hub]: https://hub.docker.com/r/ghostunnel/ghostunnel
@@ -101,11 +102,11 @@ suite requires Python 3.
 To run tests:
 
     # Option 1: run unit & integration tests locally
-    mage test:all
+    go tool mage test:all
 
     # Option 2: run unit & integration tests in a Docker container
     # This also runs PKCS#11 integration tests using SoftHSM in the container
-    mage test:docker
+    go tool mage test:docker
 
     # Open coverage information in browser
     go tool cover -html coverage/all.profile
@@ -153,7 +154,7 @@ information. In this example, we assume that the CN of the client cert we want
 to accept connections from is `client`.
 
 **Note:** Before running the examples below, make sure you have generated the test
-certificates by running `mage test:keys` (see the [Getting Started](#getting-started)
+certificates by running `go tool mage test:keys` (see the [Getting Started](#getting-started)
 section above).
 
 Start a backend server:
