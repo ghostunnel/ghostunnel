@@ -7,9 +7,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"math/big"
-	"sync/atomic"
 	"testing"
-	"unsafe"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -24,8 +22,8 @@ func TestCertstoreCertificateGetCertificate(t *testing.T) {
 	pool := x509.NewCertPool()
 
 	c := &certstoreCertificate{}
-	atomic.StorePointer(&c.cachedCertificate, unsafe.Pointer(tlsCert))
-	atomic.StorePointer(&c.cachedCertPool, unsafe.Pointer(pool))
+	c.cachedCertificate.Store(tlsCert)
+	c.cachedCertPool.Store(pool)
 
 	cert, err := c.GetCertificate(nil)
 	assert.Nil(t, err)
@@ -42,7 +40,7 @@ func TestCertstoreCertificateGetClientCertificate(t *testing.T) {
 	}
 
 	c := &certstoreCertificate{}
-	atomic.StorePointer(&c.cachedCertificate, unsafe.Pointer(tlsCert))
+	c.cachedCertificate.Store(tlsCert)
 
 	cert, err := c.GetClientCertificate(nil)
 	assert.Nil(t, err)
@@ -62,7 +60,7 @@ func TestCertstoreCertificateGetIdentifier(t *testing.T) {
 	}
 
 	c := &certstoreCertificate{}
-	atomic.StorePointer(&c.cachedCertificate, unsafe.Pointer(tlsCert))
+	c.cachedCertificate.Store(tlsCert)
 
 	identifier := c.GetIdentifier()
 	assert.Contains(t, identifier, "test-identity")
@@ -72,7 +70,7 @@ func TestCertstoreCertificateGetTrustStore(t *testing.T) {
 	pool := x509.NewCertPool()
 
 	c := &certstoreCertificate{}
-	atomic.StorePointer(&c.cachedCertPool, unsafe.Pointer(pool))
+	c.cachedCertPool.Store(pool)
 
 	trustStore := c.GetTrustStore()
 	assert.NotNil(t, trustStore)

@@ -20,9 +20,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"os"
-	"sync/atomic"
 	"testing"
-	"unsafe"
 
 	"github.com/caddyserver/certmagic"
 	"github.com/mholt/acmez"
@@ -244,7 +242,7 @@ func TestACMETLSConfigGetServerConfigWithTrustStore(t *testing.T) {
 		gtACMEConfig: &ACMEConfig{CABundlePath: caFile.Name()},
 		caBundlePath: caFile.Name(),
 	}
-	atomic.StorePointer(&source.cachedTrustStore, unsafe.Pointer(trustStore))
+	source.cachedTrustStore.Store(trustStore)
 
 	serverConfig, err := source.GetServerConfig(&tls.Config{
 		MinVersion: tls.VersionTLS12,
@@ -268,7 +266,7 @@ func TestACMETLSConfigGetServerConfigWithoutTrustStore(t *testing.T) {
 	systemPool, err := x509.SystemCertPool()
 	require.NoError(t, err)
 
-	atomic.StorePointer(&source.cachedTrustStore, unsafe.Pointer(systemPool))
+	source.cachedTrustStore.Store(systemPool)
 
 	serverConfig, err := source.GetServerConfig(nil)
 	require.NoError(t, err)

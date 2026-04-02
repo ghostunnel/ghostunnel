@@ -25,7 +25,6 @@ import (
 	"log"
 	"sort"
 	"sync/atomic"
-	"unsafe"
 
 	"github.com/ghostunnel/ghostunnel/certstore"
 )
@@ -40,9 +39,9 @@ type certstoreCertificate struct {
 	// Require use of hardware token?
 	requireToken bool
 	// Cached *tls.Certificate
-	cachedCertificate unsafe.Pointer
+	cachedCertificate atomic.Pointer[tls.Certificate]
 	// Cached *x509.CertPool
-	cachedCertPool unsafe.Pointer
+	cachedCertPool atomic.Pointer[x509.CertPool]
 	// Added logger, useful for certstore logging
 	logger *log.Logger
 }
@@ -158,8 +157,8 @@ func (c *certstoreCertificate) Reload() error {
 		return err
 	}
 
-	atomic.StorePointer(&c.cachedCertificate, unsafe.Pointer(certAndKey))
-	atomic.StorePointer(&c.cachedCertPool, unsafe.Pointer(bundle))
+	c.cachedCertificate.Store(certAndKey)
+	c.cachedCertPool.Store(bundle)
 	return nil
 }
 
@@ -171,17 +170,17 @@ func (c *certstoreCertificate) GetIdentifier() string {
 
 // GetCertificate retrieves the actual underlying tls.Certificate.
 func (c *certstoreCertificate) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-	return (*tls.Certificate)(atomic.LoadPointer(&c.cachedCertificate)), nil
+	return c.cachedCertificate.Load(), nil
 }
 
 // GetClientCertificate retrieves the actual underlying tls.Certificate.
 func (c *certstoreCertificate) GetClientCertificate(certInfo *tls.CertificateRequestInfo) (*tls.Certificate, error) {
-	return (*tls.Certificate)(atomic.LoadPointer(&c.cachedCertificate)), nil
+	return c.cachedCertificate.Load(), nil
 }
 
 // GetTrustStore returns the most up-to-date version of the trust store / CA bundle.
 func (c *certstoreCertificate) GetTrustStore() *x509.CertPool {
-	return (*x509.CertPool)(atomic.LoadPointer(&c.cachedCertPool))
+	return c.cachedCertPool.Load()
 }
 
 func serializeChain(chain []*x509.Certificate) [][]byte {

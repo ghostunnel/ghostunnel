@@ -23,7 +23,6 @@ import (
 	"crypto/x509"
 	"log"
 	"sync/atomic"
-	"unsafe"
 
 	pkcs11key "github.com/letsencrypt/pkcs11key/v4"
 )
@@ -36,9 +35,9 @@ type pkcs11Certificate struct {
 	// Params for loading key from a PKCS#11 module
 	modulePath, tokenLabel, pin string
 	// Cached *tls.Certificate
-	cachedCertificate unsafe.Pointer
+	cachedCertificate atomic.Pointer[tls.Certificate]
 	// Cached *x509.CertPool
-	cachedCertPool unsafe.Pointer
+	cachedCertPool atomic.Pointer[x509.CertPool]
 	// Added logger, useful for PKCS#11 logging
 	logger *log.Logger
 }
@@ -85,7 +84,7 @@ func (c *pkcs11Certificate) Reload() error {
 	// Reuse previously loaded PKCS11 private key if we already have it.
 	// We want to avoid reloading the key every time the cert reloads, as it's
 	// a potentially expensive operation that calls out into a shared library.
-	if c.cachedCertificate != nil {
+	if c.cachedCertificate.Load() != nil {
 		c.logger.Printf("pkcs11: re-using previously cached private key handle from module")
 		old, _ := c.GetCertificate(nil)
 		certAndKey.PrivateKey = old.PrivateKey
@@ -103,8 +102,8 @@ func (c *pkcs11Certificate) Reload() error {
 		return err
 	}
 
-	atomic.StorePointer(&c.cachedCertificate, unsafe.Pointer(&certAndKey))
-	atomic.StorePointer(&c.cachedCertPool, unsafe.Pointer(bundle))
+	c.cachedCertificate.Store(&certAndKey)
+	c.cachedCertPool.Store(bundle)
 
 	return nil
 }
@@ -117,15 +116,15 @@ func (c *pkcs11Certificate) GetIdentifier() string {
 
 // GetCertificate retrieves the actual underlying tls.Certificate.
 func (c *pkcs11Certificate) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-	return (*tls.Certificate)(atomic.LoadPointer(&c.cachedCertificate)), nil
+	return c.cachedCertificate.Load(), nil
 }
 
 // GetClientCertificate retrieves the actual underlying tls.Certificate.
 func (c *pkcs11Certificate) GetClientCertificate(certInfo *tls.CertificateRequestInfo) (*tls.Certificate, error) {
-	return (*tls.Certificate)(atomic.LoadPointer(&c.cachedCertificate)), nil
+	return c.cachedCertificate.Load(), nil
 }
 
 // GetTrustStore returns the most up-to-date version of the trust store / CA bundle.
 func (c *pkcs11Certificate) GetTrustStore() *x509.CertPool {
-	return (*x509.CertPool)(atomic.LoadPointer(&c.cachedCertPool))
+	return c.cachedCertPool.Load()
 }

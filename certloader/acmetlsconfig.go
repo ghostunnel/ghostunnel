@@ -7,7 +7,6 @@ import (
 	"log"
 	"sync/atomic"
 	"time"
-	"unsafe"
 
 	"github.com/caddyserver/certmagic"
 	"github.com/mholt/acmez"
@@ -138,7 +137,7 @@ func newACMETLSConfigSource(magicConfig *certmagic.Config, acme *ACMEConfig) (*a
 		gtACMEConfig: acme,
 		caBundlePath: acme.CABundlePath,
 	}
-	atomic.StorePointer(&source.cachedTrustStore, unsafe.Pointer(trustStore))
+	source.cachedTrustStore.Store(trustStore)
 
 	return source, nil
 }
@@ -148,7 +147,7 @@ type acmeTLSConfigSource struct {
 	gtACMEConfig *ACMEConfig
 	caBundlePath string
 	// Cached *x509.CertPool
-	cachedTrustStore unsafe.Pointer
+	cachedTrustStore atomic.Pointer[x509.CertPool]
 }
 
 func (a *acmeTLSConfigSource) Reload() error {
@@ -159,12 +158,12 @@ func (a *acmeTLSConfigSource) Reload() error {
 		return err
 	}
 
-	atomic.StorePointer(&a.cachedTrustStore, unsafe.Pointer(bundle))
+	a.cachedTrustStore.Store(bundle)
 	return nil
 }
 
 func (a *acmeTLSConfigSource) getTrustStore() *x509.CertPool {
-	return (*x509.CertPool)(atomic.LoadPointer(&a.cachedTrustStore))
+	return a.cachedTrustStore.Load()
 }
 
 func (a *acmeTLSConfigSource) CanServe() bool {
