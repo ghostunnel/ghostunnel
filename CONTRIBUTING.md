@@ -9,21 +9,21 @@ all tests pass by running `mage test:all`, and format your code with `go fmt`.
 
 ## Go Toolchain Setup
 
-This project requires Go 1.25.1+ (see `go.mod`). The default Go on PATH may be
-an older version (e.g. 1.24.x) which will fail with a version mismatch error.
-Multiple Go versions are installed side-by-side under `/usr/local/`:
+This project requires the Go version specified in `go.mod`. If the default `go`
+on PATH is older, builds will fail with a version mismatch error.
 
-```
-/usr/local/go/         → default (may be older)
-/usr/local/go1.25.1/   → required by this project
-```
-
-To use the correct version, prepend it to your PATH before running any Go or
-mage commands:
+**Claude Code (cloud environment):** Multiple Go versions are installed
+side-by-side under `/usr/local/`. The default `/usr/local/go/` may be older
+than what this project requires. Check for a matching version (e.g.
+`/usr/local/go<VERSION>/bin/go`) and prepend it to your PATH:
 
 ```bash
-export PATH="/usr/local/go1.25.1/bin:$PATH"
-go version   # should print: go version go1.25.1 linux/amd64
+# Find available Go versions
+ls /usr/local/go*/bin/go
+
+# Use the version that matches go.mod (check with: grep '^go ' go.mod)
+export PATH="/usr/local/go<VERSION>/bin:$PATH"
+go version
 ```
 
 Mage is available as a Go tool dependency (no separate install needed):
@@ -81,7 +81,7 @@ directory accordingly. The tests use the `tests/common.py` helper module.
 
 ### Prerequisites
 
-1. **Go 1.25.1+** on PATH (see "Go Toolchain Setup" above).
+1. **Go** at the version specified in `go.mod` on PATH (see "Go Toolchain Setup" above).
 2. **Python 3** with packages used by the test harness (typically already available).
 3. **Test certificates** must be generated before the first run:
 
