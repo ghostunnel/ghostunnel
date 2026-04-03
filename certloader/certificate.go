@@ -19,7 +19,35 @@ package certloader
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"sync/atomic"
 )
+
+// baseCertificate holds cached certificate and trust store pointers shared by
+// concrete Certificate types. Embed it and implement only Reload().
+type baseCertificate struct {
+	cachedCertificate atomic.Pointer[tls.Certificate]
+	cachedCertPool    atomic.Pointer[x509.CertPool]
+}
+
+// GetCertificate retrieves the actual underlying tls.Certificate.
+func (b *baseCertificate) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+	return b.cachedCertificate.Load(), nil
+}
+
+// GetClientCertificate retrieves the certificate for mTLS client authentication.
+func (b *baseCertificate) GetClientCertificate(certInfo *tls.CertificateRequestInfo) (*tls.Certificate, error) {
+	return b.cachedCertificate.Load(), nil
+}
+
+// GetTrustStore returns the most up-to-date version of the trust store / CA bundle.
+func (b *baseCertificate) GetTrustStore() *x509.CertPool {
+	return b.cachedCertPool.Load()
+}
+
+// GetIdentifier returns an identifier for the certificate for logging.
+func (b *baseCertificate) GetIdentifier() string {
+	return b.cachedCertificate.Load().Leaf.Subject.String()
+}
 
 // Certificate wraps a TLS certificate and supports reloading at runtime.
 type Certificate interface {

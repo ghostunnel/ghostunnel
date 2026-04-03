@@ -24,12 +24,12 @@ import (
 	"fmt"
 	"log"
 	"sort"
-	"sync/atomic"
 
 	"github.com/ghostunnel/ghostunnel/certstore"
 )
 
 type certstoreCertificate struct {
+	baseCertificate
 	// Common name or serial number of keychain identity
 	commonNameOrSerial string
 	// Issuer name of keychain identity
@@ -38,10 +38,6 @@ type certstoreCertificate struct {
 	caBundlePath string
 	// Require use of hardware token?
 	requireToken bool
-	// Cached *tls.Certificate
-	cachedCertificate atomic.Pointer[tls.Certificate]
-	// Cached *x509.CertPool
-	cachedCertPool atomic.Pointer[x509.CertPool]
 	// Added logger, useful for certstore logging
 	logger *log.Logger
 }
@@ -160,27 +156,6 @@ func (c *certstoreCertificate) Reload() error {
 	c.cachedCertificate.Store(certAndKey)
 	c.cachedCertPool.Store(bundle)
 	return nil
-}
-
-// GetIdentifier returns an identifier for the certificate for logging.
-func (c *certstoreCertificate) GetIdentifier() string {
-	cert, _ := c.GetCertificate(nil)
-	return cert.Leaf.Subject.String()
-}
-
-// GetCertificate retrieves the actual underlying tls.Certificate.
-func (c *certstoreCertificate) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-	return c.cachedCertificate.Load(), nil
-}
-
-// GetClientCertificate retrieves the actual underlying tls.Certificate.
-func (c *certstoreCertificate) GetClientCertificate(certInfo *tls.CertificateRequestInfo) (*tls.Certificate, error) {
-	return c.cachedCertificate.Load(), nil
-}
-
-// GetTrustStore returns the most up-to-date version of the trust store / CA bundle.
-func (c *certstoreCertificate) GetTrustStore() *x509.CertPool {
-	return c.cachedCertPool.Load()
 }
 
 func serializeChain(chain []*x509.Certificate) [][]byte {
