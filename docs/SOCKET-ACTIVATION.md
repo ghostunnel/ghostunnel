@@ -1,5 +1,8 @@
-Socket Activation
-=================
+---
+title: Socket Activation
+description: Use systemd (Linux) or launchd (macOS) socket activation for on-demand startup.
+weight: 80
+---
 
 Ghostunnel supports socket activation via both systemd (on Linux) and launchd
 (on macOS). Socket activation is supported for the `--listen` and `--status`
@@ -7,14 +10,15 @@ flags, and can be used by passing an address of the form `systemd:<name>` or
 `launchd:<name>`, where `<name>` should be the name of the socket as defined in
 your systemd/launchd configuration.
 
-launchd
--------
+Note that socket activation is not available on Windows.
+
+### launchd
 
 A launchd plist to launch Ghostunnel in server mode on :8081,
 listening for status connections on :8082, and forwarding connections to :8083
 could look like this:
 
-```
+```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -72,13 +76,12 @@ defined for each socket. If for example the family were to be left out, launchd
 would open two sockets (IPv4 and IPv6) for the given key (like `Listener`) and
 pass them to Ghostunnel which is not currently supported.
 
-systemd
--------
+### systemd
 
 A systemd unit for a `ghostunnel.socket` for listening on `*:8443` could look
 like this:
 
-```
+```ini
 [Unit]
 Description=Ghostunnel Socket
 PartOf=ghostunnel.service
@@ -91,10 +94,10 @@ ListenStream=0.0.0.0:8443
 WantedBy=sockets.target
 ```
 
-With a corresponding `ghostunnel.service` to forward to `localhost:8080` could
-look like this:
+A corresponding `ghostunnel.service` to forward to `localhost:8080` could look
+like this:
 
-```
+```ini
 [Unit]
 Description=Ghostunnel
 After=network.target ghostunnel.socket
@@ -113,4 +116,4 @@ Note that the `FileDescriptorName` in `ghostunnel.socket` matches the name passe
 used to distinguish the listening and status sockets.
 
 Ghostunnel also supports systemd notify and watchdog functionality. See
-[WATCHDOG](WATCHDOG.md) for details on configuring `Type=notify-reload` services.
+[WATCHDOG]({{< ref "WATCHDOG.md" >}}) for details on configuring `Type=notify-reload` services.

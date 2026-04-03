@@ -1,0 +1,746 @@
+/* ==============================================
+   Ghostunnel — Frost on Glass
+   Light, airy, icy. Pale blue-white backgrounds,
+   strong contrast, frosted glass surfaces,
+   teal-cyan accents.
+   ============================================== */
+
+/* Reset & Base */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg: #f0f5f9;
+  --bg-warm: #f6f9fc;
+  --bg-card: rgba(255, 255, 255, 0.72);
+  --bg-glass: rgba(255, 255, 255, 0.5);
+  --text: #172a3a;
+  --text-muted: #54717e;
+  --text-heading: #0f2030;
+  --link: #0e8a9e;
+  --link-hover: #0a6d7e;
+  --border: rgba(14, 138, 158, 0.12);
+  --border-hover: rgba(14, 138, 158, 0.25);
+  --code-bg: rgba(14, 138, 158, 0.05);
+  --code-border: rgba(14, 138, 158, 0.12);
+  --nav-bg: #102838;
+  --nav-text: #d0e0ea;
+  --badge-bg: rgba(14, 138, 158, 0.08);
+  --badge-text: #0e8a9e;
+  --accent: #0e8a9e;
+  --accent-light: #12a5bc;
+  --accent-faint: rgba(14, 138, 158, 0.06);
+  --frost: rgba(14, 138, 158, 0.04);
+  --ghost-glow: rgba(14, 138, 158, 0.3);
+  --shadow-sm: 0 1px 3px rgba(15, 40, 60, 0.06);
+  --shadow-md: 0 4px 16px rgba(15, 40, 60, 0.08);
+  --shadow-lg: 0 8px 30px rgba(15, 40, 60, 0.1);
+}
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--text);
+  background: var(--bg);
+  position: relative;
+  min-height: 100vh;
+}
+
+/* Soft icy gradient backdrop */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(ellipse 80% 60% at 30% 0%, rgba(14, 138, 158, 0.06) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 85% 90%, rgba(14, 138, 158, 0.04) 0%, transparent 50%),
+    var(--bg);
+  pointer-events: none;
+}
+
+/* Light frost texture overlay */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.25;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 200px 200px;
+  mix-blend-mode: overlay;
+}
+
+h1, h2, h3, h4, h5, h6,
+.nav-title,
+.sidebar h3 {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 600;
+  color: var(--text-heading);
+}
+
+a {
+  color: var(--link);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+a:hover {
+  color: var(--link-hover);
+  text-decoration: underline;
+}
+
+/* =============================================
+   Ghost Emoji Art
+   ============================================= */
+
+.ghost-hero {
+  margin: 0 auto 1.25rem;
+  font-size: 5rem;
+  line-height: 1;
+  text-align: center;
+  opacity: 0.8;
+  filter: drop-shadow(0 0 20px var(--ghost-glow));
+  animation: ghost-drift 5s ease-in-out infinite;
+  position: relative;
+  z-index: 2;
+}
+
+@keyframes ghost-drift {
+  0%, 100% {
+    transform: translateY(0);
+    filter: drop-shadow(0 0 20px var(--ghost-glow));
+  }
+  50% {
+    transform: translateY(-10px);
+    filter: drop-shadow(0 0 28px var(--ghost-glow));
+  }
+}
+
+.ghost-nav {
+  margin-right: 0.3rem;
+  font-size: 1.2rem;
+  vertical-align: middle;
+}
+
+/* =============================================
+   Navigation
+   ============================================= */
+.site-nav {
+  background: var(--nav-bg);
+  color: var(--nav-text);
+  padding: 0 1rem;
+  position: relative;
+}
+
+/* Thin frost accent line below nav */
+.site-nav::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg,
+    transparent 5%,
+    var(--accent-light) 30%,
+    var(--accent) 50%,
+    var(--accent-light) 70%,
+    transparent 95%);
+  opacity: 0.5;
+}
+
+.nav-inner {
+  max-width: 64rem;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 3.5rem;
+}
+
+.nav-title {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #fff;
+  font-size: 1.2rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  letter-spacing: 0.02em;
+}
+
+.nav-title:hover {
+  text-decoration: none;
+  color: var(--accent-light);
+}
+
+.nav-links {
+  list-style: none;
+  display: flex;
+  gap: 1.5rem;
+}
+
+.nav-links a {
+  color: var(--nav-text);
+  opacity: 0.8;
+  font-size: 0.9rem;
+  font-weight: 400;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.nav-links a:hover {
+  opacity: 1;
+  color: #fff;
+  text-decoration: none;
+}
+
+.icon {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.125em;
+}
+
+.nav-toggle {
+  display: none;
+}
+
+.nav-toggle-label {
+  display: none;
+  cursor: pointer;
+  padding: 0.5rem;
+}
+
+.nav-toggle-label span,
+.nav-toggle-label span::before,
+.nav-toggle-label span::after {
+  display: block;
+  background: var(--nav-text);
+  height: 2px;
+  width: 1.5rem;
+  position: relative;
+  transition: transform 0.2s ease;
+}
+
+.nav-toggle-label span::before,
+.nav-toggle-label span::after {
+  content: "";
+  position: absolute;
+}
+
+.nav-toggle-label span::before {
+  top: -6px;
+}
+
+.nav-toggle-label span::after {
+  top: 6px;
+}
+
+@media (max-width: 600px) {
+  .nav-toggle-label {
+    display: block;
+  }
+
+  .nav-links {
+    display: none;
+    position: absolute;
+    top: 3.5rem;
+    left: 0;
+    right: 0;
+    background: var(--nav-bg);
+    flex-direction: column;
+    padding: 1rem;
+    gap: 0.75rem;
+    z-index: 10;
+    border-bottom: 2px solid var(--accent);
+  }
+
+  .nav-toggle:checked ~ .nav-links {
+    display: flex;
+  }
+}
+
+/* =============================================
+   Container
+   ============================================= */
+.container {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+/* =============================================
+   Hero
+   ============================================= */
+.hero {
+  text-align: center;
+  padding: 4rem 0 1.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Soft mist layers */
+.hero-mist {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 50% 40% at 20% 60%, rgba(14, 138, 158, 0.05) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 30% at 80% 40%, rgba(14, 138, 158, 0.04) 0%, transparent 60%);
+  animation: mist-drift 14s ease-in-out infinite;
+}
+
+.hero-mist--alt {
+  animation: mist-drift-alt 18s ease-in-out infinite;
+  opacity: 0.6;
+  background:
+    radial-gradient(ellipse 45% 35% at 65% 55%, rgba(14, 138, 158, 0.04) 0%, transparent 65%),
+    radial-gradient(ellipse 35% 25% at 35% 35%, rgba(14, 138, 158, 0.03) 0%, transparent 55%);
+}
+
+@keyframes mist-drift {
+  0%, 100% { transform: translateX(0) scale(1); opacity: 1; }
+  50% { transform: translateX(15px) scale(1.03); opacity: 0.5; }
+}
+
+@keyframes mist-drift-alt {
+  0%, 100% { transform: translateX(0) scale(1); opacity: 0.6; }
+  50% { transform: translateX(-12px) scale(1.05); opacity: 0.3; }
+}
+
+.frost-line {
+  margin: 2rem auto 0;
+  width: 100px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0.35;
+  position: relative;
+  z-index: 2;
+  border-radius: 1px;
+}
+
+.hero h1 {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 2.75rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  color: var(--text-heading);
+  letter-spacing: 0.02em;
+  position: relative;
+  z-index: 2;
+}
+
+.tagline {
+  font-size: 1.15rem;
+  color: var(--text-muted);
+  font-weight: 400;
+  position: relative;
+  z-index: 2;
+}
+
+/* =============================================
+   Content
+   ============================================= */
+.content {
+  max-width: 48rem;
+  margin: 0 auto;
+}
+
+.content h1 {
+  font-size: 2rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.content h2 {
+  font-size: 1.5rem;
+  margin-top: 2.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.content h3 {
+  font-size: 1.2rem;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.content p {
+  margin-bottom: 1rem;
+}
+
+.content ul,
+.content ol {
+  margin-bottom: 1rem;
+  padding-left: 2rem;
+}
+
+.content li {
+  margin-bottom: 0.25rem;
+}
+
+.content li::marker {
+  color: var(--accent);
+}
+
+.content strong {
+  color: var(--text-heading);
+  font-weight: 600;
+}
+
+.content code {
+  font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.85em;
+  background: var(--code-bg);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  border: 1px solid var(--code-border);
+  color: #0a6d7e;
+}
+
+.content pre {
+  background: var(--bg-card);
+  border: 1px solid var(--code-border);
+  border-radius: 8px;
+  padding: 1rem;
+  overflow-x: auto;
+  margin-bottom: 1rem;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-sm);
+}
+
+.content pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.85rem;
+  border: none;
+  color: var(--text);
+}
+
+.content table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid rgba(14, 138, 158, 0.2);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+
+.content th,
+.content td {
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  background: var(--bg-card);
+}
+
+.content th:last-child,
+.content td:last-child {
+  border-right: none;
+}
+
+.content tr:last-child td {
+  border-bottom: none;
+}
+
+.content th {
+  background: rgba(14, 138, 158, 0.1);
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--text-heading);
+  letter-spacing: 0.02em;
+  border-bottom: 2px solid rgba(14, 138, 158, 0.2);
+}
+
+.content blockquote {
+  border-left: 3px solid var(--accent);
+  padding-left: 1rem;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+
+/* =============================================
+   Sidebar layout
+   ============================================= */
+.with-sidebar {
+  display: flex;
+  gap: 2rem;
+}
+
+.sidebar {
+  width: 14rem;
+  flex-shrink: 0;
+}
+
+.sidebar h3 {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+}
+
+.sidebar ul {
+  list-style: none;
+}
+
+.sidebar li {
+  margin-bottom: 0.15rem;
+}
+
+.sidebar a {
+  display: block;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.sidebar a:hover {
+  color: var(--link);
+  background: var(--accent-faint);
+  text-decoration: none;
+}
+
+.sidebar .active a {
+  background: rgba(14, 138, 158, 0.08);
+  font-weight: 500;
+  color: var(--accent);
+  border-left: 2px solid var(--accent);
+}
+
+.with-sidebar .content {
+  min-width: 0;
+  flex: 1;
+}
+
+@media (max-width: 768px) {
+  .with-sidebar {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .sidebar ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+}
+
+/* =============================================
+   Docs cards
+   ============================================= */
+.docs-list {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.docs-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem;
+  background: var(--bg-card);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.docs-card:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.docs-card h3 {
+  margin-top: 0;
+  margin-bottom: 0.25rem;
+  font-size: 1.05rem;
+}
+
+.docs-card p {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin-bottom: 0;
+}
+
+/* =============================================
+   Release entries
+   ============================================= */
+.release-entry {
+  border: 1px solid rgba(14, 138, 158, 0.2);
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  overflow: hidden;
+  background: var(--bg-card);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: var(--shadow-sm);
+}
+
+.release-header {
+  padding: 1rem 1.25rem;
+  border-bottom: 2px solid rgba(14, 138, 158, 0.2);
+  background: rgba(14, 138, 158, 0.1);
+  border-radius: 8px 8px 0 0;
+}
+
+.release-header h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.3rem;
+}
+
+.release-header h2 a {
+  color: var(--link);
+}
+
+.release-body {
+  padding: 1rem 1.25rem;
+}
+
+.release-body > :first-child {
+  margin-top: 0;
+}
+
+.release-body > :last-child {
+  margin-bottom: 0;
+}
+
+.release-body h2 {
+  font-size: 1.1rem;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.release-changelog {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+/* =============================================
+   Release meta
+   ============================================= */
+.release-meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.release-links {
+  margin-left: auto;
+  display: flex;
+  gap: 0.75rem;
+}
+
+/* =============================================
+   Badge
+   ============================================= */
+.badge {
+  display: inline-block;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.15em 0.55em;
+  border-radius: 1rem;
+  letter-spacing: 0.02em;
+}
+
+.badge.pre-release {
+  background: var(--badge-bg);
+  color: var(--badge-text);
+  border: 1px solid rgba(14, 138, 158, 0.2);
+}
+
+/* =============================================
+   Footer
+   ============================================= */
+.site-footer {
+  border-top: 1px solid var(--border);
+  margin-top: 3rem;
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  position: relative;
+}
+
+.site-footer::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 20%;
+  right: 20%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0.25;
+}
+
+.footer-inner {
+  max-width: 64rem;
+  margin: 0 auto;
+}
+
+.site-footer p {
+  margin-bottom: 0.5rem;
+}
+
+.site-footer a {
+  color: var(--text-muted);
+  transition: color 0.15s ease;
+}
+
+.site-footer a:hover {
+  color: var(--accent);
+}
+
+/* =============================================
+   Selection & Scrollbar
+   ============================================= */
+::selection {
+  background: rgba(14, 138, 158, 0.18);
+  color: var(--text-heading);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(14, 138, 158, 0.15);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(14, 138, 158, 0.28);
+}

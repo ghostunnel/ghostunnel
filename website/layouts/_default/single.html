@@ -1,0 +1,17 @@
+{{ define "main" }}
+{{ if eq .Section "docs" }}
+<div class="with-sidebar">
+  {{ partial "sidebar.html" . }}
+  <article class="content">
+    <h1>{{ .Title }}</h1>
+    {{ .Content }}
+  </article>
+</div>
+{{ else }}
+<article class="content">
+  <h1>{{ .Title }}</h1>
+  {{ .Content }}
+  {{ if and (not .Lastmod.IsZero) (ne .File.BaseFileName "contact") }}<p class="last-updated"><em>Last updated: {{ .Lastmod.Format "January 2, 2006" }}</em></p>{{ end }}
+</article>
+{{ end }}
+{{ end }}

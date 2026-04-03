@@ -1,0 +1,63 @@
+baseURL = "https://ghostunnel.dev/"
+languageCode = "en-us"
+title = "Ghostunnel"
+enableRobotsTXT = true
+enableGitInfo = true
+
+[module]
+  [[module.mounts]]
+    source = "content"
+    target = "content"
+  [[module.mounts]]
+    source = "../docs"
+    target = "content/docs"
+    excludeFiles = ["spiffe-workload-api-demo/**"]
+  [[module.mounts]]
+    source = "../releases"
+    target = "content/releases"
+  [[module.mounts]]
+    source = "static"
+    target = "static"
+
+[params]
+  description = "A simple TLS proxy with mutual authentication support"
+  github = "https://github.com/ghostunnel/ghostunnel"
+  dockerhub = "https://hub.docker.com/r/ghostunnel/ghostunnel"
+
+[menu]
+  [[menu.main]]
+    name = "Docs"
+    url = "/docs/"
+    weight = 1
+  [[menu.main]]
+    name = "Releases"
+    url = "/releases/"
+    weight = 2
+  [[menu.main]]
+    name = "Contributors"
+    url = "/contributors/"
+    weight = 3
+  [[menu.main]]
+    name = "Contact"
+    url = "/contact/"
+    weight = 4
+  [[menu.main]]
+    name = "GitHub"
+    url = "https://github.com/ghostunnel/ghostunnel"
+    weight = 5
+
+[markup.goldmark.renderer]
+  unsafe = true
+
+[markup.highlight]
+  style = "lovelace"
+  noClasses = true
+  guessSyntax = true
+
+[cascade]
+  [cascade.target]
+    path = "/releases/**"
+    kind = "page"
+  [cascade.build]
+    render = "never"
+    list = "always"

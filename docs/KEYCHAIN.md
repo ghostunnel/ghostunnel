@@ -1,36 +1,70 @@
-Windows/macOS Keychain Support
-==============================
+---
+title: Keychain Support
+description: Load certificates and private keys from the macOS Keychain or Windows Certificate Store, including hardware-backed keys.
+weight: 50
+---
 
-Ghostunnel supports loading certificates from the Windows and macOS keychains.
-This is useful if you have identities stored in your local keychain that you
-want to use with Ghostunnel, e.g. if you want your private key(s) to be backed
-by the SEP on newer Touch ID MacBooks.
+If you have identities stored in the macOS Keychain or Windows Certificate
+Store, Ghostunnel can load certificates directly from them. This is useful
+when you want private keys backed by the Secure Enclave on Touch ID MacBooks,
+or when managing certificates through the OS is preferable to managing files
+on disk.
 
-Certificates from the keychain can be loaded by selecting them based on the
-serial number or Common Name (CN) of the subject via the `--keychain-identity`
-flag or Common Name (CN) of the issuer via the `--keychain-issuer` flag. In
-addition to this, you can use the `--keychain-require-token` flag on macOS to
-require the loaded certificate to come from a physical token by setting the
-access group to `token`.
+### Selecting a certificate
 
-For example, to load an identity based on subject name from the login keychain:
+Certificates from the keychain can be selected using one or both of the
+following flags:
 
-    ghostunnel client \
-        --keychain-identity <common-name-or-serial> \
-        --listen unix:/path/to/unix/socket \
-        --target example.com:443 \
-        --cacert test-keys/cacert.pem
+* `--keychain-identity` — match by the certificate's Common Name (CN) or
+  serial number. Ghostunnel checks both fields and uses the first match.
+* `--keychain-issuer` — match by the issuer's Common Name (CN).
 
-Or, if you'd like to load an identity by filtering on issuer name:
+When both flags are specified, Ghostunnel selects certificates where both
+attributes match (logical AND).
 
-    ghostunnel client \
-        --keychain-issuer <issuer-common-name> \
-        --listen unix:/path/to/unix/socket \
-        --target example.com:443 \
-        --cacert test-keys/cacert.pem
+On macOS, `--keychain-require-token` additionally requires the loaded
+certificate to come from a physical hardware token (e.g. the Secure Enclave).
+This flag is not available on Windows.
 
-Both commands above launch a Ghostunnel instance that uses the certificate and
-private key for the selected keychain identity to proxy plaintext connections from
-a given UNIX socket to example.com:443. Note that combining both the identity and
-issuer flags in one command will cause Ghostunnel to select certificates where both
-attributes match (matching with AND on both subject name/issuer).
+### macOS example
+
+Load an identity from the login keychain by subject name:
+
+```bash
+ghostunnel client \
+    --keychain-identity <common-name-or-serial> \
+    --listen unix:/path/to/unix/socket \
+    --target example.com:443 \
+    --cacert cacert.pem
+```
+
+Or filter by issuer name:
+
+```bash
+ghostunnel client \
+    --keychain-issuer <issuer-common-name> \
+    --listen unix:/path/to/unix/socket \
+    --target example.com:443 \
+    --cacert cacert.pem
+```
+
+### Windows example
+
+On Windows, `--keychain-identity` and `--keychain-issuer` work the same way
+but search the Windows Certificate Store (the "MY" store for the current user):
+
+```bash
+ghostunnel client \
+    --keychain-identity <common-name-or-serial> \
+    --listen localhost:8080 \
+    --target example.com:443 \
+    --cacert cacert.pem
+```
+
+### Certificate reloading
+
+Keychain certificates support reloading via `SIGHUP`/`SIGUSR1` or
+`--timed-reload`. On reload, Ghostunnel re-queries the keychain for a
+certificate matching the same identity/issuer criteria. If the certificate
+has been updated in the keychain (e.g. renewed), the new certificate will
+be used for subsequent connections.

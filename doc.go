@@ -247,7 +247,9 @@ Error during startup, or graceful shutdown timed out before all connections
 could drain.
 
 .SH "SEE ALSO"
-Project documentation: \fIhttps://github.com/ghostunnel/ghostunnel\fR
+Website: \fIhttps://ghostunnel.dev\fR
+.PP
+Project on GitHub: \fIhttps://github.com/ghostunnel/ghostunnel\fR
 `
 
 func generateManPage(c *kingpin.ParseContext) error {

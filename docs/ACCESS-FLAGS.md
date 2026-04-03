@@ -1,14 +1,17 @@
-Access Control Flags
-====================
+---
+title: Access Control Flags
+description: Control which clients or servers are allowed to connect based on certificate fields (CN, OU, DNS/URI SAN) or OPA policies.
+weight: 20
+---
 
 Ghostunnel uses TLS with mutual authentication for authentication and access
 control. This means that both the client and server present a certificate that
 can be verified by the other party.
 
-### Server mode
+## Server mode
 
 There are several flags available to restrict which clients can connect to a
-Ghostunnel server, based on checks on the subject of the client certificate.
+Ghostunnel server, based on checks on the client certificate.
 
 Access control flags in server mode are treated as a logical disjunction (OR)
 when multiple flags are specified. This means that a client will be allowed to
@@ -34,17 +37,18 @@ exact string comparison on the OU field.
 
 * `--allow-dns`
 
-Allow clients with given DNS subject alternative name (DNS SAN) in the subject.
-Can be repeated to allow multiple clients with different DNS SANs to connect.
-Note that this performs the access check based on a comparison of the DNS
-SAN value of the client certificate, it does not perform any DNS lookups.
+Allow clients with given DNS subject alternative name (DNS SAN) on the
+certificate. Can be repeated to allow multiple clients with different DNS SANs
+to connect. Note that this performs the access check based on a comparison of
+the DNS SAN value of the client certificate, it does not perform any DNS
+lookups.
 
 * `--allow-uri`
 
-Allow clients with given URI subject alternative name (URI SAN) in the subject.
-Can be repeated to allow multiple clients with different URI SANs to connect.
-This flag may also contain `*` and `**` wildcards that can be used to match
-multiple clients.
+Allow clients with given URI subject alternative name (URI SAN) on the
+certificate. Can be repeated to allow multiple clients with different URI SANs
+to connect. This flag may also contain `*` and `**` wildcards that can be used
+to match multiple clients.
 
 For example, setting `--allow-uri=spiffe://ghostunnel/*` would allow clients
 with `spiffe://ghostunnel/client1` or `spiffe://ghostunnel/client2` URI SANs (as
@@ -63,7 +67,7 @@ from any client. This means that anyone will be able to establish a connection
 to the Ghostunnel server. This flag is mutually exclusive with other access
 control flags.
 
-### Client mode
+## Client mode
 
 Ghostunnel in client mode offers various flags that can be used to augment and
 perform additional checks on servers it connects to. Regardless of flags passed
@@ -71,9 +75,9 @@ to the client, it will always perform standard hostname verification to check
 the hostname against the server certificate.
 
 Access control flags in client mode are treated as a logical disjunction (OR)
-when multiple flags are specified. This means that a client will be allowed to
-complete a connection as long as at least one flag matches, assuming that
-hostname verification was also successful.
+when multiple flags are specified. This means that a connection to the server
+will be allowed as long as at least one flag matches, assuming that hostname
+verification was also successful.
 
 * `--override-server-name`
 
@@ -129,25 +133,25 @@ but the backend doesn't require mutual authentication.
 [tls]: https://pkg.go.dev/crypto/tls
 [wildcard]: https://pkg.go.dev/github.com/ghostunnel/ghostunnel/wildcard
 
-### Open Policy Agent
+## Open Policy Agent
 
 Ghostunnel has support for Open Policy Agent (OPA), both in server and client
 mode. The policy bundle must be present on disk for Ghostunnel to use it and the
 use of OPA is mutually exclusive with any other `allow` (or `verify`) flags.
 Policy bundles can be reloaded at runtime much like certificates, with the
-`--timed-reload` flag or via `SIGHUP` on a recent release.
+`--timed-reload` flag or via `SIGHUP`.
 
 To use it in server mode, specify the `--allow-policy` and `--allow-query` flags.
 
 Example:
-```
+```bash
 ghostunnel server [...] --allow-policy=bundle.tar.gz --allow-query=data.policy.allow
 ```
 
 To use it in client mode, specify the `--verify-policy` and `--verify-query` flags.
 
 Example:
-```
+```bash
 ghostunnel client [...] --verify-policy=bundle.tar.gz --verify-query=data.policy.allow
 ```
 
@@ -215,7 +219,7 @@ properties you can match on, and the [Rego
 documentation](https://www.openpolicyagent.org/docs/latest/policy-language/)
 for more about the policy language.
 
-#### Notes
+### Notes
 
 * There is no mechanism to load a policy bundle from a remote OPA server. The policy
   bundle has to be local, or be retrieved and stored locally out of band by a
