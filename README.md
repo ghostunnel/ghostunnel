@@ -1,7 +1,7 @@
 Ghostunnel
 ==========
 
-[![license](https://img.shields.io/badge/license-apache_2.0-blue.svg?style=flat)](https://raw.githubusercontent.com/ghostunnel/ghostunnel/master/LICENSE) [![release](https://img.shields.io/github/release/ghostunnel/ghostunnel.svg?style=flat)](https://github.com/ghostunnel/ghostunnel/releases) [![docker](https://img.shields.io/badge/docker-hub-blue.svg?style=flat)](https://hub.docker.com/r/ghostunnel/ghostunnel) [![test](https://img.shields.io/github/checks-status/ghostunnel/ghostunnel/master)](https://github.com/ghostunnel/ghostunnel/actions) [![coverage](https://img.shields.io/codecov/c/github/ghostunnel/ghostunnel/master)](https://app.codecov.io/gh/ghostunnel/ghostunnel/)
+[![license](https://img.shields.io/badge/license-apache_2.0-blue.svg?style=flat)](https://raw.githubusercontent.com/ghostunnel/ghostunnel/master/LICENSE) [![release](https://img.shields.io/github/release/ghostunnel/ghostunnel.svg?style=flat)](https://github.com/ghostunnel/ghostunnel/releases) [![docker](https://img.shields.io/badge/docker-hub-blue.svg?style=flat)](https://hub.docker.com/r/ghostunnel/ghostunnel) [![test](https://img.shields.io/github/checks-status/ghostunnel/ghostunnel/master)](https://github.com/ghostunnel/ghostunnel/actions) [![coverage](https://img.shields.io/codecov/c/github/ghostunnel/ghostunnel/master)](https://app.codecov.io/gh/ghostunnel/ghostunnel/) [![website](https://img.shields.io/badge/website-ghostunnel.dev-blue.svg?style=flat)](https://ghostunnel.dev)
 
 👻
 
@@ -15,49 +15,46 @@ a TCP domain/port or a UNIX domain socket. Ghostunnel in client mode accepts
 (insecure) connections through a TCP or UNIX domain socket and proxies them to
 a TLS-secured service.
 
-**Supported platforms**: Ghostunnel is developed primarily for Linux and Darwin
-(macOS), although it should run on any UNIX system that exposes `SO_REUSEPORT`,
+**Supported platforms**: Ghostunnel is developed primarily for Linux and macOS,
+although it should run on any UNIX system that exposes `SO_REUSEPORT`,
 including FreeBSD, OpenBSD and NetBSD. Ghostunnel also supports running on
-Windows, though with a reduced feature set.
+Windows, though without signal-based certificate reload (use `--timed-reload`
+instead), syslog output, Landlock sandboxing, and socket activation. See the
+[releases](releases/) directory for a full changelog.
 
-Features
-========
+Key Features
+============
 
-**[Access control](#access-control-flags)**: Ghostunnel enforces mutual
-authentication by requiring a valid client certificate for all connections.
-Policies can enforce checks on the peer certificate in a connection, either
-via simple flags or declarative policies using [Open
-Policy Agent](https://www.openpolicyagent.org). This is useful
-for restricting access to services that don't have native access control.
+**[Authentication & Authorization](#access-control-flags)**: Enforces mutual
+TLS authentication by requiring valid client certificates. Supports
+fine-grained access control checks on certificate fields (CN, OU, DNS/URI
+SAN), and declarative authorization policies via [Open Policy
+Agent](https://www.openpolicyagent.org) (OPA).
 
-**[Certificate hotswapping](#certificate-hotswapping)**: Ghostunnel can reload
-certificates at runtime without dropping existing connections. Certificates can
-be loaded from disk, the [SPIFFE Workload API](https://spiffe.io), or a PKCS#11 module.
-This allows short-lived certificates to be used with Ghostunnel as you can pick
-up new certificates transparently.
+**[Certificate Hotswapping](#certificate-hotswapping)**: Reload certificates
+without restarting via SIGHUP/SIGUSR1 or timed reload intervals, enabling use
+of short-lived certificates.
 
-**[ACME Support](#acme-support)**: In server mode, Ghostunnel can optionally
-obtain and automatically renew a public TLS certificate via the ACME protocol,
-such as through Let's Encrypt. Note that this requires a valid FQDN accessible
-on the public internet for verification.
+**[Flexible Certificate Sources](#certificates)**: Load certificates and keys
+from PEM/PKCS#12 files, ACME (Let's Encrypt), hardware security modules
+(PKCS#11), macOS Keychain, Windows Certificate Store, or the SPIFFE Workload
+API.
 
-**[Monitoring and metrics](#metrics--profiling)**: Ghostunnel has a built-in
-status feature that can be used to collect metrics and monitor a running
-instance. Metrics can be fed into Graphite or Prometheus to see number of
-open connections, rate of new connections, connection lifetimes, timeouts, and
-other info.
+**[Secure by Default](#landlock-support)**: Listeners and targets are
+restricted to localhost and UNIX sockets unless explicitly overridden with
+`--unsafe-listen` or `--unsafe-target`, preventing accidental exposure. On
+Linux, Landlock sandboxing is enabled by default to limit process privileges.
 
-**Emphasis on security**: We have put some thought into making Ghostunnel
-secure by default and prevent accidental misconfiguration. For example, we
-always negotiate TLS v1.2 (or greater) and only use safe cipher suites.
-Ghostunnel also supports loading certificates from the Windows/macOS keychains
-or via PKCS#11 which makes it possible to use Hardware Security Modules (HSMs)
-to protect private keys.
+**[Metrics & Profiling](#metrics--profiling)**: Built-in status port with JSON
+and Prometheus metrics endpoints, plus optional pprof profiling.
+
+Ghostunnel also supports UNIX domain sockets, PROXY protocol v2,
+systemd/launchd socket activation, and more.
 
 Getting Started
 ===============
 
-To get started and play around with the Ghostunnel you will need X.509 client
+To get started and play around with Ghostunnel you will need X.509 client
 and server certificates. If you don't already maintain a PKI, a good way to get
 started is to use a package like [cloudflare/cfssl](https://github.com/cloudflare/cfssl).
 
@@ -118,7 +115,7 @@ Usage
 
 To see available commands and flags, run `ghostunnel --help`. You can get more
 information about a command by adding `--help` to the command, like `ghostunnel
-server --help` or `ghostunnel client --help`. There's also a [man page](docs/).
+server --help` or `ghostunnel client --help`. There's also a [man page](docs/MANPAGE-linux.md).
 
 By default, Ghostunnel runs in the foreground and logs to stdout. You can set
 `--syslog` to log to syslog instead of stdout. If you want to run Ghostunnel
@@ -278,7 +275,7 @@ much like certificates.
 See [ACCESS-FLAGS](docs/ACCESS-FLAGS.md) for details.
 
 [spiffe]: https://spiffe.io/
-[svid]: https://github.com/spiffe/spiffe/blob/master/standards/X509-SVID.md
+[svid]: https://github.com/spiffe/spiffe/blob/main/standards/X509-SVID.md
 
 ### Logging Options
 
@@ -342,12 +339,12 @@ should work with any hardware security module that exposes a PKCS#11 interface.
 
 See [HSM-PKCS11](docs/HSM-PKCS11.md) for details.
 
-### Windows/MacOS Keychain Support
+### Windows/macOS Keychain Support
 
 Ghostunnel supports loading certificates from the Windows and macOS keychains.
 This is useful if you have identities stored in your local keychain that you
 want to use with Ghostunnel, e.g. if you want your private key(s) to be backed
-by the SEP on newer Touch ID MacBooks.
+by the Secure Enclave on newer Touch ID MacBooks.
 
 See [KEYCHAIN](docs/KEYCHAIN.md) for details.
 
@@ -379,11 +376,9 @@ this option.
 ### Landlock Support
 
 Ghostunnel can use [Landlock](https://landlock.io) to limit process privileges
-on Linux. Landlock is enabled by default (in best-effort mode) on v1.9.0 or
-later. On Ghostunnel v1.8.x, Landlock can be enabled using the `--use-landlock`
-flag. On Ghostunnel v1.9.x and later, Landlock can be disabled using
-`--disable-landlock` if necessary (not recommended). When enabled, Ghostunnel
-will limit its access to files and sockets based on the flags passed at
-startup. Note that Landlock does not work with PKCS#11 modules and is disabled
-if PKCS#11 is used (as PKCS#11 modules are opaque to us we can't craft workable
-Landlock rules for them).
+on Linux. Landlock is enabled by default in best-effort mode and can be
+disabled using `--disable-landlock` if necessary (not recommended). When
+enabled, Ghostunnel will limit its access to files and sockets based on the
+flags passed at startup. Note that Landlock does not work with PKCS#11 modules
+and is disabled if PKCS#11 is used (as PKCS#11 modules are opaque to us we
+can't craft workable Landlock rules for them).

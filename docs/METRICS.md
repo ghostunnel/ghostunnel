@@ -1,5 +1,8 @@
-Metrics & Profiling
-===================
+---
+title: Metrics & Profiling
+description: Expose status, health checks, and metrics in JSON or Prometheus format via the built-in status port.
+weight: 70
+---
 
 Ghostunnel has a notion of "status port", a TCP port (or UNIX socket) that can
 be used to expose status and metrics information over HTTPS. The status port
@@ -13,12 +16,14 @@ can be useful for orchestration systems.
 
 Example invocation with status port enabled:
 
-    ghostunnel client \
-        --listen localhost:8080 \
-        --target localhost:8443 \
-        --keystore test-keys/client-keystore.p12 \
-        --cacert test-keys/cacert.pem \
-        --status localhost:6060
+```bash
+ghostunnel client \
+    --listen localhost:8080 \
+    --target localhost:8443 \
+    --keystore test-keys/client-keystore.p12 \
+    --cacert test-keys/cacert.pem \
+    --status localhost:6060
+```
 
 Note that we set the status port to "localhost:6060". Ghostunnel will start an
 internal HTTPS server and listen for connections on the given host/port. You
@@ -26,22 +31,26 @@ can also specify a UNIX socket instead of a TCP port.
 
 How to check status and read connection metrics:
 
-    # Status information (JSON)
-    curl --cacert test-keys/cacert.pem https://localhost:6060/_status
+```bash
+# Status information (JSON)
+curl --cacert test-keys/cacert.pem https://localhost:6060/_status
 
-    # Metrics information (JSON)
-    curl --cacert test-keys/cacert.pem 'https://localhost:6060/_metrics/json'
+# Metrics information (JSON)
+curl --cacert test-keys/cacert.pem 'https://localhost:6060/_metrics/json'
 
-    # Metrics information (Prometheus)
-    curl --cacert test-keys/cacert.pem 'https://localhost:6060/_metrics/prometheus'
+# Metrics information (Prometheus)
+curl --cacert test-keys/cacert.pem 'https://localhost:6060/_metrics/prometheus'
+```
 
 How to use profiling endpoints, if `--enable-pprof` is set:
 
-    # Human-readable goroutine dump
-    curl --cacert test-keys/cacert.pem 'https://localhost:6060/debug/pprof/goroutine?debug=1'
+```bash
+# Human-readable goroutine dump
+curl --cacert test-keys/cacert.pem 'https://localhost:6060/debug/pprof/goroutine?debug=1'
 
-    # Analyze execution trace using pprof tool
-    go tool pprof -seconds 5 https+insecure://localhost:6060/debug/pprof/profile
+# Analyze execution trace using pprof tool
+go tool pprof -seconds 5 https+insecure://localhost:6060/debug/pprof/profile
+```
 
 Note that `go tool pprof` does not support setting CA certificates at the
 moment, hence the use of the `https+insecure` scheme in the last example. You
@@ -103,7 +112,7 @@ sub-metrics:
 
 | JSON metric name | Description |
 |------------------|-------------|
-| `ghostunnel.conn.open` | Counter value |
+| `ghostunnel.conn.open` | Gauge value |
 | `ghostunnel.conn.handshake.count` | Number of observations |
 | `ghostunnel.conn.handshake.min` | Minimum value |
 | `ghostunnel.conn.handshake.max` | Maximum value |
@@ -157,14 +166,16 @@ HTTP by prefixing the status address with "http://".
 
 For example:
 
-    # Status flag passed to Ghostunnel
-    --status http://localhost:6060
+```bash
+# Status flag passed to Ghostunnel
+ghostunnel server ... --status http://localhost:6060
 
-    # Status information (JSON)
-    curl http://localhost:6060/_status
+# Status information (JSON)
+curl http://localhost:6060/_status
 
-    # Metrics information (JSON)
-    curl http://localhost:6060/_metrics/json
+# Metrics information (JSON)
+curl http://localhost:6060/_metrics/json
 
-    # Metrics information (Prometheus)
-    curl http://localhost:6060/_metrics/prometheus
+# Metrics information (Prometheus)
+curl http://localhost:6060/_metrics/prometheus
+```

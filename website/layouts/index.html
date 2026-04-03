@@ -1,0 +1,13 @@
+{{ define "main" }}
+<div class="hero">
+  <div class="hero-mist"></div>
+  <div class="hero-mist hero-mist--alt"></div>
+  <div class="ghost-hero">👻</div>
+  <h1>Ghostunnel</h1>
+  <p class="tagline">{{ .Site.Params.description }}</p>
+  <div class="frost-line"></div>
+</div>
+<article class="content">
+  {{ .Content }}
+</article>
+{{ end }}

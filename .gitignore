@@ -24,3 +24,7 @@ bazel-*
 coverage/
 test-keys/
 tests/tmp_*
+website/content/contributors.md
+website/public/
+public/
+.hugo_build.lock

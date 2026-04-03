@@ -1,0 +1,17 @@
+<nav class="site-nav">
+  <div class="nav-inner">
+    <a href="{{ .Site.Home.RelPermalink }}" class="nav-title">
+      <span class="ghost-nav">👻</span>
+      {{ .Site.Title }}
+    </a>
+    <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="Toggle navigation">
+    <label for="nav-toggle" class="nav-toggle-label" aria-hidden="true">
+      <span></span>
+    </label>
+    <ul class="nav-links">
+      {{ range .Site.Menus.main }}
+      <li><a href="{{ .URL }}"{{ if hasPrefix .URL "http" }} target="_blank" rel="noopener"{{ end }}>{{ if eq .Name "GitHub" }}{{ partial "icon-github.html" }} {{ end }}{{ .Name }}</a></li>
+      {{ end }}
+    </ul>
+  </div>
+</nav>

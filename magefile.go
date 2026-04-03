@@ -7,13 +7,17 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/magefile/mage/mg"
@@ -25,6 +29,7 @@ type Apple mg.Namespace
 type Git mg.Namespace
 type Test mg.Namespace
 type Docker mg.Namespace
+type Website mg.Namespace
 
 var Default = Go.Build
 
@@ -80,7 +85,8 @@ func (Go) Lint(ctx context.Context) error {
 }
 
 // Man generates the Ghostunnel man page from the built binary.
-// Also generates docs/MANPAGE.md from the man page using pandoc.
+// Also generates docs/MANPAGE-<os>.md from the man page using pandoc,
+// with Hugo front matter prepended for the website.
 func (Go) Man(ctx context.Context) error {
 	mg.CtxDeps(ctx, Go.Build)
 
@@ -95,8 +101,37 @@ func (Go) Man(ctx context.Context) error {
 
 	// Generate docs/MANPAGE-<os>.md from the man page using pandoc
 	manpageMD := fmt.Sprintf("docs/MANPAGE-%s.md", runtime.GOOS)
-	if err := sh.Run("pandoc", "-f", "man", "-t", "gfm", "ghostunnel.man", "-o", manpageMD); err != nil {
-		return fmt.Errorf("failed to generate %s: %w", manpageMD, err)
+	pandocOutput, err := sh.Output("pandoc", "-f", "man", "-t", "gfm", "ghostunnel.man")
+	if err != nil {
+		return fmt.Errorf("failed to convert man page to markdown: %w", err)
+	}
+
+	// Platform-specific titles and weights for Hugo front matter
+	manPageMeta := map[string]struct {
+		title  string
+		weight int
+	}{
+		"darwin": {title: "Man Page (macOS)", weight: 91},
+		"linux":  {title: "Man Page (Linux)", weight: 90},
+	}
+
+	meta, ok := manPageMeta[runtime.GOOS]
+	if !ok {
+		meta.title = fmt.Sprintf("Man Page (%s)", runtime.GOOS)
+		meta.weight = 92
+	}
+
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "---\n")
+	fmt.Fprintf(&buf, "title: %s\n", meta.title)
+	fmt.Fprintf(&buf, "description: Complete command-line reference with all flags, modes, and examples.\n")
+	fmt.Fprintf(&buf, "weight: %d\n", meta.weight)
+	fmt.Fprintf(&buf, "---\n\n")
+	fmt.Fprintf(&buf, "> This man page was generated from the %s binary. Some flags may differ on other platforms.\n\n", meta.title[len("Man Page ("):len(meta.title)-1])
+	buf.WriteString(pandocOutput)
+
+	if err := os.WriteFile(manpageMD, buf.Bytes(), 0644); err != nil {
+		return fmt.Errorf("failed to write %s: %w", manpageMD, err)
 	}
 
 	return nil
@@ -860,4 +895,291 @@ func getDockerTags() ([]string, error) {
 	}
 
 	return []string{strings.TrimSpace(tag)}, nil
+}
+
+// emailAliases maps email addresses to canonical contributor names.
+// This merges commits from the same person who used different email addresses.
+var emailAliases = map[string]string{
+	"cs@squareup.com":                        "Cedric Staub",
+	"css@css.bio":                            "Cedric Staub",
+	"cs@css.bio":                             "Cedric Staub",
+	"csstaub@users.noreply.github.com":       "Cedric Staub",
+	"cedric@staub.dev":                       "Cedric Staub",
+	"alok@squareup.com":                      "Alok Menghrajani",
+	"alok.menghrajani@gmail.com":             "Alok Menghrajani",
+	"mmc@squareup.com":                       "Matthew McPherrin",
+	"github@mcpherrin.ca":                    "Matthew McPherrin",
+	"git@mcpherrin.ca":                       "Matthew McPherrin",
+	"mattm@letsencrypt.org":                  "Matthew McPherrin",
+	"amartinezfayo@users.noreply.github.com": "Agustín Martínez Fayó",
+	"amartinezfayo@gmail.com":                "Agustín Martínez Fayó",
+	"ewdurbin@gmail.com":                     "Ernest W. Durbin III",
+	"charlie@squareup.com":                   "Charlie Sanders",
+	"sanderscharlie@gmail.com":               "Charlie Sanders",
+	"andrew.harding@hpe.com":                 "Andrew Harding",
+	"azdagron@gmail.com":                     "Andrew Harding",
+}
+
+// botNames is the set of git author names to exclude from the contributors list.
+var botNames = map[string]bool{
+	"dependabot[bot]":         true,
+	"dependabot-preview[bot]": true,
+	"copilot-swe-agent[bot]":  true,
+	"Claude":                  true,
+}
+
+type contributor struct {
+	Name    string
+	Display string
+	Commits int
+	First   string
+	Last    string
+}
+
+// githubContributorLogins fetches the GitHub API to build a mapping from
+// git author names to GitHub usernames. It returns two maps: nameToLogin
+// (from git author name to GitHub login, resolved via commit lookups) and
+// emailToLogin (from noreply email patterns to GitHub login). Returns empty
+// maps (not an error) if the API is unavailable.
+func githubContributorLogins(repo string) (nameToLogin, emailToLogin map[string]string) {
+	nameToLogin = map[string]string{}
+	emailToLogin = map[string]string{}
+
+	// Use GITHUB_TOKEN for authenticated requests if available (higher rate limit)
+	token := os.Getenv("GITHUB_TOKEN")
+	apiGet := func(url string) (*http.Response, error) {
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			return nil, err
+		}
+		if token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
+		return http.DefaultClient.Do(req)
+	}
+
+	// Fetch contributors list
+	resp, err := apiGet(fmt.Sprintf("https://api.github.com/repos/%s/contributors?per_page=100", repo))
+	if err != nil || resp.StatusCode != 200 {
+		return nameToLogin, emailToLogin
+	}
+	defer resp.Body.Close()
+
+	var contributors []struct {
+		Login string `json:"login"`
+		ID    int    `json:"id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&contributors); err != nil {
+		return nameToLogin, emailToLogin
+	}
+
+	// Build noreply email → login map (works without extra API calls)
+	for _, c := range contributors {
+		if strings.HasSuffix(c.Login, "[bot]") {
+			continue
+		}
+		emailToLogin[fmt.Sprintf("%s@users.noreply.github.com", c.Login)] = c.Login
+		emailToLogin[fmt.Sprintf("%d+%s@users.noreply.github.com", c.ID, c.Login)] = c.Login
+	}
+
+	// For each contributor, fetch one commit to discover their git author name.
+	// Stops early if rate-limited.
+	for _, c := range contributors {
+		if strings.HasSuffix(c.Login, "[bot]") {
+			continue
+		}
+		commitResp, err := apiGet(fmt.Sprintf(
+			"https://api.github.com/repos/%s/commits?author=%s&per_page=1", repo, c.Login))
+		if err != nil {
+			continue
+		}
+		if commitResp.StatusCode == 403 || commitResp.StatusCode == 429 {
+			commitResp.Body.Close()
+			printf("Warning: GitHub API rate limit reached, resolved %d of %d contributors\n",
+				len(nameToLogin), len(contributors))
+			break
+		}
+		if commitResp.StatusCode != 200 {
+			commitResp.Body.Close()
+			continue
+		}
+		var commits []struct {
+			Commit struct {
+				Author struct {
+					Name string `json:"name"`
+				} `json:"author"`
+			} `json:"commit"`
+		}
+		if err := json.NewDecoder(commitResp.Body).Decode(&commits); err == nil && len(commits) > 0 {
+			gitName := commits[0].Commit.Author.Name
+			nameToLogin[gitName] = c.Login
+		}
+		commitResp.Body.Close()
+	}
+
+	printf("Resolved %d GitHub profile links from API\n", len(nameToLogin))
+	return nameToLogin, emailToLogin
+}
+
+// Contrib generates the contributors page from git history.
+// The output is written to website/content/contributors.md.
+func (Website) Contrib(ctx context.Context) error {
+	printf("Generating contributors page from git history...\n")
+
+	// Get all commits in a single pass: name<tab>email<tab>date
+	output, err := sh.Output("git", "log", "--format=%aN\t%aE\t%ai", "--all")
+	if err != nil {
+		return fmt.Errorf("failed to read git log: %w", err)
+	}
+
+	// Count commits per canonical name, track emails and date range
+	type info struct {
+		commits int
+		emails  map[string]bool
+		first   string
+		last    string
+	}
+	contributors := map[string]*info{}
+
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "\t", 3)
+		if len(parts) != 3 {
+			continue
+		}
+		name, email, date := parts[0], parts[1], parts[2]
+		if len(date) >= 10 {
+			date = date[:10]
+		}
+
+		if botNames[name] {
+			continue
+		}
+
+		canonical := name
+		if alias, ok := emailAliases[email]; ok {
+			canonical = alias
+		}
+
+		c, ok := contributors[canonical]
+		if !ok {
+			c = &info{emails: map[string]bool{}, first: date, last: date}
+			contributors[canonical] = c
+		}
+		c.commits++
+		c.emails[email] = true
+		if date < c.first {
+			c.first = date
+		}
+		if date > c.last {
+			c.last = date
+		}
+	}
+
+	// Fetch GitHub username mappings from API
+	nameLogins, emailLogins := githubContributorLogins("ghostunnel/ghostunnel")
+
+	// Build sorted list
+	var list []contributor
+	for name, c := range contributors {
+		display := name
+		// Try to link to GitHub profile: check API name mapping, then email mapping,
+		// then fall back to parsing noreply emails from git log
+		if login, ok := nameLogins[name]; ok {
+			display = fmt.Sprintf("[%s](https://github.com/%s)", name, login)
+		} else {
+			for email := range c.emails {
+				if login, ok := emailLogins[email]; ok {
+					display = fmt.Sprintf("[%s](https://github.com/%s)", name, login)
+					break
+				}
+				if strings.HasSuffix(email, "@users.noreply.github.com") {
+					user := strings.SplitN(email, "@", 2)[0]
+					if idx := strings.Index(user, "+"); idx >= 0 {
+						user = user[idx+1:]
+					}
+					display = fmt.Sprintf("[%s](https://github.com/%s)", name, user)
+					break
+				}
+			}
+		}
+		list = append(list, contributor{
+			Name:    name,
+			Display: display,
+			Commits: c.commits,
+			First:   c.first,
+			Last:    c.last,
+		})
+	}
+	sort.Slice(list, func(i, j int) bool {
+		return list[i].Commits > list[j].Commits
+	})
+
+	// Compute total commits
+	totalCommits := 0
+	for _, c := range list {
+		totalCommits += c.Commits
+	}
+
+	// Render template
+	tmpl := template.Must(template.New("contributors").Parse(contributorsTemplate))
+
+	if err := os.MkdirAll("website/content", 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+
+	f, err := os.Create("website/content/contributors.md")
+	if err != nil {
+		return fmt.Errorf("failed to create contributors.md: %w", err)
+	}
+	defer f.Close()
+
+	data := struct {
+		Contributors []contributor
+		Total        int
+		Commits      int
+		Generated    string
+	}{list, len(list), totalCommits, time.Now().UTC().Format("January 2, 2006 15:04 UTC")}
+
+	if err := tmpl.Execute(f, data); err != nil {
+		return fmt.Errorf("failed to render template: %w", err)
+	}
+
+	printf("Generated contributors page: %d contributors, %d commits\n", len(list), totalCommits)
+	return nil
+}
+
+var contributorsTemplate = `---
+title: Contributors
+description: People who have contributed to Ghostunnel
+---
+
+Ghostunnel is built by its contributors. This page is automatically
+generated from the Git history (via ` + "`go tool mage website:contrib`" + `).
+Last updated on {{ .Generated }}.
+
+| Contributor | Commits | First | Latest |
+|-------------|---------|-------|--------|
+{{- range .Contributors }}
+| {{ .Display }} | {{ .Commits }} | {{ .First }} | {{ .Last }} |
+{{- end }}
+
+*{{ .Total }} contributors, {{ .Commits }} total commits.*
+`
+
+// Build generates the contributors page and builds the Hugo site.
+// Requires Hugo to be installed.
+func (Website) Build(ctx context.Context) error {
+	mg.CtxDeps(ctx, Website.Contrib)
+	return sh.Run("hugo", "--source", "website", "--minify")
+}
+
+// Serve generates the contributors page and starts the Hugo dev server.
+// Requires Hugo to be installed.
+func (Website) Serve(ctx context.Context) error {
+	mg.CtxDeps(ctx, Website.Build)
+	return sh.Run("hugo", "server", "--source", "website")
 }
