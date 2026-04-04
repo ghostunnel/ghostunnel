@@ -1124,8 +1124,12 @@ func (Website) Contrib(ctx context.Context) error {
 		totalCommits += c.Commits
 	}
 
-	// Render template
-	tmpl := template.Must(template.New("contributors").Parse(contributorsTemplate))
+	// Render template from docs/contributors.md.tmpl
+	tmplBytes, err := os.ReadFile("docs/contributors.md.tmpl")
+	if err != nil {
+		return fmt.Errorf("failed to read template: %w", err)
+	}
+	tmpl := template.Must(template.New("contributors").Parse(string(tmplBytes)))
 
 	if err := os.MkdirAll("website/content", 0755); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
@@ -1151,24 +1155,6 @@ func (Website) Contrib(ctx context.Context) error {
 	printf("Generated contributors page: %d contributors, %d commits\n", len(list), totalCommits)
 	return nil
 }
-
-var contributorsTemplate = `---
-title: Contributors
-description: People who have contributed to Ghostunnel
----
-
-Ghostunnel is built by its contributors. This page is automatically
-generated from the Git history (via ` + "`go tool mage website:contrib`" + `).
-Last updated on {{ .Generated }}.
-
-| Contributor | Commits | First | Latest |
-|-------------|---------|-------|--------|
-{{- range .Contributors }}
-| {{ .Display }} | {{ .Commits }} | {{ .First }} | {{ .Last }} |
-{{- end }}
-
-*{{ .Total }} contributors, {{ .Commits }} total commits.*
-`
 
 // Build generates the contributors page and builds the Hugo site.
 // Requires Hugo to be installed.

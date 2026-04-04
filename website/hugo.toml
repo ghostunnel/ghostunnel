@@ -11,7 +11,7 @@ enableGitInfo = true
   [[module.mounts]]
     source = "../docs"
     target = "content/docs"
-    excludeFiles = ["spiffe-workload-api-demo/**"]
+    excludeFiles = ["spiffe-workload-api-demo/**", "*.tmpl"]
   [[module.mounts]]
     source = "../releases"
     target = "content/releases"
