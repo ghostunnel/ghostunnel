@@ -546,6 +546,19 @@ a:hover {
     flex-wrap: wrap;
     gap: 0.25rem;
   }
+
+  .content table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+  }
+
+  .content th,
+  .content td {
+    padding: 0.35rem 0.5rem;
+    font-size: 0.8rem;
+  }
 }
 
 /* =============================================
