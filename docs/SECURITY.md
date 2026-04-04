@@ -100,7 +100,7 @@ of Landlock rules based on the flags it was given:
 
 - **File access**: Read-only access to certificate files, CA bundles, and OPA
   policy bundles (and their parent directories, to support file rotation).
-  Read-write access to `/dev`, `/var/run`, `/tmp` for syslog and temp files.
+  Read-write access to `/dev`, `/var/run`, `/tmp`, `/proc` for syslog and temp files.
 - **Network access**: Bind access for `--listen` and `--status` ports. Connect
   access for `--target`, `--metrics-graphite`, `--metrics-url`, and SPIFFE
   Workload API ports. DNS (TCP/53) is always allowed.

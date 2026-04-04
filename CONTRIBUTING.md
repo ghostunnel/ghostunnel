@@ -5,7 +5,7 @@ by forking the repository and sending a pull request.
 
 When submitting code, please make efforts to follow existing conventions and
 style in order to keep the code as readable as possible. Please also make sure
-all tests pass by running `mage test:all`, and format your code with `go fmt`.
+all tests pass by running `go tool mage test:all`, and format your code with `go fmt`.
 
 ## Go Toolchain Setup
 
@@ -63,7 +63,7 @@ cd tests && python3 test-server-pem-rsa.py       # Single integration test (dire
 The project uses golangci-lint with configuration in `.golangci.yml`:
 
 ```bash
-mage go:lint
+go tool mage go:lint
 ```
 
 ### Viewing Coverage
@@ -109,7 +109,7 @@ Each Python test starts a ghostunnel process, exercises it, and verifies behavio
 ### Key Packages
 
 - **main** (`main.go`): CLI flags, server/client mode dispatch, signal handling
-- **certloader**: Certificate abstraction (`TLSConfigSource` interface) supporting PEM, PKCS#12, PKCS#11, SPIFFE, ACME, macOS/Windows keychain — with hot-reload
+- **certloader**: Certificate abstraction (`TLSConfigSource` interface) supporting PEM, PKCS#12, JCEKS, PKCS#11, SPIFFE, ACME, macOS/Windows keychain — with hot-reload
 - **auth**: Access control via X.509 cert fields (CN, OU, DNS/URI/IP SAN)
 - **proxy**: Connection forwarding, connection limits (semaphore), PROXY protocol v2
 - **policy**: OPA integration for declarative access control
