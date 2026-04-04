@@ -1,0 +1,71 @@
+---
+title: Contributors & Credits
+description: People and projects that have made Ghostunnel possible
+---
+
+Ghostunnel wouldn't exist without the work of many others. Thanks to everyone
+who has contributed code, reported bugs, or built the libraries we depend on.
+
+## Origins
+
+Ghostunnel was written by [Cedric Staub](https://github.com/csstaub) at
+[Square](https://squareup.com) (now [Block](https://block.xyz)) in 2015.
+Square open-sourced the project and supported its early development.
+
+## Go's crypto/tls
+
+Go's `crypto/tls` package does the heavy lifting. Ghostunnel is essentially
+a thin layer on top of it. Without a TLS implementation this good in the
+standard library, a project like Ghostunnel wouldn't make much sense.
+
+## Forked & Incorporated Code
+
+### certigo (Square/Block)
+
+The `certloader` package incorporates certificate-decoding and keystore logic
+originally from [certigo](https://github.com/square/certigo), Square's
+certificate inspection tool. The following code was forked and adapted:
+
+- `certloader/decode.go` -- certificate/key decoding helpers
+- `certloader/jceks/` -- Java JCEKS keystore parser
+
+Original copyright: Block, Inc. Licensed under the Apache License 2.0.
+
+### certstore (Ben Toews)
+
+The `certstore` package for platform-specific keychain access (macOS Keychain,
+Windows Certificate Store) is derived from work by
+[Ben Toews](https://github.com/mastahyeti). Licensed under the MIT License.
+
+## Major Dependencies
+
+| Dependency | Purpose |
+|---|---|
+| [kingpin](https://github.com/alecthomas/kingpin) | Command-line flag parsing |
+| [certmagic](https://github.com/caddyserver/certmagic) | ACME / Let's Encrypt certificate management |
+| [go-jose](https://github.com/go-jose/go-jose) | JOSE / JWE support |
+| [go-spiffe](https://github.com/spiffe/go-spiffe) | SPIFFE Workload API integration |
+| [pkcs11key](https://github.com/letsencrypt/pkcs11key) | PKCS#11 hardware security module support |
+| [OPA](https://github.com/open-policy-agent/opa) | Open Policy Agent for declarative access control |
+| [go-proxyproto](https://github.com/pires/go-proxyproto) | PROXY protocol v2 support |
+| [go-pkcs12](https://pkg.go.dev/software.sslmate.com/src/go-pkcs12) | PKCS#12 keystore parsing |
+| [smallstep/pkcs7](https://github.com/smallstep/pkcs7) | PKCS#7 certificate handling |
+| [go-metrics](https://github.com/rcrowley/go-metrics) | Application metrics |
+| [prometheus/client_golang](https://github.com/prometheus/client_golang) | Prometheus metrics export |
+| [go-systemd](https://github.com/coreos/go-systemd) | systemd socket activation |
+| [go-landlock](https://github.com/landlock-lsm/go-landlock) | Landlock sandboxing on Linux |
+| [go_reuseport](https://github.com/kavu/go_reuseport) | SO_REUSEPORT socket support |
+| [gRPC-Go](https://github.com/grpc/grpc-go) | gRPC transport for SPIFFE Workload API |
+
+## Git Contributors
+
+Auto-generated from Git history via `go tool mage website:contrib`.
+Last updated {{ .Generated }}.
+
+| Contributor | Commits | First | Latest |
+|-------------|---------|-------|--------|
+{{- range .Contributors }}
+| {{ .Display }} | {{ .Commits }} | {{ .First }} | {{ .Last }} |
+{{- end }}
+
+*{{ .Total }} contributors, {{ .Commits }} total commits.*
