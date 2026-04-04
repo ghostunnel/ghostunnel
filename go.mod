@@ -15,7 +15,6 @@ require (
 	github.com/mholt/acmez v1.2.0
 	github.com/open-policy-agent/opa v1.15.1
 	github.com/pires/go-proxyproto v0.11.0
-	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/rcrowley/go-metrics v0.0.0-20250401214520-65e299d6c5c9
 	github.com/smallstep/pkcs7 v0.2.1
