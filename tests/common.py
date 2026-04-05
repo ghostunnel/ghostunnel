@@ -115,8 +115,7 @@ def assert_not_zero(ghostunnel):
     if ret == 0:
         raise Exception(
             'ghostunnel terminated with zero, but expected otherwise')
-    else:
-        print_ok("OK (terminated)")
+    print_ok("OK (terminated)")
 
 def terminate(ghostunnel):
     """Gracefully terminate ghostunnel (with timeout)"""
@@ -124,7 +123,7 @@ def terminate(ghostunnel):
     try:
         if ghostunnel:
             ghostunnel.terminate()
-            for i in range(0, 10):
+            for i in range(10):
                 try:
                     ghostunnel.wait(timeout=1)
                 except Exception:
@@ -209,7 +208,7 @@ class RootCert:
         else:
             print_ok("generating {0}.key, {0}.crt".format(cn_and_ou))
         fd, openssl_config = mkstemp(dir='.')
-        os.write(fd, "extendedKeyUsage=clientAuth,serverAuth\n".encode('utf-8'))
+        os.write(fd, b"extendedKeyUsage=clientAuth,serverAuth\n")
         os.write(fd, "subjectAltName = {0},DNS:{1}".format(san, cn_and_ou).encode('utf-8'))
         call(self._KEYGEN[self.algorithm].format(cn_and_ou),
              shell=True, stderr=DEVNULL)
@@ -279,17 +278,17 @@ def convert_p12_to_jceks(p12_name, jceks_name, password):
         sys.exit(0)
 
 def print_ok(msg):
-    print(("\033[92m{0}\033[0m".format(msg)))
+    print("\033[92m{0}\033[0m".format(msg))
 
 def wrap_socket(socket, keyfile=None, certfile=None, ca_certs=None, cert_reqs=ssl.CERT_REQUIRED, server_side=False):
-    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ctx.minimum_version = ssl.TLSVersion.TLSv1_2
     if certfile is not None and keyfile is not None:
         ctx.load_cert_chain(certfile, keyfile)
     if ca_certs is not None:
         ctx.load_verify_locations(cafile=ca_certs)
-    ctx.verify_mode = cert_reqs;
-    return ctx.wrap_socket(socket, server_side=server_side);
+    ctx.verify_mode = cert_reqs
+    return ctx.wrap_socket(socket, server_side=server_side)
 
 def urlopen(path):
     context = ssl.create_default_context(cafile='root.crt')
@@ -299,7 +298,7 @@ def urlopen(path):
 ######################### Abstract #########################
 
 
-class MySocket():
+class MySocket:
     def __init__(self):
         self.socket = None
 
@@ -320,7 +319,7 @@ class TcpClient(MySocket):
         self.port = port
 
     def connect(self, attempts=1, msg=''):
-        for i in range(0, attempts):
+        for i in range(attempts):
             try:
                 self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.socket.settimeout(TIMEOUT)
@@ -375,7 +374,7 @@ class TlsClient(MySocket):
         self.max_version = max_version
 
     def connect(self, attempts=1, peer=None):
-        for i in range(0, attempts):
+        for i in range(attempts):
             try:
                 ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
                 ctx.verify_mode = ssl.CERT_REQUIRED
@@ -460,7 +459,7 @@ class UnixClient(MySocket):
         return self.socket_path
 
     def connect(self, attempts=1, msg=''):
-        for i in range(0, attempts):
+        for i in range(attempts):
             try:
                 self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                 self.socket.settimeout(TIMEOUT)
@@ -492,7 +491,8 @@ class UnixServer(MySocket):
         return self.socket_path
 
     def listen(self):
-        if self.listening: return
+        if self.listening:
+            return
         self.listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.listener.settimeout(TIMEOUT)
         self.listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -519,7 +519,7 @@ class UnixServer(MySocket):
 # one socket closes the other.
 
 
-class SocketPair():
+class SocketPair:
     def __init__(self, client, server):
         self.client = client
         self.server = server
@@ -574,7 +574,7 @@ class SocketPair():
         # call shutdown for write (sends FIN), but don't close connection
         self.client.get_socket().shutdown(socket.SHUT_WR)
         # server should still be able to send data back, within the timeout
-        self.server.get_socket().send('A'.encode('utf-8'))
+        self.server.get_socket().send(b'A')
         self.client.get_socket().recv(1)
         # if the tunnel doesn't close the connection (forwarding the FIN packet),
         # then recv(1) will raise a Timeout
@@ -595,7 +595,7 @@ class SocketPair():
         # call shutdown for write (sends FIN), but don't close connection
         self.server.get_socket().shutdown(socket.SHUT_WR)
         # client should still be able to send data back, within the timeout
-        self.client.get_socket().send('A'.encode('utf-8'))
+        self.client.get_socket().send(b'A')
         self.server.get_socket().recv(1)
         # if the tunnel doesn't close the connection (forwarding the FIN packet),
         # then recv(1) will raise a Timeout

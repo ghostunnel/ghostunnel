@@ -52,17 +52,17 @@ if __name__ == "__main__":
         try:
             pair = SocketPair(
                 TlsClient('client2', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
-        except ssl.SSLError:
+        except ssl.SSLError as err:
             raise Exception(
-                'rejected unauthenticated client2, despite --disable-authentication')
+                'rejected unauthenticated client2, despite --disable-authentication') from err
 
         # connect with other_client1, confirm that the tunnel isn't up
         try:
             pair = SocketPair(
                 TlsClient('other_client1', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
-        except ssl.SSLError:
+        except ssl.SSLError as err:
             raise Exception(
-                'rejected authenticated other_client1, despite --disable-authentication')
+                'rejected authenticated other_client1, despite --disable-authentication') from err
 
         pair.cleanup()
         print_ok("OK")

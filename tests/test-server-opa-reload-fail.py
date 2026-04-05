@@ -11,7 +11,6 @@ from tempfile import mkdtemp
 import signal
 import shutil
 import ssl
-import socket
 import os
 
 if __name__ == '__main__':
@@ -54,7 +53,7 @@ if __name__ == '__main__':
             pair2 = SocketPair(
                 TlsClient('client2', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
             raise Exception('failed to reject client2')
-        except (ssl.SSLError, socket.timeout):
+        except (ssl.SSLError, TimeoutError):
             print_ok('client2 correctly rejected')
 
         # make policy invalid and reload
@@ -75,7 +74,7 @@ if __name__ == '__main__':
             pair2 = SocketPair(
                 TlsClient('client2', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
             raise Exception('failed to reject client2')
-        except (ssl.SSLError, socket.timeout):
+        except (ssl.SSLError, TimeoutError):
             print_ok('client2 correctly rejected')
 
         print_ok('OK')

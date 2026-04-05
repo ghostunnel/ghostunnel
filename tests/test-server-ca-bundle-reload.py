@@ -43,7 +43,7 @@ if __name__ == "__main__":
         pre_reload = status_info().get('last_reload')
         ghostunnel.send_signal(signal.SIGUSR1)
         wait_for_status(lambda info: info.get('last_reload') != pre_reload, timeout=10)
-        
+
         # Make sure everything still works
         pair = SocketPair(TlsClient('client', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
         pair.validate_can_send_from_client(

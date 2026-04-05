@@ -5,7 +5,6 @@ Ensures that client gets a timeout if there is no server.
 """
 
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT, get_free_port
-import socket
 
 if __name__ == "__main__":
     ghostunnel = None
@@ -31,7 +30,7 @@ if __name__ == "__main__":
             pair = SocketPair(
                 TlsClient('client', 'root', LISTEN_PORT), TcpServer(wrong_port))
             raise Exception('client should have failed to connect')
-        except socket.timeout:
+        except TimeoutError:
             print_ok("timeout when nothing is listening on {0}".format(wrong_port))
 
         # client should connect

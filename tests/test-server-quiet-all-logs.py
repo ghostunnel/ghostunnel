@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Ensures that --quiet=all disables any and all logging. 
+Ensures that --quiet=all disables any and all logging.
 """
 
 from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, TlsClient, TcpServer, print_ok, run_ghostunnel, terminate, SocketPair, urlopen, LISTEN_PORT, TARGET_PORT

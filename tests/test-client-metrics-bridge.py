@@ -47,7 +47,7 @@ if __name__ == "__main__":
                                      '--metrics-url=http://localhost:{0}/post'.format(bridge_port)])
 
         # wait for metrics to post
-        for i in range(0, 10):
+        for _ in range(10):
             if received_metrics:
                 break
             else:

@@ -42,7 +42,8 @@ if __name__ == "__main__":
         except http.client.RemoteDisconnected:
             pass  # expected: server may close before sending response
 
-        for n in range(0, 90):
+        stopped = False
+        for _ in range(90):
             try:
                 try:
                     ghostunnel.wait(timeout=1)

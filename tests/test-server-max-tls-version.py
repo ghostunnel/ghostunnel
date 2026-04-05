@@ -49,7 +49,7 @@ if __name__ == "__main__":
         client = TlsClient('client', 'root', LISTEN_PORT,
                          min_version=ssl.TLSVersion.TLSv1_3,
                          max_version=ssl.TLSVersion.TLSv1_3)
-        
+
         failed = False
         try:
             client.connect()
@@ -63,4 +63,4 @@ if __name__ == "__main__":
     finally:
         terminate(ghostunnel)
         if 'backend' in locals():
-            backend.cleanup() 
+            backend.cleanup()

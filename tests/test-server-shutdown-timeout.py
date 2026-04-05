@@ -35,7 +35,8 @@ if __name__ == "__main__":
         print_ok('attempting to terminate ghostunnel via SIGTERM signals')
         ghostunnel.terminate()
 
-        for n in range(0, 90):
+        stopped = False
+        for _ in range(90):
             try:
                 try:
                     ghostunnel.wait(timeout=1)

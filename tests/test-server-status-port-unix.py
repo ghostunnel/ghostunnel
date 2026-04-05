@@ -46,7 +46,7 @@ if __name__ == "__main__":
                                      '--status=unix:{0}'.format(path)])
 
         # wait for startup
-        for i in range(0, 10):
+        for _ in range(10):
             if os.path.exists(path):
                 break
             time.sleep(1)
