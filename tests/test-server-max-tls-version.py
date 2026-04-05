@@ -8,7 +8,6 @@ Tests that ghostunnel respects the max-tls-version flag by verifying that:
 
 from common import LOCALHOST, RootCert, STATUS_PORT, TlsClient, TcpServer, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
 import ssl
-import time
 
 if __name__ == "__main__":
     ghostunnel = None
@@ -50,11 +49,11 @@ if __name__ == "__main__":
         client = TlsClient('client', 'root', LISTEN_PORT,
                          min_version=ssl.TLSVersion.TLSv1_3,
                          max_version=ssl.TLSVersion.TLSv1_3)
-        
+
         failed = False
         try:
             client.connect()
-        except Exception as e:
+        except Exception:
             failed = True
         if not failed:
             raise Exception("expected TLS 1.3 connection to fail, but it succeeded")
@@ -64,4 +63,4 @@ if __name__ == "__main__":
     finally:
         terminate(ghostunnel)
         if 'backend' in locals():
-            backend.cleanup() 
+            backend.cleanup()

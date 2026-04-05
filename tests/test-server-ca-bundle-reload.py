@@ -6,7 +6,6 @@ Ensures that root certificates are reloaded as well.
 
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, print_ok, run_ghostunnel, status_info, terminate, wait_for_status, LISTEN_PORT, TARGET_PORT
 import signal
-import os
 
 if __name__ == "__main__":
     ghostunnel = None
@@ -36,15 +35,15 @@ if __name__ == "__main__":
             "1: client closed -> server closed")
 
         # Regenerate root certificates and reload
-        RootCert.cleanup_certs(['root', 'client', 'server'])
-        root.__init__('root')
+        root.cleanup()
+        root = RootCert('root')
         root.create_signed_cert('server')
         root.create_signed_cert('client')
 
         pre_reload = status_info().get('last_reload')
         ghostunnel.send_signal(signal.SIGUSR1)
         wait_for_status(lambda info: info.get('last_reload') != pre_reload, timeout=10)
-        
+
         # Make sure everything still works
         pair = SocketPair(TlsClient('client', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
         pair.validate_can_send_from_client(

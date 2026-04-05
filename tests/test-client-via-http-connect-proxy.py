@@ -29,7 +29,7 @@ class FakeConnectProxyHandler(http.server.BaseHTTPRequestHandler):
                     "utf-8"))
             remote = socket.get_socket()
             rlist = [self.connection, remote]
-            for _ in range(0, 1000):
+            for _ in range(1000):
                 reads, _, errs = select.select(rlist, [], rlist, 10)
                 if errs:
                     print_ok("got error in select(): " + str(errs))
@@ -46,8 +46,8 @@ class FakeConnectProxyHandler(http.server.BaseHTTPRequestHandler):
                 socket.get_socket().shutdown()
                 socket.cleanup()
                 self.connection.close()
-            except BaseException:
-                pass
+            except Exception:
+                pass  # best-effort cleanup of proxy sockets
 
 
 if __name__ == "__main__":

@@ -6,7 +6,6 @@ Ensures client1 can connect but that clients with ou=client2 or ca=other_root ca
 
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
 import ssl
-import socket
 
 if __name__ == "__main__":
     ghostunnel = None
@@ -45,7 +44,7 @@ if __name__ == "__main__":
             pair = SocketPair(
                 TlsClient('client2', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
             raise Exception('failed to reject client2')
-        except (ssl.SSLError, socket.timeout):
+        except (ssl.SSLError, TimeoutError):
             print_ok("client2 correctly rejected")
 
         # connect with other_client1, confirm that the tunnel isn't up
@@ -53,7 +52,7 @@ if __name__ == "__main__":
             pair = SocketPair(
                 TlsClient('other_client1', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
             raise Exception('failed to reject other_client1')
-        except (ssl.SSLError, socket.timeout):
+        except (ssl.SSLError, TimeoutError):
             print_ok("other_client1 correctly rejected")
 
         print_ok("OK")

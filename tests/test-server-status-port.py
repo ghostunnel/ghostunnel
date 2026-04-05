@@ -4,10 +4,7 @@
 Ensures that /_status endpoint works.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, TlsClient, print_ok, run_ghostunnel, terminate, urlopen, LISTEN_PORT, TARGET_PORT
-import urllib.request
-import urllib.error
-import urllib.parse
+from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, TlsClient, print_ok, run_ghostunnel, terminate, urlopen, LISTEN_PORT
 import os
 import signal
 import json

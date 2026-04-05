@@ -35,15 +35,16 @@ if __name__ == "__main__":
         print_ok('attempting to terminate ghostunnel via SIGTERM signals')
         ghostunnel.terminate()
 
-        for n in range(0, 90):
+        stopped = False
+        for _ in range(90):
             try:
                 try:
                     ghostunnel.wait(timeout=1)
-                except BaseException:
-                    pass
+                except Exception:
+                    pass  # wait() may raise if process hasn't exited yet
                 os.kill(ghostunnel.pid, 0)
                 print_ok("ghostunnel is still alive")
-            except BaseException:
+            except Exception:
                 stopped = True
                 break
             time.sleep(1)

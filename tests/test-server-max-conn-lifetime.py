@@ -4,10 +4,7 @@
 Simulates a hanging connection, waits for timeout.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, TlsClient, TcpServer, SocketPair, print_ok, run_ghostunnel, terminate, urlopen, LISTEN_PORT, TARGET_PORT, get_free_port
-import urllib.request
-import urllib.error
-import urllib.parse
+from common import LOCALHOST, RootCert, STATUS_PORT, TlsClient, TcpServer, SocketPair, print_ok, run_ghostunnel, terminate, urlopen, LISTEN_PORT, TARGET_PORT
 import time
 import json
 
@@ -42,7 +39,7 @@ if __name__ == "__main__":
 
         # check metrics for connection lifetime timeout
         timeout = False
-        for _ in range(0, 20):
+        for _ in range(20):
             metrics = json.loads(str(urlopen(
                 "https://{0}:{1}/_metrics".format(LOCALHOST, STATUS_PORT)).read(), 'utf-8'))
             timeouts = [m['value']

@@ -5,7 +5,7 @@ Ensures that /_status endpoint using UNIX sockets
 works.
 """
 
-from common import LOCALHOST, RootCert, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
+from common import LOCALHOST, RootCert, print_ok, run_ghostunnel, terminate, LISTEN_PORT
 from tempfile import mkdtemp
 from shutil import rmtree
 import socket
@@ -46,7 +46,7 @@ if __name__ == "__main__":
                                      '--status=unix:{0}'.format(path)])
 
         # wait for startup
-        for i in range(0, 10):
+        for _ in range(10):
             if os.path.exists(path):
                 break
             time.sleep(1)

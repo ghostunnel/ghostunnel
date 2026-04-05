@@ -42,21 +42,27 @@ if __name__ == "__main__":
         except http.client.RemoteDisconnected:
             pass  # expected: server may close before sending response
 
-        for n in range(0, 90):
+        stopped = False
+        for _ in range(90):
             try:
                 try:
                     ghostunnel.wait(timeout=1)
-                except BaseException:
-                    pass
+                except Exception:
+                    pass  # wait() may raise if process hasn't exited yet
                 os.kill(ghostunnel.pid, 0)
                 print_ok("ghostunnel is still alive")
-            except BaseException:
+            except Exception:
                 stopped = True
                 break
             time.sleep(1)
 
         if not stopped:
             raise Exception('ghostunnel did not terminate within 90 seconds')
+
+        if ghostunnel.returncode != 0:
+            raise Exception(
+                'ghostunnel terminated with non-zero exit code: {0}'.format(
+                    ghostunnel.returncode))
 
         print_ok("OK (terminated)")
     finally:

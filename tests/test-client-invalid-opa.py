@@ -4,14 +4,11 @@
 Tests code paths with invalid policy.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, \
-    TlsServer, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
+from common import LOCALHOST, RootCert, STATUS_PORT, \
+    print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
 
-from tempfile import mkstemp, mkdtemp
-import time
-import signal
+from tempfile import mkdtemp
 import shutil
-import ssl
 import os
 
 if __name__ == "__main__":

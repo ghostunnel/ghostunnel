@@ -7,7 +7,6 @@ via --keystore and --storepass flags.
 
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
 from subprocess import call, DEVNULL
-import os
 
 if __name__ == "__main__":
     ghostunnel = None

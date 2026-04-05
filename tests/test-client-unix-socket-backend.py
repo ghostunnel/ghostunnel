@@ -4,8 +4,7 @@
 Ensures ghostunnel can listen on a unix socket.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TlsServer, UnixClient, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
-import socket
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TlsServer, UnixClient, print_ok, run_ghostunnel, terminate, TARGET_PORT
 import os
 import os.path
 
