@@ -8,6 +8,7 @@ import time
 import socket
 import ssl
 import os
+import urllib.error
 import urllib.request
 
 LOCALHOST = '127.0.0.1'
