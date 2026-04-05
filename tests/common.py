@@ -295,6 +295,14 @@ def urlopen(path):
     return urllib.request.urlopen(path, context=context)
 
 
+def _get_ou(peercert):
+    """Extract organizationalUnitName from a peer certificate subject."""
+    for rdn in peercert.get('subject', ()):
+        for attr_type, attr_value in rdn:
+            if attr_type == 'organizationalUnitName':
+                return attr_value
+    return None
+
 ######################### Abstract #########################
 
 
@@ -436,10 +444,11 @@ class TlsServer(MySocket):
         self.tls_listener = None
 
     def validate_client_cert(self, ou):
-        if self.socket.getpeercert()['subject'][0][0][1] == ou:
+        actual = _get_ou(self.socket.getpeercert())
+        if actual == ou:
             return
         raise Exception("did not connect to expected peer: got {}, wanted: {}".format(
-                        self.socket.getpeercert()['subject'][0][0][1], ou))
+                        actual, ou))
 
     def cleanup(self):
         super().cleanup()
@@ -619,8 +628,8 @@ class SocketPair:
 
     def validate_tunnel_ou(self, ou, msg):
         peercert = self.client.get_socket().getpeercert()
-        if peercert['subject'][0][0][1] != ou:
-            raise Exception("did not connect to expected peer: got ",
-                            peercert['subject'][0][0][1],
-                            ", wanted: ", ou)
+        actual = _get_ou(peercert)
+        if actual != ou:
+            raise Exception("did not connect to expected peer: got {}, wanted: {}".format(
+                            actual, ou))
         print_ok(msg)
