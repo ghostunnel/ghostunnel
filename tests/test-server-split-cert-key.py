@@ -9,7 +9,7 @@ from common import LOCALHOST, STATUS_PORT, print_ok, run_ghostunnel, terminate, 
 if __name__ == "__main__":
     ghostunnel = None
     try:
-        root = create_default_certs()
+        _root = create_default_certs()
 
         # start ghostunnel with --cert/--key instead of --keystore
         ghostunnel = run_ghostunnel(['server',

@@ -9,7 +9,7 @@ from common import SocketPair, TcpClient, TlsServer, print_ok, terminate, LISTEN
 if __name__ == "__main__":
     ghostunnel = None
     try:
-        root = create_default_certs()
+        _root = create_default_certs()
         ghostunnel = start_ghostunnel_client()
 
         # client should fail to connect since nothing is listening on wrong_port

@@ -9,7 +9,7 @@ from common import SocketPair, TcpServer, TlsClient, print_ok, terminate, LISTEN
 if __name__ == "__main__":
     ghostunnel = None
     try:
-        root = create_default_certs()
+        _root = create_default_certs()
         ghostunnel = start_ghostunnel_server(extra_args=['--close-timeout=10s'])
 
         # connect with client, confirm that the tunnel is up
