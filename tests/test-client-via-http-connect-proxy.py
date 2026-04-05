@@ -46,7 +46,7 @@ class FakeConnectProxyHandler(http.server.BaseHTTPRequestHandler):
                 socket.get_socket().shutdown()
                 socket.cleanup()
                 self.connection.close()
-            except BaseException:
+            except Exception:
                 pass
 
 

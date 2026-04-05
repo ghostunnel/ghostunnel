@@ -38,11 +38,11 @@ if __name__ == "__main__":
             try:
                 try:
                     ghostunnel.wait(timeout=1)
-                except BaseException:
+                except Exception:
                     pass
                 os.kill(ghostunnel.pid, 0)
                 print_ok("ghostunnel is still alive")
-            except BaseException:
+            except Exception:
                 stopped = True
                 break
             time.sleep(1)

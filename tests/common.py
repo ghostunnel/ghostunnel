@@ -127,7 +127,7 @@ def terminate(ghostunnel):
             for i in range(0, 10):
                 try:
                     ghostunnel.wait(timeout=1)
-                except BaseException:
+                except Exception:
                     pass
                 if ghostunnel.returncode is not None:
                     print_ok("ghostunnel stopped with exit code {0}".format(
@@ -136,7 +136,7 @@ def terminate(ghostunnel):
                 _poll_sleep(i)
             print_ok("timeout, killing ghostunnel")
             ghostunnel.kill()
-    except BaseException:
+    except Exception:
         pass
 
 def status_info():
