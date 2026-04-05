@@ -4,16 +4,14 @@
 Test that ensures that we can use the --cert/--key flags.
 """
 
-from common import LOCALHOST, STATUS_PORT, print_ok, run_ghostunnel, terminate, RootCert, SocketPair, TlsClient, TcpServer, LISTEN_PORT, TARGET_PORT
+from common import LOCALHOST, STATUS_PORT, print_ok, run_ghostunnel, terminate, SocketPair, TlsClient, TcpServer, LISTEN_PORT, TARGET_PORT, create_default_certs
 
 if __name__ == "__main__":
     ghostunnel = None
     try:
-        root = RootCert('root')
-        root.create_signed_cert('server')
-        root.create_signed_cert('client')
+        _root = create_default_certs()
 
-        # start ghostunnel
+        # start ghostunnel with --cert/--key instead of --keystore
         ghostunnel = run_ghostunnel(['server',
                                      '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
                                      '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),

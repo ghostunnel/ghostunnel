@@ -5,12 +5,12 @@ Test to check --allow-policy flag behavior.
 """
 
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, \
-    TlsClient, print_ok, run_ghostunnel, status_info, terminate, wait_for_status, LISTEN_PORT, TARGET_PORT
+    TlsClient, print_ok, run_ghostunnel, status_info, terminate, wait_for_status, LISTEN_PORT, TARGET_PORT, \
+    assert_connection_rejected
 
 from tempfile import mkdtemp
 import signal
 import shutil
-import ssl
 import os
 
 if __name__ == "__main__":
@@ -49,12 +49,8 @@ if __name__ == "__main__":
         pair1.validate_can_send_from_client("toto", "pair1 works")
         pair1.validate_can_send_from_server("toto", "pair1 reverse works")
 
-        try:
-            pair2 = SocketPair(
-                TlsClient('client2', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
-            raise Exception('failed to reject client2')
-        except (ssl.SSLError, TimeoutError):
-            print_ok("client2 correctly rejected")
+        assert_connection_rejected(
+            TlsClient('client2', 'root', LISTEN_PORT), TcpServer(TARGET_PORT), "client2")
 
         # Change policy and reload
         shutil.copyfile(dir_path + '/test-allow-all-policy.tar.gz', tmp_dir + '/bundle.tar.gz')

@@ -254,6 +254,93 @@ class RootCert:
                 except OSError:
                     pass  # file may not exist
 
+def assert_connection_rejected(client, server, name, timeout_ok=True):
+    """Assert that a SocketPair connection is rejected.
+
+    By default accepts both ssl.SSLError and TimeoutError (appropriate for
+    server-side rejection tests). Pass timeout_ok=False to only accept
+    ssl.SSLError — use this for client-side tests where ghostunnel performs
+    the TLS verification and should fail the handshake immediately."""
+    try:
+        SocketPair(client, server)
+        raise Exception('failed to reject {0}'.format(name))
+    except ssl.SSLError:
+        print_ok("{0} correctly rejected".format(name))
+    except TimeoutError as exc:
+        if timeout_ok:
+            print_ok("{0} correctly rejected".format(name))
+        else:
+            raise Exception('expected ssl.SSLError rejecting {0}, got TimeoutError'.format(name)) from exc
+
+
+def create_default_certs(algorithm='ecdsa'):
+    """Create standard root, server, and client certificates.
+
+    Returns the RootCert object. Callers must keep a reference to it
+    alive for the duration of the test to prevent __del__ cleanup."""
+    root = RootCert('root', algorithm=algorithm)
+    root.create_signed_cert('server')
+    root.create_signed_cert('client')
+    return root
+
+
+def start_ghostunnel_server(extra_args=None, keystore='server.p12',
+                            cacert='root.crt', allow_ou='client', **kwargs):
+    """Start ghostunnel in server mode with standard listen/target/status args.
+
+    Pass allow_ou=None to omit --allow-ou (e.g. for --disable-authentication tests)."""
+    args = ['server',
+            '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+            '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
+            '--keystore={0}'.format(keystore),
+            '--cacert={0}'.format(cacert),
+            '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)]
+    if allow_ou is not None:
+        args.append('--allow-ou={0}'.format(allow_ou))
+    if extra_args:
+        args.extend(extra_args)
+    return run_ghostunnel(args, **kwargs)
+
+
+def start_ghostunnel_client(extra_args=None, keystore='client.p12',
+                            cacert='root.crt', **kwargs):
+    """Start ghostunnel in client mode with standard listen/target/status args."""
+    args = ['client',
+            '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+            '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
+            '--keystore={0}'.format(keystore),
+            '--cacert={0}'.format(cacert),
+            '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)]
+    if extra_args:
+        args.extend(extra_args)
+    return run_ghostunnel(args, **kwargs)
+
+
+EXPECTED_SERVER_METRICS = [
+    "ghostunnel.accept.total",
+    "ghostunnel.accept.success",
+    "ghostunnel.accept.timeout",
+    "ghostunnel.accept.error",
+    "ghostunnel.conn.open",
+    "ghostunnel.conn.lifetime.count",
+    "ghostunnel.conn.lifetime.min",
+    "ghostunnel.conn.lifetime.max",
+    "ghostunnel.conn.lifetime.mean",
+    "ghostunnel.conn.lifetime.50-percentile",
+    "ghostunnel.conn.lifetime.75-percentile",
+    "ghostunnel.conn.lifetime.95-percentile",
+    "ghostunnel.conn.lifetime.99-percentile",
+    "ghostunnel.conn.handshake.count",
+    "ghostunnel.conn.handshake.min",
+    "ghostunnel.conn.handshake.max",
+    "ghostunnel.conn.handshake.mean",
+    "ghostunnel.conn.handshake.50-percentile",
+    "ghostunnel.conn.handshake.75-percentile",
+    "ghostunnel.conn.handshake.95-percentile",
+    "ghostunnel.conn.handshake.99-percentile",
+]
+
+
 def check_ed25519_support():
     """Skip the test if OpenSSL does not support ED25519."""
     try:

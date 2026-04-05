@@ -5,9 +5,8 @@ Tests that verify-dns flag works correctly on the client.
 """
 
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, \
-                   TlsServer, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
-
-import ssl
+                   TlsServer, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT, \
+                   assert_connection_rejected
 
 if __name__ == "__main__":
     ghostunnel = None
@@ -46,12 +45,9 @@ if __name__ == "__main__":
             "1: client closed -> server closed")
 
         # connect to server2, confirm that the tunnel isn't up
-        try:
-            pair = SocketPair(TcpClient(LISTEN_PORT), TlsServer(
-                'server2', 'root', TARGET_PORT))
-            raise Exception('failed to reject other_server')
-        except ssl.SSLError:
-            print_ok("other_server correctly rejected")
+        assert_connection_rejected(
+            TcpClient(LISTEN_PORT), TlsServer('server2', 'root', TARGET_PORT),
+            "server2", timeout_ok=False)
 
         print_ok("OK")
     finally:

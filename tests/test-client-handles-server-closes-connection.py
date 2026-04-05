@@ -4,25 +4,13 @@
 Ensures when server disconnects that the client connection also disconnects.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TlsServer, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
+from common import SocketPair, TcpClient, TlsServer, print_ok, terminate, LISTEN_PORT, TARGET_PORT, create_default_certs, start_ghostunnel_client
 
 if __name__ == "__main__":
     ghostunnel = None
     try:
-        # create certs
-        root = RootCert('root')
-        root.create_signed_cert('server')
-        root.create_signed_cert('client')
-
-        # start ghostunnel
-        ghostunnel = run_ghostunnel(['client',
-                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
-                                     '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
-                                     '--keystore=client.p12',
-                                     '--status={0}:{1}'.format(LOCALHOST,
-                                                               STATUS_PORT),
-                                     '--close-timeout=10s',
-                                     '--cacert=root.crt'])
+        _root = create_default_certs()
+        ghostunnel = start_ghostunnel_client(extra_args=['--close-timeout=10s'])
 
         # connect with client, confirm that the tunnel is up
         pair = SocketPair(TcpClient(LISTEN_PORT), TlsServer('server', 'root', TARGET_PORT))
