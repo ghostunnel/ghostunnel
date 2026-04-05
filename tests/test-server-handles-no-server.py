@@ -4,25 +4,13 @@
 Ensures that client gets a timeout if there is no server.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT, get_free_port
+from common import SocketPair, TcpServer, TlsClient, print_ok, terminate, LISTEN_PORT, TARGET_PORT, create_default_certs, start_ghostunnel_server, get_free_port
 
 if __name__ == "__main__":
     ghostunnel = None
     try:
-        # create certs
-        root = RootCert('root')
-        root.create_signed_cert('server')
-        root.create_signed_cert('client')
-
-        # start ghostunnel
-        ghostunnel = run_ghostunnel(['server',
-                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
-                                     '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
-                                     '--keystore=server.p12',
-                                     '--status={0}:{1}'.format(LOCALHOST,
-                                                               STATUS_PORT),
-                                     '--cacert=root.crt',
-                                     '--allow-ou=client'])
+        root = create_default_certs()
+        ghostunnel = start_ghostunnel_server()
 
         # client should fail to connect since nothing is listening on wrong_port
         wrong_port = get_free_port()

@@ -263,6 +263,46 @@ def assert_connection_rejected(client, server, name):
         print_ok("{0} correctly rejected".format(name))
 
 
+def create_default_certs(algorithm='ecdsa'):
+    """Create standard root, server, and client certificates.
+
+    Returns the RootCert object. Callers must keep a reference to it
+    alive for the duration of the test to prevent __del__ cleanup."""
+    root = RootCert('root', algorithm=algorithm)
+    root.create_signed_cert('server')
+    root.create_signed_cert('client')
+    return root
+
+
+def start_ghostunnel_server(extra_args=None, keystore='server.p12',
+                            cacert='root.crt', allow_ou='client', **kwargs):
+    """Start ghostunnel in server mode with standard listen/target/status args."""
+    args = ['server',
+            '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+            '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
+            '--keystore={0}'.format(keystore),
+            '--cacert={0}'.format(cacert),
+            '--allow-ou={0}'.format(allow_ou),
+            '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)]
+    if extra_args:
+        args.extend(extra_args)
+    return run_ghostunnel(args, **kwargs)
+
+
+def start_ghostunnel_client(extra_args=None, keystore='client.p12',
+                            cacert='root.crt', **kwargs):
+    """Start ghostunnel in client mode with standard listen/target/status args."""
+    args = ['client',
+            '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+            '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
+            '--keystore={0}'.format(keystore),
+            '--cacert={0}'.format(cacert),
+            '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)]
+    if extra_args:
+        args.extend(extra_args)
+    return run_ghostunnel(args, **kwargs)
+
+
 EXPECTED_SERVER_METRICS = [
     "ghostunnel.accept.total",
     "ghostunnel.accept.success",
