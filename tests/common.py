@@ -283,7 +283,8 @@ def print_ok(msg):
     print(("\033[92m{0}\033[0m".format(msg)))
 
 def wrap_socket(socket, keyfile=None, certfile=None, ca_certs=None, cert_reqs=ssl.CERT_REQUIRED, server_side=False):
-    ctx = ssl.SSLContext();
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
     if certfile is not None and keyfile is not None:
         ctx.load_cert_chain(certfile, keyfile)
     if ca_certs is not None:
@@ -383,8 +384,7 @@ class TlsClient(MySocket):
                     ctx.load_verify_locations(cafile=self.ca + '.crt')
                 if self.cert:
                     ctx.load_cert_chain(self.cert + '.crt', self.cert + '.key')
-                if self.min_version is not None:
-                    ctx.minimum_version = self.min_version
+                ctx.minimum_version = self.min_version if self.min_version is not None else ssl.TLSVersion.TLSv1_2
                 if self.max_version is not None:
                     ctx.maximum_version = self.max_version
 
