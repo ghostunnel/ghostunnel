@@ -47,7 +47,7 @@ class FakeConnectProxyHandler(http.server.BaseHTTPRequestHandler):
                 socket.cleanup()
                 self.connection.close()
             except Exception:
-                pass
+                pass  # best-effort cleanup of proxy sockets
 
 
 if __name__ == "__main__":

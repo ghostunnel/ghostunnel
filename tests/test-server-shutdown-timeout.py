@@ -41,7 +41,7 @@ if __name__ == "__main__":
                 try:
                     ghostunnel.wait(timeout=1)
                 except Exception:
-                    pass
+                    pass  # wait() may raise if process hasn't exited yet
                 os.kill(ghostunnel.pid, 0)
                 print_ok("ghostunnel is still alive")
             except Exception:

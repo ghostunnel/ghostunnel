@@ -72,7 +72,7 @@ def _cleanup_work_dir():
         os.chdir(_TESTS_DIR)
         shutil.rmtree(_WORK_DIR, ignore_errors=True)
     except Exception:
-        pass
+        pass  # best-effort cleanup, may fail during interpreter shutdown
 
 
 atexit.register(_cleanup_work_dir)
@@ -127,7 +127,7 @@ def terminate(ghostunnel):
                 try:
                     ghostunnel.wait(timeout=1)
                 except Exception:
-                    pass
+                    pass  # wait() may raise if process hasn't exited yet
                 if ghostunnel.returncode is not None:
                     print_ok("ghostunnel stopped with exit code {0}".format(
                         ghostunnel.returncode))
@@ -136,7 +136,7 @@ def terminate(ghostunnel):
             print_ok("timeout, killing ghostunnel")
             ghostunnel.kill()
     except Exception:
-        pass
+        pass  # best-effort termination, ignore errors during cleanup
 
 def status_info():
     """Fetch info from status port"""
@@ -251,7 +251,7 @@ class RootCert:
                 try:
                     os.remove('{0}.{1}'.format(name, ext))
                 except OSError:
-                    pass
+                    pass  # file may not exist
 
 def check_ed25519_support():
     """Skip the test if OpenSSL does not support ED25519."""
@@ -274,7 +274,7 @@ def convert_p12_to_jceks(p12_name, jceks_name, password):
     try:
         os.remove('{0}.jceks'.format(jceks_name))
     except OSError:
-        pass
+        pass  # file may not exist from a previous run
     ret = call('keytool -importkeystore '
                '-srckeystore {0}.p12 -srcstoretype PKCS12 -srcstorepass {2} '
                '-destkeystore {1}.jceks -deststoretype JCEKS -deststorepass {2} '
