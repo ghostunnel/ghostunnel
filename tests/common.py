@@ -266,11 +266,11 @@ def assert_connection_rejected(client, server, name, timeout_ok=True):
         raise Exception('failed to reject {0}'.format(name))
     except ssl.SSLError:
         print_ok("{0} correctly rejected".format(name))
-    except TimeoutError:
+    except TimeoutError as exc:
         if timeout_ok:
             print_ok("{0} correctly rejected".format(name))
         else:
-            raise Exception('expected ssl.SSLError rejecting {0}, got TimeoutError'.format(name))
+            raise Exception('expected ssl.SSLError rejecting {0}, got TimeoutError'.format(name)) from exc
 
 
 def create_default_certs(algorithm='ecdsa'):
