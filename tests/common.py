@@ -254,6 +254,31 @@ class RootCert:
                 except OSError:
                     pass  # file may not exist
 
+EXPECTED_SERVER_METRICS = [
+    "ghostunnel.accept.total",
+    "ghostunnel.accept.success",
+    "ghostunnel.accept.timeout",
+    "ghostunnel.accept.error",
+    "ghostunnel.conn.open",
+    "ghostunnel.conn.lifetime.count",
+    "ghostunnel.conn.lifetime.min",
+    "ghostunnel.conn.lifetime.max",
+    "ghostunnel.conn.lifetime.mean",
+    "ghostunnel.conn.lifetime.50-percentile",
+    "ghostunnel.conn.lifetime.75-percentile",
+    "ghostunnel.conn.lifetime.95-percentile",
+    "ghostunnel.conn.lifetime.99-percentile",
+    "ghostunnel.conn.handshake.count",
+    "ghostunnel.conn.handshake.min",
+    "ghostunnel.conn.handshake.max",
+    "ghostunnel.conn.handshake.mean",
+    "ghostunnel.conn.handshake.50-percentile",
+    "ghostunnel.conn.handshake.75-percentile",
+    "ghostunnel.conn.handshake.95-percentile",
+    "ghostunnel.conn.handshake.99-percentile",
+]
+
+
 def check_ed25519_support():
     """Skip the test if OpenSSL does not support ED25519."""
     try:
