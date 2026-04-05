@@ -51,6 +51,11 @@ if __name__ == "__main__":
         if not stopped:
             raise Exception('ghostunnel did not terminate within 90 seconds')
 
+        if ghostunnel.returncode != 0:
+            raise Exception(
+                'ghostunnel terminated with non-zero exit code: {0}'.format(
+                    ghostunnel.returncode))
+
         print_ok("OK (terminated)")
     finally:
         terminate(ghostunnel)
