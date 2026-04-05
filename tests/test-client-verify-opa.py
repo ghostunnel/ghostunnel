@@ -56,7 +56,8 @@ if __name__ == "__main__":
 
         # connect to server2, confirm that the tunnel isn't up
         assert_connection_rejected(
-            TcpClient(LISTEN_PORT), TlsServer('server2', 'root', TARGET_PORT), "server2")
+            TcpClient(LISTEN_PORT), TlsServer('server2', 'root', TARGET_PORT),
+            "server2", timeout_ok=False)
 
         # Change policy and reload
         shutil.copyfile(dir_path + '/test-allow-all-policy.tar.gz', tmp_dir + '/bundle.tar.gz')

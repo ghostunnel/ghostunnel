@@ -40,11 +40,13 @@ if __name__ == "__main__":
 
         # connect to other_server, confirm that the tunnel isn't up
         assert_connection_rejected(
-            TcpClient(LISTEN_PORT), TlsServer('other_server', 'other_root', TARGET_PORT), "other_server")
+            TcpClient(LISTEN_PORT), TlsServer('other_server', 'other_root', TARGET_PORT),
+            "other_server", timeout_ok=False)
 
         # connect to server2, confirm that the tunnel isn't up
         assert_connection_rejected(
-            TcpClient(LISTEN_PORT), TlsServer('server2', 'root', TARGET_PORT), "server2")
+            TcpClient(LISTEN_PORT), TlsServer('server2', 'root', TARGET_PORT),
+            "server2", timeout_ok=False)
 
         print_ok("OK")
     finally:

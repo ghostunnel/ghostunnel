@@ -43,11 +43,13 @@ if __name__ == "__main__":
 
         # connect to other_server, confirm that the tunnel isn't up
         assert_connection_rejected(
-            TcpClient(LISTEN_PORT), TlsServer('other_server', 'other_root', TARGET_PORT), "other_server")
+            TcpClient(LISTEN_PORT), TlsServer('other_server', 'other_root', TARGET_PORT),
+            "other_server", timeout_ok=False)
 
         # connect to server1, confirm that the tunnel isn't up
         assert_connection_rejected(
-            TcpClient(LISTEN_PORT), TlsServer('server1', 'root', TARGET_PORT), "server1")
+            TcpClient(LISTEN_PORT), TlsServer('server1', 'root', TARGET_PORT),
+            "server1", timeout_ok=False)
 
         # make sure also works after reload
         ghostunnel.send_signal(signal.SIGUSR1)

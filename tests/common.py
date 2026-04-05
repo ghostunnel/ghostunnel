@@ -254,13 +254,23 @@ class RootCert:
                 except OSError:
                     pass  # file may not exist
 
-def assert_connection_rejected(client, server, name):
-    """Assert that a SocketPair connection is rejected with an SSL or timeout error."""
+def assert_connection_rejected(client, server, name, timeout_ok=True):
+    """Assert that a SocketPair connection is rejected.
+
+    By default accepts both ssl.SSLError and TimeoutError (appropriate for
+    server-side rejection tests). Pass timeout_ok=False to only accept
+    ssl.SSLError — use this for client-side tests where ghostunnel performs
+    the TLS verification and should fail the handshake immediately."""
     try:
         pair = SocketPair(client, server)
         raise Exception('failed to reject {0}'.format(name))
-    except (ssl.SSLError, TimeoutError):
+    except ssl.SSLError:
         print_ok("{0} correctly rejected".format(name))
+    except TimeoutError:
+        if timeout_ok:
+            print_ok("{0} correctly rejected".format(name))
+        else:
+            raise Exception('expected ssl.SSLError rejecting {0}, got TimeoutError'.format(name))
 
 
 def create_default_certs(algorithm='ecdsa'):
@@ -276,14 +286,17 @@ def create_default_certs(algorithm='ecdsa'):
 
 def start_ghostunnel_server(extra_args=None, keystore='server.p12',
                             cacert='root.crt', allow_ou='client', **kwargs):
-    """Start ghostunnel in server mode with standard listen/target/status args."""
+    """Start ghostunnel in server mode with standard listen/target/status args.
+
+    Pass allow_ou=None to omit --allow-ou (e.g. for --disable-authentication tests)."""
     args = ['server',
             '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
             '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
             '--keystore={0}'.format(keystore),
             '--cacert={0}'.format(cacert),
-            '--allow-ou={0}'.format(allow_ou),
             '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)]
+    if allow_ou is not None:
+        args.append('--allow-ou={0}'.format(allow_ou))
     if extra_args:
         args.extend(extra_args)
     return run_ghostunnel(args, **kwargs)

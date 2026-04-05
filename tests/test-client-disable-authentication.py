@@ -42,12 +42,12 @@ if __name__ == "__main__":
         # connect to other_server, confirm that the tunnel isn't up
         assert_connection_rejected(
             TcpClient(LISTEN_PORT), TlsServer('other_server', 'other_root', TARGET_PORT, cert_reqs=ssl.CERT_NONE),
-            "other_server")
+            "other_server with unknown CA", timeout_ok=False)
 
         # connect to server2, confirm that the tunnel isn't up
         assert_connection_rejected(
             TcpClient(LISTEN_PORT), TlsServer('server2', 'root', TARGET_PORT, cert_reqs=ssl.CERT_NONE),
-            "server2")
+            "server2 with incorrect CN", timeout_ok=False)
 
         print_ok("OK")
     finally:
