@@ -1,4 +1,4 @@
-from subprocess import call, check_output, Popen, DEVNULL
+from subprocess import call, check_call, check_output, Popen, DEVNULL
 from tempfile import mkstemp, mkdtemp
 import atexit
 import json
@@ -193,11 +193,11 @@ class RootCert:
         self.algorithm = algorithm
         self.leaf_certs = []
         print_ok("generating {0}.key, {0}.crt".format(name))
-        call(
+        check_call(
             self._KEYGEN[algorithm].format(name),
             shell=True,
             stderr=DEVNULL)
-        call(
+        check_call(
             'openssl req -x509 -new -key {0}.key -days 5 -out {0}_temp.crt -addext "keyUsage = digitalSignature, cRLSign, keyCertSign" -subj /C=US/ST=CA/O=ghostunnel/OU={0}'.format(name),
             shell=True)
         os.rename("{0}_temp.crt".format(name), "{0}.crt".format(name))
@@ -210,13 +210,13 @@ class RootCert:
         fd, openssl_config = mkstemp(dir='.')
         os.write(fd, b"extendedKeyUsage=clientAuth,serverAuth\n")
         os.write(fd, "subjectAltName = {0},DNS:{1}".format(san, cn_and_ou).encode('utf-8'))
-        call(self._KEYGEN[self.algorithm].format(cn_and_ou),
+        check_call(self._KEYGEN[self.algorithm].format(cn_and_ou),
              shell=True, stderr=DEVNULL)
-        call(
+        check_call(
             "openssl req -new -key {0}.key -out {0}.csr -subj /CN={0}/C=US/ST=CA/O=ghostunnel/OU={0}".format(cn_and_ou),
             shell=True,
             stderr=DEVNULL)
-        call(
+        check_call(
             "openssl x509 -req -in {0}.csr -CA {1}.crt -CAkey {1}.key -CAcreateserial -out {0}_temp.crt -days 5 -extfile {2}".format(
                 cn_and_ou,
                 self.name,
@@ -225,7 +225,7 @@ class RootCert:
             stderr=DEVNULL)
         os.rename("{0}_temp.crt".format(cn_and_ou), "{0}.crt".format(cn_and_ou))
         if p12_password is not None:
-            call(
+            check_call(
                 "openssl pkcs12 -export -out {0}_temp.p12 -in {0}.crt -inkey {0}.key -password pass:{1}".format(cn_and_ou, p12_password),
                 shell=True)
             os.rename("{0}_temp.p12".format(cn_and_ou), "{0}.p12".format(cn_and_ou))
