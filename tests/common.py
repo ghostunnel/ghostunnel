@@ -262,7 +262,7 @@ def assert_connection_rejected(client, server, name, timeout_ok=True):
     ssl.SSLError — use this for client-side tests where ghostunnel performs
     the TLS verification and should fail the handshake immediately."""
     try:
-        pair = SocketPair(client, server)
+        SocketPair(client, server)
         raise Exception('failed to reject {0}'.format(name))
     except ssl.SSLError:
         print_ok("{0} correctly rejected".format(name))
