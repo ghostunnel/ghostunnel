@@ -64,7 +64,7 @@ if __name__ == "__main__":
                 'server2', 'root1', TARGET_PORT))
             pair3.validate_can_send_from_client("toto", "pair3 works")
             raise Exception("pair3 worked")
-        except ssl.SSLError as e:
+        except ssl.SSLError:
             print_ok("ghostunnel did not connect to incorrect CA")
 
         # ensure that pair1 is still alive

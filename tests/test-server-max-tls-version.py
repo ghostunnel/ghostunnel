@@ -53,7 +53,7 @@ if __name__ == "__main__":
         failed = False
         try:
             client.connect()
-        except Exception as e:
+        except Exception:
             failed = True
         if not failed:
             raise Exception("expected TLS 1.3 connection to fail, but it succeeded")
