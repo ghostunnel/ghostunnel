@@ -1,0 +1,15 @@
+# Binary assets available on GitHub Releases, grouped by the version
+# range in which each set of binaries was first published.
+#
+# "from" is inclusive. Each entry's assets apply to all releases from
+# that version onward, until overridden by a later entry. Entries
+# must be ordered oldest-first.
+
+- from: "v1.7.1"
+  assets:
+    - { os: "Linux",   arch: "x86_64",    file: "ghostunnel-linux-amd64" }
+    - { os: "Linux",   arch: "ARM64",     file: "ghostunnel-linux-arm64" }
+    - { os: "macOS",   arch: "x86_64",    file: "ghostunnel-darwin-amd64" }
+    - { os: "macOS",   arch: "ARM64",     file: "ghostunnel-darwin-arm64" }
+    - { os: "macOS",   arch: "Universal", file: "ghostunnel-darwin-universal" }
+    - { os: "Windows", arch: "x86_64",    file: "ghostunnel-windows-amd64.exe" }

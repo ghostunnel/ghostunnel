@@ -34,13 +34,38 @@ socket.
 Ghostunnel also supports UNIX domain sockets, PROXY protocol v2, systemd/launchd
 socket activation, and more. See the [documentation](docs/) for details.
 
-## Quick Start
+## Install
+
+Pre-built binaries for Linux, macOS, and Windows are available under [Releases](/releases).
+
+Via Homebrew:
+
+```bash
+brew install ghostunnel
+```
+
+Via Docker (see [Docker Hub](https://hub.docker.com/r/ghostunnel/ghostunnel) for all
+available tags):
+
+```bash
+docker pull ghostunnel/ghostunnel:latest-distroless  # Distroless (recommended)
+docker pull ghostunnel/ghostunnel:latest-alpine      # Alpine
+docker pull ghostunnel/ghostunnel:latest-debian      # Debian
+```
+
+Compile from source (replace `VERSION` with a [release tag](https://github.com/ghostunnel/ghostunnel/releases)):
+
+```bash
+go install github.com/ghostunnel/ghostunnel@VERSION
+```
+
+## Usage
 
 Start a Ghostunnel in server mode to proxy TLS connections to a backend:
 
 ```bash
 ghostunnel server \
-    --listen localhost:8443 \
+    --listen :8443 \
     --target localhost:8080 \
     --keystore server-keystore.p12 \
     --cacert cacert.pem \
@@ -52,39 +77,12 @@ Start a Ghostunnel in client mode to wrap connections in TLS:
 ```bash
 ghostunnel client \
     --listen localhost:8080 \
-    --target localhost:8443 \
+    --target example.com:8443 \
     --keystore client-combined.pem \
     --cacert cacert.pem
 ```
 
-## Install
-
-Pre-built binaries for Linux, macOS, and Windows are available on
-[GitHub Releases](https://github.com/ghostunnel/ghostunnel/releases)
-([latest](https://github.com/ghostunnel/ghostunnel/releases/latest)).
-
-Via Homebrew:
-
-```bash
-brew install ghostunnel
-```
-
-Via Go (replace `VERSION` with a [release tag](https://github.com/ghostunnel/ghostunnel/releases)):
-
-```bash
-go install github.com/ghostunnel/ghostunnel@VERSION
-```
-
-Via Docker:
-
-```bash
-docker pull ghostunnel/ghostunnel:latest-distroless  # Distroless (recommended)
-docker pull ghostunnel/ghostunnel:latest-alpine      # Alpine
-docker pull ghostunnel/ghostunnel:latest-debian      # Debian
-```
-
-See [Docker Hub](https://hub.docker.com/r/ghostunnel/ghostunnel) for all
-available tags.
+See [Docs](/docs) for more in-depth usage information.
 
 ## Supported Platforms
 

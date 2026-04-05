@@ -18,9 +18,12 @@
 {{ else if eq .Section "releases" }}
 <article class="content">
   <h1>{{ .Title }}</h1>
-  <p>All releases of Ghostunnel, in reverse chronological order. Pre-built binaries are available on <a href="https://github.com/ghostunnel/ghostunnel/releases">GitHub Releases</a> and Docker images can be found on <a href="https://hub.docker.com/r/ghostunnel/ghostunnel">Docker Hub</a>.</p>
+  <p>All releases of Ghostunnel, in reverse chronological order. Pre-built binaries are available on <a href="https://github.com/ghostunnel/ghostunnel/releases">GitHub Releases</a> (linked below) and Docker images can be found on <a href="https://hub.docker.com/r/ghostunnel/ghostunnel">Docker Hub</a>.</p>
   {{ $pages := .Pages.ByDate.Reverse }}
   {{ range $i, $p := $pages }}
+  {{ if eq $i 1 }}
+  <div id="older-releases" class="older-releases" hidden>
+  {{ end }}
   <div class="release-entry" id="{{ $p.Title }}">
     <div class="release-header">
       <h2>{{ $p.Title }}</h2>
@@ -41,7 +44,26 @@
       <p class="release-changelog"><a href="https://github.com/ghostunnel/ghostunnel/compare/{{ $prev.Title }}...{{ $p.Title }}">Full Changelog: {{ $prev.Title }}...{{ $p.Title }}</a></p>
       {{ end }}
     </div>
+    {{ if eq $i 0 }}
+    <div class="release-downloads">
+      <div class="download-bar">
+        <span class="download-label">Downloads</span>
+        <span class="download-items">
+          <a class="download-link" href="https://github.com/ghostunnel/ghostunnel/releases/download/{{ $p.Title }}/ghostunnel-linux-amd64"><span class="download-os">Linux</span> <span class="download-arch">x86_64</span></a>
+          <a class="download-link" href="https://github.com/ghostunnel/ghostunnel/releases/download/{{ $p.Title }}/ghostunnel-linux-arm64"><span class="download-os">Linux</span> <span class="download-arch">ARM64</span></a>
+          <a class="download-link" href="https://github.com/ghostunnel/ghostunnel/releases/download/{{ $p.Title }}/ghostunnel-darwin-amd64"><span class="download-os">macOS</span> <span class="download-arch">x86_64</span></a>
+          <a class="download-link" href="https://github.com/ghostunnel/ghostunnel/releases/download/{{ $p.Title }}/ghostunnel-darwin-arm64"><span class="download-os">macOS</span> <span class="download-arch">ARM64</span></a>
+          <a class="download-link" href="https://github.com/ghostunnel/ghostunnel/releases/download/{{ $p.Title }}/ghostunnel-darwin-universal"><span class="download-os">macOS</span> <span class="download-arch">Universal</span></a>
+          <a class="download-link" href="https://github.com/ghostunnel/ghostunnel/releases/download/{{ $p.Title }}/ghostunnel-windows-amd64.exe"><span class="download-os">Windows</span> <span class="download-arch">x86_64</span></a>
+        </span>
+      </div>
+    </div>
+    {{ end }}
   </div>
+  {{ end }}
+  {{ if gt (len $pages) 1 }}
+  </div>
+  <button class="show-all-releases" onclick="var el=document.getElementById('older-releases');el.hidden=!el.hidden;this.textContent=el.hidden?'Show all releases ({{ sub (len $pages) 1 }} more)':'Show fewer releases';">Show all releases ({{ sub (len $pages) 1 }} more)</button>
   {{ end }}
 </article>
 {{ else }}
