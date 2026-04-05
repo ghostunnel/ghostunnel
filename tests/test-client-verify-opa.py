@@ -5,12 +5,12 @@ Tests that verify-policy flag works correctly on the client.
 """
 
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, \
-    TlsServer, print_ok, run_ghostunnel, status_info, terminate, wait_for_status, LISTEN_PORT, TARGET_PORT
+    TlsServer, print_ok, run_ghostunnel, status_info, terminate, wait_for_status, LISTEN_PORT, TARGET_PORT, \
+    assert_connection_rejected
 
 from tempfile import mkdtemp
 import signal
 import shutil
-import ssl
 import os
 
 if __name__ == "__main__":
@@ -55,12 +55,8 @@ if __name__ == "__main__":
             "1: client closed -> server closed")
 
         # connect to server2, confirm that the tunnel isn't up
-        try:
-            pair = SocketPair(TcpClient(LISTEN_PORT), TlsServer(
-                'server2', 'root', TARGET_PORT))
-            raise Exception('failed to reject other_server')
-        except ssl.SSLError:
-            print_ok("other_server correctly rejected")
+        assert_connection_rejected(
+            TcpClient(LISTEN_PORT), TlsServer('server2', 'root', TARGET_PORT), "server2")
 
         # Change policy and reload
         shutil.copyfile(dir_path + '/test-allow-all-policy.tar.gz', tmp_dir + '/bundle.tar.gz')

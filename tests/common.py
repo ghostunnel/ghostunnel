@@ -254,6 +254,15 @@ class RootCert:
                 except OSError:
                     pass  # file may not exist
 
+def assert_connection_rejected(client, server, name):
+    """Assert that a SocketPair connection is rejected with an SSL or timeout error."""
+    try:
+        pair = SocketPair(client, server)
+        raise Exception('failed to reject {0}'.format(name))
+    except (ssl.SSLError, TimeoutError):
+        print_ok("{0} correctly rejected".format(name))
+
+
 EXPECTED_SERVER_METRICS = [
     "ghostunnel.accept.total",
     "ghostunnel.accept.success",

@@ -4,8 +4,7 @@
 Ensures client1 can connect but that clients with ou=client2 or ca=other_root can't connect.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
-import ssl
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT, assert_connection_rejected
 
 if __name__ == "__main__":
     ghostunnel = None
@@ -40,20 +39,12 @@ if __name__ == "__main__":
             "1: client closed -> server closed")
 
         # connect with client2, confirm that the tunnel isn't up
-        try:
-            pair = SocketPair(
-                TlsClient('client2', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
-            raise Exception('failed to reject client2')
-        except (ssl.SSLError, TimeoutError):
-            print_ok("client2 correctly rejected")
+        assert_connection_rejected(
+            TlsClient('client2', 'root', LISTEN_PORT), TcpServer(TARGET_PORT), "client2")
 
         # connect with other_client1, confirm that the tunnel isn't up
-        try:
-            pair = SocketPair(
-                TlsClient('other_client1', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
-            raise Exception('failed to reject other_client1')
-        except (ssl.SSLError, TimeoutError):
-            print_ok("other_client1 correctly rejected")
+        assert_connection_rejected(
+            TlsClient('other_client1', 'root', LISTEN_PORT), TcpServer(TARGET_PORT), "other_client1")
 
         print_ok("OK")
     finally:

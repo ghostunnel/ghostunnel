@@ -4,8 +4,7 @@
 Ensures we can connect to a server signed by root1 but not root2.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TlsClient, TlsServer, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
-import ssl
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TlsClient, TlsServer, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT, assert_connection_rejected
 import signal
 
 if __name__ == "__main__":
@@ -43,20 +42,12 @@ if __name__ == "__main__":
             "1: client closed -> server closed")
 
         # connect to other_server, confirm that the tunnel isn't up
-        try:
-            pair = SocketPair(TcpClient(LISTEN_PORT), TlsServer(
-                'other_server', 'other_root', TARGET_PORT))
-            raise Exception('failed to reject other_server')
-        except ssl.SSLError:
-            print_ok("other_server correctly rejected")
+        assert_connection_rejected(
+            TcpClient(LISTEN_PORT), TlsServer('other_server', 'other_root', TARGET_PORT), "other_server")
 
-        # connect to server2, confirm that the tunnel isn't up
-        try:
-            pair = SocketPair(TcpClient(LISTEN_PORT), TlsServer(
-                'server1', 'root', TARGET_PORT))
-            raise Exception('failed to reject server1')
-        except ssl.SSLError:
-            print_ok("server1 correctly rejected")
+        # connect to server1, confirm that the tunnel isn't up
+        assert_connection_rejected(
+            TcpClient(LISTEN_PORT), TlsServer('server1', 'root', TARGET_PORT), "server1")
 
         # make sure also works after reload
         ghostunnel.send_signal(signal.SIGUSR1)
