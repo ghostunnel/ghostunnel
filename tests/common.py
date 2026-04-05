@@ -2,7 +2,6 @@ from subprocess import call, check_output, Popen, DEVNULL
 from tempfile import mkstemp, mkdtemp
 import atexit
 import json
-import platform
 import shutil
 import sys
 import time

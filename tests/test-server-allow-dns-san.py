@@ -7,8 +7,6 @@ Test to check --allow-dns flag behavior.
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, \
                    TlsClient, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
 
-import os
-import signal
 import ssl
 import socket
 

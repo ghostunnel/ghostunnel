@@ -4,8 +4,7 @@
 Spins up a client and tests systemd socket activation.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TlsServer, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
-import sys
+from common import LOCALHOST, RootCert, STATUS_PORT, print_ok, run_ghostunnel, terminate
 
 if __name__ == "__main__":
     ghostunnel = None

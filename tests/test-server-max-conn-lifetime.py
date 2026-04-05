@@ -4,10 +4,7 @@
 Simulates a hanging connection, waits for timeout.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, TlsClient, TcpServer, SocketPair, print_ok, run_ghostunnel, terminate, urlopen, LISTEN_PORT, TARGET_PORT, get_free_port
-import urllib.request
-import urllib.error
-import urllib.parse
+from common import LOCALHOST, RootCert, STATUS_PORT, TlsClient, TcpServer, SocketPair, print_ok, run_ghostunnel, terminate, urlopen, LISTEN_PORT, TARGET_PORT
 import time
 import json
 

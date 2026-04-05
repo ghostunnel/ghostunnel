@@ -4,7 +4,7 @@
 Test that ghostunnel client exits with an error when the listen port is already in use.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT, get_free_port
+from common import LOCALHOST, RootCert, print_ok, run_ghostunnel, terminate, TARGET_PORT, get_free_port
 import socket
 
 if __name__ == "__main__":

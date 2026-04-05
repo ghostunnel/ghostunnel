@@ -7,7 +7,7 @@ Test to check OPA policy reloading failure.
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, \
     TlsClient, print_ok, run_ghostunnel, status_info, terminate, wait_for_status, LISTEN_PORT, TARGET_PORT
 
-from tempfile import mkstemp, mkdtemp
+from tempfile import mkdtemp
 import signal
 import shutil
 import ssl

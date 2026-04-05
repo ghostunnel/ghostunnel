@@ -4,14 +4,10 @@
 Test that ensures that PKCS11 module support works.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, UnixServer, TcpClient, TcpServer, TlsClient, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT, _ROOT_DIR
+from common import LOCALHOST, STATUS_PORT, SocketPair, TcpClient, TcpServer, TlsClient, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT, _ROOT_DIR
 from shutil import copyfile
-import urllib.request
-import urllib.error
-import urllib.parse
 import os
 import signal
-import json
 import sys
 
 if __name__ == "__main__":

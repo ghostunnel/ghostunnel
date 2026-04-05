@@ -7,7 +7,7 @@ Tests that verify-policy flag works correctly on the client.
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, \
     TlsServer, print_ok, run_ghostunnel, status_info, terminate, wait_for_status, LISTEN_PORT, TARGET_PORT
 
-from tempfile import mkstemp, mkdtemp
+from tempfile import mkdtemp
 import signal
 import shutil
 import ssl

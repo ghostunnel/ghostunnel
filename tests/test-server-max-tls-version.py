@@ -8,7 +8,6 @@ Tests that ghostunnel respects the max-tls-version flag by verifying that:
 
 from common import LOCALHOST, RootCert, STATUS_PORT, TlsClient, TcpServer, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
 import ssl
-import time
 
 if __name__ == "__main__":
     ghostunnel = None

@@ -4,14 +4,7 @@
 Test that ensures that we can use the --cert/--key flags.
 """
 
-from common import LOCALHOST, STATUS_PORT, TcpClient, print_ok, run_ghostunnel, terminate, RootCert, SocketPair, TlsClient, TcpServer, LISTEN_PORT, TARGET_PORT
-import urllib.request
-import urllib.error
-import urllib.parse
-import os
-import signal
-import json
-import sys
+from common import LOCALHOST, STATUS_PORT, print_ok, run_ghostunnel, terminate, RootCert, SocketPair, TlsClient, TcpServer, LISTEN_PORT, TARGET_PORT
 
 if __name__ == "__main__":
     ghostunnel = None

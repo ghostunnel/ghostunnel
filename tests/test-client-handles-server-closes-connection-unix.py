@@ -4,7 +4,7 @@
 Ensures when server disconnects that the client connection also disconnects, with UNIX sockets.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, UnixClient, TlsServer, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, UnixClient, TlsServer, print_ok, run_ghostunnel, terminate, TARGET_PORT
 
 if __name__ == "__main__":
     ghostunnel = None

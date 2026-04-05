@@ -5,7 +5,7 @@ Ensures that /_status endpoint using UNIX sockets
 works.
 """
 
-from common import LOCALHOST, RootCert, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
+from common import LOCALHOST, RootCert, print_ok, run_ghostunnel, terminate, LISTEN_PORT
 from tempfile import mkdtemp
 from shutil import rmtree
 import socket

@@ -5,10 +5,6 @@ Test that ensures that metrics endpoint works.
 """
 
 from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, print_ok, run_ghostunnel, terminate, urlopen, LISTEN_PORT, TARGET_PORT
-import urllib.request
-import urllib.error
-import urllib.parse
-import time
 import json
 
 if __name__ == "__main__":

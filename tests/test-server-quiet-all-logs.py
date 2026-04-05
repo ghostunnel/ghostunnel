@@ -5,11 +5,6 @@ Ensures that --quiet=all disables any and all logging.
 """
 
 from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, TlsClient, TcpServer, print_ok, run_ghostunnel, terminate, SocketPair, urlopen, LISTEN_PORT, TARGET_PORT
-import urllib.request
-import urllib.error
-import urllib.parse
-import os
-import signal
 import subprocess
 import json
 

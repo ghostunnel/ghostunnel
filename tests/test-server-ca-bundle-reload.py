@@ -6,7 +6,6 @@ Ensures that root certificates are reloaded as well.
 
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, print_ok, run_ghostunnel, status_info, terminate, wait_for_status, LISTEN_PORT, TARGET_PORT
 import signal
-import os
 
 if __name__ == "__main__":
     ghostunnel = None
