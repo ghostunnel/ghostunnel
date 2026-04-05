@@ -1167,5 +1167,5 @@ func (Website) Build(ctx context.Context) error {
 // Requires Hugo to be installed.
 func (Website) Serve(ctx context.Context) error {
 	mg.CtxDeps(ctx, Website.Build)
-	return sh.Run("hugo", "server", "--source", "website")
+	return sh.RunV("hugo", "server", "--source", "website")
 }

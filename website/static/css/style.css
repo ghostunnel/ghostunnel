@@ -547,17 +547,31 @@ a:hover {
     gap: 0.25rem;
   }
 
+  .content {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
   .content table {
     display: block;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-    white-space: nowrap;
   }
 
   .content th,
   .content td {
     padding: 0.35rem 0.5rem;
     font-size: 0.8rem;
+    min-width: 5rem;
+  }
+
+  .content pre {
+    max-width: calc(100vw - 2rem);
+  }
+
+  .content td code,
+  .content th code {
+    word-break: break-all;
   }
 }
 
@@ -652,6 +666,90 @@ a:hover {
   padding-top: 0.75rem;
   border-top: 1px solid var(--border);
   font-size: 0.85rem;
+}
+
+/* =============================================
+   Show all releases
+   ============================================= */
+.show-all-releases {
+  display: inline;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--link);
+  font-size: 0.9rem;
+  font-weight: 400;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.show-all-releases:hover {
+  color: var(--link-hover);
+  text-decoration: underline;
+}
+
+/* =============================================
+   Release downloads
+   ============================================= */
+.download-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1.25rem;
+  border-top: 1px solid var(--border);
+  background: var(--frost);
+  font-size: 0.82rem;
+}
+
+.download-label {
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+}
+
+.download-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.download-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 0.78rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.download-link:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-sm);
+  text-decoration: none;
+  color: var(--accent);
+}
+
+.download-os {
+  font-weight: 600;
+}
+
+.download-arch {
+  color: var(--text-muted);
+}
+
+@media (max-width: 600px) {
+  .download-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.4rem;
+  }
 }
 
 /* =============================================
