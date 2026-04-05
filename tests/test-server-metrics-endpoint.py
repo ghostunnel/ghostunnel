@@ -66,19 +66,16 @@ if __name__ == "__main__":
             "ghostunnel.conn.handshake.99-percentile",
         ]
 
-        metrics_found = [item['metric'] for item in received_metrics1]
-        missing_metrics = [metric for metric in expected_metrics if metric not in metrics_found]
+        for label, received in [("format=json", received_metrics1), ("json", received_metrics2)]:
+            metrics_found = [item['metric'] for item in received]
+            missing_metrics = [metric for metric in expected_metrics if metric not in metrics_found]
+            if missing_metrics:
+                raise Exception('missing metrics from %s endpoint: %s' % (label, missing_metrics))
 
-        metrics_found = [item['metric'] for item in received_metrics2]
-        missing_metrics = [metric for metric in expected_metrics if metric not in metrics_found]
-
-        if missing_metrics:
-            raise Exception('missing metrics from ghostunnel instance: %s' % missing_metrics)
-
-        # Load Prometheus metrics
-        metrics = str(urlopen(
+        # Load Prometheus metrics (validate both endpoints respond)
+        str(urlopen(
             "https://{0}:{1}/_metrics?format=prometheus".format(LOCALHOST, STATUS_PORT)).read(), 'utf-8')
-        metrics = str(urlopen(
+        str(urlopen(
             "https://{0}:{1}/_metrics/prometheus".format(LOCALHOST, STATUS_PORT)).read(), 'utf-8')
 
         print_ok("OK")
