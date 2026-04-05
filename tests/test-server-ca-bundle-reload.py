@@ -35,8 +35,8 @@ if __name__ == "__main__":
             "1: client closed -> server closed")
 
         # Regenerate root certificates and reload
-        RootCert.cleanup_certs(['root', 'client', 'server'])
-        root.__init__('root')
+        root.cleanup()
+        root = RootCert('root')
         root.create_signed_cert('server')
         root.create_signed_cert('client')
 

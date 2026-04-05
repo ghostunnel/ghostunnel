@@ -233,9 +233,16 @@ class RootCert:
         os.remove(openssl_config)
         self.leaf_certs.append(cn_and_ou)
 
-    def __del__(self):
+    def cleanup(self):
+        """Explicitly clean up all cert files created by this RootCert."""
         RootCert.cleanup_certs([self.name])
         RootCert.cleanup_certs(self.leaf_certs)
+        self.name = None
+        self.leaf_certs = []
+
+    def __del__(self):
+        if self.name is not None:
+            self.cleanup()
 
     @staticmethod
     def cleanup_certs(names):
