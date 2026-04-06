@@ -34,36 +34,35 @@ def send_data(i):
             "{0} server close -> client close".format(i))
 
 
-if __name__ == "__main__":
-    ghostunnel = None
-    n_clients = 10
-    allow_ou = []
-    try:
-        # create certs
-        root = RootCert('root')
-        root.create_signed_cert('server')
-        for n in range(1, n_clients):
-            root.create_signed_cert("client{0}".format(n))
-            allow_ou.append("--allow-ou=client{0}".format(n))
+ghostunnel = None
+n_clients = 10
+allow_ou = []
+try:
+    # create certs
+    root = RootCert('root')
+    root.create_signed_cert('server')
+    for n in range(1, n_clients):
+        root.create_signed_cert("client{0}".format(n))
+        allow_ou.append("--allow-ou=client{0}".format(n))
 
-        # start ghostunnel
-        ghostunnel = run_ghostunnel(['server',
-                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
-                                     '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
-                                     '--keystore=server.p12',
-                                     '--status={0}:{1}'.format(LOCALHOST,
-                                                               STATUS_PORT),
-                                     '--cacert=root.crt'] + allow_ou)
+    # start ghostunnel
+    ghostunnel = run_ghostunnel(['server',
+                                 '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                 '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
+                                 '--keystore=server.p12',
+                                 '--status={0}:{1}'.format(LOCALHOST,
+                                                           STATUS_PORT),
+                                 '--cacert=root.crt'] + allow_ou)
 
-        # clients should be able to communicate all at the same time.
-        procs = []
-        for n in range(1, n_clients):
-            proc = Process(target=send_data, args=(n,))
-            proc.start()
-            procs.append(proc)
-        for proc in procs:
-            proc.join()
+    # clients should be able to communicate all at the same time.
+    procs = []
+    for n in range(1, n_clients):
+        proc = Process(target=send_data, args=(n,))
+        proc.start()
+        procs.append(proc)
+    for proc in procs:
+        proc.join()
 
-        print_ok("OK")
-    finally:
-        terminate(ghostunnel)
+    print_ok("OK")
+finally:
+    terminate(ghostunnel)

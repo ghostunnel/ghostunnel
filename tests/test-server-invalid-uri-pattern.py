@@ -6,27 +6,26 @@ Test that ghostunnel server exits with an error when given an invalid URI patter
 
 from common import LOCALHOST, RootCert, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
 
-if __name__ == "__main__":
-    ghostunnel = None
-    try:
-        # create certs
-        root = RootCert('root')
-        root.create_signed_cert('server')
+ghostunnel = None
+try:
+    # create certs
+    root = RootCert('root')
+    root.create_signed_cert('server')
 
-        # start ghostunnel with an empty/invalid --allow-uri pattern
-        ghostunnel = run_ghostunnel(['server',
-                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
-                                     '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
-                                     '--keystore=server.p12',
-                                     '--cacert=root.crt',
-                                     '--allow-uri='])
+    # start ghostunnel with an empty/invalid --allow-uri pattern
+    ghostunnel = run_ghostunnel(['server',
+                                 '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                 '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
+                                 '--keystore=server.p12',
+                                 '--cacert=root.crt',
+                                 '--allow-uri='])
 
-        # wait for ghostunnel to exit and make sure error code is not zero
-        ret = ghostunnel.wait(timeout=10)
-        if ret == 0:
-            raise Exception(
-                'ghostunnel terminated with zero, but expected error due to invalid URI pattern')
-        else:
-            print_ok("OK (terminated with non-zero exit as expected)")
-    finally:
-        terminate(ghostunnel)
+    # wait for ghostunnel to exit and make sure error code is not zero
+    ret = ghostunnel.wait(timeout=10)
+    if ret == 0:
+        raise Exception(
+            'ghostunnel terminated with zero, but expected error due to invalid URI pattern')
+    else:
+        print_ok("OK (terminated with non-zero exit as expected)")
+finally:
+    terminate(ghostunnel)

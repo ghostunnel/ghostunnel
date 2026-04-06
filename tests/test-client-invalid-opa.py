@@ -11,43 +11,42 @@ from tempfile import mkdtemp
 import shutil
 import os
 
-if __name__ == "__main__":
-    ghostunnel = None
-    try:
-        # create certs
-        root = RootCert('root')
-        root.create_signed_cert('client')
-        root.create_signed_cert(
-            'server1',
-            san='DNS:server1,IP:127.0.0.1,IP:::1,DNS:localhost')
-        root.create_signed_cert(
-            'server2',
-            san='DNS:server2,IP:127.0.0.1,IP:::1,DNS:localhost')
+ghostunnel = None
+try:
+    # create certs
+    root = RootCert('root')
+    root.create_signed_cert('client')
+    root.create_signed_cert(
+        'server1',
+        san='DNS:server1,IP:127.0.0.1,IP:::1,DNS:localhost')
+    root.create_signed_cert(
+        'server2',
+        san='DNS:server2,IP:127.0.0.1,IP:::1,DNS:localhost')
 
-        other_root = RootCert('other_root')
-        other_root.create_signed_cert('other_server')
+    other_root = RootCert('other_root')
+    other_root.create_signed_cert('other_server')
 
-        # start ghostunnel
-        dir_path = os.path.dirname(os.path.realpath(__file__))
-        tmp_dir = mkdtemp()
-        shutil.copyfile(dir_path + '/test-client-verify-opa-policy.tar.gz', tmp_dir + '/bundle.tar.gz')
+    # start ghostunnel
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    tmp_dir = mkdtemp()
+    shutil.copyfile(dir_path + '/test-client-verify-opa-policy.tar.gz', tmp_dir + '/bundle.tar.gz')
 
-        ghostunnel = run_ghostunnel(['client',
-                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
-                                     '--target=localhost:{0}'.format(TARGET_PORT),
-                                     '--keystore=client.p12',
-                                     '--verify-policy=' + tmp_dir + '/bundle.tar.gz',
-                                     '--verify-query=xxx@invalid',
-                                     '--cacert=root.crt',
-                                     '--status={0}:{1}'.format(LOCALHOST,
-                                                               STATUS_PORT)])
+    ghostunnel = run_ghostunnel(['client',
+                                 '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                 '--target=localhost:{0}'.format(TARGET_PORT),
+                                 '--keystore=client.p12',
+                                 '--verify-policy=' + tmp_dir + '/bundle.tar.gz',
+                                 '--verify-query=xxx@invalid',
+                                 '--cacert=root.crt',
+                                 '--status={0}:{1}'.format(LOCALHOST,
+                                                           STATUS_PORT)])
 
-        # wait for ghostunnel to exit and make sure error code is not zero
-        ret = ghostunnel.wait(timeout=10)
-        if ret == 0:
-            raise Exception(
-                'ghostunnel terminated with zero, though flags were invalid')
-        else:
-            print_ok("OK (terminated)")
-    finally:
-        terminate(ghostunnel)
+    # wait for ghostunnel to exit and make sure error code is not zero
+    ret = ghostunnel.wait(timeout=10)
+    if ret == 0:
+        raise Exception(
+            'ghostunnel terminated with zero, though flags were invalid')
+    else:
+        print_ok("OK (terminated)")
+finally:
+    terminate(ghostunnel)

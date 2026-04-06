@@ -50,40 +50,39 @@ class FakeConnectProxyHandler(http.server.BaseHTTPRequestHandler):
                 pass  # best-effort cleanup of proxy sockets
 
 
-if __name__ == "__main__":
-    ghostunnel = None
-    try:
-        # create certs
-        root = RootCert('root')
-        root.create_signed_cert('server', san='DNS:{}'.format(FAKE_TARGET))
-        root.create_signed_cert('client')
+ghostunnel = None
+try:
+    # create certs
+    root = RootCert('root')
+    root.create_signed_cert('server', san='DNS:{}'.format(FAKE_TARGET))
+    root.create_signed_cert('client')
 
-        proxy_port = get_free_port(release=True)
-        httpd = http.server.HTTPServer(
-            (LOCALHOST, proxy_port), FakeConnectProxyHandler)
-        server = threading.Thread(target=httpd.handle_request)
-        server.start()
+    proxy_port = get_free_port(release=True)
+    httpd = http.server.HTTPServer(
+        (LOCALHOST, proxy_port), FakeConnectProxyHandler)
+    server = threading.Thread(target=httpd.handle_request)
+    server.start()
 
-        # start ghostunnel
-        ghostunnel = run_ghostunnel(['client',
-                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
-                                     '--target={0}:{1}'.format(FAKE_TARGET, TARGET_PORT),
-                                     '--keystore=client.p12',
-                                     '--cacert=root.crt',
-                                     '--connect-proxy=http://{0}:{1}'.format(LOCALHOST, proxy_port),
-                                     '--connect-timeout=30s',
-                                     '--status={0}:{1}'.format(LOCALHOST,
-                                                               STATUS_PORT)])
+    # start ghostunnel
+    ghostunnel = run_ghostunnel(['client',
+                                 '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                 '--target={0}:{1}'.format(FAKE_TARGET, TARGET_PORT),
+                                 '--keystore=client.p12',
+                                 '--cacert=root.crt',
+                                 '--connect-proxy=http://{0}:{1}'.format(LOCALHOST, proxy_port),
+                                 '--connect-timeout=30s',
+                                 '--status={0}:{1}'.format(LOCALHOST,
+                                                           STATUS_PORT)])
 
-        # connect to server, confirm that the tunnel is up
-        pair = SocketPair(TcpClient(LISTEN_PORT), TlsServer('server', 'root', TARGET_PORT))
-        pair.validate_can_send_from_client(
-            'hello world', '1: client -> server')
-        pair.validate_can_send_from_server(
-            'hello world', '1: server -> client')
-        pair.validate_closing_client_closes_server('closing client')
-        pair.cleanup()
+    # connect to server, confirm that the tunnel is up
+    pair = SocketPair(TcpClient(LISTEN_PORT), TlsServer('server', 'root', TARGET_PORT))
+    pair.validate_can_send_from_client(
+        'hello world', '1: client -> server')
+    pair.validate_can_send_from_server(
+        'hello world', '1: server -> client')
+    pair.validate_closing_client_closes_server('closing client')
+    pair.cleanup()
 
-        print_ok("OK")
-    finally:
-        terminate(ghostunnel)
+    print_ok("OK")
+finally:
+    terminate(ghostunnel)

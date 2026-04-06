@@ -155,6 +155,7 @@ def status_info():
         return json.loads(e.read().decode())
     except Exception as e:
         print('unable to fetch status:', e)
+        return None
 
 def wait_for_status(predicate, timeout=30):
     """Poll status_info() until predicate(info) is truthy, with timeout."""
@@ -276,8 +277,8 @@ def assert_connection_rejected(client, server, name, timeout_ok=True):
 def create_default_certs(algorithm='ecdsa'):
     """Create standard root, server, and client certificates.
 
-    Returns the RootCert object. Callers must keep a reference to it
-    alive for the duration of the test to prevent __del__ cleanup."""
+    Returns the RootCert object. Callers should call root.cleanup()
+    in their finally block to clean up temporary cert files."""
     root = RootCert('root', algorithm=algorithm)
     root.create_signed_cert('server')
     root.create_signed_cert('client')
