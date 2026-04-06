@@ -33,7 +33,7 @@ try:
     pair1.validate_tunnel_ou("server", "pair1 -> ou=server")
 
     # Replace keystore with invalid one and trigger reload
-    open('new_server.p12', 'a').close()
+    open('new_server.p12', 'ab').close()
     os.rename('new_server.p12', 'server.p12')
     ghostunnel.send_signal(signal.SIGUSR1)
 

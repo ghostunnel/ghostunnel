@@ -40,7 +40,7 @@ try:
     print_ok("got client1 on /_status")
 
     # replace keystore with invalid/empty file and reload
-    open('new_client1.p12', 'a').close()
+    open('new_client1.p12', 'ab').close()
     os.rename('new_client1.p12', 'client1.p12')
     ghostunnel.send_signal(signal.SIGUSR1)
 

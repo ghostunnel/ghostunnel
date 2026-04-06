@@ -8,6 +8,7 @@ from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, TlsClient, TcpSe
 import subprocess
 import json
 
+ghostunnel = None
 try:
     # create certs
     root = RootCert('root')
