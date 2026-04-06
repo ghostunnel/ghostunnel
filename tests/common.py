@@ -277,8 +277,8 @@ def assert_connection_rejected(client, server, name, timeout_ok=True):
 def create_default_certs(algorithm='ecdsa'):
     """Create standard root, server, and client certificates.
 
-    Returns the RootCert object. Callers must keep a reference to it
-    alive for the duration of the test to prevent __del__ cleanup."""
+    Returns the RootCert object. Callers should call root.cleanup()
+    in their finally block to clean up temporary cert files."""
     root = RootCert('root', algorithm=algorithm)
     root.create_signed_cert('server')
     root.create_signed_cert('client')

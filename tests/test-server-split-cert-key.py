@@ -7,8 +7,9 @@ Test that ensures that we can use the --cert/--key flags.
 from common import LOCALHOST, STATUS_PORT, print_ok, run_ghostunnel, terminate, SocketPair, TlsClient, TcpServer, LISTEN_PORT, TARGET_PORT, create_default_certs
 
 ghostunnel = None
+root = None
 try:
-    _root = create_default_certs()  # keep RootCert alive for cert lifecycle
+    root = create_default_certs()
 
     # start ghostunnel with --cert/--key instead of --keystore
     ghostunnel = run_ghostunnel(['server',
@@ -34,3 +35,5 @@ try:
     print_ok("OK")
 finally:
     terminate(ghostunnel)
+    if root:
+        root.cleanup()

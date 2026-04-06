@@ -7,8 +7,9 @@ Ensures that client gets a timeout if there is no server.
 from common import SocketPair, TcpServer, TlsClient, print_ok, terminate, LISTEN_PORT, TARGET_PORT, create_default_certs, start_ghostunnel_server, get_free_port
 
 ghostunnel = None
+root = None
 try:
-    _root = create_default_certs()  # keep RootCert alive for cert lifecycle
+    root = create_default_certs()
     ghostunnel = start_ghostunnel_server()
 
     # client should fail to connect since nothing is listening on wrong_port
@@ -26,3 +27,5 @@ try:
     print_ok("OK")
 finally:
     terminate(ghostunnel)
+    if root:
+        root.cleanup()

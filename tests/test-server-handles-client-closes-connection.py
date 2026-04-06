@@ -7,8 +7,9 @@ Ensures when client disconnects that the server connection also disconnects.
 from common import SocketPair, TcpServer, TlsClient, print_ok, terminate, LISTEN_PORT, TARGET_PORT, create_default_certs, start_ghostunnel_server
 
 ghostunnel = None
+root = None
 try:
-    _root = create_default_certs()  # keep RootCert alive for cert lifecycle
+    root = create_default_certs()
     ghostunnel = start_ghostunnel_server(extra_args=['--close-timeout=10s'])
 
     # connect with client, confirm that the tunnel is up
@@ -31,3 +32,5 @@ try:
     print_ok("OK")
 finally:
     terminate(ghostunnel)
+    if root:
+        root.cleanup()
