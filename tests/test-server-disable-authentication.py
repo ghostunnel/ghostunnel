@@ -49,7 +49,7 @@ try:
 
     # connect with client2, confirm that the tunnel isn't up
     try:
-        _pair = SocketPair(
+        SocketPair(
             TlsClient('client2', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
     except ssl.SSLError as err:
         raise Exception(

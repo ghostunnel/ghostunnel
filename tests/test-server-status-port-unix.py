@@ -27,6 +27,7 @@ class UnixHTTPConnection(http.client.HTTPConnection):
 
 
 ghostunnel = None
+tempdir = None
 try:
     # create certs
     root = RootCert('root')
@@ -63,4 +64,5 @@ try:
     print_ok("OK")
 finally:
     terminate(ghostunnel)
-    rmtree(tempdir)
+    if tempdir:
+        rmtree(tempdir)

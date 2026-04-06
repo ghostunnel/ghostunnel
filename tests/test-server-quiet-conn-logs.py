@@ -54,7 +54,7 @@ try:
     print(err)
 
     if 'opening pipe' in err.decode('utf-8'):
-        raise Exception('ghostunnel logged connection log to stderr with --quiet=all')
+        raise Exception('ghostunnel logged connection log to stderr with --quiet=conns')
 
     print_ok('OK')
 finally:

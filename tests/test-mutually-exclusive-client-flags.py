@@ -2,6 +2,11 @@
 
 from common import LOCALHOST, RootCert, run_ghostunnel, terminate, assert_not_zero, LISTEN_PORT, TARGET_PORT
 
+ghostunnel1 = None
+ghostunnel2 = None
+ghostunnel3 = None
+ghostunnel4 = None
+ghostunnel5 = None
 try:
     # create certs
     root = RootCert('root')
