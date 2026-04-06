@@ -20,6 +20,7 @@ package certloader
 
 import (
 	"crypto/tls"
+	"fmt"
 	"log"
 
 	pkcs11key "github.com/letsencrypt/pkcs11key/v4"
@@ -66,7 +67,7 @@ func (c *pkcs11Certificate) Reload() error {
 	// with the (fixed) private key being in an HSM/PKCS11 module.
 	certs, err := readX509(c.certificatePath)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to load certificate from %q: %w", c.certificatePath, err)
 	}
 
 	certAndKey := tls.Certificate{
@@ -86,14 +87,14 @@ func (c *pkcs11Certificate) Reload() error {
 		c.logger.Printf("pkcs11: loading private key for given certificate from module")
 		privateKey, err := pkcs11key.New(c.modulePath, c.tokenLabel, c.pin, certAndKey.Leaf.PublicKey)
 		if err != nil {
-			return err
+			return fmt.Errorf("pkcs11: failed to load private key from module %q (token %q): %w", c.modulePath, c.tokenLabel, err)
 		}
 		certAndKey.PrivateKey = privateKey
 	}
 
 	bundle, err := LoadTrustStore(c.caBundlePath)
 	if err != nil {
-		return err
+		return fmt.Errorf("loading trust store %q: %w", c.caBundlePath, err)
 	}
 
 	c.cachedCertificate.Store(&certAndKey)
