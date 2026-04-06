@@ -87,7 +87,11 @@
       return res.json();
     })
     .then(populate)
-    .catch(function () {
-      // Silently fail — GitHub/Docker links in the header are the fallback
+    .catch(function (error) {
+      // Fail silently for users — GitHub/Docker links in the header are the fallback,
+      // but log the error to help with debugging issues fetching releases.
+      if (typeof console !== "undefined" && typeof console.error === "function") {
+        console.error("Failed to load Ghostunnel releases from GitHub:", error);
+      }
     });
 })();

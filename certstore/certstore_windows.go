@@ -482,7 +482,7 @@ func (wpk *winPrivateKey) cngSignHash(opts crypto.SignerOpts, digest []byte) ([]
 		return nil, fmt.Errorf("failed to sign digest: %w", err)
 	}
 
-	// CNG returns a raw ECDSA signature, but we wan't ASN.1 DER encoding.
+	// CNG returns a raw ECDSA signature, but we want ASN.1 DER encoding.
 	if _, isEC := wpk.publicKey.(*ecdsa.PublicKey); isEC {
 		if len(sig)%2 != 0 {
 			return nil, errors.New("bad ecdsa signature from CNG")
