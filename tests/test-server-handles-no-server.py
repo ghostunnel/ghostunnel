@@ -15,7 +15,7 @@ if __name__ == "__main__":
         # client should fail to connect since nothing is listening on wrong_port
         wrong_port = get_free_port()
         try:
-            pair = SocketPair(
+            _pair = SocketPair(
                 TlsClient('client', 'root', LISTEN_PORT), TcpServer(wrong_port))
             raise Exception('client should have failed to connect')
         except TimeoutError:

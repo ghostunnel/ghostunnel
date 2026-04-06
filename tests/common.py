@@ -155,6 +155,7 @@ def status_info():
         return json.loads(e.read().decode())
     except Exception as e:
         print('unable to fetch status:', e)
+        return None
 
 def wait_for_status(predicate, timeout=30):
     """Poll status_info() until predicate(info) is truthy, with timeout."""
