@@ -465,13 +465,13 @@ func run(args []string) error {
 	logger.Printf("starting ghostunnel in %s mode", command)
 
 	// Landlock
-	hasPKCS11 := pkcs11Module != nil && *pkcs11Module != ""
+	pkcs11Enabled := pkcs11Module != nil && *pkcs11Module != ""
 	hasLandlock := runtime.GOOS == "linux" && !*disableLandlock
 
-	if hasPKCS11 && hasLandlock {
+	if pkcs11Enabled && hasLandlock {
 		logger.Printf("note: using pkcs11, skipping landlock setup (landlock is not compatible with pkcs11)")
 	}
-	if !hasPKCS11 && hasLandlock {
+	if !pkcs11Enabled && hasLandlock {
 		logger.Printf("setting up landlock rules to limit process privileges")
 
 		// Continue even if landlock errs out. Landlock is a new-ish feature and
