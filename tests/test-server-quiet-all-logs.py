@@ -33,7 +33,7 @@ try:
     TcpClient(STATUS_PORT).connect(20)
 
     # send some requests to status endpoints
-    metrics = json.loads(str(urlopen(
+    json.loads(str(urlopen(
         'https://{0}:{1}/_metrics'.format(LOCALHOST, STATUS_PORT)).read(), 'utf-8'))
 
     # send some data through proxy

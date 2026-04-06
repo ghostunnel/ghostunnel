@@ -8,7 +8,7 @@ from common import LOCALHOST, STATUS_PORT, print_ok, run_ghostunnel, terminate, 
 
 ghostunnel = None
 try:
-    _root = create_default_certs()
+    __root__ = create_default_certs()
 
     # start ghostunnel with --cert/--key instead of --keystore
     ghostunnel = run_ghostunnel(['server',

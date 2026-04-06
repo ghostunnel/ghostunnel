@@ -8,7 +8,7 @@ from common import SocketPair, TcpClient, TlsServer, print_ok, terminate, LISTEN
 
 ghostunnel = None
 try:
-    _root = create_default_certs()
+    __root__ = create_default_certs()
     ghostunnel = start_ghostunnel_client(extra_args=['--close-timeout=10s'])
 
     # connect with client, confirm that the tunnel is up
