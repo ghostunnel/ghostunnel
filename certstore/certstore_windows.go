@@ -519,17 +519,17 @@ func (wpk *winPrivateKey) capiSignHash(opts crypto.SignerOpts, digest []byte) ([
 	}
 
 	// Figure out which CryptoAPI hash algorithm we're using.
-	var hash_alg C.ALG_ID
+	var hashAlg C.ALG_ID
 
 	switch hash {
 	case crypto.SHA1:
-		hash_alg = C.CALG_SHA1
+		hashAlg = C.CALG_SHA1
 	case crypto.SHA256:
-		hash_alg = C.CALG_SHA_256
+		hashAlg = C.CALG_SHA_256
 	case crypto.SHA384:
-		hash_alg = C.CALG_SHA_384
+		hashAlg = C.CALG_SHA_384
 	case crypto.SHA512:
-		hash_alg = C.CALG_SHA_512
+		hashAlg = C.CALG_SHA_512
 	default:
 		return nil, ErrUnsupportedHash
 	}
@@ -537,7 +537,7 @@ func (wpk *winPrivateKey) capiSignHash(opts crypto.SignerOpts, digest []byte) ([
 	// Instantiate a CryptoAPI hash object.
 	var chash C.HCRYPTHASH
 
-	if ok := C.CryptCreateHash(C.HCRYPTPROV(wpk.capiProv), hash_alg, 0, 0, &chash); ok == winFalse {
+	if ok := C.CryptCreateHash(C.HCRYPTPROV(wpk.capiProv), hashAlg, 0, 0, &chash); ok == winFalse {
 		if err := lastError("failed to create hash"); errors.Is(err, errCode(NTE_BAD_ALGID)) {
 			return nil, ErrUnsupportedHash
 		} else {
