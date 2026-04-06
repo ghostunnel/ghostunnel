@@ -8,47 +8,46 @@ from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, print_ok, run_gh
 import time
 import json
 
-if __name__ == "__main__":
-    ghostunnel = None
-    try:
-        # create certs
-        root = RootCert('root')
-        root.create_signed_cert('server')
-        root.create_signed_cert('new_server')
-        root.create_signed_cert('client')
+ghostunnel = None
+try:
+    # create certs
+    root = RootCert('root')
+    root.create_signed_cert('server')
+    root.create_signed_cert('new_server')
+    root.create_signed_cert('client')
 
-        # start ghostunnel
-        ghostunnel = run_ghostunnel(['server',
-                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
-                                     '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
-                                     '--keystore=server.p12',
-                                     '--cacert=root.crt',
-                                     '--allow-ou=client',
-                                     '--connect-timeout=1s',
-                                     '--status={0}:{1}'.format(LOCALHOST,
-                                                               STATUS_PORT)])
+    # start ghostunnel
+    ghostunnel = run_ghostunnel(['server',
+                                 '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                 '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
+                                 '--keystore=server.p12',
+                                 '--cacert=root.crt',
+                                 '--allow-ou=client',
+                                 '--connect-timeout=1s',
+                                 '--status={0}:{1}'.format(LOCALHOST,
+                                                           STATUS_PORT)])
 
-        # connect but don't perform handshake
-        client = TcpClient(LISTEN_PORT)
-        client.connect(20)
-        client.get_socket().setblocking(False)
+    # connect but don't perform handshake
+    client = TcpClient(LISTEN_PORT)
+    client.connect(20)
+    client.get_socket().setblocking(False)
 
-        # wait until handshake times out
-        timeout = False
-        for _ in range(20):
-            metrics = json.loads(str(urlopen(
-                "https://{0}:{1}/_metrics".format(LOCALHOST, STATUS_PORT)).read(), 'utf-8'))
-            timeouts = [m['value']
-                        for m in metrics if "accept.timeout" in m['metric']]
-            if timeouts[0] > 0:
-                print_ok("handshake timed out, as expected")
-                timeout = True
-                break
-            time.sleep(1)
+    # wait until handshake times out
+    timeout = False
+    for _ in range(20):
+        metrics = json.loads(str(urlopen(
+            "https://{0}:{1}/_metrics".format(LOCALHOST, STATUS_PORT)).read(), 'utf-8'))
+        timeouts = [m['value']
+                    for m in metrics if "accept.timeout" in m['metric']]
+        if timeouts[0] > 0:
+            print_ok("handshake timed out, as expected")
+            timeout = True
+            break
+        time.sleep(1)
 
-        if not timeout:
-            raise Exception("socket still appears to be open after timeout")
+    if not timeout:
+        raise Exception("socket still appears to be open after timeout")
 
-        print_ok("OK")
-    finally:
-        terminate(ghostunnel)
+    print_ok("OK")
+finally:
+    terminate(ghostunnel)

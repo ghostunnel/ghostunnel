@@ -9,50 +9,49 @@ from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsC
 import os
 import signal
 
-if __name__ == "__main__":
-    ghostunnel = None
-    try:
-        # create certs
-        root = RootCert('root')
-        root.create_signed_cert('server')
-        root.create_signed_cert('client')
+ghostunnel = None
+try:
+    # create certs
+    root = RootCert('root')
+    root.create_signed_cert('server')
+    root.create_signed_cert('client')
 
-        # start ghostunnel
-        ghostunnel = run_ghostunnel(['server',
-                                     '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
-                                     '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
-                                     '--keystore=server.p12',
-                                     '--cacert=root.crt',
-                                     '--allow-ou=client',
-                                     '--status={0}:{1}'.format(LOCALHOST,
-                                                               STATUS_PORT)])
+    # start ghostunnel
+    ghostunnel = run_ghostunnel(['server',
+                                 '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                 '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
+                                 '--keystore=server.p12',
+                                 '--cacert=root.crt',
+                                 '--allow-ou=client',
+                                 '--status={0}:{1}'.format(LOCALHOST,
+                                                           STATUS_PORT)])
 
-        # create connections with client
-        pair1 = SocketPair(
-            TlsClient('client', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
-        pair1.validate_can_send_from_client("toto", "pair1 works")
-        pair1.validate_tunnel_ou("server", "pair1 -> ou=server")
+    # create connections with client
+    pair1 = SocketPair(
+        TlsClient('client', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
+    pair1.validate_can_send_from_client("toto", "pair1 works")
+    pair1.validate_tunnel_ou("server", "pair1 -> ou=server")
 
-        # Replace keystore with invalid one and trigger reload
-        open('new_server.p12', 'a').close()
-        os.rename('new_server.p12', 'server.p12')
-        ghostunnel.send_signal(signal.SIGUSR1)
+    # Replace keystore with invalid one and trigger reload
+    open('new_server.p12', 'a').close()
+    os.rename('new_server.p12', 'server.p12')
+    ghostunnel.send_signal(signal.SIGUSR1)
 
-        # should still be running with old cert
-        TlsClient(None, 'root', STATUS_PORT).connect(20, 'server')
-        print_ok("reload done")
+    # should still be running with old cert
+    TlsClient(None, 'root', STATUS_PORT).connect(20, 'server')
+    print_ok("reload done")
 
-        # create connections with client
-        pair2 = SocketPair(
-            TlsClient('client', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
-        pair2.validate_can_send_from_client("toto", "pair2 works")
-        pair2.validate_tunnel_ou("server", "pair2 -> ou=server")
-        pair2.cleanup()
+    # create connections with client
+    pair2 = SocketPair(
+        TlsClient('client', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
+    pair2.validate_can_send_from_client("toto", "pair2 works")
+    pair2.validate_tunnel_ou("server", "pair2 -> ou=server")
+    pair2.cleanup()
 
-        # ensure that pair1 is still alive
-        pair1.validate_can_send_from_client("toto", "pair1 still works")
-        pair1.cleanup()
+    # ensure that pair1 is still alive
+    pair1.validate_can_send_from_client("toto", "pair1 still works")
+    pair1.cleanup()
 
-        print_ok("OK")
-    finally:
-        terminate(ghostunnel)
+    print_ok("OK")
+finally:
+    terminate(ghostunnel)
