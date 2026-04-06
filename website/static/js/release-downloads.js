@@ -14,6 +14,8 @@
     universal: "Universal",
   };
 
+  var BYTES_PER_MB = 1024 * 1024;
+
   function parseAssetName(name) {
     // Expected: ghostunnel-{os}-{arch}[.exe]
     var m = name.match(/^ghostunnel-(\w+)-(\w+?)(\.exe)?$/);
@@ -39,7 +41,7 @@
       byOS[os].forEach(function (asset) {
         var label = OS_LABELS[asset.info.os] || asset.info.os;
         var arch = ARCH_LABELS[asset.info.arch] || asset.info.arch;
-        var sizeMB = (asset.size / (1024 * 1024)).toFixed(1);
+        var sizeMB = (asset.size / BYTES_PER_MB).toFixed(1);
         items.push(
           '<a class="download-link" href="' + asset.url + '" title="' + asset.name + '">' +
             '<span class="download-os">' + label + '</span> ' +
@@ -79,7 +81,9 @@
   // Fetch all releases (up to 100, which covers all current releases)
   fetch(API_URL)
     .then(function (res) {
-      if (!res.ok) return [];
+      if (!res.ok) {
+        throw new Error("Failed to load releases: " + res.status);
+      }
       return res.json();
     })
     .then(populate)

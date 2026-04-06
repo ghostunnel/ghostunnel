@@ -67,7 +67,7 @@ const (
 //   0x00000000 —                                      — Only use CryptoAPI.
 //   0x00010000 — CRYPT_ACQUIRE_ALLOW_NCRYPT_KEY_FLAG  — Prefer CryptoAPI.
 //   0x00020000 — CRYPT_ACQUIRE_PREFER_NCRYPT_KEY_FLAG — Prefer CNG.
-//   0x00040000 — CRYPT_ACQUIRE_ONLY_NCRYPT_KEY_FLAG   — Only uyse CNG.
+//   0x00040000 — CRYPT_ACQUIRE_ONLY_NCRYPT_KEY_FLAG   — Only use CNG.
 var winAPIFlag C.DWORD = C.CRYPT_ACQUIRE_PREFER_NCRYPT_KEY_FLAG
 
 // winStore is a wrapper around a C.HCERTSTORE.
@@ -239,7 +239,7 @@ func (s *winStore) Import(data []byte, password string) error {
 
 		// Copy the cert to the system store.
 		if ok := C.CertAddCertificateContextToStore(s.userStore, ctx, C.CERT_STORE_ADD_REPLACE_EXISTING, nil); ok == winFalse {
-			return lastError("failed to add importerd certificate to MY store")
+			return lastError("failed to add imported certificate to MY store")
 		}
 	}
 

@@ -63,7 +63,7 @@ func TestGetCachedCertificatePKCS11(t *testing.T) {
 	p11cert.cachedCertificate.Store(tlscert)
 
 	id := p11cert.GetIdentifier()
-	assert.Equal(t, id, "CN=test", "cert should not have empty id")
+	assert.Equal(t, "CN=test", id, "cert should not have empty id")
 
 	c, err := p11cert.GetCertificate(nil)
 	assert.Nil(t, err, "should be able to read certificate")
