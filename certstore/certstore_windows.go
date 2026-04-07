@@ -350,8 +350,8 @@ func (i *winIdentity) Close() {
 
 	for _, ctx := range i.chain {
 		C.CertFreeCertificateContext(ctx)
-		i.chain = nil
 	}
+	i.chain = nil
 }
 
 // winPrivateKey is a wrapper around a HCRYPTPROV_OR_NCRYPT_KEY_HANDLE.
