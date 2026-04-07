@@ -115,7 +115,7 @@ func openStore(logger *log.Logger) (*winStore, error) {
 }
 
 // Identities implements the Store interface.
-func (s *winStore) Identities(unusedFlags int) ([]Identity, error) {
+func (s *winStore) Identities(flags int) ([]Identity, error) {
 	identities := []Identity{}
 	userIdentities, err := identitiesForStore(s.userStore)
 	if err != nil {
