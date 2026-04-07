@@ -115,7 +115,7 @@ func openStore(logger *log.Logger) (*winStore, error) {
 }
 
 // Identities implements the Store interface.
-func (s *winStore) Identities(unusedFlags int) ([]Identity, error) {
+func (s *winStore) Identities(flags int) ([]Identity, error) {
 	identities := []Identity{}
 	userIdentities, err := identitiesForStore(s.userStore)
 	if err != nil {
@@ -248,6 +248,10 @@ func (s *winStore) Import(data []byte, password string) error {
 
 // Close implements the Store interface.
 func (s *winStore) Close() {
+	if s.userStore == nil {
+		return
+	}
+
 	C.CertCloseStore(s.userStore, 0)
 	for _, extraStore := range s.extraStores {
 		C.CertCloseStore(extraStore, 0)
@@ -350,8 +354,8 @@ func (i *winIdentity) Close() {
 
 	for _, ctx := range i.chain {
 		C.CertFreeCertificateContext(ctx)
-		i.chain = nil
 	}
+	i.chain = nil
 }
 
 // winPrivateKey is a wrapper around a HCRYPTPROV_OR_NCRYPT_KEY_HANDLE.
