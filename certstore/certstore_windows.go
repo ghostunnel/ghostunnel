@@ -248,6 +248,10 @@ func (s *winStore) Import(data []byte, password string) error {
 
 // Close implements the Store interface.
 func (s *winStore) Close() {
+	if s.userStore == nil {
+		return
+	}
+
 	C.CertCloseStore(s.userStore, 0)
 	for _, extraStore := range s.extraStores {
 		C.CertCloseStore(extraStore, 0)
