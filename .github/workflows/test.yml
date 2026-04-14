@@ -35,7 +35,7 @@ jobs:
       - name: Run tests
         run: go tool mage -v test:all
       - name: Codecov upload
-        if: ${{ github.actor != 'dependabot[bot]' && matrix.os != 'windows-latest' }}
+        if: ${{ github.actor != 'dependabot[bot]' }}
         uses: codecov/codecov-action@v6
         with:
           files: ./coverage/all.profile
