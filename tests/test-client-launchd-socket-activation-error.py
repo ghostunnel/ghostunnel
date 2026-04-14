@@ -4,7 +4,9 @@
 Spins up a client and tests systemd socket activation.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, print_ok, run_ghostunnel, terminate
+from common import LOCALHOST, RootCert, STATUS_PORT, print_ok, run_ghostunnel, skip_on_windows, terminate
+
+skip_on_windows("requires launchd")
 
 ghostunnel = None
 

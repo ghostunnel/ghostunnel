@@ -4,11 +4,13 @@
 Test that ensures that PKCS11 module support works.
 """
 
-from common import LOCALHOST, STATUS_PORT, SocketPair, TcpClient, TcpServer, TlsClient, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT, _ROOT_DIR
+from common import LOCALHOST, STATUS_PORT, SocketPair, TcpClient, TcpServer, TlsClient, print_ok, run_ghostunnel, skip_on_windows, terminate, LISTEN_PORT, TARGET_PORT, _ROOT_DIR
 from shutil import copyfile
 import os
 import signal
 import sys
+
+skip_on_windows("requires PKCS#11")
 
 ghostunnel = None
 try:

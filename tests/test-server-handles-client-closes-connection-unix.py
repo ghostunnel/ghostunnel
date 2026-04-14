@@ -4,7 +4,9 @@
 Ensures when client disconnects that the server connection also disconnects, with UNIX sockets.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, UnixServer, TlsClient, print_ok, run_ghostunnel, terminate, LISTEN_PORT
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, UnixServer, TlsClient, print_ok, run_ghostunnel, skip_on_windows, terminate, LISTEN_PORT
+
+skip_on_windows("requires Unix sockets")
 
 ghostunnel = None
 try:

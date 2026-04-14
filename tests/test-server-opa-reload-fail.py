@@ -5,11 +5,10 @@ Test to check OPA policy reloading failure.
 """
 
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, \
-    TlsClient, print_ok, run_ghostunnel, status_info, terminate, wait_for_status, LISTEN_PORT, TARGET_PORT, \
+    TlsClient, print_ok, reload_args, run_ghostunnel, status_info, terminate, trigger_reload, wait_for_status, LISTEN_PORT, TARGET_PORT, \
     assert_connection_rejected
 
 from tempfile import mkdtemp
-import signal
 import shutil
 import os
 
@@ -40,7 +39,8 @@ try:
                                  '--allow-policy=' + tmp_dir + '/bundle.tar.gz',
                                  '--allow-query=data.policy.allow',
                                  '--status={0}:{1}'.format(LOCALHOST,
-                                                           STATUS_PORT)])
+                                                           STATUS_PORT)]
+                                + reload_args())
 
     # create connections with client
     pair1 = SocketPair(
@@ -51,10 +51,11 @@ try:
     assert_connection_rejected(
         TlsClient('client2', 'root', LISTEN_PORT), TcpServer(TARGET_PORT), "client2")
 
-    # make policy invalid and reload
-    os.remove(tmp_dir + '/bundle.tar.gz')
+    # make policy invalid and reload (overwrite with empty file instead of
+    # deleting — on Windows the file may be locked by ghostunnel)
+    open(tmp_dir + '/bundle.tar.gz', 'wb').close()
     pre_reload = status_info().get('last_reload')
-    ghostunnel.send_signal(signal.SIGUSR1)
+    trigger_reload(ghostunnel)
 
     # wait until reload complete
     wait_for_status(lambda info: info.get('last_reload') != pre_reload)

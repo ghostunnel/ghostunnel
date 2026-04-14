@@ -44,15 +44,13 @@ try:
     stopped = False
     for _ in range(90):
         try:
-            try:
-                ghostunnel.wait(timeout=1)
-            except Exception:
-                pass  # wait() may raise if process hasn't exited yet
-            os.kill(ghostunnel.pid, 0)
-            print_ok("ghostunnel is still alive")
+            ghostunnel.wait(timeout=1)
         except Exception:
+            pass  # wait() may raise if process hasn't exited yet
+        if ghostunnel.poll() is not None:
             stopped = True
             break
+        print_ok("ghostunnel is still alive")
         time.sleep(1)
 
     if not stopped:

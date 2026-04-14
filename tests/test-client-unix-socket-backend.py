@@ -4,9 +4,11 @@
 Ensures ghostunnel can listen on a unix socket.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TlsServer, UnixClient, print_ok, run_ghostunnel, terminate, TARGET_PORT
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TlsServer, UnixClient, print_ok, run_ghostunnel, skip_on_windows, terminate, TARGET_PORT
 import os
 import os.path
+
+skip_on_windows("requires Unix sockets")
 
 ghostunnel = None
 try:

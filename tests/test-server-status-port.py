@@ -4,9 +4,8 @@
 Ensures that /_status endpoint works.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, TlsClient, print_ok, run_ghostunnel, terminate, urlopen, LISTEN_PORT
+from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, TlsClient, print_ok, reload_args, run_ghostunnel, terminate, trigger_reload, urlopen, LISTEN_PORT
 import os
-import signal
 import json
 
 ghostunnel = None
@@ -27,7 +26,8 @@ try:
                                  '--cacert=root.crt',
                                  '--allow-ou=client',
                                  '--status={0}:{1}'.format(LOCALHOST,
-                                                           STATUS_PORT)])
+                                                           STATUS_PORT)]
+                                + reload_args())
 
     # block until ghostunnel is up
     TcpClient(STATUS_PORT).connect(20)
@@ -43,8 +43,8 @@ try:
         raise Exception("ghostunnel metrics expected to be JSON list")
 
     # reload, check we get the new cert on /_status
-    os.rename('new_server.p12', 'server.p12')
-    ghostunnel.send_signal(signal.SIGUSR1)
+    os.replace('new_server.p12', 'server.p12')
+    trigger_reload(ghostunnel)
     TlsClient(None, 'root', STATUS_PORT).connect(20, 'new_server')
     print_ok('/_status seems up')
 

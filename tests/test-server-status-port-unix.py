@@ -5,9 +5,11 @@ Ensures that /_status endpoint using UNIX sockets
 works.
 """
 
-from common import LOCALHOST, RootCert, print_ok, run_ghostunnel, terminate, LISTEN_PORT
+from common import LOCALHOST, RootCert, print_ok, run_ghostunnel, skip_on_windows, terminate, LISTEN_PORT
 from tempfile import mkdtemp
 from shutil import rmtree
+
+skip_on_windows("requires Unix sockets")
 import socket
 import time
 import os

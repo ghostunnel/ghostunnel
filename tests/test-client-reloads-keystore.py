@@ -9,10 +9,9 @@ There are various cases to take into account:
 - tunnel picks up client cert change and uses it on the status port.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TlsClient, TlsServer, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TlsClient, TlsServer, print_ok, reload_args, run_ghostunnel, terminate, trigger_reload, LISTEN_PORT, TARGET_PORT
 import ssl
 import os
-import signal
 
 ghostunnel = None
 try:
@@ -32,7 +31,8 @@ try:
                                  '--keystore=client1.p12',
                                  '--cacert=root1.crt',
                                  '--status={0}:{1}'.format(LOCALHOST,
-                                                           STATUS_PORT)])
+                                                           STATUS_PORT)]
+                                + reload_args())
 
     # ensure ghostunnel connects with server1
     pair1 = SocketPair(TcpClient(LISTEN_PORT), TlsServer(
@@ -45,8 +45,8 @@ try:
     print_ok("got client1 on /_status")
 
     # replace keystore and check ghostunnel connects with new_client1
-    os.rename('new_client1.p12', 'client1.p12')
-    ghostunnel.send_signal(signal.SIGUSR1)
+    os.replace('new_client1.p12', 'client1.p12')
+    trigger_reload(ghostunnel)
     TlsClient(None, 'root1', STATUS_PORT).connect(20, 'new_client1')
     print_ok("reload done")
 

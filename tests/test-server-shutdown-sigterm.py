@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, print_ok, run_ghostunnel, skip_on_windows, terminate, LISTEN_PORT, TARGET_PORT
 import time
 import os
+
+skip_on_windows("SIGTERM not supported")
 
 ghostunnel = None
 try:
@@ -36,15 +38,13 @@ try:
     stopped = False
     for _ in range(90):
         try:
-            try:
-                ghostunnel.wait(timeout=1)
-            except Exception:
-                pass  # wait() may raise if process hasn't exited yet
-            os.kill(ghostunnel.pid, 0)
-            print_ok("ghostunnel is still alive")
+            ghostunnel.wait(timeout=1)
         except Exception:
+            pass  # wait() may raise if process hasn't exited yet
+        if ghostunnel.poll() is not None:
             stopped = True
             break
+        print_ok("ghostunnel is still alive")
         time.sleep(1)
 
     if not stopped:
