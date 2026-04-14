@@ -388,6 +388,15 @@ func (Git) Clean(ctx context.Context) error {
 	return sh.Run("git", "clean", "-Xdf")
 }
 
+// pythonCmd returns the Python interpreter command for the current platform.
+// On Windows, Python is typically installed as "python" rather than "python3".
+func pythonCmd() string {
+	if runtime.GOOS == "windows" {
+		return "python"
+	}
+	return "python3"
+}
+
 // build builds the *test* binary with coverage instrumentation.
 func (Test) build() error {
 	return sh.Run("go", "test", "-c", "-covermode=count", "-coverpkg", ".,./auth,./certloader,./certloader/jceks,./proxy,./wildcard,./socket")
@@ -420,22 +429,21 @@ func (Test) Integration(ctx context.Context) error {
 		return fmt.Errorf("failed to create coverage directory: %w", err)
 	}
 
-	// Skip integration tests on Windows
-	if runtime.GOOS == "windows" {
-		fmt.Fprintf(os.Stderr, "Integration tests are not supported on Windows\n")
-		return nil
-	}
-
 	// Run integration tests
 	testFiles, err := filepath.Glob("tests/test-*.py")
 	if err != nil || len(testFiles) == 0 {
 		return fmt.Errorf("failed to find test files: %w", err)
 	}
 
-	// Determine parallelism
+	// Determine parallelism. On Windows, default to 1 because without
+	// SO_REUSEPORT we can't keep port reservation sockets open, so parallel
+	// tests risk ephemeral port collisions.
 	parallel := runtime.NumCPU()
 	if parallel > 16 {
 		parallel = 16
+	}
+	if runtime.GOOS == "windows" {
+		parallel = 1
 	}
 	if envVal := os.Getenv("GHOSTUNNEL_TEST_PARALLEL"); envVal != "" {
 		if n, err := strconv.Atoi(envVal); err == nil && n > 0 {
@@ -476,7 +484,7 @@ func (Test) Integration(ctx context.Context) error {
 
 			start := time.Now()
 			testFileName := filepath.Base(testFile)
-			cmd := exec.CommandContext(ctx, "python3", testFileName)
+			cmd := exec.CommandContext(ctx, pythonCmd(), testFileName)
 			cmd.Dir = "tests"
 
 			var stdout, stderr bytes.Buffer
@@ -538,11 +546,6 @@ func (Test) Single(ctx context.Context, name string) error {
 		return fmt.Errorf("failed to create coverage directory: %w", err)
 	}
 
-	if runtime.GOOS == "windows" {
-		fmt.Fprintf(os.Stderr, "Integration tests are not supported on Windows\n")
-		return nil
-	}
-
 	// Normalize the test name
 	name = strings.TrimSuffix(name, ".py")
 	if !strings.HasPrefix(name, "test-") {
@@ -559,7 +562,7 @@ func (Test) Single(ctx context.Context, name string) error {
 	printf("=== RUN   %s\n", name)
 	start := time.Now()
 
-	cmd := exec.CommandContext(ctx, "python3", name+".py")
+	cmd := exec.CommandContext(ctx, pythonCmd(), name+".py")
 	cmd.Dir = "tests"
 
 	var stdout, stderr bytes.Buffer

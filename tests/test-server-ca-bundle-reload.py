@@ -4,8 +4,7 @@
 Ensures that root certificates are reloaded as well.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, print_ok, run_ghostunnel, status_info, terminate, wait_for_status, LISTEN_PORT, TARGET_PORT
-import signal
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, print_ok, reload_args, run_ghostunnel, status_info, terminate, trigger_reload, wait_for_status, LISTEN_PORT, TARGET_PORT
 
 ghostunnel = None
 try:
@@ -22,7 +21,8 @@ try:
                                  '--status={0}:{1}'.format(LOCALHOST,
                                                            STATUS_PORT),
                                  '--cacert=root.crt',
-                                 '--allow-ou=client'])
+                                 '--allow-ou=client']
+                                + reload_args())
 
     # connect with client, confirm that the tunnel is up
     pair = SocketPair(TlsClient('client', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
@@ -40,7 +40,7 @@ try:
     root.create_signed_cert('client')
 
     pre_reload = status_info().get('last_reload')
-    ghostunnel.send_signal(signal.SIGUSR1)
+    trigger_reload(ghostunnel)
     wait_for_status(lambda info: info.get('last_reload') != pre_reload, timeout=10)
 
     # Make sure everything still works

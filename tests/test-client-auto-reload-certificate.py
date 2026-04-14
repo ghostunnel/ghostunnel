@@ -46,7 +46,7 @@ try:
 
     # replace keystore and check ghostunnel connects with new_client1
     print_ok("replacing certificates")
-    os.rename('new_client1.p12', 'client1.p12')
+    os.replace('new_client1.p12', 'client1.p12')
     # reload should happen automatically
     TlsClient(None, 'root1', STATUS_PORT).connect(20, 'new_client1')
     print_ok("reload done")

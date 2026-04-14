@@ -8,10 +8,12 @@ import time
 import socket
 import ssl
 import os
+import platform
 import urllib.error
 import urllib.request
 
 LOCALHOST = '127.0.0.1'
+IS_WINDOWS = platform.system() == 'Windows'
 TIMEOUT = int(os.environ.get('GHOSTUNNEL_TEST_TIMEOUT', '10'))
 
 
@@ -22,13 +24,11 @@ def _poll_sleep(iteration):
 # Store original directory paths before changing working directory
 _TESTS_DIR = os.path.abspath(os.path.dirname(__file__) or '.')
 _ROOT_DIR = os.path.abspath(os.path.join(_TESTS_DIR, '..'))
-_GHOSTUNNEL_BINARY = os.path.join(_ROOT_DIR, 'ghostunnel.test')
+_GHOSTUNNEL_BINARY = os.path.join(_ROOT_DIR, 'ghostunnel.test.exe' if IS_WINDOWS else 'ghostunnel.test')
 _COVERAGE_DIR = os.path.join(_ROOT_DIR, 'coverage')
 os.makedirs(_COVERAGE_DIR, exist_ok=True)
 
-if not hasattr(socket, 'SO_REUSEPORT'):
-    raise RuntimeError("SO_REUSEPORT is required but not available on this platform")
-_SO_REUSEPORT = socket.SO_REUSEPORT
+_SO_REUSEPORT = getattr(socket, 'SO_REUSEPORT', None)
 
 # Holds reservation sockets for ports allocated by get_free_port()
 _extra_port_sockets = []
@@ -36,19 +36,23 @@ atexit.register(lambda: [s.close() for s in _extra_port_sockets])
 
 
 def get_free_port(release=False):
-    """Get an available port by binding to port 0 with SO_REUSEPORT.
+    """Get an available port by binding to port 0.
 
-    By default the reservation socket is kept open for the lifetime of the
-    process to prevent other parallel test processes from being assigned the
-    same port.  Pass release=True to close the socket immediately — use this
-    when the caller will bind the port exclusively right away (e.g. port-
-    conflict tests)."""
+    On platforms with SO_REUSEPORT, the reservation socket is kept open for
+    the lifetime of the process to prevent other parallel test processes from
+    being assigned the same port.  Pass release=True to close the socket
+    immediately — use this when the caller will bind the port exclusively
+    right away (e.g. port-conflict tests).
+
+    On Windows (no SO_REUSEPORT), the socket is always closed immediately
+    since co-binding is not possible."""
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    s.setsockopt(socket.SOL_SOCKET, _SO_REUSEPORT, 1)
+    if _SO_REUSEPORT is not None:
+        s.setsockopt(socket.SOL_SOCKET, _SO_REUSEPORT, 1)
     s.bind((LOCALHOST, 0))
     port = s.getsockname()[1]
-    if release:
+    if release or _SO_REUSEPORT is None:
         s.close()
     else:
         _extra_port_sockets.append(s)
@@ -202,7 +206,7 @@ class RootCert:
         check_call(
             'openssl req -x509 -new -key {0}.key -days 5 -out {0}_temp.crt -addext "keyUsage = digitalSignature, cRLSign, keyCertSign" -subj /C=US/ST=CA/O=ghostunnel/OU={0}'.format(name),
             shell=True)
-        os.rename("{0}_temp.crt".format(name), "{0}.crt".format(name))
+        os.replace("{0}_temp.crt".format(name), "{0}.crt".format(name))
 
     def create_signed_cert(self, cn_and_ou, san="IP:127.0.0.1,IP:::1,DNS:localhost", p12_password=''):
         if p12_password is not None:
@@ -225,12 +229,12 @@ class RootCert:
                 openssl_config),
             shell=True,
             stderr=DEVNULL)
-        os.rename("{0}_temp.crt".format(cn_and_ou), "{0}.crt".format(cn_and_ou))
+        os.replace("{0}_temp.crt".format(cn_and_ou), "{0}.crt".format(cn_and_ou))
         if p12_password is not None:
             check_call(
                 "openssl pkcs12 -export -out {0}_temp.p12 -in {0}.crt -inkey {0}.key -password pass:{1}".format(cn_and_ou, p12_password),
                 shell=True)
-            os.rename("{0}_temp.p12".format(cn_and_ou), "{0}.p12".format(cn_and_ou))
+            os.replace("{0}_temp.p12".format(cn_and_ou), "{0}.p12".format(cn_and_ou))
         os.close(fd)
         os.remove(openssl_config)
         self.leaf_certs.append(cn_and_ou)
@@ -344,8 +348,9 @@ EXPECTED_SERVER_METRICS = [
 
 def check_ed25519_support():
     """Skip the test if OpenSSL does not support ED25519."""
+    devnull = 'NUL' if IS_WINDOWS else '/dev/null'
     try:
-        check_output('openssl genpkey -algorithm ed25519 -out /dev/null',
+        check_output('openssl genpkey -algorithm ed25519 -out {0}'.format(devnull),
                      shell=True, stderr=DEVNULL)
     except Exception:
         print_ok("SKIP (OpenSSL does not support ED25519)")
@@ -356,6 +361,31 @@ def check_keytool():
     if not shutil.which('keytool'):
         print_ok("SKIP (keytool not available)")
         sys.exit(0)
+
+def skip_on_windows(reason="not supported on Windows"):
+    """Skip the test on Windows."""
+    if IS_WINDOWS:
+        print_ok("SKIP ({0})".format(reason))
+        sys.exit(0)
+
+def reload_args():
+    """Extra args to enable certificate reload on Windows via --timed-reload."""
+    return ['--timed-reload=1s'] if IS_WINDOWS else []
+
+def trigger_reload(ghostunnel):
+    """Trigger a certificate/config reload.
+
+    On Unix, sends SIGUSR1 to the process.
+    On Windows, waits until the timed-reload cycle is observed via the
+    status endpoint (requires --timed-reload=1s)."""
+    if IS_WINDOWS:
+        pre = status_info()
+        pre_reload = pre.get('last_reload') if pre else None
+        wait_for_status(
+            lambda info: info.get('last_reload') != pre_reload, timeout=10)
+    else:
+        import signal as _signal
+        ghostunnel.send_signal(_signal.SIGUSR1)
 
 def convert_p12_to_jceks(p12_name, jceks_name, password):
     """Convert a PKCS#12 keystore to JCEKS format using keytool.
@@ -449,7 +479,8 @@ class TcpServer(MySocket):
         self.listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.listener.settimeout(TIMEOUT)
         self.listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.listener.setsockopt(socket.SOL_SOCKET, _SO_REUSEPORT, 1)
+        if _SO_REUSEPORT is not None:
+            self.listener.setsockopt(socket.SOL_SOCKET, _SO_REUSEPORT, 1)
         self.listener.bind((LOCALHOST, self.port))
         self.listener.listen(1)
 
@@ -521,7 +552,8 @@ class TlsServer(MySocket):
         listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         listener.settimeout(TIMEOUT)
         listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        listener.setsockopt(socket.SOL_SOCKET, _SO_REUSEPORT, 1)
+        if _SO_REUSEPORT is not None:
+            listener.setsockopt(socket.SOL_SOCKET, _SO_REUSEPORT, 1)
         listener.bind((LOCALHOST, self.port))
         listener.listen(1)
         self.tls_listener = wrap_socket(listener,

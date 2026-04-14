@@ -26,7 +26,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
       - name: Set up Python
-        if: matrix.os != 'windows-latest'
         uses: actions/setup-python@v6
         with:
           python-version: '3.11.x'
@@ -36,7 +35,7 @@ jobs:
       - name: Run tests
         run: go tool mage -v test:all
       - name: Codecov upload
-        if: ${{ github.actor != 'dependabot[bot]' && matrix.os != 'windows-latest' }}
+        if: ${{ github.actor != 'dependabot[bot]' }}
         uses: codecov/codecov-action@v6
         with:
           files: ./coverage/all.profile

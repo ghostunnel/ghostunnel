@@ -33,7 +33,7 @@ try:
     pair1.validate_tunnel_ou("server", "pair1 -> ou=server")
 
     # Replace keystore and trigger reload
-    os.rename('new_server.p12', 'server.p12')
+    os.replace('new_server.p12', 'server.p12')
     # NOT reloading explicitly here (should be automatic)
 
     TlsClient(None, 'root', STATUS_PORT).connect(20, 'new_server')

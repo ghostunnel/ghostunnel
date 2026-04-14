@@ -5,11 +5,10 @@ Tests that verify-policy flag works correctly on the client.
 """
 
 from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, \
-    TlsServer, print_ok, run_ghostunnel, status_info, terminate, wait_for_status, LISTEN_PORT, TARGET_PORT, \
+    TlsServer, print_ok, reload_args, run_ghostunnel, status_info, terminate, trigger_reload, wait_for_status, LISTEN_PORT, TARGET_PORT, \
     assert_connection_rejected
 
 from tempfile import mkdtemp
-import signal
 import shutil
 import os
 
@@ -41,7 +40,8 @@ try:
                                  '--verify-query=data.policy.allow',
                                  '--cacert=root.crt',
                                  '--status={0}:{1}'.format(LOCALHOST,
-                                                           STATUS_PORT)])
+                                                           STATUS_PORT)]
+                                + reload_args())
 
     # connect to server1, confirm that the tunnel is up
     pair = SocketPair(TcpClient(LISTEN_PORT), TlsServer(
@@ -61,7 +61,7 @@ try:
     # Change policy and reload
     shutil.copyfile(dir_path + '/test-allow-all-policy.tar.gz', tmp_dir + '/bundle.tar.gz')
     pre_reload = status_info().get('last_reload')
-    ghostunnel.send_signal(signal.SIGUSR1)
+    trigger_reload(ghostunnel)
 
     # wait until reload complete
     wait_for_status(lambda info: info.get('last_reload') != pre_reload)

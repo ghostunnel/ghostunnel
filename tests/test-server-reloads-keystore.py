@@ -5,9 +5,8 @@ Ensures that tunnel sees & reloads a certificate
 change.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, print_ok, reload_args, run_ghostunnel, terminate, trigger_reload, LISTEN_PORT, TARGET_PORT
 import os
-import signal
 
 ghostunnel = None
 try:
@@ -25,7 +24,8 @@ try:
                                  '--cacert=root.crt',
                                  '--allow-ou=client',
                                  '--status={0}:{1}'.format(LOCALHOST,
-                                                           STATUS_PORT)])
+                                                           STATUS_PORT)]
+                                + reload_args())
 
     # create connections with client
     pair1 = SocketPair(
@@ -34,8 +34,8 @@ try:
     pair1.validate_tunnel_ou("server", "pair1 -> ou=server")
 
     # Replace keystore and trigger reload
-    os.rename('new_server.p12', 'server.p12')
-    ghostunnel.send_signal(signal.SIGUSR1)
+    os.replace('new_server.p12', 'server.p12')
+    trigger_reload(ghostunnel)
 
     TlsClient(None, 'root', STATUS_PORT).connect(20, 'new_server')
     print_ok("reload done")

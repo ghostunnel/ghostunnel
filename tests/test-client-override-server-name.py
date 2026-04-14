@@ -4,8 +4,7 @@
 Ensures we can connect to a server signed by root1 but not root2.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TlsClient, TlsServer, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT, assert_connection_rejected
-import signal
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TlsClient, TlsServer, print_ok, run_ghostunnel, terminate, trigger_reload, LISTEN_PORT, TARGET_PORT, assert_connection_rejected
 
 ghostunnel = None
 try:
@@ -51,7 +50,7 @@ try:
         "server1", timeout_ok=False)
 
     # make sure also works after reload
-    ghostunnel.send_signal(signal.SIGUSR1)
+    trigger_reload(ghostunnel)
     TlsClient(None, 'root', STATUS_PORT).connect(20, 'client')
     print_ok("reload done")
 
