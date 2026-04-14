@@ -13,8 +13,8 @@ skip_on_windows("requires systemd")
 ghostunnel = None
 
 if not which('systemd-socket-activate'):
-    print_ok('skipping systemd socket activation test, no systemd-socket-activate binary found')
-    sys.exit(0)
+    print('no systemd-socket-activate binary found', file=sys.stderr)
+    sys.exit(2)
 
 try:
     # create certs
