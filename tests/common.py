@@ -353,20 +353,20 @@ def check_ed25519_support():
         check_output('openssl genpkey -algorithm ed25519 -out {0}'.format(devnull),
                      shell=True, stderr=DEVNULL)
     except Exception:
-        print_ok("SKIP (OpenSSL does not support ED25519)")
-        sys.exit(0)
+        print("OpenSSL does not support ED25519")
+        sys.exit(2)
 
 def check_keytool():
     """Skip the test if keytool is not available."""
     if not shutil.which('keytool'):
-        print_ok("SKIP (keytool not available)")
-        sys.exit(0)
+        print("keytool not available")
+        sys.exit(2)
 
 def skip_on_windows(reason="not supported on Windows"):
     """Skip the test on Windows."""
     if IS_WINDOWS:
-        print_ok("SKIP ({0})".format(reason))
-        sys.exit(0)
+        print(reason)
+        sys.exit(2)
 
 def reload_args():
     """Extra args to enable certificate reload on Windows via --timed-reload."""
@@ -389,7 +389,7 @@ def trigger_reload(ghostunnel):
 
 def convert_p12_to_jceks(p12_name, jceks_name, password):
     """Convert a PKCS#12 keystore to JCEKS format using keytool.
-    Skips the test (sys.exit(0)) if the conversion fails."""
+    Skips the test (sys.exit(2)) if the conversion fails."""
     try:
         os.remove('{0}.jceks'.format(jceks_name))
     except OSError:
@@ -400,8 +400,8 @@ def convert_p12_to_jceks(p12_name, jceks_name, password):
                '-noprompt'.format(p12_name, jceks_name, password),
                shell=True, stderr=DEVNULL)
     if ret != 0:
-        print_ok("SKIP (keytool -importkeystore failed)")
-        sys.exit(0)
+        print("keytool -importkeystore failed")
+        sys.exit(2)
 
 def print_ok(msg):
     print("\033[92m{0}\033[0m".format(msg))

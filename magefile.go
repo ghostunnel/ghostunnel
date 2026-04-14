@@ -510,6 +510,8 @@ func (Test) Integration(ctx context.Context) error {
 		r := <-results
 		if r.err == nil {
 			printf("=== PASS: %s (%.2fs)\n", r.name, r.duration.Seconds())
+		} else if exitErr, ok := r.err.(*exec.ExitError); ok && exitErr.ExitCode() == 2 {
+			printf("=== SKIP: %s (%.2fs) %s\n", r.name, r.duration.Seconds(), strings.TrimSpace(string(r.stdout)))
 		} else {
 			fmt.Printf("=== FAIL: %s (%.2fs)\n", r.name, r.duration.Seconds())
 			failed = append(failed, r)
