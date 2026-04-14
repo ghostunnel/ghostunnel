@@ -353,19 +353,19 @@ def check_ed25519_support():
         check_output('openssl genpkey -algorithm ed25519 -out {0}'.format(devnull),
                      shell=True, stderr=DEVNULL)
     except Exception:
-        print("OpenSSL does not support ED25519")
+        print("OpenSSL does not support ED25519", file=sys.stderr)
         sys.exit(2)
 
 def check_keytool():
     """Skip the test if keytool is not available."""
     if not shutil.which('keytool'):
-        print("keytool not available")
+        print("keytool not available", file=sys.stderr)
         sys.exit(2)
 
 def skip_on_windows(reason="not supported on Windows"):
     """Skip the test on Windows."""
     if IS_WINDOWS:
-        print(reason)
+        print(reason, file=sys.stderr)
         sys.exit(2)
 
 def reload_args():
@@ -400,7 +400,7 @@ def convert_p12_to_jceks(p12_name, jceks_name, password):
                '-noprompt'.format(p12_name, jceks_name, password),
                shell=True, stderr=DEVNULL)
     if ret != 0:
-        print("keytool -importkeystore failed")
+        print("keytool -importkeystore failed", file=sys.stderr)
         sys.exit(2)
 
 def print_ok(msg):

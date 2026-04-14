@@ -13,7 +13,7 @@ skip_on_windows("requires systemd")
 ghostunnel = None
 
 if not which('systemd-socket-activate'):
-    print('no systemd-socket-activate binary found')
+    print('no systemd-socket-activate binary found', file=sys.stderr)
     sys.exit(2)
 
 try:

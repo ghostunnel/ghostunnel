@@ -16,7 +16,7 @@ ghostunnel = None
 try:
     # Only run PKCS11 tests if requested
     if 'GHOSTUNNEL_TEST_PKCS11' not in os.environ:
-        print('GHOSTUNNEL_TEST_PKCS11 not set')
+        print('GHOSTUNNEL_TEST_PKCS11 not set', file=sys.stderr)
         sys.exit(2)
 
     test_keys = os.path.join(_ROOT_DIR, 'test-keys')

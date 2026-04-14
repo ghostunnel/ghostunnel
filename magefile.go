@@ -481,6 +481,7 @@ func (Test) Integration(ctx context.Context) error {
 			defer func() { <-sem }() // release
 
 			testName := strings.TrimSuffix(filepath.Base(testFile), ".py")
+			printf("=== RUN   %s\n", testName)
 
 			start := time.Now()
 			testFileName := filepath.Base(testFile)
@@ -509,11 +510,12 @@ func (Test) Integration(ctx context.Context) error {
 	for i := 0; i < len(testFiles); i++ {
 		r := <-results
 		if r.err == nil {
-			printf("=== PASS: %s (%.2fs)\n", r.name, r.duration.Seconds())
+			printf("--- PASS: %s (%.2fs)\n", r.name, r.duration.Seconds())
 		} else if exitErr, ok := r.err.(*exec.ExitError); ok && exitErr.ExitCode() == 2 {
-			printf("=== SKIP: %s (%.2fs) %s\n", r.name, r.duration.Seconds(), strings.TrimSpace(string(r.stdout)))
+			reason := strings.SplitN(strings.TrimSpace(string(r.stderr)), "\n", 2)[0]
+			printf("--- SKIP: %s (%.2fs) (%s)\n", r.name, r.duration.Seconds(), reason)
 		} else {
-			fmt.Printf("=== FAIL: %s (%.2fs)\n", r.name, r.duration.Seconds())
+			fmt.Printf("--- FAIL: %s (%.2fs)\n", r.name, r.duration.Seconds())
 			failed = append(failed, r)
 		}
 	}
@@ -522,7 +524,7 @@ func (Test) Integration(ctx context.Context) error {
 	if len(failed) > 0 {
 		fmt.Printf("\n--- FAILURES ---\n")
 		for _, r := range failed {
-			fmt.Printf("\n=== FAIL: %s (%.2fs)\n", r.name, r.duration.Seconds())
+			fmt.Printf("\n--- FAIL: %s (%.2fs)\n", r.name, r.duration.Seconds())
 			fmt.Printf("--- stdout ---\n")
 			os.Stdout.Write(r.stdout)
 			fmt.Printf("--- stderr ---\n")
@@ -580,7 +582,7 @@ func (Test) Single(ctx context.Context, name string) error {
 	elapsed := time.Since(start).Seconds()
 
 	if err == nil {
-		printf("=== PASS: %s (%.2fs)\n", name, elapsed)
+		printf("--- PASS: %s (%.2fs)\n", name, elapsed)
 		return nil
 	}
 
@@ -591,7 +593,7 @@ func (Test) Single(ctx context.Context, name string) error {
 		fmt.Printf("--- stderr ---\n")
 		os.Stdout.Write(stderr.Bytes())
 	}
-	fmt.Printf("=== FAIL: %s (%.2fs)\n", name, elapsed)
+	fmt.Printf("--- FAIL: %s (%.2fs)\n", name, elapsed)
 	if exitError, ok := err.(*exec.ExitError); ok {
 		return fmt.Errorf("integration test %s failed with exit code %d", name, exitError.ExitCode())
 	}
