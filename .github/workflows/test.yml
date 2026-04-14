@@ -22,6 +22,7 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.version }}
+          cache: false
         id: go
       - name: Checkout
         uses: actions/checkout@v6
@@ -60,6 +61,7 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.version }}
+          cache: false
       - name: Run tests in Docker
         run: GO_VERSION=${{ matrix.version }} go tool mage -v test:docker
       - name: Codecov upload

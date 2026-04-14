@@ -28,6 +28,7 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: '1.26.x'
+          cache: false
       - name: Build containers
         run: go tool mage -v docker:build
         env:
@@ -49,6 +50,7 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.version }}
+          cache: false
         id: go
       - name: Checkout
         uses: actions/checkout@v6
@@ -84,6 +86,7 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.version }}
+          cache: false
         id: go
       - name: Checkout
         uses: actions/checkout@v6
@@ -125,6 +128,7 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.version }}
+          cache: false
         id: go
       - name: Checkout
         uses: actions/checkout@v6
