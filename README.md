@@ -335,9 +335,11 @@ See [METRICS](docs/METRICS.md) for details.
 ### HSM/PKCS#11 support
 
 Ghostunnel has support for loading private keys from PKCS#11 modules, which
-should work with any hardware security module that exposes a PKCS#11 interface.
+should work with any hardware security module that exposes a PKCS#11 interface,
+including YubiKeys (via the YKCS11 module).
 
-See [HSM-PKCS11](docs/HSM-PKCS11.md) for details.
+See [HSM-PKCS11](docs/HSM-PKCS11.md) for details, including a step-by-step
+guide for using Ghostunnel with a YubiKey.
 
 ### Windows/macOS Keychain Support
 
