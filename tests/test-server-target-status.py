@@ -10,7 +10,7 @@ So the health HTTP server must be reachable at the --target address.
 """
 
 from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, print_ok, \
-                   run_ghostunnel, terminate, status_info, wait_for_status, \
+                   run_ghostunnel, terminate, wait_for_status, \
                    LISTEN_PORT, get_free_port
 import http.server
 import socket
@@ -24,8 +24,10 @@ try:
     root.create_signed_cert('server')
     root.create_signed_cert('client')
 
-    # Allocate a fresh port for the health server (release=True so we can bind it)
-    BACKEND_PORT = get_free_port(release=True)
+    # Allocate a fresh port for the health server and keep the reservation.
+    # ReuseHTTPServer enables SO_REUSEPORT in server_bind(), so it can bind
+    # safely without reopening a port-collision race in parallel test runs.
+    BACKEND_PORT = get_free_port()
 
     # start a simple HTTP server for health checks.
     # ghostunnel's --target-status HTTP client dials --target to send
@@ -68,16 +70,17 @@ try:
     TcpClient(STATUS_PORT).connect(20)
 
     # verify status is OK
-    info = wait_for_status(lambda s: s.get('ok') is True)
+    wait_for_status(lambda s: s.get('ok') is True)
     print_ok("/_status reports ok=true with healthy backend")
 
-    # stop the health check server
+    # stop the health check server and close the listening socket
     health_server.shutdown()
+    health_server.server_close()
     health_server = None
     print_ok("health check server stopped")
 
     # wait for /_status to report not-ok
-    info = wait_for_status(lambda s: s.get('ok') is False)
+    wait_for_status(lambda s: s.get('ok') is False)
     print_ok("/_status reports ok=false after backend health check fails")
 
     # restart the health check server on the same port
@@ -88,11 +91,12 @@ try:
     print_ok("health check server restarted on port {0}".format(BACKEND_PORT))
 
     # wait for /_status to recover
-    info = wait_for_status(lambda s: s.get('ok') is True)
+    wait_for_status(lambda s: s.get('ok') is True)
     print_ok("/_status reports ok=true after backend recovery")
 
     print_ok("OK")
 finally:
     if health_server:
         health_server.shutdown()
+        health_server.server_close()
     terminate(ghostunnel)

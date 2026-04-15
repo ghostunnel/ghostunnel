@@ -4,7 +4,7 @@
 Tests that --max-concurrent-conns limits the number of simultaneous connections.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TcpServer, \
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, \
                    TlsClient, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT
 import socket
 import ssl
@@ -74,8 +74,8 @@ try:
     finally:
         try:
             sock3.close()
-        except Exception:
-            pass
+        except OSError:
+            pass  # best-effort cleanup, socket may already be closed
 
     if not blocked:
         raise Exception("3rd connection was not blocked by concurrency limit")
@@ -85,14 +85,30 @@ try:
     pair1.cleanup()
     print_ok("connection 1 closed")
 
-    # give ghostunnel a moment to release the semaphore
-    time.sleep(1)
+    # retry until ghostunnel observes the closed connection and releases
+    # the semaphore, or fail after a bounded timeout
+    deadline = time.time() + 5
+    pair3 = None
+    last_error = None
+    while time.time() < deadline:
+        try:
+            pair3 = SocketPair(
+                    TlsClient('client', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
+            pair3.validate_can_send_from_client("hello3", "pair3 works after slot freed")
+            print_ok("connection 3 established after freeing slot")
+            break
+        except (socket.timeout, ssl.SSLError, ConnectionError, OSError) as exc:
+            last_error = exc
+            if pair3 is not None:
+                try:
+                    pair3.cleanup()
+                except Exception:
+                    pass
+                pair3 = None
+            time.sleep(0.2)
 
-    # now a new connection should succeed
-    pair3 = SocketPair(
-            TlsClient('client', 'root', LISTEN_PORT), TcpServer(TARGET_PORT))
-    pair3.validate_can_send_from_client("hello3", "pair3 works after slot freed")
-    print_ok("connection 3 established after freeing slot")
+    if pair3 is None:
+        raise Exception("3rd connection did not succeed after freeing slot") from last_error
 
     pair2.cleanup()
     pair3.cleanup()

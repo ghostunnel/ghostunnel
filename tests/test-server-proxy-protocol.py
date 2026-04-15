@@ -5,7 +5,7 @@ Tests that --proxy-protocol sends a valid PROXY protocol v2 header
 to the backend before forwarding application data.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, TcpServer, \
+from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, \
                    TlsClient, print_ok, run_ghostunnel, terminate, \
                    LISTEN_PORT, TARGET_PORT, TIMEOUT
 import socket
