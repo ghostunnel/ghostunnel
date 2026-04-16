@@ -47,6 +47,7 @@ try:
     sock3.settimeout(2)
     try:
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
         ctx.load_verify_locations(cafile='root.crt')
         ctx.load_cert_chain('client.crt', 'client.key')
         tls_sock = ctx.wrap_socket(sock3, server_hostname=LOCALHOST)
@@ -103,7 +104,7 @@ try:
                 try:
                     pair3.cleanup()
                 except Exception:
-                    pass
+                    pass  # best-effort cleanup during retry
                 pair3 = None
             time.sleep(0.2)
 
