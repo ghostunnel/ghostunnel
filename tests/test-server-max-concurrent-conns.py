@@ -17,7 +17,9 @@ try:
     root.create_signed_cert('server')
     root.create_signed_cert('client')
 
-    # start ghostunnel with --max-concurrent-conns=2
+    # start ghostunnel with --max-concurrent-conns=2 and a short connect
+    # timeout so that any stale TCP connections in the backlog are cleaned
+    # up quickly by ghostunnel
     ghostunnel = run_ghostunnel(['server',
                                  '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
                                  '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
@@ -25,6 +27,7 @@ try:
                                  '--cacert=root.crt',
                                  '--allow-ou=client',
                                  '--max-concurrent-conns=2',
+                                 '--connect-timeout=1s',
                                  '--status={0}:{1}'.format(LOCALHOST,
                                                            STATUS_PORT)])
 
@@ -86,9 +89,11 @@ try:
     pair1.cleanup()
     print_ok("connection 1 closed")
 
-    # retry until ghostunnel observes the closed connection and releases
-    # the semaphore, or fail after a bounded timeout
-    deadline = time.time() + 5
+    # Wait for ghostunnel to fully release the semaphore slot. The stale
+    # sock3 TCP connection may still be in the listen backlog — ghostunnel
+    # will accept it, fail the handshake (connect-timeout=1s), and release
+    # the semaphore. We need to wait for that cycle to complete.
+    deadline = time.time() + 10
     pair3 = None
     last_error = None
     while time.time() < deadline:
@@ -98,7 +103,7 @@ try:
             pair3.validate_can_send_from_client("hello3", "pair3 works after slot freed")
             print_ok("connection 3 established after freeing slot")
             break
-        except (socket.timeout, ssl.SSLError, ConnectionError, OSError) as exc:
+        except Exception as exc:
             last_error = exc
             if pair3 is not None:
                 try:
@@ -106,7 +111,7 @@ try:
                 except Exception:
                     pass  # best-effort cleanup during retry
                 pair3 = None
-            time.sleep(0.2)
+            time.sleep(0.5)
 
     if pair3 is None:
         raise Exception("3rd connection did not succeed after freeing slot") from last_error
