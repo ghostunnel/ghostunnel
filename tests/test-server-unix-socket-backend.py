@@ -4,9 +4,9 @@
 Ensures ghostunnel can connect to a unix socket.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TlsClient, UnixServer, print_ok, run_ghostunnel, skip_on_windows, terminate, LISTEN_PORT
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TlsClient, UnixServer, print_ok, run_ghostunnel, require_platform, terminate, LISTEN_PORT
 
-skip_on_windows("requires Unix sockets")
+require_platform('Darwin', 'Linux', 'BSD')
 
 ghostunnel = None
 try:

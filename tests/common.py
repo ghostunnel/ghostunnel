@@ -362,11 +362,21 @@ def check_keytool():
         print("keytool not available", file=sys.stderr)
         sys.exit(2)
 
-def skip_on_windows(reason="not supported on Windows"):
-    """Skip the test on Windows."""
-    if IS_WINDOWS:
-        print(reason, file=sys.stderr)
-        sys.exit(2)
+def require_platform(*platforms):
+    """Skip the test unless running on one of the specified platforms.
+
+    Platform names match platform.system() output: 'Darwin', 'Linux', 'Windows'.
+    The special name 'BSD' matches any platform ending in 'BSD'
+    (e.g. FreeBSD, OpenBSD, NetBSD).
+    """
+    current = platform.system()
+    if current in platforms:
+        return
+    if 'BSD' in platforms and current.endswith('BSD'):
+        return
+    print("skipped: requires {0} (running on {1})".format(
+        '/'.join(platforms), current), file=sys.stderr)
+    sys.exit(2)
 
 def reload_args():
     """Extra args to enable certificate reload on Windows via --timed-reload."""
