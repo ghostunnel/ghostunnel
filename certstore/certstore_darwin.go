@@ -389,6 +389,10 @@ func (i *macIdentity) getAlgo(hash crypto.Hash, opts crypto.SignerOpts) (algo C.
 
 // getKeyRef gets the SecKeyRef for this identity's pricate key.
 func (i *macIdentity) getKeyRef() (C.SecKeyRef, error) {
+	if i.kref != nilSecKeyRef {
+		return i.kref, nil
+	}
+
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
@@ -408,6 +412,10 @@ func (i *macIdentity) getKeyRef() (C.SecKeyRef, error) {
 
 // getCertRef gets the SecCertificateRef for this identity's certificate.
 func (i *macIdentity) getCertRef() (C.SecCertificateRef, error) {
+	if i.cref != nilSecCertificateRef {
+		return i.cref, nil
+	}
+
 	i.mu.Lock()
 	defer i.mu.Unlock()
 

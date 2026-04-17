@@ -48,7 +48,7 @@ func readModifiedUTF8(r io.Reader) (string, error) {
 		var err error
 		buf[0], err = br.ReadByte()
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 
@@ -70,7 +70,7 @@ func readModifiedUTF8(r io.Reader) (string, error) {
 
 		buf[1], err = br.ReadByte()
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				err = io.ErrUnexpectedEOF
 			}
 
@@ -97,7 +97,7 @@ func readModifiedUTF8(r io.Reader) (string, error) {
 
 		buf[2], err = br.ReadByte()
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				err = io.ErrUnexpectedEOF
 			}
 
