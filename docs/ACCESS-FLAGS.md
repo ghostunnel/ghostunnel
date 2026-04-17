@@ -238,8 +238,8 @@ for more about the policy language.
   different process.
 * Older versions of Ghostunnel allowed specifying a Rego file rather than a
   bundle as an argument to the `--allow-policy` and `--verify-policy` flags. This
-  still works, but the policy will be treated as a V0 policy for compatibility
-  versions. It's recommended to specify a bundle so you can set the language
+  still works, but the policy will be treated as a V0 policy for backward
+  compatibility. It's recommended to specify a bundle so you can set the language
   version directly in the bundle manifest.
 * By standard OPA convention, we consider a policy to be "allowed" if the query
   is exactly one result with exactly one element that has the value `true`.

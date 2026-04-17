@@ -1,7 +1,7 @@
 ---
 title: Docker Images
 description: Available Docker image variants and tags for running Ghostunnel in containers.
-weight: 90
+weight: 85
 ---
 
 Docker images are published to [Docker Hub][hub] on each release. Three

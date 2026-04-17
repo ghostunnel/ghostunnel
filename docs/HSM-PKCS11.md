@@ -30,7 +30,7 @@ softhsm2-util --id 01 \
     --pin 1234
 ```
 
-To launch Ghostunnel with the SoftHSM-backed PKCS11 key:
+To launch Ghostunnel with the SoftHSM-backed PKCS#11 key:
 
 ```bash
 ghostunnel server \
@@ -45,8 +45,8 @@ ghostunnel server \
 ```
 
 The `--pkcs11-module`, `--pkcs11-token-label` and `--pkcs11-pin` flags can be
-used to select the private key to be used from the PKCS11 module. It's also possible
-to use environment variables to set PKCS11 options instead of flags (via
+used to select the private key to be used from the PKCS#11 module. It's also possible
+to use environment variables to set PKCS#11 options instead of flags (via
 `PKCS11_MODULE`, `PKCS11_TOKEN_LABEL` and `PKCS11_PIN`), useful if you don't
 want to show the PIN on the command line.
 
@@ -190,7 +190,7 @@ arbitrary files and sockets.
 
 ## Inspecting PKCS#11 state
 
-If you need to inspect the state of a PKCS11 module/token, we recommend the
+If you need to inspect the state of a PKCS#11 module/token, we recommend the
 [`pkcs11-tool`][pkcs11-tool] utility from OpenSC. For example, it can be used
 to list slots or read certificate(s) from a module:
 
