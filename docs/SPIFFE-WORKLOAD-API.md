@@ -77,8 +77,7 @@ a manual reload or restart.
 
 See the [end-to-end demo](https://github.com/ghostunnel/ghostunnel/tree/master/docs/spiffe-workload-api-demo) for an example
 using Ghostunnel with SPIFFE Workload API support backed by
-[SPIRE](https://spiffe.io/spire/). If you are new to SPIFFE/SPIRE, the
-[SPIRE getting started guide][spire-getting-started] walks through a basic
-setup on Linux.
+[SPIRE](https://spiffe.io/spire/). The [SPIRE getting started guide][spire-getting-started] covers setting up
+SPIRE from scratch on Linux/macOS.
 
 [spire-getting-started]: https://spiffe.io/docs/latest/try/getting-started-linux-macos-x/

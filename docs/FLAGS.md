@@ -13,6 +13,9 @@ These flags are available in both `server` and `client` modes.
 
 ### Certificate / Key
 
+See [Certificate Formats]({{< ref "CERTIFICATES.md" >}}) for details on
+supported file formats and chain ordering.
+
 | Flag | Description |
 |------|-------------|
 | `--keystore PATH` | Path to keystore (combined PEM with cert/key, or PKCS12 keystore). |

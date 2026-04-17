@@ -42,8 +42,8 @@ affects TLS 1.2 connections.
 
 In server mode, key exchange prefers the following elliptic curves:
 
-1. **X25519** — fast, constant-time, widely supported
-2. **P-256 (secp256r1)** — hardware-accelerated on most platforms
+1. **X25519**: fast, constant-time, widely supported
+2. **P-256 (secp256r1)**: hardware-accelerated on most platforms
 
 ### Client authentication
 

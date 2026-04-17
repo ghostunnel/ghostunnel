@@ -79,9 +79,9 @@ instead. Ghostunnel expects an HTTP 200 response.
 
 The `/_status` JSON response includes:
 
-* `backend_ok` — boolean indicating if the backend check passed
-* `backend_status` — string of `ok` or `critical`
-* `backend_error` — string of error message if the check failed
+* `backend_ok`: boolean indicating if the backend check passed
+* `backend_status`: string of `ok` or `critical`
+* `backend_error`: string of error message if the check failed
 
 If the backend check fails, the `/_status` endpoint returns HTTP 503.
 
@@ -154,9 +154,9 @@ statistical gauges, and a summary histogram:
 Metrics are always available via the status port endpoints (`/_metrics/json`,
 `/_metrics/prometheus`). Additionally, metrics can be pushed to external systems:
 
-* `--metrics-graphite=ADDR` — push to a Graphite instance via raw TCP
+* `--metrics-graphite=ADDR`: push to a Graphite instance via raw TCP
   (dot-separated names, same as JSON format)
-* `--metrics-url=URL` — push via HTTP POST (JSON format) at the interval set by
+* `--metrics-url=URL`: push via HTTP POST (JSON format) at the interval set by
   `--metrics-interval` (default: 30s)
 
 ## Exposing status port with HTTP instead of HTTPS

@@ -52,8 +52,9 @@ want to show the PIN on the command line.
 
 Note that `--cert` needs to point to the certificate chain that corresponds
 to the private key in the PKCS#11 module, with the leaf certificate being the
-first certificate in the chain. Ghostunnel currently cannot read the
-certificate chain directly from the module.
+first certificate in the chain (see
+[Certificate Formats]({{< ref "CERTIFICATES.md" >}})). Ghostunnel currently
+cannot read the certificate chain directly from the module.
 
 ## Using a YubiKey
 
