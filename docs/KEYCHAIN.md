@@ -100,8 +100,8 @@ certutil -f -p <password> -user -importpfx MY server.p12
 ```
 
 This imports the certificate and private key into the current user's "MY"
-(Personal) store. The `-user` flag targets the current user context; replace
-it with `-enterprise` to import into the Local Machine store instead.
+(Personal) store. The `-user` flag targets the current user context. To import
+into the Local Machine store instead, omit `-user` (and run as administrator).
 
 **Using PowerShell**:
 

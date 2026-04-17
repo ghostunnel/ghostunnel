@@ -147,7 +147,7 @@ certificates, with the `--timed-reload` flag or via `SIGHUP`.
 To build a bundle from a `.rego` file, use the `opa build` command:
 
 ```bash
-opa build -b policy.rego -o bundle.tar.gz
+opa build policy.rego -o bundle.tar.gz
 ```
 
 See the [OPA bundle documentation][opa-bundles] for details on bundle

@@ -158,8 +158,11 @@ openssl pkcs12 -in server.p12 -info -nokeys
 ### Convert PKCS#12 to PEM
 
 ```bash
-# Extract certificate chain
+# Extract the leaf certificate
 openssl pkcs12 -in server.p12 -clcerts -nokeys -out server-cert.pem
+
+# Extract CA/intermediate certificates
+openssl pkcs12 -in server.p12 -cacerts -nokeys -out ca-chain.pem
 
 # Extract private key
 openssl pkcs12 -in server.p12 -nocerts -nodes -out server-key.pem
