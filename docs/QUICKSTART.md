@@ -29,6 +29,10 @@ go tool mage go:build
 
 ## Generate test certificates
 
+If you already maintain a PKI, you can skip this step and use your existing
+certificates. The steps below are for generating test certificates for
+testing and development purposes only.
+
 You need a CA, a server certificate, and a client certificate. The rest of
 this guide uses the paths from `test-keys/`, so adjust if you use a different
 method.
@@ -54,6 +58,10 @@ Note: mkcert sets SANs, not CNs, so use `--allow-dns localhost` instead of
 `--allow-cn client` when authorizing clients. The CA cert is at
 `$(mkcert -CAROOT)/rootCA.pem`, copy it to `test-keys/cacert.pem` to match
 the paths below.
+
+**Using [cfssl](https://github.com/cloudflare/cfssl)**: cfssl is a full-featured
+PKI toolkit that can generate CAs and sign certificates. See the
+[cfssl documentation](https://github.com/cloudflare/cfssl#readme) for usage.
 
 **Using OpenSSL** manually: see the [openssl-req](https://docs.openssl.org/master/man1/openssl-req/)
 and [openssl-x509](https://docs.openssl.org/master/man1/openssl-x509/) docs

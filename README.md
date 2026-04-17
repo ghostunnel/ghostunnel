@@ -55,10 +55,13 @@ Getting Started
 ===============
 
 To get started and play around with Ghostunnel you will need X.509 client
-and server certificates. If you don't already maintain a PKI, a good way to get
-started is to use a package like [cloudflare/cfssl](https://github.com/cloudflare/cfssl).
+and server certificates. If you already maintain a PKI, you can use your
+existing certificates. Otherwise, you can use tools like
+[mkcert](https://github.com/FiloSottile/mkcert) or
+[cloudflare/cfssl](https://github.com/cloudflare/cfssl) to build one.
 
-For testing and development purposes, you can generate test certificates using:
+For quick testing and development, you can also generate throwaway test
+certificates using the built-in generator:
 
     # Generate test certificates and keys
     go tool mage test:keys
