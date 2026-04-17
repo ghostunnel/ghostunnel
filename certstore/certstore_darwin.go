@@ -17,6 +17,7 @@ import (
 	"io"
 	"log"
 	"sync"
+	"sync/atomic"
 	"unsafe"
 )
 
@@ -120,8 +121,8 @@ func (s macStore) Close() {}
 type macIdentity struct {
 	mu    sync.Mutex
 	ref   C.SecIdentityRef
-	kref  C.SecKeyRef
-	cref  C.SecCertificateRef
+	kref  atomic.Uintptr
+	cref  atomic.Uintptr
 	crt   *x509.Certificate
 	chain []*x509.Certificate
 }
@@ -251,14 +252,12 @@ func (i *macIdentity) Close() {
 		i.ref = nilSecIdentityRef
 	}
 
-	if i.kref != nilSecKeyRef {
-		C.CFRelease(C.CFTypeRef(i.kref))
-		i.kref = nilSecKeyRef
+	if kref := C.SecKeyRef(i.kref.Swap(uintptr(nilSecKeyRef))); kref != nilSecKeyRef {
+		C.CFRelease(C.CFTypeRef(kref))
 	}
 
-	if i.cref != nilSecCertificateRef {
-		C.CFRelease(C.CFTypeRef(i.cref))
-		i.cref = nilSecCertificateRef
+	if cref := C.SecCertificateRef(i.cref.Swap(uintptr(nilSecCertificateRef))); cref != nilSecCertificateRef {
+		C.CFRelease(C.CFTypeRef(cref))
 	}
 }
 
@@ -389,15 +388,15 @@ func (i *macIdentity) getAlgo(hash crypto.Hash, opts crypto.SignerOpts) (algo C.
 
 // getKeyRef gets the SecKeyRef for this identity's private key.
 func (i *macIdentity) getKeyRef() (C.SecKeyRef, error) {
-	if i.kref != nilSecKeyRef {
-		return i.kref, nil
+	if kref := C.SecKeyRef(i.kref.Load()); kref != nilSecKeyRef {
+		return kref, nil
 	}
 
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
-	if i.kref != nilSecKeyRef {
-		return i.kref, nil
+	if kref := C.SecKeyRef(i.kref.Load()); kref != nilSecKeyRef {
+		return kref, nil
 	}
 
 	var keyRef C.SecKeyRef
@@ -405,22 +404,22 @@ func (i *macIdentity) getKeyRef() (C.SecKeyRef, error) {
 		return nilSecKeyRef, err
 	}
 
-	i.kref = keyRef
+	i.kref.Store(uintptr(keyRef))
 
-	return i.kref, nil
+	return keyRef, nil
 }
 
 // getCertRef gets the SecCertificateRef for this identity's certificate.
 func (i *macIdentity) getCertRef() (C.SecCertificateRef, error) {
-	if i.cref != nilSecCertificateRef {
-		return i.cref, nil
+	if cref := C.SecCertificateRef(i.cref.Load()); cref != nilSecCertificateRef {
+		return cref, nil
 	}
 
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
-	if i.cref != nilSecCertificateRef {
-		return i.cref, nil
+	if cref := C.SecCertificateRef(i.cref.Load()); cref != nilSecCertificateRef {
+		return cref, nil
 	}
 
 	var certRef C.SecCertificateRef
@@ -428,9 +427,9 @@ func (i *macIdentity) getCertRef() (C.SecCertificateRef, error) {
 		return nilSecCertificateRef, err
 	}
 
-	i.cref = certRef
+	i.cref.Store(uintptr(certRef))
 
-	return i.cref, nil
+	return certRef, nil
 }
 
 // exportCertRef gets a *x509.Certificate for the given SecCertificateRef.
