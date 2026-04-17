@@ -68,7 +68,10 @@ information on profiling via pprof, see the [`runtime/pprof`][pprof] and
 If `--enable-shutdown` is set, a `/_shutdown` endpoint is available on the
 status port. Sending an HTTP POST request to this endpoint will trigger a
 graceful shutdown of the Ghostunnel process. Any other HTTP method returns 405
-Method Not Allowed.
+Method Not Allowed. For details on what happens after shutdown is triggered,
+including signal handling, connection draining, and the `--shutdown-timeout`
+flag, see
+[Graceful Shutdown]({{< ref "GRACEFUL-SHUTDOWN.md" >}}).
 
 ## Backend healthchecks
 
