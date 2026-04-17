@@ -149,6 +149,27 @@ statistical gauges, and a summary histogram:
 | `ghostunnel_conn_handshake_timer_bucket{le="..."}` | Histogram buckets (0.50, 0.95, 0.99, 0.999) |
 | `ghostunnel_conn_handshake_timer_count` | Histogram observation count |
 
+### Prometheus scrape config
+
+To scrape Ghostunnel metrics with Prometheus, add a job to your
+`prometheus.yml`:
+
+```yaml
+scrape_configs:
+  - job_name: ghostunnel
+    scheme: https
+    tls_config:
+      ca_file: /path/to/cacert.pem
+      cert_file: /path/to/client-cert.pem
+      key_file: /path/to/client-key.pem
+    metrics_path: /_metrics/prometheus
+    static_configs:
+      - targets: ['localhost:6060']
+```
+
+If the status port uses HTTP (see below), set `scheme: http` and drop the
+`tls_config` block.
+
 ## Metrics export
 
 Metrics are always available via the status port endpoints (`/_metrics/json`,

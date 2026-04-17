@@ -144,6 +144,15 @@ certificates, with the `--timed-reload` flag or via `SIGHUP`.
 [opa]: https://www.openpolicyagent.org/
 [opa-bundles]: https://www.openpolicyagent.org/docs/latest/management-bundles/
 
+To build a bundle from a `.rego` file, use the `opa build` command:
+
+```bash
+opa build -b policy.rego -o bundle.tar.gz
+```
+
+See the [OPA bundle documentation][opa-bundles] for details on bundle
+structure and manifest options.
+
 To use it in server mode, specify the `--allow-policy` and `--allow-query` flags.
 
 Example:

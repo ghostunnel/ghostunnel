@@ -33,6 +33,15 @@ All suites use authenticated encryption (AEAD). CBC-mode ciphers are not
 enabled. ECDSA suites are listed before RSA to prefer ECDSA when both
 certificate types are available.
 
+To check which cipher suite and protocol version were negotiated for a
+connection:
+
+```bash
+openssl s_client -connect localhost:8443 \
+    -cert client-cert.pem -key client-key.pem -CAfile cacert.pem \
+    </dev/null 2>/dev/null | grep -E 'Protocol|Cipher'
+```
+
 In TLS 1.3, cipher suite selection is handled by Go's [`crypto/tls`][crypto-tls]
 and cannot be configured by the application. The TLS 1.3 suites listed above are always
 available when TLS 1.3 is negotiated. The configurable cipher suite list only

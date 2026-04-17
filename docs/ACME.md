@@ -43,13 +43,33 @@ disabled), so port 443 must be reachable.
 
 ## Certificate storage and renewal
 
-Certificates are stored locally by certmagic in its default storage directory
-(typically `~/.local/share/certmagic` or the equivalent on your OS). Certmagic
-automatically renews certificates before they expire, so no manual intervention
-or `--timed-reload` is needed for ACME certificates.
+Certmagic stores certificates and account keys on disk. The default location
+depends on your OS:
+
+| OS | Default path |
+|----|-------------|
+| Linux / macOS | `~/.local/share/certmagic` (or `$XDG_DATA_HOME/certmagic`) |
+| Windows | `%APPDATA%\certmagic` |
+
+Certmagic automatically renews certificates before they expire, so no manual
+intervention or `--timed-reload` is needed for ACME certificates.
 
 If a valid certificate already exists locally, Ghostunnel loads it from cache
 on startup without contacting the CA.
+
+## Revoking or force-renewing
+
+Certmagic handles renewal automatically, but if you need to force a renewal
+(e.g. after a key compromise), delete the certificate and key files from the
+certmagic storage directory and restart Ghostunnel. It will obtain a fresh
+certificate on startup.
+
+To revoke a certificate with Let's Encrypt directly, use the
+[certbot revoke][certbot-revoke] command or the ACME revocation endpoint
+described in [RFC 8555 Section 7.6][acme-revoke].
+
+[certbot-revoke]: https://eff-certbot.readthedocs.io/en/latest/using.html#revoking-certificates
+[acme-revoke]: https://datatracker.ietf.org/doc/html/rfc8555#section-7.6
 
 ## Startup retry behavior
 
