@@ -12,7 +12,7 @@ your systemd/launchd configuration.
 
 Note that socket activation is not available on Windows.
 
-### launchd
+## launchd
 
 See Apple's [Creating Launch Daemons and Agents][launchd-guide] for background
 on launchd plists.
@@ -79,7 +79,7 @@ defined for each socket. If for example the family were to be left out, launchd
 would open two sockets (IPv4 and IPv6) for the given key (like `Listener`) and
 pass them to Ghostunnel which is not currently supported.
 
-### systemd
+## systemd
 
 See the [`systemd.socket`][systemd-socket] man page for the full socket unit
 reference.

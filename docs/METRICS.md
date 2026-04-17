@@ -63,14 +63,14 @@ information on profiling via pprof, see the [`runtime/pprof`][pprof] and
 [http-pprof]: https://pkg.go.dev/net/http/pprof
 [pprof-bug]: https://github.com/golang/go/issues/20939
 
-### Shutdown endpoint
+## Shutdown endpoint
 
 If `--enable-shutdown` is set, a `/_shutdown` endpoint is available on the
 status port. Sending an HTTP POST request to this endpoint will trigger a
 graceful shutdown of the Ghostunnel process. Any other HTTP method returns 405
 Method Not Allowed.
 
-### Backend healthchecks
+## Backend healthchecks
 
 The `/_status` endpoint includes a backend healthcheck. By default, Ghostunnel
 performs a TCP connection check against the `--target` address. You can override
@@ -85,7 +85,7 @@ The `/_status` JSON response includes:
 
 If the backend check fails, the `/_status` endpoint returns HTTP 503.
 
-### Metric names
+## Metric names
 
 Ghostunnel exports the following base metrics:
 
@@ -104,7 +104,7 @@ The `--metrics-prefix` flag (default: `ghostunnel`) is prepended to all metric
 names. How the prefix and metric names are formatted depends on the output
 format (see below).
 
-### JSON format (`/_metrics/json`)
+## JSON format (`/_metrics/json`)
 
 JSON output uses dot-separated names. Counters and gauges are emitted as a
 single value. Timers are expanded into count, min/max/mean, and percentile
@@ -125,7 +125,7 @@ sub-metrics:
 Each metric is returned as a JSON object with `timestamp`, `metric`, `value`,
 and `hostname` fields.
 
-### Prometheus format (`/_metrics/prometheus`)
+## Prometheus format (`/_metrics/prometheus`)
 
 Prometheus output replaces dots, dashes, and other special characters with
 underscores to comply with Prometheus naming conventions. All metrics are
@@ -149,7 +149,7 @@ statistical gauges, and a summary histogram:
 | `ghostunnel_conn_handshake_timer_bucket{le="..."}` | Histogram buckets (0.50, 0.95, 0.99, 0.999) |
 | `ghostunnel_conn_handshake_timer_count` | Histogram observation count |
 
-### Metrics export
+## Metrics export
 
 Metrics are always available via the status port endpoints (`/_metrics/json`,
 `/_metrics/prometheus`). Additionally, metrics can be pushed to external systems:
@@ -159,7 +159,7 @@ Metrics are always available via the status port endpoints (`/_metrics/json`,
 * `--metrics-url=URL` — push via HTTP POST (JSON format) at the interval set by
   `--metrics-interval` (default: 30s)
 
-### Exposing status port with HTTP instead of HTTPS
+## Exposing status port with HTTP instead of HTTPS
 
 By default, Ghostunnel uses HTTPS for the status port. You can force it to use
 HTTP by prefixing the status address with "http://".

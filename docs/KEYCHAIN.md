@@ -9,7 +9,7 @@ Keychain or Windows Certificate Store. This lets you use Secure Enclave-backed
 keys on Touch ID MacBooks, hardware-backed keys via CNG on Windows, or simply
 manage certificates through the OS instead of as files on disk.
 
-### Prerequisites: creating a PKCS#12 bundle
+## Prerequisites: creating a PKCS#12 bundle
 
 Both macOS and Windows import certificates from [PKCS#12][openssl-pkcs12]
 (`.p12` / `.pfx`) files. If you have a PEM certificate and key, bundle them
@@ -28,7 +28,9 @@ If you also need to include intermediate CA certificates in the bundle, add
 
 [openssl-pkcs12]: https://docs.openssl.org/master/man1/openssl-pkcs12/
 
-### macOS: importing into the Keychain
+## macOS
+
+### Importing into the Keychain
 
 **Using the CLI** (recommended for automation):
 
@@ -62,7 +64,7 @@ and [TN3137: On Mac keychain APIs and implementations][apple-tn3137].
 [apple-keychain-services]: https://developer.apple.com/documentation/security/keychain-services
 [apple-tn3137]: https://developer.apple.com/documentation/technotes/tn3137-on-mac-keychains
 
-### macOS: Secure Enclave and hardware tokens
+### Secure Enclave and hardware tokens
 
 On Touch ID MacBooks, private keys can live in the Secure Enclave. Pass
 `--keychain-require-token` so Ghostunnel only loads keys backed by a hardware
@@ -87,7 +89,9 @@ hardware-backed keys.
 [apple-secure-enclave]: https://developer.apple.com/documentation/security/protecting-keys-with-the-secure-enclave
 [apple-se-overview]: https://support.apple.com/guide/security/sec59b0b31ff/web
 
-### Windows: importing into the Certificate Store
+## Windows
+
+### Importing into the Certificate Store
 
 **Using certutil** (recommended for automation):
 
@@ -128,7 +132,7 @@ See Microsoft's [certutil reference][ms-certutil],
 [ms-store-locations]: https://learn.microsoft.com/en-us/windows/win32/seccrypto/system-store-locations
 [ms-import-pfx]: https://learn.microsoft.com/en-us/powershell/module/pki/import-pfxcertificate
 
-### Selecting a certificate
+## Selecting a certificate
 
 Certificates from the keychain can be selected using one or both of the
 following flags:
@@ -141,7 +145,9 @@ When both flags are specified, Ghostunnel selects certificates where both
 attributes match (logical AND). If multiple certificates match, the one with
 the latest expiration date (NotAfter) is used.
 
-### macOS example
+## Usage examples
+
+### macOS
 
 Load an identity from the login keychain by subject name:
 
@@ -163,7 +169,7 @@ ghostunnel client \
     --cacert cacert.pem
 ```
 
-### Windows example
+### Windows
 
 On Windows, `--keychain-identity` and `--keychain-issuer` work the same way
 but search the Windows Certificate Store (the "MY" store for the current user):
@@ -176,7 +182,7 @@ ghostunnel client \
     --cacert cacert.pem
 ```
 
-### Certificate reloading
+## Certificate reloading
 
 Keychain certificates support reloading via `SIGHUP`/`SIGUSR1` or
 `--timed-reload`. On reload, Ghostunnel re-queries the keychain for a
@@ -184,7 +190,7 @@ certificate matching the same identity/issuer criteria. If the certificate
 has been updated in the keychain (e.g. renewed), the new certificate will
 be used for subsequent connections.
 
-### Removing certificates
+## Removing certificates
 
 **macOS**: remove an identity (certificate + private key) by Common Name:
 
@@ -205,7 +211,7 @@ Get-ChildItem Cert:\CurrentUser\My |
 The `-DeleteKey` flag also removes the private key. You can alternatively
 use `certutil -delstore MY <serial-or-thumbprint>`.
 
-### Troubleshooting
+## Troubleshooting
 
 **macOS: certificate not found**
 - Check the keychain search list: `security list-keychains`
@@ -219,5 +225,8 @@ use `certutil -delstore MY <serial-or-thumbprint>`.
 - Make sure the CN or serial matches what you passed to `--keychain-identity`
 
 **Access denied / permission errors**
-- **macOS**: the keychain may prompt for access. Use `-A` during import to allow all apps, or grant access to Ghostunnel specifically in Keychain Access.
-- **Windows**: the account running Ghostunnel needs read access to the private key. You can manage private key permissions through the Certificates MMC snap-in (right-click a certificate, then "All Tasks > Manage Private Keys").
+- **macOS**: the keychain may prompt for access. Use `-A` during import to allow all
+  apps, or grant access to Ghostunnel specifically in Keychain Access.
+- **Windows**: the account running Ghostunnel needs read access to the private key.
+  You can manage private key permissions through the Certificates MMC snap-in
+  (right-click a certificate, then "All Tasks > Manage Private Keys").
