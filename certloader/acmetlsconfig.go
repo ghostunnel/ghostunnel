@@ -49,6 +49,7 @@ type ACMEConfig struct {
 	MaxAttempts int
 }
 
+// TLSConfigSourceFromACME creates a TLSConfigSource that obtains certificates via ACME.
 func TLSConfigSourceFromACME(acme *ACMEConfig) (TLSConfigSource, error) {
 	certmagic.DefaultACME.DisableHTTPChallenge = true
 	certmagic.DefaultACME.Agreed = acme.TOSAgreed

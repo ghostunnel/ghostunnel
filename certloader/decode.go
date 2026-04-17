@@ -153,7 +153,7 @@ func readDERBlocks(reader io.Reader) ([]*pem.Block, error) {
 		return blocks, nil
 	}
 
-	return nil, fmt.Errorf("unable to parse DER data as X.509 (%v) or PKCS7 (%v)", err0, err1)
+	return nil, fmt.Errorf("unable to parse DER data as X.509 (%w) or PKCS7 (%w)", err0, err1)
 }
 
 func readPKCS12Blocks(reader io.Reader, password string) ([]*pem.Block, error) {

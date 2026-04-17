@@ -39,8 +39,8 @@ type TLSConfigSource interface {
 
 	// GetServerConfig returns a TLSServerConfig interface that can be used to
 	// obtain TLS server configuration. The base configuration is cloned and
-	// used as a base for all returned TLS configuration. If the TLSConfig is
-	// not appropriate for use as a server, false is returned.
+	// used as a base for all returned TLS configuration. If the source is
+	// not appropriate for use as a server, an error is returned.
 	GetServerConfig(base *tls.Config) (TLSServerConfig, error)
 }
 
