@@ -158,6 +158,7 @@ func (i *macIdentity) CertificateChain() ([]*x509.Certificate, error) {
 	}
 
 	policy := C.SecPolicyCreateSSL(0, nilCFStringRef)
+	defer C.CFRelease(C.CFTypeRef(policy))
 
 	var trustRef C.SecTrustRef
 	if err := osStatusError(C.SecTrustCreateWithCertificates(C.CFTypeRef(certRef), C.CFTypeRef(policy), &trustRef)); err != nil {
@@ -170,6 +171,9 @@ func (i *macIdentity) CertificateChain() ([]*x509.Certificate, error) {
 	// us if the chain isn't trusted by the underlying system.
 	var cerr C.CFErrorRef
 	C.SecTrustEvaluateWithError(trustRef, &cerr)
+	if cerr != nilCFErrorRef {
+		C.CFRelease(C.CFTypeRef(cerr))
+	}
 
 	var (
 		nchain = C.SecTrustGetCertificateCount(trustRef)
