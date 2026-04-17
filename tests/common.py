@@ -259,15 +259,19 @@ class RootCert:
                 except OSError:
                     pass  # file may not exist
 
-def assert_connection_rejected(client, server, name, timeout_ok=True):
+def assert_connection_rejected(client, server, name, timeout_ok=True, timeout=2):
     """Assert that a SocketPair connection is rejected.
 
     By default accepts both ssl.SSLError and TimeoutError (appropriate for
     server-side rejection tests). Pass timeout_ok=False to only accept
     ssl.SSLError — use this for client-side tests where ghostunnel performs
-    the TLS verification and should fail the handshake immediately."""
+    the TLS verification and should fail the handshake immediately.
+
+    When timeout_ok is True, a short timeout (default 2s) is used on the
+    backend accept to avoid waiting the full TIMEOUT (10s) for connections
+    that will never be forwarded."""
     try:
-        SocketPair(client, server)
+        SocketPair(client, server, timeout=timeout if timeout_ok else None)
         raise Exception('failed to reject {0}'.format(name))
     except ssl.SSLError:
         print_ok("{0} correctly rejected".format(name))
@@ -667,9 +671,10 @@ class UnixServer(MySocket):
 
 
 class SocketPair:
-    def __init__(self, client, server):
+    def __init__(self, client, server, timeout=None):
         self.client = client
         self.server = server
+        self.timeout = timeout
         self.client_sock = None
         self.server_sock = None
         self.connect()
@@ -684,6 +689,13 @@ class SocketPair:
         # implies we either need to create threads or we create the server/client
         # sockets in a specific order.
         self.server.listen()
+
+        # Override the listener timeout if a shorter one was requested (e.g.
+        # for assert_connection_rejected where we expect the accept to fail).
+        if self.timeout is not None:
+            listener = getattr(self.server, 'tls_listener', None) or getattr(self.server, 'listener', None)
+            if listener is not None:
+                listener.settimeout(self.timeout)
 
         # note: there might be a bug in the way we handle unix sockets. Ideally,
         # the check below should be the first thing we do in SocketPair().
