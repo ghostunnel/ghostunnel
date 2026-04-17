@@ -20,7 +20,7 @@ import (
 	"github.com/open-policy-agent/opa/v1/rego"
 )
 
-// Policy wraps a OPA policy and supports reloading at runtime.
+// Policy wraps an OPA policy and supports reloading at runtime.
 type Policy interface {
 	// Reload will reload the policy. Subsequent calls to Evaluate will run
 	// the newly loaded policy, if reloading was successful. If reloading fails,
