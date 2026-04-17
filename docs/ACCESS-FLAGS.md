@@ -135,11 +135,14 @@ but the backend doesn't require mutual authentication.
 
 ## Open Policy Agent
 
-Ghostunnel has support for Open Policy Agent (OPA), both in server and client
-mode. The policy bundle must be present on disk for Ghostunnel to use it and the
-use of OPA is mutually exclusive with any other `allow` (or `verify`) flags.
-Policy bundles can be reloaded at runtime much like certificates, with the
-`--timed-reload` flag or via `SIGHUP`.
+Ghostunnel has support for [Open Policy Agent][opa] (OPA), both in server and
+client mode. The policy must be provided as an [OPA bundle][opa-bundles] on
+disk and the use of OPA is mutually exclusive with any other `allow` (or
+`verify`) flags. Policy bundles can be reloaded at runtime much like
+certificates, with the `--timed-reload` flag or via `SIGHUP`.
+
+[opa]: https://www.openpolicyagent.org/
+[opa-bundles]: https://www.openpolicyagent.org/docs/latest/management-bundles/
 
 To use it in server mode, specify the `--allow-policy` and `--allow-query` flags.
 

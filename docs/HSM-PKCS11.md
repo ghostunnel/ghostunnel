@@ -4,8 +4,9 @@ description: Load private keys from hardware security modules via the PKCS#11 in
 weight: 40
 ---
 
-Ghostunnel has support for loading private keys from PKCS#11 modules, which
-should work with any hardware security module that exposes a PKCS#11 interface.
+Ghostunnel has support for loading private keys from [PKCS#11][pkcs11-spec]
+modules, which should work with any hardware security module that exposes a
+PKCS#11 interface.
 An easy way to test the PKCS#11 interface for development purposes is with
 [SoftHSM][softhsm]. Note that CGO is required in order for PKCS#11 support to
 work.
@@ -203,4 +204,5 @@ pkcs11-tool --module $MODULE -O -y cert
 pkcs11-tool --module $MODULE --label $LABEL --read-object -y cert
 ```
 
+[pkcs11-spec]: https://docs.oasis-open.org/pkcs11/pkcs11-spec/v3.1/pkcs11-spec-v3.1.html
 [pkcs11-tool]: https://github.com/OpenSC/OpenSC/wiki/SmartCardHSM#using-pkcs11-tool

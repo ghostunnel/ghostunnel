@@ -14,6 +14,9 @@ Note that socket activation is not available on Windows.
 
 ### launchd
 
+See Apple's [Creating Launch Daemons and Agents][launchd-guide] for background
+on launchd plists.
+
 A launchd plist to launch Ghostunnel in server mode on :8081,
 listening for status connections on :8082, and forwarding connections to :8083
 could look like this:
@@ -78,6 +81,9 @@ pass them to Ghostunnel which is not currently supported.
 
 ### systemd
 
+See the [`systemd.socket`][systemd-socket] man page for the full socket unit
+reference.
+
 A systemd unit for a `ghostunnel.socket` for listening on `*:8443` could look
 like this:
 
@@ -117,3 +123,6 @@ used to distinguish the listening and status sockets.
 
 Ghostunnel also supports systemd notify and watchdog functionality. See
 [WATCHDOG]({{< ref "WATCHDOG.md" >}}) for details on configuring `Type=notify-reload` services.
+
+[launchd-guide]: https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html
+[systemd-socket]: https://www.freedesktop.org/software/systemd/man/latest/systemd.socket.html

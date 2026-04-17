@@ -220,6 +220,4 @@ use `certutil -delstore MY <serial-or-thumbprint>`.
 
 **Access denied / permission errors**
 - **macOS**: the keychain may prompt for access. Use `-A` during import to allow all apps, or grant access to Ghostunnel specifically in Keychain Access.
-- **Windows**: the account running Ghostunnel needs read access to the private key. See [Manage private key permissions][ms-private-key-perms].
-
-[ms-private-key-perms]: https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/technical-reference/manage-ssl-certificates-ad-fs-wap#manage-private-key-permissions
+- **Windows**: the account running Ghostunnel needs read access to the private key. You can manage private key permissions through the Certificates MMC snap-in (right-click a certificate, then "All Tasks > Manage Private Keys").

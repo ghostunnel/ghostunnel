@@ -33,8 +33,8 @@ All suites use authenticated encryption (AEAD). CBC-mode ciphers are not
 enabled. ECDSA suites are listed before RSA to prefer ECDSA when both
 certificate types are available.
 
-In TLS 1.3, cipher suite selection is handled by Go's `crypto/tls` and cannot
-be configured by the application. The TLS 1.3 suites listed above are always
+In TLS 1.3, cipher suite selection is handled by Go's [`crypto/tls`][crypto-tls]
+and cannot be configured by the application. The TLS 1.3 suites listed above are always
 available when TLS 1.3 is negotiated. The configurable cipher suite list only
 affects TLS 1.2 connections.
 
@@ -89,9 +89,9 @@ localhost risks unauthorized access to the proxied service.
 
 ## Landlock sandboxing
 
-On Linux, Ghostunnel uses [Landlock](https://landlock.io) to restrict its own
-process privileges after startup. Landlock is a kernel-level access control
-mechanism that limits which files and network ports a process can access.
+On Linux, Ghostunnel uses [Landlock][landlock] to restrict its own process
+privileges after startup. Landlock is a kernel-level access control mechanism
+that limits which files and network ports a process can access.
 
 ### How it works
 
@@ -117,3 +117,6 @@ Landlock can be disabled with `--disable-landlock` if it causes issues with
 your deployment. This is not recommended. Landlock is also automatically
 disabled when PKCS#11 is in use, since PKCS#11 modules are opaque shared
 libraries that may require access to arbitrary files and sockets.
+
+[crypto-tls]: https://pkg.go.dev/crypto/tls
+[landlock]: https://docs.kernel.org/userspace-api/landlock.html
