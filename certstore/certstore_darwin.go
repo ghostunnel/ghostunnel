@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"sync"
 	"unsafe"
 )
 
@@ -117,6 +118,7 @@ func (s macStore) Close() {}
 
 // macIdentity implements the Identity interface.
 type macIdentity struct {
+	mu    sync.Mutex
 	ref   C.SecIdentityRef
 	kref  C.SecKeyRef
 	cref  C.SecCertificateRef
@@ -241,6 +243,9 @@ func (i *macIdentity) Delete() error {
 
 // Close implements the Identity interface.
 func (i *macIdentity) Close() {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
 	if i.ref != nilSecIdentityRef {
 		C.CFRelease(C.CFTypeRef(i.ref))
 		i.ref = nilSecIdentityRef
@@ -384,6 +389,9 @@ func (i *macIdentity) getAlgo(hash crypto.Hash, opts crypto.SignerOpts) (algo C.
 
 // getKeyRef gets the SecKeyRef for this identity's pricate key.
 func (i *macIdentity) getKeyRef() (C.SecKeyRef, error) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
 	if i.kref != nilSecKeyRef {
 		return i.kref, nil
 	}
@@ -400,6 +408,9 @@ func (i *macIdentity) getKeyRef() (C.SecKeyRef, error) {
 
 // getCertRef gets the SecCertificateRef for this identity's certificate.
 func (i *macIdentity) getCertRef() (C.SecCertificateRef, error) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
 	if i.cref != nilSecCertificateRef {
 		return i.cref, nil
 	}
