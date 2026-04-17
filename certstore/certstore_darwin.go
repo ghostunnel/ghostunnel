@@ -387,7 +387,7 @@ func (i *macIdentity) getAlgo(hash crypto.Hash, opts crypto.SignerOpts) (algo C.
 	return
 }
 
-// getKeyRef gets the SecKeyRef for this identity's pricate key.
+// getKeyRef gets the SecKeyRef for this identity's private key.
 func (i *macIdentity) getKeyRef() (C.SecKeyRef, error) {
 	if i.kref != nilSecKeyRef {
 		return i.kref, nil
