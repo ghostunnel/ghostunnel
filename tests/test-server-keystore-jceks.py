@@ -9,9 +9,9 @@ packages them into a PKCS#12 file, then converts to JCEKS format
 using keytool -importkeystore.
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, check_keytool, convert_p12_to_jceks, print_ok, run_ghostunnel, skip_on_windows, terminate, LISTEN_PORT, TARGET_PORT
+from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpServer, TlsClient, check_keytool, convert_p12_to_jceks, print_ok, run_ghostunnel, require_platform, terminate, LISTEN_PORT, TARGET_PORT
 
-skip_on_windows("requires keytool/JCEKS")
+require_platform('Darwin', 'Linux', 'BSD')
 
 ghostunnel = None
 try:
