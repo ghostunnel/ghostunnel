@@ -458,6 +458,47 @@ func TestProxyLoggingFlags(t *testing.T) {
 	assert.Equal(t, proxyLoggerFlags([]string{"conns", "conn-errs"}), proxy.LogHandshakeErrors)
 }
 
+func TestServerProxyProtoMode(t *testing.T) {
+	// Save and restore globals
+	origProto := *serverProxyProtocol
+	origMode := *serverProxyProtocolMode
+	defer func() {
+		*serverProxyProtocol = origProto
+		*serverProxyProtocolMode = origMode
+	}()
+
+	// Neither flag set → Off
+	*serverProxyProtocol = false
+	*serverProxyProtocolMode = ""
+	assert.Equal(t, proxy.ProxyProtocolOff, serverProxyProtoMode())
+
+	// Only --proxy-protocol → Conn
+	*serverProxyProtocol = true
+	*serverProxyProtocolMode = ""
+	assert.Equal(t, proxy.ProxyProtocolConn, serverProxyProtoMode())
+
+	// Only --proxy-protocol-mode=tls → TLS
+	*serverProxyProtocol = false
+	*serverProxyProtocolMode = "tls"
+	assert.Equal(t, proxy.ProxyProtocolTLS, serverProxyProtoMode())
+
+	// Only --proxy-protocol-mode=tls-full → TLSFull
+	*serverProxyProtocol = false
+	*serverProxyProtocolMode = "tls-full"
+	assert.Equal(t, proxy.ProxyProtocolTLSFull, serverProxyProtoMode())
+
+	// Only --proxy-protocol-mode=conn → Conn
+	*serverProxyProtocol = false
+	*serverProxyProtocolMode = "conn"
+	assert.Equal(t, proxy.ProxyProtocolConn, serverProxyProtoMode())
+
+	// Both set: validation rejects this combination
+	*serverProxyProtocol = true
+	*serverProxyProtocolMode = "tls-full"
+	err := validateServerProxyProtocol()
+	assert.ErrorContains(t, err, "mutually exclusive")
+}
+
 // failingTLSConfigSource is a mock TLSConfigSource that always returns errors
 type failingTLSConfigSource struct{}
 

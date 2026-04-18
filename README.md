@@ -373,10 +373,13 @@ See [SOCKET-ACTIVATION](docs/SOCKET-ACTIVATION.md) for examples.
 ### PROXY Protocol Support
 
 Ghostunnel in server mode supports signalling of transport connection information
-to the backend using the [PROXY protocol](https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt)
-(v2), just pass the `--proxy-protocol` flag on startup. Note that the backend must
-also support the PROXY protocol and must be configured to use it when setting
-this option.
+to the backend using the [PROXY protocol](https://www.haproxy.org/download/3.1/doc/proxy-protocol.txt)
+(v2), just pass the `--proxy-protocol` flag on startup. Use `--proxy-protocol-mode`
+to also include TLS metadata and/or client certificate details. Note that the
+backend must support the PROXY protocol and must be configured to use it when
+setting this option.
+
+See [PROXY-PROTOCOL](docs/PROXY-PROTOCOL.md) for details on modes and TLV extensions.
 
 ### Landlock Support
 

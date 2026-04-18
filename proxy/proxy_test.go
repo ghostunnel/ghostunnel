@@ -20,9 +20,17 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"net"
 	"os"
 	"testing"
@@ -45,11 +53,11 @@ func (m *failingListener) Close() error              { return nil }
 func (m *failingListener) Addr() net.Addr            { return nil }
 
 func proxyForTest(listener net.Listener, dialer DialFunc) *Proxy {
-	return New(listener, 5*time.Second, 5*time.Second, 5*time.Second, 1, dialer, &testLogger{}, LogEverything, false)
+	return New(listener, 5*time.Second, 5*time.Second, 5*time.Second, 1, dialer, &testLogger{}, LogEverything, ProxyProtocolOff)
 }
 
 func proxyForTestWithProxyProtocol(listener net.Listener, dialer DialFunc) *Proxy {
-	return New(listener, 5*time.Second, 5*time.Second, 5*time.Second, 1, dialer, &testLogger{}, LogEverything, true)
+	return New(listener, 5*time.Second, 5*time.Second, 5*time.Second, 1, dialer, &testLogger{}, LogEverything, ProxyProtocolConn)
 }
 
 func TestAbortedConnection(t *testing.T) {
@@ -534,7 +542,7 @@ func TestForceHandshakeNonTLSConn(t *testing.T) {
 
 func TestLogConnectionMessageDisabled(t *testing.T) {
 	// Test with LogConnections disabled
-	p := New(nil, 5*time.Second, 5*time.Second, 0, 0, nil, &testLogger{}, 0, false)
+	p := New(nil, 5*time.Second, 5*time.Second, 0, 0, nil, &testLogger{}, 0, ProxyProtocolOff)
 
 	// Create pipe connections
 	src, dst := net.Pipe()
@@ -552,7 +560,7 @@ func TestLogConditional(t *testing.T) {
 	}}
 
 	// Test with flag enabled
-	p := New(nil, 5*time.Second, 5*time.Second, 0, 0, nil, logger, LogConnectionErrors, false)
+	p := New(nil, 5*time.Second, 5*time.Second, 0, 0, nil, logger, LogConnectionErrors, ProxyProtocolOff)
 	p.logConditional(LogConnectionErrors, "test message")
 	assert.True(t, logged, "should log when flag is enabled")
 
@@ -568,4 +576,363 @@ type callbackLogger struct {
 
 func (c *callbackLogger) Printf(format string, v ...any) {
 	c.callback(format, v...)
+}
+
+func TestTransportProtocol(t *testing.T) {
+	t.Run("IPv4", func(t *testing.T) {
+		ln, err := net.Listen("tcp4", "127.0.0.1:0")
+		assert.Nil(t, err)
+		defer ln.Close()
+
+		go func() {
+			c, _ := ln.Accept()
+			if c != nil {
+				c.Close()
+			}
+		}()
+
+		conn, err := net.Dial("tcp4", ln.Addr().String())
+		assert.Nil(t, err)
+		defer conn.Close()
+
+		assert.Equal(t, proxyproto.TCPv4, transportProtocol(conn))
+	})
+
+	t.Run("IPv6", func(t *testing.T) {
+		ln, err := net.Listen("tcp6", "[::1]:0")
+		if err != nil {
+			t.Skip("IPv6 not available")
+		}
+		defer ln.Close()
+
+		go func() {
+			c, _ := ln.Accept()
+			if c != nil {
+				c.Close()
+			}
+		}()
+
+		conn, err := net.Dial("tcp6", ln.Addr().String())
+		assert.Nil(t, err)
+		defer conn.Close()
+
+		assert.Equal(t, proxyproto.TCPv6, transportProtocol(conn))
+	})
+
+	t.Run("non-TCP fallback", func(t *testing.T) {
+		conn := &mockConn{} // RemoteAddr returns *net.IPAddr, not *net.TCPAddr
+		assert.Equal(t, proxyproto.TCPv4, transportProtocol(conn))
+	})
+}
+
+// selfSignedCert creates a self-signed certificate for testing.
+func selfSignedCert(t *testing.T) (tls.Certificate, *x509.Certificate) {
+	t.Helper()
+
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	assert.Nil(t, err)
+
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			CommonName:         "test-cn",
+			OrganizationalUnit: []string{"test-ou"},
+		},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(time.Hour),
+		KeyUsage:              x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		IPAddresses:           []net.IP{net.IPv4(127, 0, 0, 1)},
+	}
+
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	assert.Nil(t, err)
+
+	parsedCert, err := x509.ParseCertificate(certDER)
+	assert.Nil(t, err)
+
+	return tls.Certificate{
+		Certificate: [][]byte{certDER},
+		PrivateKey:  key,
+	}, parsedCert
+}
+
+func TestBuildSSLTLV(t *testing.T) {
+	t.Run("without client cert", func(t *testing.T) {
+		state := &tls.ConnectionState{
+			Version:     tls.VersionTLS13,
+			CipherSuite: tls.TLS_AES_128_GCM_SHA256,
+		}
+
+		tlv, err := buildSSLTLV(state, ProxyProtocolTLSFull)
+		assert.Nil(t, err)
+		assert.Equal(t, proxyproto.PP2_TYPE_SSL, tlv.Type)
+
+		// Parse 5-byte sub-header
+		assert.True(t, len(tlv.Value) >= 5, "SSL TLV value must be at least 5 bytes")
+		flags := tlv.Value[0]
+		verify := binary.BigEndian.Uint32(tlv.Value[1:5])
+
+		assert.Equal(t, byte(pp2ClientSSL), flags, "should only have PP2_CLIENT_SSL flag")
+		assert.Equal(t, uint32(0), verify, "verify result should be 0")
+
+		// Parse nested sub-TLVs
+		subTLVs, err := proxyproto.SplitTLVs(tlv.Value[5:])
+		assert.Nil(t, err)
+
+		// Should have VERSION only, not CN/CLIENT_CERT
+		typeSet := make(map[proxyproto.PP2Type][]byte)
+		for _, st := range subTLVs {
+			typeSet[st.Type] = st.Value
+		}
+
+		assert.Contains(t, typeSet, proxyproto.PP2_SUBTYPE_SSL_VERSION)
+		assert.Equal(t, "TLS 1.3", string(typeSet[proxyproto.PP2_SUBTYPE_SSL_VERSION]))
+		assert.NotContains(t, typeSet, proxyproto.PP2_SUBTYPE_SSL_CN)
+		assert.NotContains(t, typeSet, proxyproto.PP2_SUBTYPE_SSL_CLIENT_CERT)
+	})
+
+	t.Run("with client cert", func(t *testing.T) {
+		_, parsedCert := selfSignedCert(t)
+
+		state := &tls.ConnectionState{
+			Version:          tls.VersionTLS13,
+			CipherSuite:      tls.TLS_AES_128_GCM_SHA256,
+			PeerCertificates: []*x509.Certificate{parsedCert},
+		}
+
+		tlv, err := buildSSLTLV(state, ProxyProtocolTLSFull)
+		assert.Nil(t, err)
+
+		// Parse sub-header
+		flags := tlv.Value[0]
+		assert.Equal(t, byte(pp2ClientSSL|pp2ClientCertConn|pp2ClientCertSess), flags)
+
+		// Parse nested sub-TLVs
+		subTLVs, err := proxyproto.SplitTLVs(tlv.Value[5:])
+		assert.Nil(t, err)
+
+		typeSet := make(map[proxyproto.PP2Type][]byte)
+		for _, st := range subTLVs {
+			typeSet[st.Type] = st.Value
+		}
+
+		assert.Equal(t, "test-cn", string(typeSet[proxyproto.PP2_SUBTYPE_SSL_CN]))
+		assert.NotContains(t, typeSet, proxyproto.PP2_SUBTYPE_SSL_KEY_ALG)
+		assert.Equal(t, parsedCert.Raw, typeSet[proxyproto.PP2_SUBTYPE_SSL_CLIENT_CERT])
+	})
+
+	t.Run("TLS mode excludes client cert", func(t *testing.T) {
+		_, parsedCert := selfSignedCert(t)
+
+		state := &tls.ConnectionState{
+			Version:          tls.VersionTLS13,
+			CipherSuite:      tls.TLS_AES_128_GCM_SHA256,
+			PeerCertificates: []*x509.Certificate{parsedCert},
+		}
+
+		tlv, err := buildSSLTLV(state, ProxyProtocolTLS)
+		assert.Nil(t, err)
+
+		// Parse sub-header: should only have PP2_CLIENT_SSL (no cert flags)
+		flags := tlv.Value[0]
+		assert.Equal(t, byte(pp2ClientSSL), flags, "TLS mode should not set cert flags")
+
+		// Parse nested sub-TLVs: should have version but no cert details
+		subTLVs, err := proxyproto.SplitTLVs(tlv.Value[5:])
+		assert.Nil(t, err)
+
+		typeSet := make(map[proxyproto.PP2Type][]byte)
+		for _, st := range subTLVs {
+			typeSet[st.Type] = st.Value
+		}
+
+		assert.Contains(t, typeSet, proxyproto.PP2_SUBTYPE_SSL_VERSION)
+		assert.NotContains(t, typeSet, proxyproto.PP2_SUBTYPE_SSL_CN)
+		assert.NotContains(t, typeSet, proxyproto.PP2_SUBTYPE_SSL_CLIENT_CERT)
+	})
+}
+
+func TestBuildTLVs(t *testing.T) {
+	t.Run("with ALPN and SNI", func(t *testing.T) {
+		state := &tls.ConnectionState{
+			Version:            tls.VersionTLS13,
+			CipherSuite:        tls.TLS_AES_128_GCM_SHA256,
+			NegotiatedProtocol: "h2",
+			ServerName:         "example.com",
+		}
+
+		tlvs, err := buildTLVs(state, ProxyProtocolTLSFull)
+		assert.Nil(t, err)
+
+		typeSet := make(map[proxyproto.PP2Type][]byte)
+		for _, tlv := range tlvs {
+			typeSet[tlv.Type] = tlv.Value
+		}
+
+		assert.Equal(t, "h2", string(typeSet[proxyproto.PP2_TYPE_ALPN]))
+		assert.Equal(t, "example.com", string(typeSet[proxyproto.PP2_TYPE_AUTHORITY]))
+		assert.Contains(t, typeSet, proxyproto.PP2_TYPE_SSL)
+	})
+
+	t.Run("without ALPN and SNI", func(t *testing.T) {
+		state := &tls.ConnectionState{
+			Version:     tls.VersionTLS13,
+			CipherSuite: tls.TLS_AES_128_GCM_SHA256,
+		}
+
+		tlvs, err := buildTLVs(state, ProxyProtocolTLSFull)
+		assert.Nil(t, err)
+
+		typeSet := make(map[proxyproto.PP2Type][]byte)
+		for _, tlv := range tlvs {
+			typeSet[tlv.Type] = tlv.Value
+		}
+
+		assert.NotContains(t, typeSet, proxyproto.PP2_TYPE_ALPN)
+		assert.NotContains(t, typeSet, proxyproto.PP2_TYPE_AUTHORITY)
+		assert.Contains(t, typeSet, proxyproto.PP2_TYPE_SSL)
+	})
+
+	t.Run("TLS mode with client cert", func(t *testing.T) {
+		_, parsedCert := selfSignedCert(t)
+
+		state := &tls.ConnectionState{
+			Version:            tls.VersionTLS13,
+			CipherSuite:        tls.TLS_AES_128_GCM_SHA256,
+			NegotiatedProtocol: "h2",
+			ServerName:         "example.com",
+			PeerCertificates:   []*x509.Certificate{parsedCert},
+		}
+
+		tlvs, err := buildTLVs(state, ProxyProtocolTLS)
+		assert.Nil(t, err)
+
+		typeSet := make(map[proxyproto.PP2Type][]byte)
+		for _, tlv := range tlvs {
+			typeSet[tlv.Type] = tlv.Value
+		}
+
+		// ALPN, SNI, SSL should be present
+		assert.Equal(t, "h2", string(typeSet[proxyproto.PP2_TYPE_ALPN]))
+		assert.Equal(t, "example.com", string(typeSet[proxyproto.PP2_TYPE_AUTHORITY]))
+		assert.Contains(t, typeSet, proxyproto.PP2_TYPE_SSL)
+
+		// SSL TLV should have version but no client cert sub-TLVs
+		sslValue := typeSet[proxyproto.PP2_TYPE_SSL]
+		subTLVs, err := proxyproto.SplitTLVs(sslValue[5:])
+		assert.Nil(t, err)
+
+		subTypeSet := make(map[proxyproto.PP2Type]bool)
+		for _, st := range subTLVs {
+			subTypeSet[st.Type] = true
+		}
+		assert.True(t, subTypeSet[proxyproto.PP2_SUBTYPE_SSL_VERSION])
+		assert.False(t, subTypeSet[proxyproto.PP2_SUBTYPE_SSL_CN])
+		assert.False(t, subTypeSet[proxyproto.PP2_SUBTYPE_SSL_CLIENT_CERT])
+	})
+}
+
+func TestProxyProtoHeaderWithTLS(t *testing.T) {
+	_, parsedCert := selfSignedCert(t)
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	assert.Nil(t, err)
+	defer ln.Close()
+
+	go func() {
+		c, _ := ln.Accept()
+		if c != nil {
+			c.Close()
+		}
+	}()
+
+	conn, err := net.Dial("tcp", ln.Addr().String())
+	assert.Nil(t, err)
+	defer conn.Close()
+
+	state := &tls.ConnectionState{
+		Version:          tls.VersionTLS13,
+		CipherSuite:      tls.TLS_AES_128_GCM_SHA256,
+		ServerName:       "example.com",
+		PeerCertificates: []*x509.Certificate{parsedCert},
+	}
+
+	h := proxyProtoHeader(conn, state, ProxyProtocolTLSFull, &testLogger{})
+	assert.Equal(t, uint8(2), h.Version)
+	assert.Equal(t, proxyproto.PROXY, proxyproto.ProtocolVersionAndCommand(h.Command))
+	assert.Equal(t, proxyproto.TCPv4, proxyproto.AddressFamilyAndProtocol(h.TransportProtocol))
+
+	// Verify TLVs are present
+	tlvs, err := h.TLVs()
+	assert.Nil(t, err)
+	assert.True(t, len(tlvs) > 0, "should have TLVs when TLS state is provided")
+
+	typeSet := make(map[proxyproto.PP2Type]bool)
+	for _, tlv := range tlvs {
+		typeSet[tlv.Type] = true
+	}
+	assert.True(t, typeSet[proxyproto.PP2_TYPE_SSL])
+	assert.True(t, typeSet[proxyproto.PP2_TYPE_AUTHORITY])
+}
+
+func TestProxyProtoHeaderWithoutTLS(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	assert.Nil(t, err)
+	defer ln.Close()
+
+	go func() {
+		c, _ := ln.Accept()
+		if c != nil {
+			c.Close()
+		}
+	}()
+
+	conn, err := net.Dial("tcp", ln.Addr().String())
+	assert.Nil(t, err)
+	defer conn.Close()
+
+	h := proxyProtoHeader(conn, nil, ProxyProtocolTLSFull, &testLogger{})
+	assert.Equal(t, uint8(2), h.Version)
+
+	// Verify no TLVs when no TLS state
+	tlvs, err := h.TLVs()
+	assert.Nil(t, err)
+	assert.Empty(t, tlvs, "should have no TLVs when TLS state is nil")
+}
+
+func TestProxyProtoHeaderConnMode(t *testing.T) {
+	_, parsedCert := selfSignedCert(t)
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	assert.Nil(t, err)
+	defer ln.Close()
+
+	go func() {
+		c, _ := ln.Accept()
+		if c != nil {
+			c.Close()
+		}
+	}()
+
+	conn, err := net.Dial("tcp", ln.Addr().String())
+	assert.Nil(t, err)
+	defer conn.Close()
+
+	state := &tls.ConnectionState{
+		Version:          tls.VersionTLS13,
+		CipherSuite:      tls.TLS_AES_128_GCM_SHA256,
+		ServerName:       "example.com",
+		PeerCertificates: []*x509.Certificate{parsedCert},
+	}
+
+	// Conn mode should send connection info but no TLVs, even with TLS state
+	h := proxyProtoHeader(conn, state, ProxyProtocolConn, &testLogger{})
+	assert.Equal(t, uint8(2), h.Version)
+	assert.Equal(t, proxyproto.PROXY, proxyproto.ProtocolVersionAndCommand(h.Command))
+
+	tlvs, err := h.TLVs()
+	assert.Nil(t, err)
+	assert.Empty(t, tlvs, "conn mode should have no TLVs even with TLS state")
 }

@@ -67,6 +67,14 @@ from any client. This means that anyone will be able to establish a connection
 to the Ghostunnel server. This flag is mutually exclusive with other access
 control flags.
 
+### Passing client identity to backends
+
+Ghostunnel verifies client certificates before forwarding connections, but
+backends may also need to know the client's identity for their own access
+control, logging, or auditing. Use `--proxy-protocol-mode=tls-full` to forward
+the client certificate (CN, full DER-encoded cert) to the backend via
+[PROXY protocol v2]({{< ref "PROXY-PROTOCOL.md" >}}) TLV extensions.
+
 ## Client mode
 
 Ghostunnel in client mode offers various flags that can be used to augment and

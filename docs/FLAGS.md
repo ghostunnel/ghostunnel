@@ -109,10 +109,13 @@ See [Socket Activation]({{< ref "SOCKET-ACTIVATION.md" >}}) for `systemd:NAME` a
 
 ### Proxying
 
+See [PROXY Protocol]({{< ref "PROXY-PROTOCOL.md" >}}) for details on modes and TLV extensions.
+
 | Flag | Description |
 |------|-------------|
 | `--target-status URL` | Address to target for status checking downstream healthchecks. Defaults to TCP healthcheck if not passed. |
-| `--proxy-protocol` | Enable PROXY protocol v2 to signal connection info to backend. |
+| `--proxy-protocol` | Enable PROXY protocol v2 with connection info only (equivalent to `--proxy-protocol-mode=conn`). |
+| `--proxy-protocol-mode MODE` | PROXY protocol v2 mode: `conn`, `tls`, or `tls-full`. Mutually exclusive with `--proxy-protocol`. |
 | `--unsafe-target` | Do not limit target to localhost, `127.0.0.1`, `[::1]`, or UNIX sockets. See [Security]({{< ref "SECURITY.md" >}}). |
 
 ### Access Control

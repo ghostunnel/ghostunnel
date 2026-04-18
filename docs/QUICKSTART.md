@@ -134,4 +134,5 @@ forwarded the plaintext request to the backend.
 - [Access Control Flags]({{< ref "ACCESS-FLAGS.md" >}}): control who can connect (CN, OU, DNS/URI SAN, OPA)
 - [ACME Support]({{< ref "ACME.md" >}}): automatic certificates from Let's Encrypt
 - [Metrics & Profiling]({{< ref "METRICS.md" >}}): status port, Prometheus metrics, pprof
+- [PROXY Protocol]({{< ref "PROXY-PROTOCOL.md" >}}): pass client connection metadata to backends
 - [Socket Activation]({{< ref "SOCKET-ACTIVATION.md" >}}) and [Systemd Watchdog]({{< ref "WATCHDOG.md" >}}): run Ghostunnel as a service
