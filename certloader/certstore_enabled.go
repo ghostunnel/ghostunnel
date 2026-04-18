@@ -40,6 +40,9 @@ type certstoreCertificate struct {
 	requireToken bool
 	// Added logger, useful for certstore logging
 	logger *log.Logger
+	// openStore allows injecting a custom store opener for testing.
+	// If nil, defaults to certstore.Open.
+	openStore func(*log.Logger) (certstore.Store, error)
 }
 
 // SupportsKeychain returns true or false, depending on whether the
@@ -69,7 +72,12 @@ func CertificateFromKeychainIdentity(
 
 // Reload transparently reloads the certificate.
 func (c *certstoreCertificate) Reload() error {
-	store, err := certstore.Open(c.logger)
+	opener := c.openStore
+	if opener == nil {
+		opener = certstore.Open
+	}
+
+	store, err := opener(c.logger)
 	if err != nil {
 		return err
 	}
@@ -93,21 +101,30 @@ func (c *certstoreCertificate) Reload() error {
 			continue
 		}
 
-		bothFiltersPresent := c.commonNameOrSerial != "" && c.issuerName != ""
-		issuerNameMatches := chain[0].Issuer.CommonName == c.issuerName
+		hasIdentityFilter := c.commonNameOrSerial != ""
+		hasIssuerFilter := c.issuerName != ""
 
-		commonNameOrSerialMatches :=
-			chain[0].SerialNumber.String() == c.commonNameOrSerial ||
-				chain[0].Subject.CommonName == c.commonNameOrSerial
+		commonNameOrSerialMatches := hasIdentityFilter &&
+			(chain[0].SerialNumber.String() == c.commonNameOrSerial ||
+				chain[0].Subject.CommonName == c.commonNameOrSerial)
 
-		if (bothFiltersPresent && commonNameOrSerialMatches && issuerNameMatches) ||
-			(!bothFiltersPresent && (commonNameOrSerialMatches || issuerNameMatches)) {
-			// If both a serial/name and an issuer was specified, we want to
-			// filter on both of them to support e.g. a case where there's two
-			// certs with the same name but from different issuers. If only one
-			// of serial/name or issuer was specified we'll take the certs that
-			// match whatever we have.
-			candidates = append(candidates, identity)
+		issuerNameMatches := hasIssuerFilter &&
+			chain[0].Issuer.CommonName == c.issuerName
+
+		if hasIdentityFilter && hasIssuerFilter {
+			// Both filters specified: require both to match, to support
+			// e.g. two certs with the same name but from different issuers.
+			if commonNameOrSerialMatches && issuerNameMatches {
+				candidates = append(candidates, identity)
+			}
+		} else if hasIdentityFilter {
+			if commonNameOrSerialMatches {
+				candidates = append(candidates, identity)
+			}
+		} else if hasIssuerFilter {
+			if issuerNameMatches {
+				candidates = append(candidates, identity)
+			}
 		}
 	}
 
