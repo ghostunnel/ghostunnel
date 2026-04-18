@@ -3,7 +3,7 @@ name: Website
 
 on:
   push:
-    branches: [master, cs/add-website-more-docs]
+    branches: [master]
     paths:
       - "website/**"
       - "docs/**"
