@@ -40,6 +40,9 @@ type certstoreCertificate struct {
 	requireToken bool
 	// Added logger, useful for certstore logging
 	logger *log.Logger
+	// openStore allows injecting a custom store opener for testing.
+	// If nil, defaults to certstore.Open.
+	openStore func(*log.Logger) (certstore.Store, error)
 }
 
 // SupportsKeychain returns true or false, depending on whether the
@@ -69,7 +72,12 @@ func CertificateFromKeychainIdentity(
 
 // Reload transparently reloads the certificate.
 func (c *certstoreCertificate) Reload() error {
-	store, err := certstore.Open(c.logger)
+	opener := c.openStore
+	if opener == nil {
+		opener = certstore.Open
+	}
+
+	store, err := opener(c.logger)
 	if err != nil {
 		return err
 	}
