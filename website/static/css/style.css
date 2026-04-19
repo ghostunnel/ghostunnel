@@ -783,9 +783,15 @@ a:hover {
 }
 
 .badge.pre-release {
-  background: var(--badge-bg);
-  color: var(--badge-text);
-  border: 1px solid rgba(14, 138, 158, 0.2);
+  background: rgba(210, 140, 0, 0.1);
+  color: #b57800;
+  border: 1px solid rgba(210, 140, 0, 0.25);
+}
+
+.badge.stable {
+  background: rgba(30, 140, 60, 0.1);
+  color: #1a7a30;
+  border: 1px solid rgba(30, 140, 60, 0.25);
 }
 
 /* =============================================
