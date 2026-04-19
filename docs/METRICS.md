@@ -65,6 +65,8 @@ information on profiling via pprof, see the [`runtime/pprof`][pprof] and
 
 ## Shutdown Endpoint
 
+*Available since v1.8.1.*
+
 If `--enable-shutdown` is set, a `/_shutdown` endpoint is available on the
 status port. Sending an HTTP POST request to this endpoint will trigger a
 graceful shutdown of the Ghostunnel process. Any other HTTP method returns 405

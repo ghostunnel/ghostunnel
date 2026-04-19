@@ -47,8 +47,7 @@ ghostunnel server \
 The `--pkcs11-module`, `--pkcs11-token-label` and `--pkcs11-pin` flags can be
 used to select the private key to be used from the PKCS#11 module. It's also possible
 to use environment variables to set PKCS#11 options instead of flags (via
-`PKCS11_MODULE`, `PKCS11_TOKEN_LABEL` and `PKCS11_PIN`), useful if you don't
-want to show the PIN on the command line.
+`PKCS11_MODULE`, `PKCS11_TOKEN_LABEL` and `PKCS11_PIN`), useful if you don't want to show the PIN on the command line.
 
 Note that `--cert` needs to point to the certificate chain that corresponds
 to the private key in the PKCS#11 module, with the leaf certificate being the

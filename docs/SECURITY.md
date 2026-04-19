@@ -98,6 +98,8 @@ localhost risks unauthorized access to the proxied service.
 
 ## Landlock sandboxing
 
+*Available since v1.8.0. Enabled by default since v1.9.0.*
+
 On Linux, Ghostunnel uses [Landlock][landlock] to restrict its own process
 privileges after startup. Landlock is a kernel-level access control mechanism
 that limits which files and network ports a process can access.
@@ -121,6 +123,8 @@ Landlock (network rules require Linux 6.7+), Ghostunnel logs a warning and
 continues without sandboxing.
 
 ### Disabling Landlock
+
+*Available since v1.9.0.*
 
 Landlock can be disabled with `--disable-landlock` if it causes issues with
 your deployment. This is not recommended. Landlock is also automatically

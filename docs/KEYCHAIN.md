@@ -121,8 +121,8 @@ Get-ChildItem Cert:\CurrentUser\My | Format-Table Subject, Thumbprint, NotAfter
 on Windows, Ghostunnel searches three stores in this order:
 
 1. **MY** (Current User), the personal certificate store
-2. **CURRENT_SERVICE**, the current service account's certificates (if accessible)
-3. **LOCAL_MACHINE**, machine-wide certificates (if accessible; may require elevation)
+2. **CURRENT_SERVICE**, the current service account's certificates (if accessible, *since v1.8.1*)
+3. **LOCAL_MACHINE**, machine-wide certificates (if accessible; may require elevation, *since v1.8.1*)
 
 Stores that fail to open are skipped rather than causing an error.
 
