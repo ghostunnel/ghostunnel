@@ -12,7 +12,7 @@ forwarded connection carrying the original client metadata. Backends can then
 do logging, access control, or auditing based on client identity without
 needing their own TLS stack.
 
-### Enabling
+## Enabling
 
 See [Command-Line Flags]({{< ref "FLAGS.md" >}}) for the full flag reference.
 
@@ -52,20 +52,20 @@ pass both.
 The backend will receive a PROXY protocol v2 binary header on each new
 connection, followed by the normal application data stream.
 
-### What Ghostunnel sends
+## What Ghostunnel Sends
 
 Ghostunnel sends a **version 2** (binary format) header with the `PROXY`
 command. The address family (IPv4 or IPv6) is detected from the incoming
 connection.
 
-#### Address fields (all modes)
+### Address Fields (All Modes)
 
 | Field | Value |
 |-------|-------|
 | Source address/port | Original client IP and port |
 | Destination address/port | Ghostunnel's listen IP and port |
 
-#### TLV extensions (`tls` and `tls-full` modes)
+### TLV Extensions (`tls` and `tls-full` Modes)
 
 When using `--proxy-protocol-mode=tls` or `--proxy-protocol-mode=tls-full`,
 Ghostunnel includes TLV (Type-Length-Value) extensions with TLS connection
@@ -77,7 +77,7 @@ metadata:
 | `PP2_TYPE_AUTHORITY` | `0x02` | SNI hostname the client requested (if set) |
 | `PP2_TYPE_ALPN` | `0x01` | Negotiated ALPN protocol, e.g. `h2` (if set) |
 
-#### SSL sub-TLVs
+### SSL Sub-TLVs
 
 The `PP2_TYPE_SSL` TLV contains a 5-byte sub-header followed by nested
 sub-TLVs:
@@ -112,7 +112,7 @@ HAProxy spec but is supported by the
 [go-proxyproto](https://github.com/pires/go-proxyproto) library and others.
 The spec requires receivers to ignore unknown TLV types, so this is safe.
 
-### Backend requirements
+## Backend Requirements
 
 Your backend must be configured to expect PROXY protocol headers. It needs to
 parse the binary header before reading application data. Most servers and
@@ -126,7 +126,7 @@ frameworks support this:
 Backends that aren't expecting PROXY protocol will see the binary header as
 garbage at the start of the stream and will reject the connection.
 
-### References
+## References
 
 - [PROXY protocol specification](https://www.haproxy.org/download/3.1/doc/proxy-protocol.txt) (HAProxy, covers v1 and v2; see section 2.2 for the TLV type registry)
 - [go-proxyproto](https://github.com/pires/go-proxyproto) (Go library used by Ghostunnel)
