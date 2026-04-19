@@ -118,11 +118,13 @@ Get-ChildItem Cert:\CurrentUser\My | Format-Table Subject, Thumbprint, NotAfter
 ```
 
 **Which stores does Ghostunnel search?** When `--keychain-identity` is used
-on Windows, Ghostunnel searches three stores in order:
+on Windows, Ghostunnel searches three stores in this order:
 
 1. **MY** (Current User), the personal certificate store
-2. **CURRENT_SERVICE**, the current service account's certificates
-3. **LOCAL_MACHINE**, machine-wide certificates (may require elevation)
+2. **CURRENT_SERVICE**, the current service account's certificates (if accessible)
+3. **LOCAL_MACHINE**, machine-wide certificates (if accessible; may require elevation)
+
+Stores that fail to open are skipped rather than causing an error.
 
 See Microsoft's [certutil reference][ms-certutil],
 [System Store Locations][ms-store-locations], and the
@@ -138,7 +140,7 @@ Certificates from the keychain can be selected using one or both of the
 following flags:
 
 * `--keychain-identity`: match by the certificate's Common Name (CN) or
-  serial number. Ghostunnel checks both fields and uses the first match.
+  serial number. Ghostunnel collects all certificates where either field matches.
 * `--keychain-issuer`: match by the issuer's Common Name (CN).
 
 When both flags are specified, Ghostunnel selects certificates where both
