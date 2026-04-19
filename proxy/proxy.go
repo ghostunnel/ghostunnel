@@ -19,7 +19,9 @@ package proxy
 import (
 	"context"
 	"crypto/tls"
+	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"strings"
@@ -29,6 +31,20 @@ import (
 	proxyproto "github.com/pires/go-proxyproto"
 	metrics "github.com/rcrowley/go-metrics"
 	sem "golang.org/x/sync/semaphore"
+)
+
+// ProxyProtocolMode controls PROXY protocol v2 header generation.
+type ProxyProtocolMode int
+
+const (
+	// ProxyProtocolOff disables PROXY protocol headers.
+	ProxyProtocolOff ProxyProtocolMode = iota
+	// ProxyProtocolConn sends connection info (src/dst IP+port) only, no TLVs.
+	ProxyProtocolConn
+	// ProxyProtocolTLS sends connection info + TLS metadata (version, ALPN, SNI) without client cert details.
+	ProxyProtocolTLS
+	// ProxyProtocolTLSFull sends connection info + all TLVs including client certificate.
+	ProxyProtocolTLSFull
 )
 
 var (
@@ -79,7 +95,7 @@ type Proxy struct {
 	loggerFlags int
 	// Enable HAproxy's PROXY protocol
 	// see: https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt
-	proxyProtocol bool
+	proxyProtocol ProxyProtocolMode
 	// Internal wait group to keep track of outstanding handlers.
 	handlers *sync.WaitGroup
 	// Semaphore to limit the max. number of connections.
@@ -91,14 +107,128 @@ type Proxy struct {
 	pool sync.Pool
 }
 
-func proxyProtoHeader(c net.Conn) *proxyproto.Header {
-	return &proxyproto.Header{
+// PROXY protocol v2 client flag constants (from spec section 2.2.5).
+const (
+	pp2ClientSSL      = 0x01
+	pp2ClientCertConn = 0x02
+	pp2ClientCertSess = 0x04
+)
+
+func transportProtocol(c net.Conn) proxyproto.AddressFamilyAndProtocol {
+	if addr, ok := c.RemoteAddr().(*net.TCPAddr); ok {
+		if addr.IP.To4() != nil {
+			return proxyproto.TCPv4
+		}
+		return proxyproto.TCPv6
+	}
+	return proxyproto.TCPv4
+}
+
+func proxyProtoHeader(c net.Conn, tlsState *tls.ConnectionState, mode ProxyProtocolMode, logger Logger) *proxyproto.Header {
+	h := &proxyproto.Header{
 		Version:           2,
 		Command:           proxyproto.PROXY,
-		TransportProtocol: proxyproto.TCPv4,
+		TransportProtocol: transportProtocol(c),
 		SourceAddr:        c.RemoteAddr(),
 		DestinationAddr:   c.LocalAddr(),
 	}
+
+	if tlsState != nil && mode >= ProxyProtocolTLS {
+		tlvs, err := buildTLVs(tlsState, mode)
+		if err != nil {
+			logger.Printf("proxy: failed to build PROXY protocol TLVs: %s", err)
+		} else if len(tlvs) > 0 {
+			if err := h.SetTLVs(tlvs); err != nil {
+				logger.Printf("proxy: failed to set PROXY protocol TLVs: %s", err)
+			}
+		}
+	}
+
+	return h
+}
+
+// buildTLVs constructs the top-level TLV list from TLS connection state.
+func buildTLVs(state *tls.ConnectionState, mode ProxyProtocolMode) ([]proxyproto.TLV, error) {
+	var tlvs []proxyproto.TLV
+
+	// PP2_TYPE_ALPN
+	if state.NegotiatedProtocol != "" {
+		tlvs = append(tlvs, proxyproto.TLV{
+			Type:  proxyproto.PP2_TYPE_ALPN,
+			Value: []byte(state.NegotiatedProtocol),
+		})
+	}
+
+	// PP2_TYPE_AUTHORITY (SNI)
+	if state.ServerName != "" {
+		tlvs = append(tlvs, proxyproto.TLV{
+			Type:  proxyproto.PP2_TYPE_AUTHORITY,
+			Value: []byte(state.ServerName),
+		})
+	}
+
+	// PP2_TYPE_SSL with nested sub-TLVs
+	sslTLV, err := buildSSLTLV(state, mode)
+	if err != nil {
+		return nil, err
+	}
+	tlvs = append(tlvs, sslTLV)
+
+	return tlvs, nil
+}
+
+// buildSSLTLV constructs the PP2_TYPE_SSL TLV with its 5-byte sub-header
+// and nested sub-TLVs containing TLS connection metadata.
+func buildSSLTLV(state *tls.ConnectionState, mode ProxyProtocolMode) (proxyproto.TLV, error) {
+	var subTLVs []proxyproto.TLV
+
+	// Always include TLS version
+	subTLVs = append(subTLVs, proxyproto.TLV{
+		Type:  proxyproto.PP2_SUBTYPE_SSL_VERSION,
+		Value: []byte(tls.VersionName(state.Version)),
+	})
+
+	// Client certificate fields (only in TLSFull mode and if a cert was presented)
+	if mode == ProxyProtocolTLSFull && len(state.PeerCertificates) > 0 {
+		cert := state.PeerCertificates[0]
+
+		if cert.Subject.CommonName != "" {
+			subTLVs = append(subTLVs, proxyproto.TLV{
+				Type:  proxyproto.PP2_SUBTYPE_SSL_CN,
+				Value: []byte(cert.Subject.CommonName),
+			})
+		}
+
+		// Full DER-encoded client certificate (extension, not in HAProxy spec)
+		subTLVs = append(subTLVs, proxyproto.TLV{
+			Type:  proxyproto.PP2_SUBTYPE_SSL_CLIENT_CERT,
+			Value: cert.Raw,
+		})
+	}
+
+	// Build 5-byte sub-header: 1 byte flags + 4 bytes verify result
+	var flags byte = pp2ClientSSL
+	if mode == ProxyProtocolTLSFull && len(state.PeerCertificates) > 0 {
+		// Set both flags: Ghostunnel doesn't distinguish connection-level vs
+		// session-level (resumed) cert presentation — the cert was verified
+		// on this connection either way.
+		flags |= pp2ClientCertConn | pp2ClientCertSess
+	}
+	var header [5]byte
+	header[0] = flags
+	binary.BigEndian.PutUint32(header[1:5], 0) // verify=0, cert already verified by ghostunnel
+
+	// Encode sub-TLVs and append after the 5-byte header
+	subTLVBytes, err := proxyproto.JoinTLVs(subTLVs)
+	if err != nil {
+		return proxyproto.TLV{}, fmt.Errorf("encoding SSL sub-TLVs: %w", err)
+	}
+
+	value := make([]byte, len(header)+len(subTLVBytes))
+	copy(value, header[:])
+	copy(value[len(header):], subTLVBytes)
+
+	return proxyproto.TLV{Type: proxyproto.PP2_TYPE_SSL, Value: value}, nil
 }
 
 // New creates a new proxy.
@@ -109,7 +239,7 @@ func New(
 	dial DialFunc,
 	logger Logger,
 	loggerFlags int,
-	proxyProtocol bool) *Proxy {
+	proxyProtocol ProxyProtocolMode) *Proxy {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -219,8 +349,13 @@ func (p *Proxy) Accept() {
 				return
 			}
 
-			if p.proxyProtocol {
-				h := proxyProtoHeader(conn)
+			if p.proxyProtocol != ProxyProtocolOff {
+				var tlsState *tls.ConnectionState
+				if tlsConn, ok := conn.(*tls.Conn); ok {
+					state := tlsConn.ConnectionState()
+					tlsState = &state
+				}
+				h := proxyProtoHeader(conn, tlsState, p.proxyProtocol, p.Logger)
 				_, err = h.WriteTo(backend)
 				if err != nil {
 					p.logConditional(LogConnectionErrors, "error writing proxy header: %s", err)

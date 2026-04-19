@@ -77,7 +77,8 @@ var (
 	serverListenAddress       = serverCommand.Flag("listen", "Address and port to listen on (can be HOST:PORT, unix:PATH, systemd:NAME or launchd:NAME).").PlaceHolder("ADDR").Required().String()
 	serverForwardAddress      = serverCommand.Flag("target", "Address to forward connections to (can be HOST:PORT or unix:PATH).").PlaceHolder("ADDR").Required().String()
 	serverStatusTargetAddress = serverCommand.Flag("target-status", "Address to target for status checking downstream healthchecks. Defaults to a TCP healthcheck if this flag is not passed.").Default("").String()
-	serverProxyProtocol       = serverCommand.Flag("proxy-protocol", "Enable PROXY protocol v2 to signal connection info to backend").Bool()
+	serverProxyProtocol       = serverCommand.Flag("proxy-protocol", "Enable PROXY protocol v2 (connection info only, equivalent to --proxy-protocol-mode=conn).").Bool()
+	serverProxyProtocolMode   = serverCommand.Flag("proxy-protocol-mode", "PROXY protocol v2 mode: conn (connection info only), tls (add TLS version/ALPN/SNI metadata), tls-full (add TLS metadata and client certificate). Mutually exclusive with --proxy-protocol.").Enum("conn", "tls", "tls-full")
 	serverUnsafeTarget        = serverCommand.Flag("unsafe-target", "If set, does not limit target to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
 	serverAllowAll            = serverCommand.Flag("allow-all", "Allow all clients, do not check client cert subject.").Bool()
 	serverAllowedCNs          = serverCommand.Flag("allow-cn", "Allow clients with given common name (can be repeated).").PlaceHolder("CN").Strings()
@@ -395,7 +396,17 @@ func serverValidateFlags() error {
 	if err := validateServerOPA(hasAccessFlags, hasOPAFlags); err != nil {
 		return err
 	}
+	if err := validateServerProxyProtocol(); err != nil {
+		return err
+	}
 	return validateCipherSuites()
+}
+
+func validateServerProxyProtocol() error {
+	if *serverProxyProtocol && *serverProxyProtocolMode != "" {
+		return errors.New("--proxy-protocol and --proxy-protocol-mode are mutually exclusive")
+	}
+	return nil
 }
 
 func validateClientCredentials() error {
@@ -431,6 +442,25 @@ func clientValidateFlags() error {
 		return err
 	}
 	return validateCipherSuites()
+}
+
+// serverProxyProtoMode computes the ProxyProtocolMode from the
+// --proxy-protocol and --proxy-protocol-mode flags.
+func serverProxyProtoMode() proxy.ProxyProtocolMode {
+	if *serverProxyProtocolMode != "" {
+		switch *serverProxyProtocolMode {
+		case "tls":
+			return proxy.ProxyProtocolTLS
+		case "tls-full":
+			return proxy.ProxyProtocolTLSFull
+		default:
+			return proxy.ProxyProtocolConn
+		}
+	}
+	if *serverProxyProtocol {
+		return proxy.ProxyProtocolConn
+	}
+	return proxy.ProxyProtocolOff
 }
 
 func main() {
@@ -679,7 +709,7 @@ func serverListen(env *Environment) error {
 		env.dial,
 		logger,
 		proxyLoggerFlags(*quiet),
-		*serverProxyProtocol,
+		serverProxyProtoMode(),
 	)
 
 	if *statusAddress != "" {
@@ -724,7 +754,7 @@ func clientListen(env *Environment) error {
 		env.dial,
 		logger,
 		proxyLoggerFlags(*quiet),
-		false,
+		proxy.ProxyProtocolOff,
 	)
 
 	if *statusAddress != "" {

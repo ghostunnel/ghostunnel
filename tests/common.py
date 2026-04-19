@@ -9,12 +9,33 @@ import socket
 import ssl
 import os
 import platform
+import struct
 import urllib.error
 import urllib.request
 
 LOCALHOST = '127.0.0.1'
 IS_WINDOWS = platform.system() == 'Windows'
 TIMEOUT = int(os.environ.get('GHOSTUNNEL_TEST_TIMEOUT', '10'))
+
+
+def parse_tlvs(data):
+    """Parse a PROXY protocol v2 TLV vector from raw bytes.
+
+    Returns a list of (type, value) tuples."""
+    tlvs = []
+    i = 0
+    while i < len(data):
+        if i + 3 > len(data):
+            raise Exception("truncated TLV at offset {0}".format(i))
+        tlv_type = data[i]
+        tlv_len = struct.unpack('!H', data[i+1:i+3])[0]
+        i += 3
+        if i + tlv_len > len(data):
+            raise Exception("truncated TLV value at offset {0}".format(i))
+        tlv_value = data[i:i+tlv_len]
+        i += tlv_len
+        tlvs.append((tlv_type, tlv_value))
+    return tlvs
 
 
 def _poll_sleep(iteration):
