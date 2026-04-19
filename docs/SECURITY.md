@@ -6,13 +6,13 @@ weight: 15
 
 ## TLS protocol
 
-### Protocol versions
+### Protocol Versions
 
 Ghostunnel enforces a minimum TLS version of **TLS 1.2**. TLS 1.0 and 1.1 are
 not supported. TLS 1.3 is supported and will be negotiated when both sides
 support it.
 
-### Cipher suites
+### Cipher Suites
 
 The following cipher suites are enabled by default, in order of preference:
 
@@ -47,14 +47,14 @@ and cannot be configured by the application. The TLS 1.3 suites listed above are
 available when TLS 1.3 is negotiated. The configurable cipher suite list only
 affects TLS 1.2 connections.
 
-### Curve preferences
+### Curve Preferences
 
 In server mode, key exchange prefers the following elliptic curves:
 
 1. **X25519**: fast, constant-time, widely supported
 2. **P-256 (secp256r1)**: hardware-accelerated on most platforms
 
-### Client authentication
+### Client Authentication
 
 In server mode, Ghostunnel requires and verifies client certificates by
 default (`RequireAndVerifyClientCert`). This can be disabled with
@@ -65,7 +65,7 @@ certificates. It is typically consumed by monitoring systems that may not
 have client certs. Like other addresses, it defaults to localhost and is not
 exposed to the network unless explicitly configured otherwise.
 
-## Address restrictions
+## Address Restrictions
 
 Listen and target addresses are restricted to localhost and UNIX sockets by
 default, to prevent accidental exposure of plaintext traffic.
@@ -102,7 +102,7 @@ On Linux, Ghostunnel uses [Landlock][landlock] to restrict its own process
 privileges after startup. Landlock is a kernel-level access control mechanism
 that limits which files and network ports a process can access.
 
-### How it works
+### How It Works
 
 After parsing flags and loading certificates, Ghostunnel builds a minimal set
 of Landlock rules based on the flags it was given:
@@ -114,7 +114,7 @@ of Landlock rules based on the flags it was given:
   access for `--target`, `--metrics-graphite`, `--metrics-url`, and SPIFFE
   Workload API ports. DNS (TCP/53) is always allowed.
 
-### Best-effort mode
+### Best-Effort Mode
 
 Landlock is applied in best-effort mode. If the kernel does not support
 Landlock (network rules require Linux 6.7+), Ghostunnel logs a warning and

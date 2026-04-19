@@ -65,7 +65,7 @@ ghostunnel client \
     --verify-uri spiffe://domain.test/backend
 ```
 
-## Trust bundle updates
+## Trust Bundle Updates
 
 When using the Workload API, Ghostunnel automatically watches for updates
 to both the X.509 identity (certificate and key) and the trusted root CA

@@ -8,7 +8,7 @@ Ghostunnel supports systemd's [notify][sd-notify] and watchdog functionality on
 Linux. This allows systemd to know when Ghostunnel is ready and to automatically
 restart it if it becomes unresponsive.
 
-## How it works
+## How It Works
 
 When running as a [`Type=notify-reload`][systemd-service] service:
 
@@ -23,7 +23,7 @@ When running as a [`Type=notify-reload`][systemd-service] service:
   `SIGHUP` to the process, which triggers a certificate reload (same as
   sending `SIGHUP` manually).
 
-## Example unit file
+## Example Unit File
 
 ```ini
 [Unit]
