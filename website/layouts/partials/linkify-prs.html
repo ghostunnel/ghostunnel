@@ -1,0 +1,2 @@
+{{ $base := site.Params.github }}
+{{ . | replaceRE `([^&\w])#(\d+)` (printf `$1<a href="%s/pull/$2">#$2</a>` $base) | safeHTML }}
