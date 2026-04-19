@@ -67,7 +67,7 @@ from any client. This means that anyone will be able to establish a connection
 to the Ghostunnel server. This flag is mutually exclusive with other access
 control flags.
 
-### Passing client identity to backends
+### Passing Client Identity to Backends
 
 Ghostunnel verifies client certificates before forwarding connections, but
 backends may also need to know the client's identity for their own access
