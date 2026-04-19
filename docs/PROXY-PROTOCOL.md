@@ -30,7 +30,7 @@ ghostunnel server \
 ```
 
 To also include TLS metadata and/or client certificate details, use the
-`--proxy-protocol-mode` flag:
+`--proxy-protocol-mode` flag (*available since v1.10.0*):
 
 | Mode | What is sent |
 |------|-------------|

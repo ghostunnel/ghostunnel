@@ -55,7 +55,7 @@ with `spiffe://ghostunnel/client1` or `spiffe://ghostunnel/client2` URI SANs (as
 well as other values). See documentation for the [wildcard][wildcard] package
 for more information.
 
-* `--allow-policy` and `--allow-query`
+* `--allow-policy` and `--allow-query` (*OPA bundle support since v1.9.0*)
 
 Allow clients where a Rego policy evaluates to `true` with the given query.
 For more information, see the Open Policy Agent section below.
@@ -71,9 +71,10 @@ control flags.
 
 Ghostunnel verifies client certificates before forwarding connections, but
 backends may also need to know the client's identity for their own access
-control, logging, or auditing. Use `--proxy-protocol-mode=tls-full` to forward
-the client certificate (CN, full DER-encoded cert) to the backend via
-[PROXY protocol v2]({{< ref "PROXY-PROTOCOL.md" >}}) TLV extensions.
+control, logging, or auditing. Use `--proxy-protocol-mode=tls-full` (available
+since v1.10.0) to forward the client certificate (CN, full DER-encoded cert) to
+the backend via [PROXY protocol v2]({{< ref "PROXY-PROTOCOL.md" >}}) TLV
+extensions.
 
 ## Client mode
 
@@ -127,7 +128,7 @@ with `spiffe://ghostunnel/server1` or `spiffe://ghostunnel/server2` URI SANs (as
 well as other values). See documentation for the [wildcard][wildcard] package
 for more information.
 
-* `--verify-policy` and `--verify-query`
+* `--verify-policy` and `--verify-query` (*OPA bundle support since v1.9.0*)
 
 Verify that a Rego policy evaluates to `true` with the given query.
 For more information, see the Open Policy Agent section below.
@@ -142,6 +143,8 @@ but the backend doesn't require mutual authentication.
 [wildcard]: https://pkg.go.dev/github.com/ghostunnel/ghostunnel/wildcard
 
 ## Open Policy Agent
+
+*Available since v1.7.0, OPA bundle support available since v1.9.0.*
 
 Ghostunnel has support for [Open Policy Agent][opa] (OPA), both in server and
 client mode. The policy must be provided as an [OPA bundle][opa-bundles] on

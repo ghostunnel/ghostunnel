@@ -4,6 +4,8 @@ description: Integrate with the systemd watchdog timer for automatic restart on 
 weight: 85
 ---
 
+*Available since v1.8.0.*
+
 Ghostunnel supports systemd's [notify][sd-notify] and watchdog functionality on
 Linux. This allows systemd to know when Ghostunnel is ready and to automatically
 restart it if it becomes unresponsive.

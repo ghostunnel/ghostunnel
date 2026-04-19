@@ -35,6 +35,8 @@ reload certificates and OPA policies on a fixed interval.
 
 ### HTTP endpoint (`/_shutdown`)
 
+*Available since v1.8.1.*
+
 If `--enable-shutdown` is set (requires `--status`), you can trigger a
 shutdown via HTTP POST:
 
@@ -91,6 +93,8 @@ connection behavior and may be relevant when tuning shutdown. See
 [Command-Line Flags]({{< ref "FLAGS.md" >}}) for the full list.
 
 ## Integration with systemd
+
+*Available since v1.8.0.*
 
 When running as a systemd service with `Type=notify-reload`, Ghostunnel
 notifies systemd of its state transitions (ready, reloading, stopping). The
