@@ -5,11 +5,11 @@ weight: 30
 ---
 
 In server mode, Ghostunnel can automatically obtain and renew a public TLS
-certificate via the ACME protocol. This is powered by
-[certmagic](https://github.com/caddyserver/certmagic), which handles
-certificate storage, renewal, and OCSP stapling.
+certificate via the [ACME][acme-rfc] protocol. This is powered by
+[certmagic][certmagic], which handles certificate storage, renewal, and OCSP
+stapling.
 
-### Basic usage
+## Basic usage
 
 To enable ACME, use the `--auto-acme-cert` flag with the FQDN to obtain a
 certificate for. You must also specify an email address with
@@ -26,33 +26,58 @@ ghostunnel server \
     --allow-cn client
 ```
 
-Ghostunnel defaults to using Let's Encrypt as the ACME CA. You can specify a
-different ACME CA URL using `--auto-acme-ca`. To test against a non-production
-CA (e.g. Let's Encrypt's staging environment), use `--auto-acme-testca` — when
-set, the `--auto-acme-ca` flag is ignored.
+Ghostunnel defaults to using [Let's Encrypt][letsencrypt] as the ACME CA. You
+can specify a different ACME CA URL using `--auto-acme-ca`. To test against a
+non-production CA (e.g. Let's Encrypt's staging environment), use
+`--auto-acme-testca`. When set, the `--auto-acme-ca` flag is ignored.
 
-### Requirements
+## Requirements
 
 ACME is only supported in server mode. Ghostunnel must either be listening on
 a public interface on tcp/443, or have tcp/443 forwarded to it (e.g. via a
 systemd socket or iptables). Public DNS records must exist for the FQDN that
 resolve to the public listening interface IP.
 
-Ghostunnel uses the TLS-ALPN-01 challenge type (HTTP-01 is disabled), so port
-443 must be reachable.
+Ghostunnel uses the [TLS-ALPN-01][tls-alpn-01] challenge type (HTTP-01 is
+disabled), so port 443 must be reachable.
 
-### Certificate storage and renewal
+## Certificate storage and renewal
 
-Certificates are stored locally by certmagic in its default storage directory
-(typically `~/.local/share/certmagic` or the equivalent on your OS). Certmagic
-automatically renews certificates before they expire — no manual intervention
-or `--timed-reload` is needed for ACME certificates.
+Certmagic stores certificates and account keys on disk. The default location
+depends on your OS:
+
+| OS | Default path |
+|----|-------------|
+| Linux / macOS | `~/.local/share/certmagic` (or `$XDG_DATA_HOME/certmagic`) |
+| Windows | `%USERPROFILE%\.local\share\certmagic` |
+
+Certmagic automatically renews certificates before they expire, so no manual
+intervention or `--timed-reload` is needed for ACME certificates.
 
 If a valid certificate already exists locally, Ghostunnel loads it from cache
 on startup without contacting the CA.
 
-### Startup retry behavior
+## Revoking or force-renewing
+
+Certmagic handles renewal automatically, but if you need to force a renewal
+(e.g. after a key compromise), delete the certificate and key files from the
+certmagic storage directory and restart Ghostunnel. It will obtain a fresh
+certificate on startup.
+
+To revoke a certificate with Let's Encrypt directly, use the
+[certbot revoke][certbot-revoke] command or the ACME revocation endpoint
+described in [RFC 8555 Section 7.6][acme-revoke].
+
+[certbot-revoke]: https://eff-certbot.readthedocs.io/en/latest/using.html#revoking-certificates
+[acme-revoke]: https://datatracker.ietf.org/doc/html/rfc8555#section-7.6
+
+## Startup retry behavior
 
 On startup, Ghostunnel attempts to obtain the initial certificate up to 5
 times with exponential backoff (starting at 5 seconds, capped at 2 minutes).
 If all attempts fail, Ghostunnel exits with an error.
+
+[acme-rfc]: https://datatracker.ietf.org/doc/html/rfc8555
+[letsencrypt]: https://letsencrypt.org/
+[tls-alpn-01]: https://datatracker.ietf.org/doc/html/rfc8737
+[certmagic]: https://pkg.go.dev/github.com/caddyserver/certmagic

@@ -13,6 +13,9 @@ These flags are available in both `server` and `client` modes.
 
 ### Certificate / Key
 
+See [Certificate Formats]({{< ref "CERTIFICATES.md" >}}) for details on
+supported file formats and chain ordering.
+
 | Flag | Description |
 |------|-------------|
 | `--keystore PATH` | Path to keystore (combined PEM with cert/key, or PKCS12 keystore). |
@@ -69,6 +72,9 @@ See [Metrics]({{< ref "METRICS.md" >}}).
 
 ### Status / Logging
 
+See [Metrics & Profiling]({{< ref "METRICS.md" >}}) for details on the status port,
+metrics endpoints, and profiling.
+
 | Flag | Description | Availability |
 |------|-------------|--------------|
 | `--status ADDR` | Enable `/_status` and `/_metrics` on given HOST:PORT (or `unix:SOCKET`). | All platforms |
@@ -80,6 +86,9 @@ See [Metrics]({{< ref "METRICS.md" >}}).
 
 ### Landlock
 
+See [Security & TLS Configuration]({{< ref "SECURITY.md" >}}) for details on
+Landlock sandboxing.
+
 | Flag | Description | Availability |
 |------|-------------|--------------|
 | `--disable-landlock` | Disable the best-effort Landlock sandboxing. Landlock is automatically disabled when PKCS#11 is used. | Linux only |
@@ -89,6 +98,9 @@ See [Metrics]({{< ref "METRICS.md" >}}).
 Flags specific to `ghostunnel server`.
 
 ### Required
+
+See [Socket Activation]({{< ref "SOCKET-ACTIVATION.md" >}}) for `systemd:NAME` and
+`launchd:NAME` addresses.
 
 | Flag | Description |
 |------|-------------|
@@ -101,7 +113,7 @@ Flags specific to `ghostunnel server`.
 |------|-------------|
 | `--target-status URL` | Address to target for status checking downstream healthchecks. Defaults to TCP healthcheck if not passed. |
 | `--proxy-protocol` | Enable PROXY protocol v2 to signal connection info to backend. |
-| `--unsafe-target` | Do not limit target to localhost, `127.0.0.1`, `[::1]`, or UNIX sockets. |
+| `--unsafe-target` | Do not limit target to localhost, `127.0.0.1`, `[::1]`, or UNIX sockets. See [Security]({{< ref "SECURITY.md" >}}). |
 
 ### Access Control
 
@@ -130,6 +142,8 @@ See [ACME Support]({{< ref "ACME.md" >}}).
 
 ### OPA Policy (Server)
 
+See [Access Control Flags]({{< ref "ACCESS-FLAGS.md" >}}) for OPA/Rego policy details.
+
 | Flag | Description |
 |------|-------------|
 | `--allow-policy BUNDLE` | Location of an OPA policy bundle. |
@@ -141,6 +155,9 @@ Flags specific to `ghostunnel client`.
 
 ### Required
 
+See [Socket Activation]({{< ref "SOCKET-ACTIVATION.md" >}}) for `systemd:NAME` and
+`launchd:NAME` addresses.
+
 | Flag | Description |
 |------|-------------|
 | `--listen ADDR` | Address and port to listen on (`HOST:PORT`, `unix:PATH`, `systemd:NAME`, or `launchd:NAME`). |
@@ -150,7 +167,7 @@ Flags specific to `ghostunnel client`.
 
 | Flag | Description |
 |------|-------------|
-| `--unsafe-listen` | Do not limit listen to localhost, `127.0.0.1`, `[::1]`, or UNIX sockets. |
+| `--unsafe-listen` | Do not limit listen to localhost, `127.0.0.1`, `[::1]`, or UNIX sockets. See [Security]({{< ref "SECURITY.md" >}}). |
 | `--override-server-name NAME` | Override the server name used for hostname verification. |
 | `--proxy URL` | Connect to target over given proxy (HTTP CONNECT or SOCKS5). Must be a proxy URL. |
 | `--disable-authentication` | Disable client authentication, no certificate will be provided to the server. |
@@ -167,6 +184,8 @@ See [Access Control Flags]({{< ref "ACCESS-FLAGS.md" >}}).
 | `--verify-uri URI` | Allow servers with given URI subject alternative name (repeatable). |
 
 ### OPA Policy (Client)
+
+See [Access Control Flags]({{< ref "ACCESS-FLAGS.md" >}}) for OPA/Rego policy details.
 
 | Flag | Description |
 |------|-------------|

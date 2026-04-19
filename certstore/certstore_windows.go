@@ -96,15 +96,18 @@ func openStore(logger *log.Logger) (*winStore, error) {
 
 	// Additional stores to use to look for certificates in Identities().
 	// The identity we want to load might be in the "current service" or "local
-	// machine" stores, so we need to open those to check.
-	extraStores := map[string]C.DWORD{
-		"CURRENT_SERVICE": C.CERT_SYSTEM_STORE_CURRENT_SERVICE,
-		"LOCAL_MACHINE":   C.CERT_SYSTEM_STORE_LOCAL_MACHINE,
-	}
-	for friendlyName, storeIdent := range extraStores {
-		store := C.CertOpenStore(CERT_STORE_PROV_SYSTEM_W, 0, 0, storeIdent, storeName)
+	// machine" stores, so we need to open those to check. The order here is
+	// fixed: CURRENT_SERVICE is searched before LOCAL_MACHINE.
+	for _, extra := range []struct {
+		name  string
+		ident C.DWORD
+	}{
+		{"CURRENT_SERVICE", C.CERT_SYSTEM_STORE_CURRENT_SERVICE},
+		{"LOCAL_MACHINE", C.CERT_SYSTEM_STORE_LOCAL_MACHINE},
+	} {
+		store := C.CertOpenStore(CERT_STORE_PROV_SYSTEM_W, 0, 0, extra.ident, storeName)
 		if store == nil {
-			logger.Printf("certstore: failed to open key store '%s', skipping", friendlyName)
+			logger.Printf("certstore: failed to open key store '%s', skipping", extra.name)
 			continue
 		}
 

@@ -55,10 +55,13 @@ Getting Started
 ===============
 
 To get started and play around with Ghostunnel you will need X.509 client
-and server certificates. If you don't already maintain a PKI, a good way to get
-started is to use a package like [cloudflare/cfssl](https://github.com/cloudflare/cfssl).
+and server certificates. If you already maintain a PKI, you can use your
+existing certificates. Otherwise, you can use tools like
+[mkcert](https://github.com/FiloSottile/mkcert) or
+[cloudflare/cfssl](https://github.com/cloudflare/cfssl) to build one.
 
-For testing and development purposes, you can generate test certificates using:
+For quick testing and development, you can also generate throwaway test
+certificates using the built-in generator:
 
     # Generate test certificates and keys
     go tool mage test:keys
@@ -335,9 +338,11 @@ See [METRICS](docs/METRICS.md) for details.
 ### HSM/PKCS#11 support
 
 Ghostunnel has support for loading private keys from PKCS#11 modules, which
-should work with any hardware security module that exposes a PKCS#11 interface.
+should work with any hardware security module that exposes a PKCS#11 interface,
+including YubiKeys (via the YKCS11 module).
 
-See [HSM-PKCS11](docs/HSM-PKCS11.md) for details.
+See [HSM-PKCS11](docs/HSM-PKCS11.md) for details, including a step-by-step
+guide for using Ghostunnel with a YubiKey.
 
 ### Windows/macOS Keychain Support
 

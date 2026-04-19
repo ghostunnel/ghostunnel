@@ -135,11 +135,23 @@ but the backend doesn't require mutual authentication.
 
 ## Open Policy Agent
 
-Ghostunnel has support for Open Policy Agent (OPA), both in server and client
-mode. The policy bundle must be present on disk for Ghostunnel to use it and the
-use of OPA is mutually exclusive with any other `allow` (or `verify`) flags.
-Policy bundles can be reloaded at runtime much like certificates, with the
-`--timed-reload` flag or via `SIGHUP`.
+Ghostunnel has support for [Open Policy Agent][opa] (OPA), both in server and
+client mode. The policy must be provided as an [OPA bundle][opa-bundles] on
+disk and the use of OPA is mutually exclusive with any other `allow` (or
+`verify`) flags. Policy bundles can be reloaded at runtime much like
+certificates, with the `--timed-reload` flag or via `SIGHUP`.
+
+[opa]: https://www.openpolicyagent.org/
+[opa-bundles]: https://www.openpolicyagent.org/docs/latest/management-bundles/
+
+To build a bundle from a `.rego` file, use the `opa build` command:
+
+```bash
+opa build policy.rego -o bundle.tar.gz
+```
+
+See the [OPA bundle documentation][opa-bundles] for details on bundle
+structure and manifest options.
 
 To use it in server mode, specify the `--allow-policy` and `--allow-query` flags.
 
@@ -226,8 +238,8 @@ for more about the policy language.
   different process.
 * Older versions of Ghostunnel allowed specifying a Rego file rather than a
   bundle as an argument to the `--allow-policy` and `--verify-policy` flags. This
-  still works, but the policy will be treated as a V0 policy for compatibility
-  versions. It's recommended to specify a bundle so you can set the language
+  still works, but the policy will be treated as a V0 policy for backward
+  compatibility. It's recommended to specify a bundle so you can set the language
   version directly in the bundle manifest.
 * By standard OPA convention, we consider a policy to be "allowed" if the query
   is exactly one result with exactly one element that has the value `true`.

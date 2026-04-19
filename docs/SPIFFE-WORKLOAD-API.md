@@ -38,10 +38,11 @@ ghostunnel server \
     --allow-uri spiffe://domain.test/frontend
 ```
 
-### Authorization
+## Authorization
 
-The identity of the peer, i.e. the [SPIFFE ID](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE-ID.md), is embedded as a URI SAN on the
-X509-SVID. Accordingly, the existing `--verify-uri` and `--allow-uri`
+The identity of the peer, i.e. the
+[SPIFFE ID](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE-ID.md),
+is embedded as a URI SAN on the X509-SVID. Accordingly, the existing `--verify-uri` and `--allow-uri`
 flags can be used to authorize the peer:
 
 As a server:
@@ -64,7 +65,7 @@ ghostunnel client \
     --verify-uri spiffe://domain.test/backend
 ```
 
-### Trust bundle updates
+## Trust bundle updates
 
 When using the Workload API, Ghostunnel automatically watches for updates
 to both the X.509 identity (certificate and key) and the trusted root CA
@@ -72,8 +73,11 @@ bundle. When the SPIFFE provider (e.g. SPIRE) rotates certificates or
 updates the trust bundle, Ghostunnel picks up the changes without requiring
 a manual reload or restart.
 
-### Demo
+## Demo
 
 See the [end-to-end demo](https://github.com/ghostunnel/ghostunnel/tree/master/docs/spiffe-workload-api-demo) for an example
 using Ghostunnel with SPIFFE Workload API support backed by
-[SPIRE](https://spiffe.io/spire/).
+[SPIRE](https://spiffe.io/spire/). The [SPIRE getting started guide][spire-getting-started] covers setting up
+SPIRE from scratch on Linux/macOS.
+
+[spire-getting-started]: https://spiffe.io/docs/latest/try/getting-started-linux-macos-x/

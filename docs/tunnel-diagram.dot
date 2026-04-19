@@ -1,0 +1,15 @@
+digraph tunnel {
+    rankdir=LR;
+    bgcolor="transparent";
+    node [fontname="Helvetica" fontsize=12 style=filled];
+    edge [fontname="Helvetica" fontsize=10];
+
+    curl [label="curl\n:8081" shape=box fillcolor="#e8e8e8" color="#999999"];
+    client [label="ghostunnel\nclient" shape=box fillcolor="#4a90d9" fontcolor=white color="#3a7bc8"];
+    server [label="ghostunnel\nserver" shape=box fillcolor="#4a90d9" fontcolor=white color="#3a7bc8"];
+    backend [label="backend\n:8080" shape=box fillcolor="#e8e8e8" color="#999999"];
+
+    curl -> client [label="  plaintext  " color="#999999" fontcolor="#666666"];
+    client -> server [label="  mTLS  " color="#d94a4a" fontcolor="#d94a4a" penwidth=2];
+    server -> backend [label="  plaintext  " color="#999999" fontcolor="#666666"];
+}

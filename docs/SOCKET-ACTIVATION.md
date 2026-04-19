@@ -12,7 +12,10 @@ your systemd/launchd configuration.
 
 Note that socket activation is not available on Windows.
 
-### launchd
+## launchd
+
+See Apple's [Creating Launch Daemons and Agents][launchd-guide] for background
+on launchd plists.
 
 A launchd plist to launch Ghostunnel in server mode on :8081,
 listening for status connections on :8082, and forwarding connections to :8083
@@ -76,7 +79,26 @@ defined for each socket. If for example the family were to be left out, launchd
 would open two sockets (IPv4 and IPv6) for the given key (like `Listener`) and
 pass them to Ghostunnel which is not currently supported.
 
-### systemd
+To install and enable:
+
+```bash
+# Copy the plist into place
+sudo cp com.square.ghostunnel.plist /Library/LaunchDaemons/
+
+# Load and start
+sudo launchctl load /Library/LaunchDaemons/com.square.ghostunnel.plist
+
+# Stop and unload
+sudo launchctl unload /Library/LaunchDaemons/com.square.ghostunnel.plist
+```
+
+Use `~/Library/LaunchAgents/` instead of `/Library/LaunchDaemons/` if running
+as a user agent rather than a system daemon.
+
+## systemd
+
+See the [`systemd.socket`][systemd-socket] man page for the full socket unit
+reference.
 
 A systemd unit for a `ghostunnel.socket` for listening on `*:8443` could look
 like this:
@@ -115,5 +137,22 @@ Note that the `FileDescriptorName` in `ghostunnel.socket` matches the name passe
 `--listen`. If multiple sockets are needed, e.g. for a status port, the name can be
 used to distinguish the listening and status sockets.
 
+To install and enable:
+
+```bash
+# Copy unit files into place
+sudo cp ghostunnel.socket ghostunnel.service /etc/systemd/system/
+
+# Reload, enable, and start the socket
+sudo systemctl daemon-reload
+sudo systemctl enable --now ghostunnel.socket
+```
+
+systemd will start `ghostunnel.service` on demand when a connection arrives
+on the socket.
+
 Ghostunnel also supports systemd notify and watchdog functionality. See
 [WATCHDOG]({{< ref "WATCHDOG.md" >}}) for details on configuring `Type=notify-reload` services.
+
+[launchd-guide]: https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html
+[systemd-socket]: https://www.freedesktop.org/software/systemd/man/latest/systemd.socket.html

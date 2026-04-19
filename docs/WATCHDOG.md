@@ -4,13 +4,13 @@ description: Integrate with the systemd watchdog timer for automatic restart on 
 weight: 85
 ---
 
-Ghostunnel supports systemd's notify and watchdog functionality on Linux. This
-allows systemd to know when Ghostunnel is ready and to automatically restart it
-if it becomes unresponsive.
+Ghostunnel supports systemd's [notify][sd-notify] and watchdog functionality on
+Linux. This allows systemd to know when Ghostunnel is ready and to automatically
+restart it if it becomes unresponsive.
 
-### How it works
+## How it works
 
-When running as a `Type=notify-reload` service:
+When running as a [`Type=notify-reload`][systemd-service] service:
 
 * **Notify**: Ghostunnel signals readiness to systemd after it has successfully
   loaded certificates and started listening. Systemd will not consider the
@@ -23,7 +23,7 @@ When running as a `Type=notify-reload` service:
   `SIGHUP` to the process, which triggers a certificate reload (same as
   sending `SIGHUP` manually).
 
-### Example unit file
+## Example unit file
 
 ```ini
 [Unit]
@@ -45,7 +45,7 @@ Restart=always
 WantedBy=default.target
 ```
 
-### Notes
+## Notes
 
 * `Type=notify-reload` requires systemd v253 or later. If you are on an older
   version, use `Type=notify` instead (reload via `systemctl reload` will not
@@ -58,3 +58,6 @@ WantedBy=default.target
   native mechanisms.
 * For socket activation with systemd, see
   [Socket Activation]({{< ref "SOCKET-ACTIVATION.md" >}}).
+
+[sd-notify]: https://www.freedesktop.org/software/systemd/man/latest/sd_notify.html
+[systemd-service]: https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html
