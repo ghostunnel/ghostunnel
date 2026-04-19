@@ -9,7 +9,7 @@ certificate via the [ACME][acme-rfc] protocol. This is powered by
 [certmagic][certmagic], which handles certificate storage, renewal, and OCSP
 stapling.
 
-## Basic usage
+## Basic Usage
 
 To enable ACME, use the `--auto-acme-cert` flag with the FQDN to obtain a
 certificate for. You must also specify an email address with
@@ -41,7 +41,7 @@ resolve to the public listening interface IP.
 Ghostunnel uses the [TLS-ALPN-01][tls-alpn-01] challenge type (HTTP-01 is
 disabled), so port 443 must be reachable.
 
-## Certificate storage and renewal
+## Certificate Storage and Renewal
 
 Certmagic stores certificates and account keys on disk. The default location
 depends on your OS:
@@ -57,7 +57,7 @@ intervention or `--timed-reload` is needed for ACME certificates.
 If a valid certificate already exists locally, Ghostunnel loads it from cache
 on startup without contacting the CA.
 
-## Revoking or force-renewing
+## Revoking or Force-Renewing
 
 Certmagic handles renewal automatically, but if you need to force a renewal
 (e.g. after a key compromise), delete the certificate and key files from the
@@ -71,7 +71,7 @@ described in [RFC 8555 Section 7.6][acme-revoke].
 [certbot-revoke]: https://eff-certbot.readthedocs.io/en/latest/using.html#revoking-certificates
 [acme-revoke]: https://datatracker.ietf.org/doc/html/rfc8555#section-7.6
 
-## Startup retry behavior
+## Startup Retry Behavior
 
 On startup, Ghostunnel attempts to obtain the initial certificate up to 5
 times with exponential backoff (starting at 5 seconds, capped at 2 minutes).

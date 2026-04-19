@@ -8,7 +8,7 @@ Ghostunnel supports several certificate and private key formats. The format
 is auto-detected from the file extension or by inspecting the first few
 bytes, so you don't need to specify it explicitly.
 
-## Formats at a glance
+## Formats at a Glance
 
 | Format | Extensions | Flag | Notes |
 |--------|-----------|------|-------|
@@ -21,7 +21,7 @@ bytes, so you don't need to specify it explicitly.
 These options are mutually exclusive with each other and with `--use-workload-api`,
 `--keychain-identity`, and PKCS#11 flags.
 
-## PEM files (separate cert and key)
+## PEM Files (Separate Cert and Key)
 
 Pass the certificate chain and private key as two separate PEM files:
 
@@ -50,7 +50,7 @@ any intermediate CA certificates:
 The key file must contain a single PEM-encoded private key (RSA, ECDSA,
 or Ed25519).
 
-## PEM keystore (combined file)
+## PEM Keystore (Combined File)
 
 A single PEM file containing both the certificate chain and private key can
 be passed with `--keystore`. The private key can appear anywhere in the file,
@@ -118,7 +118,7 @@ ghostunnel server \
     --allow-cn client
 ```
 
-## CA bundle
+## CA Bundle
 
 The `--cacert` flag accepts a PEM file containing one or more trusted CA
 certificates. If omitted, Ghostunnel uses the system trust store.
@@ -129,7 +129,7 @@ To build a CA bundle from individual certificates:
 cat root-ca.pem intermediate-ca.pem > cacert.pem
 ```
 
-## Format auto-detection
+## Format Auto-Detection
 
 Ghostunnel detects the format in this order:
 
@@ -141,15 +141,15 @@ Ghostunnel detects the format in this order:
 In practice, just use the right file extension and Ghostunnel will do the
 right thing.
 
-## Common operations
+## Common Operations
 
-### Inspect a PEM certificate
+### Inspect a PEM Certificate
 
 ```bash
 openssl x509 -in server-cert.pem -noout -text
 ```
 
-### Inspect a PKCS#12 file
+### Inspect a PKCS#12 File
 
 ```bash
 openssl pkcs12 -in server.p12 -info -nokeys
@@ -168,7 +168,7 @@ openssl pkcs12 -in server.p12 -cacerts -nokeys -out ca-chain.pem
 openssl pkcs12 -in server.p12 -nocerts -nodes -out server-key.pem
 ```
 
-### Verify a certificate chain
+### Verify a Certificate Chain
 
 ```bash
 openssl verify -CAfile cacert.pem server-cert.pem

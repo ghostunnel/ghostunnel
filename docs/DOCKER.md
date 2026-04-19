@@ -15,7 +15,7 @@ variants are available:
 
 The `latest` tags always point to the most recent release.
 
-## Pulling an image
+## Pulling an Image
 
 ```bash
 # Distroless (smallest, no shell)
@@ -51,7 +51,7 @@ container) and `host.docker.internal` for `--target` (to reach services on
 the Docker host). You may need `--unsafe-target` since `host.docker.internal`
 is not localhost.
 
-## Building images from source
+## Building Images from Source
 
 ```bash
 go tool mage docker:build

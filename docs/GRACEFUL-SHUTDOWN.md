@@ -9,7 +9,7 @@ accepting new connections and waits for existing connections to drain before
 exiting. If connections do not drain within the configured timeout, the process
 force-exits.
 
-## Shutdown triggers
+## Shutdown Triggers
 
 There are three ways to initiate a graceful shutdown:
 
@@ -44,7 +44,7 @@ curl -X POST --cacert test-keys/cacert.pem https://localhost:6060/_shutdown
 
 Any HTTP method other than POST returns 405 Method Not Allowed.
 
-## Shutdown sequence
+## Shutdown Sequence
 
 When a shutdown is triggered, the following happens in order:
 
@@ -71,7 +71,7 @@ When a shutdown is triggered, the following happens in order:
 
 See [Command-Line Flags]({{< ref "FLAGS.md" >}}) for the full flag reference.
 
-## Choosing a shutdown timeout
+## Choosing a Shutdown Timeout
 
 The default timeout of 5 minutes is deliberately generous. Consider your
 workload when tuning this value:

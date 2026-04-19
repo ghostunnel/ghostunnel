@@ -63,7 +63,7 @@ information on profiling via pprof, see the [`runtime/pprof`][pprof] and
 [http-pprof]: https://pkg.go.dev/net/http/pprof
 [pprof-bug]: https://github.com/golang/go/issues/20939
 
-## Shutdown endpoint
+## Shutdown Endpoint
 
 If `--enable-shutdown` is set, a `/_shutdown` endpoint is available on the
 status port. Sending an HTTP POST request to this endpoint will trigger a
@@ -73,7 +73,7 @@ including signal handling, connection draining, and the `--shutdown-timeout`
 flag, see
 [Graceful Shutdown]({{< ref "GRACEFUL-SHUTDOWN.md" >}}).
 
-## Backend healthchecks
+## Backend Healthchecks
 
 The `/_status` endpoint includes a backend healthcheck. By default, Ghostunnel
 performs a TCP connection check against the `--target` address. You can override
@@ -88,7 +88,7 @@ The `/_status` JSON response includes:
 
 If the backend check fails, the `/_status` endpoint returns HTTP 503.
 
-## Metric names
+## Metric Names
 
 Ghostunnel exports the following base metrics:
 
@@ -173,7 +173,7 @@ scrape_configs:
 If the status port uses HTTP (see below), set `scheme: http` and drop the
 `tls_config` block.
 
-## Metrics export
+## Metrics Export
 
 Metrics are always available via the status port endpoints (`/_metrics/json`,
 `/_metrics/prometheus`). Additionally, metrics can be pushed to external systems:
@@ -183,7 +183,7 @@ Metrics are always available via the status port endpoints (`/_metrics/json`,
 * `--metrics-url=URL`: push via HTTP POST (JSON format) at the interval set by
   `--metrics-interval` (default: 30s)
 
-## Exposing status port with HTTP instead of HTTPS
+## Exposing Status Port with HTTP Instead of HTTPS
 
 By default, Ghostunnel uses HTTPS for the status port. You can force it to use
 HTTP by prefixing the status address with "http://".

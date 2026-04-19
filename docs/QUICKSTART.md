@@ -27,7 +27,7 @@ To build from source (requires [Go](https://go.dev/doc/install)):
 go tool mage go:build
 ```
 
-## Generate test certificates
+## Generate Test Certificates
 
 If you already maintain a PKI, you can skip this step and use your existing
 certificates. The steps below are for generating test certificates for
@@ -67,7 +67,7 @@ PKI toolkit that can generate CAs and sign certificates. See the
 and [openssl-x509](https://docs.openssl.org/master/man1/openssl-x509/) docs
 for creating CAs and signing certificates.
 
-## Start a backend service
+## Start a Backend Service
 
 Ghostunnel is protocol-agnostic and works with any TCP-based protocol, not
 just HTTP. For this demo we'll use a simple HTTP server as the backend:
@@ -76,7 +76,7 @@ just HTTP. For this demo we'll use a simple HTTP server as the backend:
 python3 -m http.server 8080 &
 ```
 
-## Run Ghostunnel server
+## Run Ghostunnel Server
 
 In a new terminal, start a server that listens for TLS on port 8443 and
 forwards plaintext to the backend on port 8080. Only clients with CN=client
@@ -92,7 +92,7 @@ ghostunnel server \
     --allow-cn client
 ```
 
-## Run Ghostunnel client
+## Run Ghostunnel Client
 
 In another terminal, start a client that listens for plaintext on port 8081
 and connects to the server over TLS:
@@ -106,7 +106,7 @@ ghostunnel client \
     --cacert test-keys/cacert.pem
 ```
 
-## Test the tunnel
+## Test the Tunnel
 
 In a third terminal, send a request through the tunnel:
 
@@ -127,7 +127,7 @@ in TLS with the client certificate, and forwarded it to the Ghostunnel
 server. The server verified the client cert (CN=client), unwrapped TLS, and
 forwarded the plaintext request to the backend.
 
-## Next steps
+## Next Steps
 
 - [Command-Line Flags]({{< ref "FLAGS.md" >}}): full flag reference
 - [Certificate Formats]({{< ref "CERTIFICATES.md" >}}): PEM, PKCS#12, JCEKS, and chain ordering

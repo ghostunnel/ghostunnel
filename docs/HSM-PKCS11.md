@@ -99,7 +99,7 @@ usually want slot **9a** (Authentication):
 | 9d   | Key Management       | Encryption               |
 | 9e   | Card Authentication  | Physical access          |
 
-### Generating a key and certificate
+### Generating a Key and Certificate
 
 Generate a key pair on the YubiKey itself (the private key never leaves
 the device):
@@ -119,7 +119,7 @@ Sign the CSR with your CA, then import the signed certificate back:
 yubico-piv-tool -s 9a -a import-certificate -i server-cert.pem
 ```
 
-### Exporting the certificate for Ghostunnel
+### Exporting the Certificate for Ghostunnel
 
 Ghostunnel reads the certificate chain from disk, not from the PKCS#11
 module, so you'll need to export it:
@@ -177,7 +177,7 @@ pkcs11-tool --module /path/to/libykcs11.dylib -L
 pkcs11-tool --module /path/to/libykcs11.dylib -O
 ```
 
-## Certificate hotswapping
+## Certificate Hotswapping
 
 When using PKCS#11, certificate hotswapping (via `SIGHUP`/`SIGUSR1` or
 `--timed-reload`) reloads only the certificate from disk. The private key
@@ -188,7 +188,7 @@ Note that Landlock sandboxing is automatically disabled when PKCS#11 is used,
 as PKCS#11 modules are opaque shared libraries that may need access to
 arbitrary files and sockets.
 
-## Inspecting PKCS#11 state
+## Inspecting PKCS#11 State
 
 If you need to inspect the state of a PKCS#11 module/token, we recommend the
 [`pkcs11-tool`][pkcs11-tool] utility from OpenSC. For example, it can be used
