@@ -902,6 +902,78 @@ func TestProxyProtoHeaderWithoutTLS(t *testing.T) {
 	assert.Empty(t, tlvs, "should have no TLVs when TLS state is nil")
 }
 
+func TestProxyProtocolTLSModeSuccess(t *testing.T) {
+	cert, _ := selfSignedCert(t)
+
+	// TLS listener (incoming)
+	tlsCfg := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+	}
+	tcpLn, err := net.Listen("tcp", "127.0.0.1:0")
+	assert.Nil(t, err)
+	incoming := tls.NewListener(tcpLn, tlsCfg)
+
+	// Plain TCP target (backend)
+	target, err := net.Listen("tcp", "127.0.0.1:0")
+	assert.Nil(t, err)
+
+	dialer := func(ctx context.Context) (net.Conn, error) {
+		var d net.Dialer
+		return d.DialContext(ctx, "tcp", target.Addr().String())
+	}
+
+	p := New(incoming, 5*time.Second, 5*time.Second, 5*time.Second, 1, dialer, &testLogger{}, LogEverything, ProxyProtocolTLS)
+	go p.Accept()
+	defer p.Shutdown()
+
+	// Connect with TLS client
+	src, err := tls.Dial("tcp", incoming.Addr().String(), &tls.Config{
+		InsecureSkipVerify: true,
+		ServerName:         "example.com",
+	})
+	assert.Nil(t, err)
+
+	dst, err := target.Accept()
+	assert.Nil(t, err)
+
+	// Read and verify PROXY protocol header on backend
+	header, err := proxyproto.Read(bufio.NewReaderSize(dst, 512))
+	assert.Nil(t, err, "should be able to read proxy protocol header")
+	assert.Equal(t, uint8(2), header.Version)
+	assert.Equal(t, proxyproto.PROXY, proxyproto.ProtocolVersionAndCommand(header.Command))
+	assert.Equal(t, proxyproto.TCPv4, proxyproto.AddressFamilyAndProtocol(header.TransportProtocol))
+
+	// Verify TLVs contain TLS metadata
+	tlvs, err := header.TLVs()
+	assert.Nil(t, err)
+
+	typeSet := make(map[proxyproto.PP2Type]bool)
+	for _, tlv := range tlvs {
+		typeSet[tlv.Type] = true
+	}
+	assert.True(t, typeSet[proxyproto.PP2_TYPE_SSL], "should have SSL TLV")
+	assert.True(t, typeSet[proxyproto.PP2_TYPE_AUTHORITY], "should have Authority (SNI) TLV")
+
+	// Verify data flows through
+	_, _ = src.Write([]byte("A"))
+	received := make([]byte, 1)
+	for {
+		n, err := dst.Read(received)
+		if err != io.EOF {
+			assert.Nil(t, err, "should receive data on target")
+		}
+		if n == 1 {
+			break
+		}
+	}
+	assert.Equal(t, []byte("A"), received)
+
+	p.Shutdown()
+	dst.Close()
+	src.Close()
+	p.Wait()
+}
+
 func TestProxyProtoHeaderConnMode(t *testing.T) {
 	_, parsedCert := selfSignedCert(t)
 

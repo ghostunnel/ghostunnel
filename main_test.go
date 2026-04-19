@@ -347,6 +347,24 @@ func TestServerFlagValidation(t *testing.T) {
 	*serverAllowQuery = ""
 	*serverAllowedURIs = nil
 	*keystorePath = ""
+
+	// Test: --proxy-protocol and --proxy-protocol-mode are mutually exclusive
+	*keystorePath = "file"
+	*serverAllowAll = true
+	*serverProxyProtocol = true
+	*serverProxyProtocolMode = "tls"
+	err = serverValidateFlags()
+	assert.NotNil(t, err, "--proxy-protocol and --proxy-protocol-mode are mutually exclusive")
+
+	// Test: --proxy-protocol-mode alone is valid
+	*serverProxyProtocol = false
+	*serverProxyProtocolMode = "tls"
+	err = serverValidateFlags()
+	assert.Nil(t, err, "--proxy-protocol-mode alone should be valid")
+	*serverProxyProtocol = false
+	*serverProxyProtocolMode = ""
+	*serverAllowAll = false
+	*keystorePath = ""
 }
 
 func TestClientFlagValidation(t *testing.T) {
