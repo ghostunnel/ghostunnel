@@ -201,7 +201,7 @@ PKCS12 keystore).
 
 **--key=PATH** Path to certificate private key (PEM with private key).
 
-**--storepass=PASS** Password for keystore (if using PKCS keystore,
+**--storepass=PASS** Password for keystore (if using PKCS12 keystore,
 optional).
 
 **--cacert=CACERT** Path to CA bundle file (PEM/X509). Uses system trust
@@ -297,8 +297,13 @@ unix:PATH).
 **--target-status=""** Address to target for status checking downstream
 healthchecks. Defaults to a TCP healthcheck if this flag is not passed.
 
-**--proxy-protocol** Enable PROXY protocol v2 to signal connection info
-to backend
+**--proxy-protocol** Enable PROXY protocol v2 (connection info only,
+equivalent to --proxy-protocol-mode=conn).
+
+**--proxy-protocol-mode=PROXY-PROTOCOL-MODE** PROXY protocol v2 mode:
+conn (connection info only), tls (add TLS version/ALPN/SNI metadata),
+tls-full (add TLS metadata and client certificate). Mutually exclusive
+with --proxy-protocol.
 
 **--unsafe-target** If set, does not limit target to localhost,
 127.0.0.1, \[::1\], or UNIX sockets.

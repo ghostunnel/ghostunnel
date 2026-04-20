@@ -22,7 +22,7 @@ On UNIX systems (Linux, macOS):
 
 ```bash
 ghostunnel server \
-    --use-workload-api-addr /run/spire/sockets/agent.sock \
+    --use-workload-api-addr unix:///run/spire/sockets/agent.sock \
     --listen localhost:8443 \
     --target localhost:8080 \
     --allow-uri spiffe://domain.test/frontend
