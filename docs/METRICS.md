@@ -77,10 +77,11 @@ flag, see
 
 ## Backend Healthchecks
 
-The `/_status` endpoint includes a backend healthcheck. By default, Ghostunnel
-performs a TCP connection check against the `--target` address. You can override
-this with `--target-status=URL` to perform an HTTP GET against the given URL
-instead. Ghostunnel expects an HTTP 200 response.
+The `/_status` endpoint includes a backend healthcheck (server mode only). By
+default, Ghostunnel performs a TCP connection check against the `--target`
+address. You can override this with `--target-status=URL` (must use `http://`
+or `https://` scheme) to perform an HTTP GET against the given URL instead.
+Ghostunnel expects an HTTP 200 response.
 
 The `/_status` JSON response includes:
 

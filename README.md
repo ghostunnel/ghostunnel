@@ -306,11 +306,10 @@ successful, the reloaded certificate will be used for new connections going
 forward.
 
 Additionally, Ghostunnel uses `SO_REUSEPORT` to bind the listening socket on
-platforms where it is supported (Linux, Apple macOS, FreeBSD, NetBSD, OpenBSD
-and DragonflyBSD). This means a new Ghostunnel can be started on the same
-host/port before the old one is terminated, to minimize dropped connections (or
-avoid them entirely depending on how the OS implements the `SO_REUSEPORT`
-feature).
+platforms where it is supported (Linux, Apple macOS, FreeBSD, NetBSD and
+OpenBSD). This means a new Ghostunnel can be started on the same host/port
+before the old one is terminated, to minimize dropped connections (or avoid
+them entirely depending on how the OS implements the `SO_REUSEPORT` feature).
 
 Note that if you are using an HSM/PKCS#11 module, only the certificate will
 be reloaded. It is assumed that the private key in the HSM remains the same.

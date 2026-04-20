@@ -9,9 +9,9 @@ variants are available:
 
 | Variant | Tag | Base |
 |---------|-----|------|
-| Alpine | `ghostunnel/ghostunnel:latest`, `ghostunnel/ghostunnel:v1.x.x` | Alpine Linux |
-| Debian | `ghostunnel/ghostunnel:latest-debian`, `ghostunnel/ghostunnel:v1.x.x-debian` | Debian slim |
-| Distroless | `ghostunnel/ghostunnel:latest-distroless`, `ghostunnel/ghostunnel:v1.x.x-distroless` | Google Distroless |
+| Alpine | `ghostunnel/ghostunnel:latest-alpine`, `ghostunnel/ghostunnel:v1.x.x-alpine` | Alpine Linux |
+| Debian | `ghostunnel/ghostunnel:latest-debian`, `ghostunnel/ghostunnel:v1.x.x-debian` | Debian Slim |
+| Distroless | `ghostunnel/ghostunnel:latest-distroless`, `ghostunnel/ghostunnel:v1.x.x-distroless` | Distroless (`gcr.io/distroless/base-nossl:nonroot`) |
 
 The `latest` tags always point to the most recent release.
 

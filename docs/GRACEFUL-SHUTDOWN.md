@@ -54,11 +54,11 @@ When a shutdown is triggered, the following happens in order:
    that the process is shutting down.
 2. **Status HTTP server begins shutting down**: best-effort graceful shutdown
    of the internal status listener.
-3. **Listener closes**: Ghostunnel stops accepting new connections.
-4. **In-flight connections continue**: existing connections are not
-   interrupted. Data continues to flow until both sides close normally.
-5. **Force-exit timer starts**: a timer begins counting down from the
+3. **Force-exit timer starts**: a timer begins counting down from the
    `--shutdown-timeout` value (default: 5 minutes).
+4. **Listener closes**: Ghostunnel stops accepting new connections.
+5. **In-flight connections continue**: existing connections are not
+   interrupted. Data continues to flow until both sides close normally.
 6. **Process exits** when either:
    - All in-flight connections have drained (exit code 0), or
    - The shutdown timeout fires (exit code 1).
@@ -88,7 +88,7 @@ workload when tuning this value:
   `terminationGracePeriodSeconds`) to avoid the orchestrator killing the
   process before Ghostunnel's own timeout fires.
 
-Other flags like `--connect-timeout` and `--conn-max-lifetime` also influence
+Other flags like `--connect-timeout` and `--max-conn-lifetime` also influence
 connection behavior and may be relevant when tuning shutdown. See
 [Command-Line Flags]({{< ref "FLAGS.md" >}}) for the full list.
 

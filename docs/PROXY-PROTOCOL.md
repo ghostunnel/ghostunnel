@@ -46,8 +46,8 @@ ghostunnel server ... --proxy-protocol-mode=tls
 ghostunnel server ... --proxy-protocol-mode=tls-full
 ```
 
-Using `--proxy-protocol-mode` implies `--proxy-protocol`; you do not need to
-pass both.
+`--proxy-protocol-mode` and `--proxy-protocol` are mutually exclusive; use one
+or the other, not both.
 
 The backend will receive a PROXY protocol v2 binary header on each new
 connection, followed by the normal application data stream.

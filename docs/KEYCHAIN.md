@@ -80,7 +80,7 @@ ghostunnel server \
     --allow-ou=client
 ```
 
-This flag is only available on macOS and has no effect on Windows.
+This flag is only available on macOS.
 
 See Apple's [Protecting keys with the Secure Enclave][apple-secure-enclave]
 and the [Secure Enclave security overview][apple-se-overview] for more on
@@ -174,7 +174,8 @@ ghostunnel client \
 ### Windows
 
 On Windows, `--keychain-identity` and `--keychain-issuer` work the same way
-but search the Windows Certificate Store (the "MY" store for the current user):
+but search the Windows Certificate Store (MY, CURRENT_SERVICE, and
+LOCAL_MACHINE stores, as described [above](#importing-into-the-certificate-store)):
 
 ```bash
 ghostunnel client \
@@ -186,8 +187,8 @@ ghostunnel client \
 
 ## Certificate Reloading
 
-Keychain certificates support reloading via `SIGHUP`/`SIGUSR1` or
-`--timed-reload`. On reload, Ghostunnel re-queries the keychain for a
+Keychain certificates support reloading via `SIGHUP`/`SIGUSR1` (Unix only) or
+`--timed-reload` (all platforms). On reload, Ghostunnel re-queries the keychain for a
 certificate matching the same identity/issuer criteria. If the certificate
 has been updated in the keychain (e.g. renewed), the new certificate will
 be used for subsequent connections.

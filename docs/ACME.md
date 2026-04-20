@@ -29,7 +29,9 @@ ghostunnel server \
 Ghostunnel defaults to using [Let's Encrypt][letsencrypt] as the ACME CA. You
 can specify a different ACME CA URL using `--auto-acme-ca`. To test against a
 non-production CA (e.g. Let's Encrypt's staging environment), use
-`--auto-acme-testca`. When set, the `--auto-acme-ca` flag is ignored.
+`--auto-acme-testca=URL` with the staging CA's directory URL (e.g.
+`--auto-acme-testca=https://acme-staging-v02.api.letsencrypt.org/directory`).
+When set, the `--auto-acme-ca` flag is ignored.
 
 ## Requirements
 
