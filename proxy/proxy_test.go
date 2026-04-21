@@ -1008,3 +1008,49 @@ func TestProxyProtoHeaderConnMode(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Empty(t, tlvs, "conn mode should have no TLVs even with TLS state")
 }
+
+// failWriteConn is a mock connection that tracks Close() calls and fails on Write().
+// Used to simulate a PROXY protocol header write failure.
+type failWriteConn struct {
+	closed bool
+	mockConn
+}
+
+func (f *failWriteConn) Write(b []byte) (int, error) { return 0, errors.New("write error") }
+func (f *failWriteConn) Close() error                { f.closed = true; return nil }
+
+func TestProxyProtocolWriteFailureClosesBackend(t *testing.T) {
+	// Incoming listener (plain TCP — forceHandshake is a no-op for non-TLS)
+	incoming, err := net.Listen("tcp", "127.0.0.1:0")
+	assert.Nil(t, err)
+	defer incoming.Close()
+
+	// Backend mock that fails on Write (simulating PROXY header write failure)
+	backend := &failWriteConn{}
+	dialCalled := make(chan struct{})
+
+	dialer := func(_ context.Context) (net.Conn, error) {
+		close(dialCalled)
+		return backend, nil
+	}
+
+	// Create proxy with PROXY protocol enabled
+	p := proxyForTestWithProxyProtocol(incoming, dialer)
+	go p.Accept()
+
+	// Connect a client to trigger the handler
+	client, err := net.Dial("tcp", incoming.Addr().String())
+	assert.Nil(t, err)
+
+	// Wait for the handler to reach Dial, ensuring it's past the accept stage
+	<-dialCalled
+	client.Close()
+
+	// Shut down and wait for all handlers to complete
+	p.Shutdown()
+	p.Wait()
+
+	// BUG: backend connection should be closed when PROXY header write fails,
+	// but current code returns without closing it.
+	assert.True(t, backend.closed, "backend connection must be closed when PROXY protocol header write fails")
+}
