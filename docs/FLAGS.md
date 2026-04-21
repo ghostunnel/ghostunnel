@@ -82,6 +82,7 @@ metrics endpoints, and profiling.
 | `--enable-shutdown` | Enable `/_shutdown` endpoint alongside `/_status` to allow terminating via HTTP POST. | All platforms |
 | `--quiet` | Silence log messages. Values: `all`, `conns`, `conn-errs`, `handshake-errs`. Can be repeated. | All platforms |
 | `--syslog` | Send logs to syslog instead of stdout. | Linux, macOS |
+| `--eventlog` | Send logs to Windows Event Log instead of stdout. | Windows |
 | `--skip-resolve` | Skip resolving target host on startup (useful to start before network is up). | All platforms |
 
 ### Landlock

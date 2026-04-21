@@ -29,6 +29,8 @@ require (
 	software.sslmate.com/src/go-pkcs12 v0.7.0
 )
 
+require github.com/pkg/errors v0.9.1 // indirect
+
 require (
 	4d63.com/gocheckcompilerdirectives v1.3.0 // indirect
 	4d63.com/gochecknoglobals v0.2.2 // indirect
@@ -266,7 +268,7 @@ require (
 	golang.org/x/crypto v0.49.0 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20260312153236-7ab1446f8b90 // indirect
 	golang.org/x/mod v0.34.0 // indirect
-	golang.org/x/sys v0.42.0 // indirect
+	golang.org/x/sys v0.42.0
 	golang.org/x/text v0.35.0 // indirect
 	golang.org/x/tools v0.43.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260401024825-9d38bb4040a9 // indirect
