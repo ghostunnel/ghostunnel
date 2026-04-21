@@ -1,3 +1,5 @@
+//go:build !cgo || (!darwin && !windows)
+
 package certstore
 
 import (
