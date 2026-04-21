@@ -475,6 +475,10 @@ func serverProxyProtoMode() proxy.ProxyProtocolMode {
 }
 
 func main() {
+	if isRunningAsService() {
+		runAsService()
+		return
+	}
 	err := run(os.Args[1:])
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
@@ -489,7 +493,13 @@ func run(args []string) error {
 	app.Version(fmt.Sprintf("rev %s built with %s (pkcs11: %v, keychain: %v)", version, runtime.Version(), certloader.SupportsPKCS11(), certloader.SupportsKeychain()))
 	app.Validate(validateFlags)
 	app.UsageTemplate(kingpin.LongHelpTemplate)
-	command := kingpin.MustParse(app.Parse(args))
+
+	command, parseErr := app.Parse(args)
+	command = kingpin.MustParse(command, parseErr)
+
+	if handled, err := runServiceCommand(command); handled {
+		return err
+	}
 
 	// use-workload-api-addr implies use-workload-api
 	if *useWorkloadAPIAddr != "" {
