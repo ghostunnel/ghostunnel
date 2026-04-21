@@ -136,8 +136,7 @@ func (s *statusHandler) HandleWatchdog() {
 
 func (s *statusHandler) status(ctx context.Context) statusResponse {
 	resp := statusResponse{
-		Time:       time.Now(),
-		LastReload: s.lastReload,
+		Time: time.Now(),
 	}
 
 	resp.Revision = version
@@ -156,6 +155,7 @@ func (s *statusHandler) status(ctx context.Context) statusResponse {
 	}
 
 	s.mu.Lock()
+	resp.LastReload = s.lastReload
 	resp.Ok = s.listening && resp.BackendOk
 	if s.stopping {
 		resp.Message = "stopping"

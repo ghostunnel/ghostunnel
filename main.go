@@ -433,12 +433,26 @@ func validateClientListen() error {
 	return nil
 }
 
+func validateClientOPA() error {
+	hasOPAFlags := len(*clientAllowPolicy) > 0 || len(*clientAllowQuery) > 0
+	if !hasOPAFlags {
+		return nil
+	}
+	if *clientAllowPolicy == "" || *clientAllowQuery == "" {
+		return errors.New("--verify-policy and --verify-query have to be used together")
+	}
+	return nil
+}
+
 // Validate flags for client mode
 func clientValidateFlags() error {
 	if err := validateClientCredentials(); err != nil {
 		return err
 	}
 	if err := validateClientListen(); err != nil {
+		return err
+	}
+	if err := validateClientOPA(); err != nil {
 		return err
 	}
 	return validateCipherSuites()
@@ -696,6 +710,7 @@ func serverListen(env *Environment) error {
 
 	serverConfig, err := getServerConfig(env.tlsConfigSource, config)
 	if err != nil {
+		listener.Close()
 		logger.Printf("error: unable to get server TLS config: %s", err)
 		return err
 	}
@@ -715,6 +730,7 @@ func serverListen(env *Environment) error {
 	if *statusAddress != "" {
 		err := env.serveStatus()
 		if err != nil {
+			listener.Close()
 			logger.Printf("error serving /_status: %s", err)
 			return err
 		}
@@ -760,6 +776,7 @@ func clientListen(env *Environment) error {
 	if *statusAddress != "" {
 		err := env.serveStatus()
 		if err != nil {
+			listener.Close()
 			logger.Printf("error serving /_status: %s", err)
 			return err
 		}

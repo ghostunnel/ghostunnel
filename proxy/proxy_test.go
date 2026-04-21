@@ -1022,7 +1022,9 @@ func (f *failWriteConn) Close() error                { f.closed = true; return n
 func TestProxyProtocolWriteFailureClosesBackend(t *testing.T) {
 	// Incoming listener (plain TCP — forceHandshake is a no-op for non-TLS)
 	incoming, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer incoming.Close()
 
 	// Backend mock that fails on Write (simulating PROXY header write failure)
@@ -1050,7 +1052,6 @@ func TestProxyProtocolWriteFailureClosesBackend(t *testing.T) {
 	p.Shutdown()
 	p.Wait()
 
-	// BUG: backend connection should be closed when PROXY header write fails,
-	// but current code returns without closing it.
+	// Regression: verify backend connection is closed when PROXY header write fails.
 	assert.True(t, backend.closed, "backend connection must be closed when PROXY protocol header write fails")
 }

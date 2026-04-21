@@ -51,6 +51,7 @@ func launchdSocket(address string) (net.Listener, error) {
 
 	fds := (*[1]C.int)(ptr)
 	file := os.NewFile(uintptr(fds[0]), "")
+	defer file.Close()
 
 	return net.FileListener(file)
 }

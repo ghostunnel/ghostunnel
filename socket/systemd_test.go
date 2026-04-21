@@ -13,11 +13,15 @@ func TestSystemdSocketMultipleNames(t *testing.T) {
 	// Two systemd socket names, each with exactly one listener.
 	// Requesting "web" should succeed since "web" has exactly 1 socket.
 	webListener, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer webListener.Close()
 
 	apiListener, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer apiListener.Close()
 
 	listeners := map[string][]net.Listener{
@@ -34,11 +38,15 @@ func TestSystemdSocketMultipleSocketsSameName(t *testing.T) {
 	// One systemd socket name with two listeners.
 	// This should fail since we expect exactly 1 socket per name.
 	l1, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer l1.Close()
 
 	l2, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer l2.Close()
 
 	listeners := map[string][]net.Listener{
