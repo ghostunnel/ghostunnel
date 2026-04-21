@@ -1,4 +1,4 @@
-//go:build darwin || windows
+//go:build cgo && (darwin || windows)
 
 /*-
  * Copyright 2018 Square Inc.
