@@ -31,11 +31,15 @@ func systemdSocket(name string) (net.Listener, error) {
 		return nil, err
 	}
 
+	return systemdSocketFromMap(name, listeners)
+}
+
+func systemdSocketFromMap(name string, listeners map[string][]net.Listener) (net.Listener, error) {
 	if listener, ok := listeners[name]; ok {
-		if len(listeners) != 1 {
-			return nil, fmt.Errorf("expected exactly 1 listening socket configured in systemd for name %s, found %d", name, len(listeners))
+		if len(listener) != 1 {
+			return nil, fmt.Errorf("expected exactly 1 listening socket configured in systemd for name %s, found %d", name, len(listener))
 		}
-		return listener[0], err
+		return listener[0], nil
 	}
 
 	return nil, fmt.Errorf("expected listener with name %s, but found none", name)

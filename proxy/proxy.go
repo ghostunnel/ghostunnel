@@ -359,6 +359,7 @@ func (p *Proxy) Accept() {
 				_, err = h.WriteTo(backend)
 				if err != nil {
 					p.logConditional(LogConnectionErrors, "error writing proxy header: %s", err)
+					backend.Close()
 					return
 				}
 			}

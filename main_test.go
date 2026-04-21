@@ -424,6 +424,31 @@ func TestClientFlagValidation(t *testing.T) {
 	err = clientValidateFlags()
 	assert.NotNil(t, err, "--key without --cert should be rejected")
 	*keyPath = ""
+
+	// Test: OPA flags must be used together
+	*keystorePath = "file"
+	*clientListenAddress = "127.0.0.1:8080"
+	*enabledCipherSuites = "AES,CHACHA"
+
+	*clientAllowPolicy = "policy"
+	*clientAllowQuery = ""
+	err = clientValidateFlags()
+	assert.NotNil(t, err, "--verify-policy needs --verify-query")
+
+	*clientAllowPolicy = ""
+	*clientAllowQuery = "query"
+	err = clientValidateFlags()
+	assert.NotNil(t, err, "--verify-query needs --verify-policy")
+
+	*clientAllowPolicy = "policy"
+	*clientAllowQuery = "query"
+	err = clientValidateFlags()
+	assert.Nil(t, err, "--verify-policy and --verify-query together should be valid")
+
+	*clientAllowPolicy = ""
+	*clientAllowQuery = ""
+	err = clientValidateFlags()
+	assert.Nil(t, err, "neither OPA flag set should be valid")
 }
 
 func TestAllowsLocalhost(t *testing.T) {
