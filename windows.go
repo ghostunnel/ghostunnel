@@ -20,13 +20,38 @@ package main
 
 import (
 	"os"
+
+	"golang.org/x/sys/windows/svc"
 )
 
 var (
 	shutdownSignals = []os.Signal{os.Interrupt}
 	refreshSignals  = []os.Signal{ /* Not supported on Windows */ }
+
+	// serviceStopCh is written to by the Windows Service Control Manager stop
+	// handler to trigger a graceful shutdown of the running proxy.
+	serviceStopCh = make(chan bool, 1)
 )
 
 func useSyslog() bool {
 	return false
+}
+
+// serviceShutdownChan returns the channel that the Windows SCM stop handler
+// signals when the service is asked to stop.
+func serviceShutdownChan() <-chan bool {
+	return serviceStopCh
+}
+
+// isRunningAsService reports whether the process was started by the Windows
+// Service Control Manager rather than interactively.
+func isRunningAsService() bool {
+	ok, err := svc.IsWindowsService()
+	return err == nil && ok
+}
+
+// runAsService hands control to the Windows Service Control Manager.
+func runAsService() {
+	name := currentServiceName()
+	_ = svc.Run(name, &ghostunnelService{name: name})
 }

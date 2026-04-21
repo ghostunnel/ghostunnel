@@ -71,6 +71,12 @@ func (env *Environment) signalHandler(p *proxy.Proxy) {
 			shutdownFunc()
 
 			return
+		case <-serviceShutdownChan(): // nil on non-Windows; nil channel blocks forever, disabling this case
+			logger.Printf("Windows service stop requested, shutting down")
+
+			shutdownFunc()
+
+			return
 		case sig := <-signals:
 			if isShutdownSignal(sig) {
 				logger.Printf("received %s, shutting down", sig.String())

@@ -32,3 +32,16 @@ var (
 func useSyslog() bool {
 	return *syslogFlag
 }
+
+// serviceShutdownChan returns nil on non-Windows platforms. A nil channel
+// in a select statement blocks forever, so the service stop case in
+// signalHandler is effectively disabled on Unix.
+func serviceShutdownChan() <-chan bool {
+	return nil
+}
+
+func isRunningAsService() bool { return false }
+
+func runAsService() {}
+
+func runServiceCommand(_ string) (bool, error) { return false, nil }

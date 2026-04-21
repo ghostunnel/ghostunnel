@@ -1,7 +1,6 @@
 module github.com/ghostunnel/ghostunnel
 
 require (
-	github.com/Microsoft/go-winio v0.6.2
 	github.com/alecthomas/kingpin/v2 v2.4.0
 	github.com/caddyserver/certmagic v0.25.2
 	github.com/coreos/go-systemd/v22 v22.7.0
@@ -26,6 +25,7 @@ require (
 	github.com/wrouesnel/go.connect-proxy-scheme v0.0.0-20240822095422-f6d0c8f327b9
 	golang.org/x/net v0.52.0
 	golang.org/x/sync v0.20.0
+	golang.org/x/sys v0.42.0
 	google.golang.org/grpc v1.79.3
 	google.golang.org/protobuf v1.36.11
 	software.sslmate.com/src/go-pkcs12 v0.7.0
@@ -48,6 +48,7 @@ require (
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/Djarvur/go-err113 v0.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
+	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/MirrexOne/unqueryvet v1.4.0 // indirect
 	github.com/OpenPeeDeeP/depguard/v2 v2.2.1 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
@@ -268,7 +269,6 @@ require (
 	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f // indirect
 	golang.org/x/exp/typeparams v0.0.0-20251023183803-a4bb9ffd2546 // indirect
 	golang.org/x/mod v0.34.0 // indirect
-	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/text v0.35.0 // indirect
 	golang.org/x/tools v0.43.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260319201613-d00831a3d3e7 // indirect
