@@ -104,19 +104,21 @@ func TestInitLoggerQuiet(t *testing.T) {
 	assert.NotNil(t, logger, "logger should never be nil after init")
 }
 
-func TestInitLoggerSyslog(t *testing.T) {
+func TestInitLoggerSystemLog(t *testing.T) {
 	originalLogger := logger
+	defer func() { logger = originalLogger }()
+
 	err := initLogger(true, []string{})
-	updatedLogger := logger
 	if err != nil {
 		// Tests running in containers often don't have access to syslog,
 		// so we can't depend on syslog being available for testing. If we
 		// get an error from the syslog setup we just warn and skip test.
-		t.Logf("Error setting up syslog for test, skipping: %s", err)
+		t.Logf("System log not available for test, skipping: %s", err)
+		assert.NotNil(t, logger, "logger should never be nil even after error")
 		t.SkipNow()
 		return
 	}
-	assert.NotEqual(t, originalLogger, updatedLogger, "should have updated logger object")
+	assert.NotEqual(t, originalLogger, logger, "should have updated logger object")
 	assert.NotNil(t, logger, "logger should never be nil after init")
 }
 
