@@ -59,7 +59,11 @@ func (w *eventLogWriter) Write(p []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	return len(p), windows.ReportEvent(w.handle, windows.EVENTLOG_INFORMATION_TYPE, 0, 1, 0, 1, 0, &msgPtr, nil)
+	err = windows.ReportEvent(w.handle, windows.EVENTLOG_INFORMATION_TYPE, 0, 1, 0, 1, 0, &msgPtr, nil)
+	if err != nil {
+		return 0, err
+	}
+	return len(p), nil
 }
 
 func (w *eventLogWriter) Close() error {
