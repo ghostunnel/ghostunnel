@@ -1,7 +1,9 @@
 ---
 title: Quick Start
 description: Get Ghostunnel running with mTLS in 5 minutes using a self-signed CA.
-weight: 5
+weight: 10
+aliases:
+  - /docs/quickstart/
 ---
 
 This guide walks through setting up a Ghostunnel server and client with mutual
@@ -19,7 +21,7 @@ docker pull ghostunnel/ghostunnel:latest-distroless
 
 Pre-built binaries are also available on the
 [GitHub releases](https://github.com/ghostunnel/ghostunnel/releases) page.
-See [Docker Images]({{< ref "DOCKER.md" >}}) for all available image variants.
+See [Docker Images]({{< ref "docker.md" >}}) for all available image variants.
 
 To build from source (requires [Go](https://go.dev/doc/install)):
 
@@ -129,10 +131,10 @@ forwarded the plaintext request to the backend.
 
 ## Next Steps
 
-- [Command-Line Flags]({{< ref "FLAGS.md" >}}): full flag reference
-- [Certificate Formats]({{< ref "CERTIFICATES.md" >}}): PEM, PKCS#12, JCEKS, and chain ordering
-- [Access Control Flags]({{< ref "ACCESS-FLAGS.md" >}}): control who can connect (CN, OU, DNS/URI SAN, OPA)
-- [ACME Support]({{< ref "ACME.md" >}}): automatic certificates from Let's Encrypt
-- [Metrics & Profiling]({{< ref "METRICS.md" >}}): status port, Prometheus metrics, pprof
-- [PROXY Protocol]({{< ref "PROXY-PROTOCOL.md" >}}): pass client connection metadata to backends
-- [Socket Activation]({{< ref "SOCKET-ACTIVATION.md" >}}) and [Systemd Watchdog]({{< ref "WATCHDOG.md" >}}): run Ghostunnel as a service
+- [Command-Line Flags]({{< ref "flags.md" >}}): full flag reference
+- [Certificate Formats]({{< ref "formats.md" >}}): PEM, PKCS#12, JCEKS, and chain ordering
+- [Access Control Flags]({{< ref "access-flags.md" >}}): control who can connect (CN, OU, DNS/URI SAN, OPA)
+- [ACME Support]({{< ref "acme.md" >}}): automatic certificates from Let's Encrypt
+- [Metrics & Profiling]({{< ref "metrics.md" >}}): status port, Prometheus metrics, pprof
+- [PROXY Protocol]({{< ref "proxy-protocol.md" >}}): pass client connection metadata to backends
+- [Socket Activation]({{< ref "socket-activation.md" >}}) and [Systemd Watchdog]({{< ref "watchdog.md" >}}): run Ghostunnel as a service

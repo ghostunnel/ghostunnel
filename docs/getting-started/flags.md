@@ -1,7 +1,9 @@
 ---
 title: Command-Line Flags
 description: Quick reference for all Ghostunnel command-line flags, grouped by mode.
-weight: 10
+weight: 20
+aliases:
+  - /docs/flags/
 ---
 
 Quick reference for all Ghostunnel command-line flags, grouped by mode. For
@@ -13,7 +15,7 @@ These flags are available in both `server` and `client` modes.
 
 ### Certificate / Key
 
-See [Certificate Formats]({{< ref "CERTIFICATES.md" >}}) for details on
+See [Certificate Formats]({{< ref "formats.md" >}}) for details on
 supported file formats and chain ordering.
 
 | Flag | Description |
@@ -23,13 +25,13 @@ supported file formats and chain ordering.
 | `--key PATH` | Path to certificate private key (PEM with private key). |
 | `--storepass PASS` | Password for keystore (if using PKCS12 keystore, optional). |
 | `--cacert PATH` | Path to CA bundle file (PEM/X509). Uses system trust store by default. |
-| `--use-workload-api` | Certificate and root CAs are retrieved via the SPIFFE Workload API. See [SPIFFE]({{< ref "SPIFFE-WORKLOAD-API.md" >}}). |
-| `--use-workload-api-addr ADDR` | Retrieve certificates and root CAs via the SPIFFE Workload API at the specified address (implies `--use-workload-api`). See [SPIFFE]({{< ref "SPIFFE-WORKLOAD-API.md" >}}). |
+| `--use-workload-api` | Certificate and root CAs are retrieved via the SPIFFE Workload API. See [SPIFFE]({{< ref "spiffe-workload-api.md" >}}). |
+| `--use-workload-api-addr ADDR` | Retrieve certificates and root CAs via the SPIFFE Workload API at the specified address (implies `--use-workload-api`). See [SPIFFE]({{< ref "spiffe-workload-api.md" >}}). |
 
 ### Keychain
 
 These flags are only available on platforms with keychain support.
-See [Keychain]({{< ref "KEYCHAIN.md" >}}).
+See [Keychain]({{< ref "keychain.md" >}}).
 
 | Flag | Description | Availability |
 |------|-------------|--------------|
@@ -40,7 +42,7 @@ See [Keychain]({{< ref "KEYCHAIN.md" >}}).
 ### PKCS#11
 
 These flags require a build with CGO enabled.
-See [HSM/PKCS#11]({{< ref "HSM-PKCS11.md" >}}).
+See [HSM/PKCS#11]({{< ref "hsm-pkcs11.md" >}}).
 
 | Flag | Description | Availability |
 |------|-------------|--------------|
@@ -61,7 +63,7 @@ See [HSM/PKCS#11]({{< ref "HSM-PKCS11.md" >}}).
 
 ### Metrics
 
-See [Metrics]({{< ref "METRICS.md" >}}).
+See [Metrics]({{< ref "metrics.md" >}}).
 
 | Flag | Default | Description |
 |------|---------|-------------|
@@ -72,7 +74,7 @@ See [Metrics]({{< ref "METRICS.md" >}}).
 
 ### Status / Logging
 
-See [Metrics & Profiling]({{< ref "METRICS.md" >}}) for details on the status port,
+See [Metrics & Profiling]({{< ref "metrics.md" >}}) for details on the status port,
 metrics endpoints, and profiling.
 
 | Flag | Description | Availability |
@@ -86,7 +88,7 @@ metrics endpoints, and profiling.
 
 ### Landlock
 
-See [Security & TLS Configuration]({{< ref "SECURITY.md" >}}) for details on
+See [Security & TLS Configuration]({{< ref "tls.md" >}}) for details on
 Landlock sandboxing.
 
 | Flag | Description | Availability |
@@ -99,7 +101,7 @@ Flags specific to `ghostunnel server`.
 
 ### Required
 
-See [Socket Activation]({{< ref "SOCKET-ACTIVATION.md" >}}) for `systemd:NAME` and
+See [Socket Activation]({{< ref "socket-activation.md" >}}) for `systemd:NAME` and
 `launchd:NAME` addresses.
 
 | Flag | Description |
@@ -109,18 +111,18 @@ See [Socket Activation]({{< ref "SOCKET-ACTIVATION.md" >}}) for `systemd:NAME` a
 
 ### Proxying
 
-See [PROXY Protocol]({{< ref "PROXY-PROTOCOL.md" >}}) for details on modes and TLV extensions.
+See [PROXY Protocol]({{< ref "proxy-protocol.md" >}}) for details on modes and TLV extensions.
 
 | Flag | Description |
 |------|-------------|
 | `--target-status URL` | Address to target for status checking downstream healthchecks. Defaults to TCP healthcheck if not passed. |
 | `--proxy-protocol` | Enable PROXY protocol v2 with connection info only (equivalent to `--proxy-protocol-mode=conn`). |
 | `--proxy-protocol-mode MODE` | PROXY protocol v2 mode: `conn`, `tls`, or `tls-full`. Mutually exclusive with `--proxy-protocol`. |
-| `--unsafe-target` | Do not limit target to localhost, `127.0.0.1`, `[::1]`, or UNIX sockets. See [Security]({{< ref "SECURITY.md" >}}). |
+| `--unsafe-target` | Do not limit target to localhost, `127.0.0.1`, `[::1]`, or UNIX sockets. See [Security]({{< ref "tls.md" >}}). |
 
 ### Access Control
 
-See [Access Control Flags]({{< ref "ACCESS-FLAGS.md" >}}).
+See [Access Control Flags]({{< ref "access-flags.md" >}}).
 
 | Flag | Description |
 |------|-------------|
@@ -133,7 +135,7 @@ See [Access Control Flags]({{< ref "ACCESS-FLAGS.md" >}}).
 
 ### ACME (Server)
 
-See [ACME Support]({{< ref "ACME.md" >}}).
+See [ACME Support]({{< ref "acme.md" >}}).
 
 | Flag | Description |
 |------|-------------|
@@ -145,7 +147,7 @@ See [ACME Support]({{< ref "ACME.md" >}}).
 
 ### OPA Policy (Server)
 
-See [Access Control Flags]({{< ref "ACCESS-FLAGS.md" >}}) for OPA/Rego policy details.
+See [Access Control Flags]({{< ref "access-flags.md" >}}) for OPA/Rego policy details.
 
 | Flag | Description |
 |------|-------------|
@@ -158,7 +160,7 @@ Flags specific to `ghostunnel client`.
 
 ### Required
 
-See [Socket Activation]({{< ref "SOCKET-ACTIVATION.md" >}}) for `systemd:NAME` and
+See [Socket Activation]({{< ref "socket-activation.md" >}}) for `systemd:NAME` and
 `launchd:NAME` addresses.
 
 | Flag | Description |
@@ -170,14 +172,14 @@ See [Socket Activation]({{< ref "SOCKET-ACTIVATION.md" >}}) for `systemd:NAME` a
 
 | Flag | Description |
 |------|-------------|
-| `--unsafe-listen` | Do not limit listen to localhost, `127.0.0.1`, `[::1]`, or UNIX sockets. See [Security]({{< ref "SECURITY.md" >}}). |
+| `--unsafe-listen` | Do not limit listen to localhost, `127.0.0.1`, `[::1]`, or UNIX sockets. See [Security]({{< ref "tls.md" >}}). |
 | `--override-server-name NAME` | Override the server name used for hostname verification. |
 | `--proxy URL` | Connect to target over given proxy (HTTP CONNECT or SOCKS5). Must be a proxy URL. |
 | `--disable-authentication` | Disable client authentication, no certificate will be provided to the server. |
 
 ### Server Verification
 
-See [Access Control Flags]({{< ref "ACCESS-FLAGS.md" >}}).
+See [Access Control Flags]({{< ref "access-flags.md" >}}).
 
 | Flag | Description |
 |------|-------------|
@@ -188,7 +190,7 @@ See [Access Control Flags]({{< ref "ACCESS-FLAGS.md" >}}).
 
 ### OPA Policy (Client)
 
-See [Access Control Flags]({{< ref "ACCESS-FLAGS.md" >}}) for OPA/Rego policy details.
+See [Access Control Flags]({{< ref "access-flags.md" >}}) for OPA/Rego policy details.
 
 | Flag | Description |
 |------|-------------|

@@ -1,7 +1,9 @@
 ---
 title: ACME Support
 description: Automatically obtain and renew public TLS certificates via Let's Encrypt or other ACME certificate authorities.
-weight: 30
+weight: 20
+aliases:
+  - /docs/acme/
 ---
 
 In server mode, Ghostunnel can automatically obtain and renew a public TLS

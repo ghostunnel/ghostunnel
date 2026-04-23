@@ -1,7 +1,9 @@
 ---
 title: Metrics & Profiling
 description: Expose status, health checks, and metrics in JSON or Prometheus format via the built-in status port.
-weight: 70
+weight: 40
+aliases:
+  - /docs/metrics/
 ---
 
 Ghostunnel has a notion of "status port", a TCP port (or UNIX socket) that can
@@ -73,7 +75,7 @@ graceful shutdown of the Ghostunnel process. Any other HTTP method returns 405
 Method Not Allowed. For details on what happens after shutdown is triggered,
 including signal handling, connection draining, and the `--shutdown-timeout`
 flag, see
-[Graceful Shutdown]({{< ref "GRACEFUL-SHUTDOWN.md" >}}).
+[Graceful Shutdown]({{< ref "graceful-shutdown.md" >}}).
 
 ## Backend Healthchecks
 

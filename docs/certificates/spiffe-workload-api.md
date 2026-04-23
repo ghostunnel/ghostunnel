@@ -1,7 +1,9 @@
 ---
 title: SPIFFE Workload API
 description: Automatically manage certificates and trusted roots via SPIRE or other SPIFFE-compatible workload identity providers.
-weight: 60
+weight: 30
+aliases:
+  - /docs/spiffe-workload-api/
 ---
 
 Ghostunnel can obtain certificates and trusted roots from the

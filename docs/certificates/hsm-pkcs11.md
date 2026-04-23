@@ -2,6 +2,8 @@
 title: HSM/PKCS#11 Support
 description: Load private keys from hardware security modules via the PKCS#11 interface.
 weight: 40
+aliases:
+  - /docs/hsm-pkcs11/
 ---
 
 Ghostunnel has support for loading private keys from [PKCS#11][pkcs11-spec]
@@ -52,7 +54,7 @@ to use environment variables to set PKCS#11 options instead of flags (via
 Note that `--cert` needs to point to the certificate chain that corresponds
 to the private key in the PKCS#11 module, with the leaf certificate being the
 first certificate in the chain (see
-[Certificate Formats]({{< ref "CERTIFICATES.md" >}})). Ghostunnel currently
+[Certificate Formats]({{< ref "formats.md" >}})). Ghostunnel currently
 cannot read the certificate chain directly from the module.
 
 ## Using a YubiKey

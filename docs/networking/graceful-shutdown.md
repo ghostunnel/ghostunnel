@@ -1,7 +1,9 @@
 ---
 title: Graceful Shutdown
 description: How Ghostunnel handles shutdown signals, drains in-flight connections, and force-exits after a timeout.
-weight: 87
+weight: 30
+aliases:
+  - /docs/graceful-shutdown/
 ---
 
 Ghostunnel supports graceful shutdown: when a shutdown is triggered, it stops
@@ -71,7 +73,7 @@ When a shutdown is triggered, the following happens in order:
 | `--enable-shutdown` | `false` | Enable the `/_shutdown` HTTP endpoint on the status port. Requires `--status`. |
 | `--status` | *(none)* | HOST:PORT (or `unix:SOCKET`) for the status listener. Required for `/_shutdown`. |
 
-See [Command-Line Flags]({{< ref "FLAGS.md" >}}) for the full flag reference.
+See [Command-Line Flags]({{< ref "flags.md" >}}) for the full flag reference.
 
 ## Choosing a Shutdown Timeout
 
@@ -90,7 +92,7 @@ workload when tuning this value:
 
 Other flags like `--connect-timeout` and `--max-conn-lifetime` also influence
 connection behavior and may be relevant when tuning shutdown. See
-[Command-Line Flags]({{< ref "FLAGS.md" >}}) for the full list.
+[Command-Line Flags]({{< ref "flags.md" >}}) for the full list.
 
 ## Integration with systemd
 
@@ -99,5 +101,5 @@ connection behavior and may be relevant when tuning shutdown. See
 When running as a systemd service with `Type=notify-reload`, Ghostunnel
 notifies systemd of its state transitions (ready, reloading, stopping). The
 graceful shutdown sequence integrates naturally with systemd's service
-lifecycle. See [Systemd Watchdog]({{< ref "WATCHDOG.md" >}}) for unit file
+lifecycle. See [Systemd Watchdog]({{< ref "watchdog.md" >}}) for unit file
 examples and configuration details.

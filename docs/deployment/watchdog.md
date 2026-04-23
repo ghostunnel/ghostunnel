@@ -1,7 +1,9 @@
 ---
 title: Systemd Watchdog
 description: Integrate with the systemd watchdog timer for automatic restart on failure.
-weight: 85
+weight: 20
+aliases:
+  - /docs/watchdog/
 ---
 
 *Available since v1.8.0.*
@@ -59,7 +61,7 @@ WantedBy=default.target
   platforms, use `Type=simple` and manage restarts via your service manager's
   native mechanisms.
 * For socket activation with systemd, see
-  [Socket Activation]({{< ref "SOCKET-ACTIVATION.md" >}}).
+  [Socket Activation]({{< ref "socket-activation.md" >}}).
 
 [sd-notify]: https://www.freedesktop.org/software/systemd/man/latest/sd_notify.html
 [systemd-service]: https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html

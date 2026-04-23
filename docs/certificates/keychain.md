@@ -2,6 +2,8 @@
 title: Keychain Support
 description: Load certificates and private keys from the macOS Keychain or Windows Certificate Store, including hardware-backed keys.
 weight: 50
+aliases:
+  - /docs/keychain/
 ---
 
 Ghostunnel can load certificates and private keys directly from the macOS

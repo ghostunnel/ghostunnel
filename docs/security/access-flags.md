@@ -2,6 +2,8 @@
 title: Access Control Flags
 description: Control which clients or servers are allowed to connect based on certificate fields (CN, OU, DNS/URI SAN) or OPA policies.
 weight: 20
+aliases:
+  - /docs/access-flags/
 ---
 
 Ghostunnel uses TLS with mutual authentication for authentication and access
@@ -73,7 +75,7 @@ Ghostunnel verifies client certificates before forwarding connections, but
 backends may also need to know the client's identity for their own access
 control, logging, or auditing. Use `--proxy-protocol-mode=tls-full` (available
 since v1.10.0) to forward the client certificate (CN, full DER-encoded cert) to
-the backend via [PROXY protocol v2]({{< ref "PROXY-PROTOCOL.md" >}}) TLV
+the backend via [PROXY protocol v2]({{< ref "proxy-protocol.md" >}}) TLV
 extensions.
 
 ## Client mode

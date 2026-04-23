@@ -1,10 +1,12 @@
 ---
-title: Man Page (Linux)
+title: Man Page (macOS)
 description: Complete command-line reference with all flags, modes, and examples.
-weight: 90
+weight: 20
+aliases:
+  - /docs/manpage-darwin/
 ---
 
-> This man page was generated from the Linux binary. Some flags may differ on other platforms.
+> This man page was generated from the macOS binary. Some flags may differ on other platforms.
 
 # NAME
 
@@ -261,14 +263,21 @@ start Ghostunnel before network is up).
 
 **--syslog** Send logs to syslog instead of stdout (Unix/macOS only).
 
+**--keychain-identity=CN** Use local keychain identity with given
+serial/common name (instead of keystore file).
+
+**--keychain-issuer=CN** Use local keychain identity with given issuer
+name (instead of keystore file).
+
+**--keychain-require-token** Require keychain identity to be from a
+physical token (sets 'access group' to 'token', macOS only).
+
 **--pkcs11-module=PATH** Path to PKCS11 module (SO) file (optional).
 
 **--pkcs11-token-label=LABEL** Token label for slot/key in PKCS11 module
 (optional).
 
 **--pkcs11-pin=PIN** PIN code for slot/key in PKCS11 module (optional).
-
-**--disable-landlock** Disable the best-effort landlock sandboxing.
 
 **--version** Show application version.
 
