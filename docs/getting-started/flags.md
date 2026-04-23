@@ -88,7 +88,7 @@ metrics endpoints, and profiling.
 
 ### Landlock
 
-See [Security & TLS Configuration]({{< ref "tls.md" >}}) for details on
+See [Security & TLS Configuration]({{< ref "general.md" >}}) for details on
 Landlock sandboxing.
 
 | Flag | Description | Availability |
@@ -118,7 +118,7 @@ See [PROXY Protocol]({{< ref "proxy-protocol.md" >}}) for details on modes and T
 | `--target-status URL` | Address to target for status checking downstream healthchecks. Defaults to TCP healthcheck if not passed. |
 | `--proxy-protocol` | Enable PROXY protocol v2 with connection info only (equivalent to `--proxy-protocol-mode=conn`). |
 | `--proxy-protocol-mode MODE` | PROXY protocol v2 mode: `conn`, `tls`, or `tls-full`. Mutually exclusive with `--proxy-protocol`. |
-| `--unsafe-target` | Do not limit target to localhost, `127.0.0.1`, `[::1]`, or UNIX sockets. See [Security]({{< ref "tls.md" >}}). |
+| `--unsafe-target` | Do not limit target to localhost, `127.0.0.1`, `[::1]`, or UNIX sockets. See [Security]({{< ref "general.md" >}}). |
 
 ### Access Control
 
@@ -172,7 +172,7 @@ See [Socket Activation]({{< ref "socket-activation.md" >}}) for `systemd:NAME` a
 
 | Flag | Description |
 |------|-------------|
-| `--unsafe-listen` | Do not limit listen to localhost, `127.0.0.1`, `[::1]`, or UNIX sockets. See [Security]({{< ref "tls.md" >}}). |
+| `--unsafe-listen` | Do not limit listen to localhost, `127.0.0.1`, `[::1]`, or UNIX sockets. See [Security]({{< ref "general.md" >}}). |
 | `--override-server-name NAME` | Override the server name used for hostname verification. |
 | `--proxy URL` | Connect to target over given proxy (HTTP CONNECT or SOCKS5). Must be a proxy URL. |
 | `--disable-authentication` | Disable client authentication, no certificate will be provided to the server. |
