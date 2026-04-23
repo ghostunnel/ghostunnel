@@ -494,6 +494,20 @@ a:hover {
   font-weight: 600;
 }
 
+.sidebar h4 {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-heading);
+  margin-top: 1.25rem;
+  margin-bottom: 0.35rem;
+  font-weight: 600;
+}
+
+.sidebar h4:first-of-type {
+  margin-top: 0;
+}
+
 .sidebar ul {
   list-style: none;
 }

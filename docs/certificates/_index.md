@@ -1,6 +1,6 @@
 ---
 title: Certificates & Identity
-description: How Ghostunnel obtains, loads, and rotates its TLS certificate and private key.
+description: How Ghostunnel obtains, loads, and rotates certificates.
 weight: 20
 ---
 
