@@ -3,7 +3,7 @@
 package main
 
 import (
-	"strings"
+	"errors"
 	"testing"
 
 	"golang.org/x/sys/windows/registry"
@@ -88,7 +88,7 @@ func TestServiceLifecycle(t *testing.T) {
 	// service because testing.Main() never registers a service control handler.
 	// We tolerate that specific error and verify the SCM registration itself.
 	if err := doInstallService(name, proxyArgs); err != nil {
-		if !strings.Contains(err.Error(), "installed but could not be started") {
+		if !errors.Is(err, errServiceNotStarted) {
 			t.Fatalf("install: %v", err)
 		}
 	}

@@ -30,7 +30,7 @@ import (
 var (
 	shutdownSignals = []os.Signal{os.Interrupt}
 	refreshSignals  = []os.Signal{ /* Not supported on Windows */ }
-	eventlogFlag = app.Flag("eventlog", "Send logs to Windows Event Log instead of stdout (Windows only).").Bool()
+	eventlogFlag    = app.Flag("eventlog", "Send logs to Windows Event Log instead of stdout (Windows only).").Bool()
 
 	// serviceStopCh is written to by the Windows Service Control Manager stop
 	// handler to trigger a graceful shutdown of the running proxy.

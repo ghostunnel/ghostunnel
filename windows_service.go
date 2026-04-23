@@ -19,6 +19,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -29,6 +30,10 @@ import (
 	"golang.org/x/sys/windows/svc/eventlog"
 	"golang.org/x/sys/windows/svc/mgr"
 )
+
+// errServiceNotStarted is returned when a service was installed successfully
+// but the SCM failed to start it.
+var errServiceNotStarted = errors.New("service installed but could not be started")
 
 const (
 	serviceNameFlagName = "service-name"
@@ -54,11 +59,12 @@ var (
 
 	// Proxy arguments stored in the service registration; everything after '--'.
 	serviceInstallArgs = serviceInstallCmd.Arg("args", "Proxy arguments to pass to the service, separated from service flags by '--' (e.g. -- server --listen :8443 --target localhost:8080).").Strings()
-
 )
 
 // currentServiceName discovers the name of the Windows service for the current
 // process by matching PIDs via the SCM. Returns defaultServiceName on failure.
+// This iterates all registered services, which may be slow on systems with many
+// services. It runs only once at startup, so the cost is acceptable.
 func currentServiceName() string {
 	m, err := mgr.Connect()
 	if err != nil {
@@ -108,6 +114,10 @@ func (s *ghostunnelService) Execute(_ []string, r <-chan svc.ChangeRequest, chan
 		done <- run(os.Args[1:])
 	}()
 
+	// TODO: run() was launched in a goroutine above but may not have finished
+	// binding ports yet. Ideally we'd wait for a readiness signal before
+	// reporting Running to the SCM. This requires a larger refactor to thread
+	// a readiness callback through the startup path.
 	changes <- svc.Status{State: svc.Running, Accepts: svc.AcceptStop | svc.AcceptShutdown}
 	if elog != nil {
 		_ = elog.Info(1, "ghostunnel service started")
@@ -134,7 +144,10 @@ func (s *ghostunnelService) Execute(_ []string, r <-chan svc.ChangeRequest, chan
 				if elog != nil {
 					_ = elog.Info(1, "ghostunnel service stopping")
 				}
-				serviceStopCh <- true
+				select {
+				case serviceStopCh <- true:
+				default:
+				}
 				<-done // wait for graceful drain to complete
 				return false, 0
 			}
@@ -253,7 +266,7 @@ func doInstallService(name string, proxyArgs []string) error {
 	regKey.Close()
 
 	if err := s.Start(); err != nil {
-		return fmt.Errorf("service %q installed but could not be started: %w", name, err)
+		return fmt.Errorf("service %q: %w: %w", name, errServiceNotStarted, err)
 	}
 
 	fmt.Printf("Service %q installed and started successfully.\n", name)
