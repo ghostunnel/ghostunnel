@@ -118,7 +118,7 @@ Usage
 
 To see available commands and flags, run `ghostunnel --help`. You can get more
 information about a command by adding `--help` to the command, like `ghostunnel
-server --help` or `ghostunnel client --help`. There's also a [man page](docs/MANPAGE-linux.md).
+server --help` or `ghostunnel client --help`. There's also a [man page](docs/reference/manpage-linux.md).
 
 By default, Ghostunnel runs in the foreground and logs to stdout. You can set
 `--syslog` to log to syslog instead of stdout. If you want to run Ghostunnel
@@ -149,7 +149,7 @@ To set allowed clients, you must specify at least one of `--allow-all`,
 `--allow-cn`, `--allow-ou`, `--allow-dns`, `--allow-uri` or `--allow-policy`. All
 checks are made against the certificate of the client. Multiple flags are
 treated as a logical disjunction (OR), meaning clients can connect as long as
-any of the flags matches. See [ACCESS-FLAGS](docs/ACCESS-FLAGS.md) for more
+any of the flags matches. See [ACCESS-FLAGS](docs/security/access-flags.md) for more
 information. In this example, we assume that the CN of the client cert we want
 to accept connections from is `client`.
 
@@ -188,7 +188,7 @@ This is an example for how to launch Ghostunnel in client mode, listening on
 
 By default, Ghostunnel in client mode verifies targets based on the hostname.
 Various access control flags exist to perform additional verification on top of
-the regular hostname verification. See [ACCESS-FLAGS](docs/ACCESS-FLAGS.md) for
+the regular hostname verification. See [ACCESS-FLAGS](docs/security/access-flags.md) for
 more information.
 
 Start a backend TLS server:
@@ -275,7 +275,7 @@ also supports implementing authorization checks via [Open Policy Agent](https://
 (OPA) policies for maximum flexibility. Policies can be reloaded at runtime
 much like certificates.
 
-See [ACCESS-FLAGS](docs/ACCESS-FLAGS.md) for details.
+See [ACCESS-FLAGS](docs/security/access-flags.md) for details.
 
 [spiffe]: https://spiffe.io/
 [svid]: https://github.com/spiffe/spiffe/blob/main/standards/X509-SVID.md
@@ -323,7 +323,7 @@ obtaining and renewing a public certificate, assuming it's exposed publicly
 on tcp/443 and there are valid public DNS FQDN records that resolve to the
 listening interface IP.
 
-See [ACME](docs/ACME.md) for details.
+See [ACME](docs/certificates/acme.md) for details.
 
 ### Metrics & Profiling
 
@@ -332,7 +332,7 @@ be used to expose status and metrics information over HTTPS. The status port
 feature can be controlled via the `--status` flag. Profiling endpoints on the
 status port can be enabled with `--enable-pprof`.
 
-See [METRICS](docs/METRICS.md) for details.
+See [METRICS](docs/networking/metrics.md) for details.
 
 ### HSM/PKCS#11 support
 
@@ -340,7 +340,7 @@ Ghostunnel has support for loading private keys from PKCS#11 modules, which
 should work with any hardware security module that exposes a PKCS#11 interface,
 including YubiKeys (via the YKCS11 module).
 
-See [HSM-PKCS11](docs/HSM-PKCS11.md) for details, including a step-by-step
+See [HSM-PKCS11](docs/certificates/hsm-pkcs11.md) for details, including a step-by-step
 guide for using Ghostunnel with a YubiKey.
 
 ### Windows/macOS Keychain Support
@@ -350,14 +350,14 @@ This is useful if you have identities stored in your local keychain that you
 want to use with Ghostunnel, e.g. if you want your private key(s) to be backed
 by the Secure Enclave on newer Touch ID MacBooks.
 
-See [KEYCHAIN](docs/KEYCHAIN.md) for details.
+See [KEYCHAIN](docs/certificates/keychain.md) for details.
 
 ### SPIFFE Workload API
 
 Ghostunnel has support for maintaining up-to-date, frequently rotated
 identities and trusted CA certificates from the SPIFFE Workload API.
 
-See [SPIFFE-WORKLOAD-API](docs/SPIFFE-WORKLOAD-API.md) for details.
+See [SPIFFE-WORKLOAD-API](docs/certificates/spiffe-workload-api.md) for details.
 
 ### Socket Activation
 
@@ -367,7 +367,7 @@ flags, and can be used by passing an address of the form `systemd:<name>` or
 `launchd:<name>`, where `<name>` should be the name of the socket as defined in
 your systemd/launchd configuration.
 
-See [SOCKET-ACTIVATION](docs/SOCKET-ACTIVATION.md) for examples.
+See [SOCKET-ACTIVATION](docs/networking/socket-activation.md) for examples.
 
 ### PROXY Protocol Support
 
@@ -378,7 +378,7 @@ to also include TLS metadata and/or client certificate details. Note that the
 backend must support the PROXY protocol and must be configured to use it when
 setting this option.
 
-See [PROXY-PROTOCOL](docs/PROXY-PROTOCOL.md) for details on modes and TLV extensions.
+See [PROXY-PROTOCOL](docs/networking/proxy-protocol.md) for details on modes and TLV extensions.
 
 ### Landlock Support
 

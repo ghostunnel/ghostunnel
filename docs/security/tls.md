@@ -1,7 +1,7 @@
 ---
-title: Security & TLS Configuration
+title: TLS Configuration
 description: TLS protocol settings, cipher suites, address restrictions, and Landlock sandboxing.
-weight: 15
+weight: 10
 ---
 
 ## TLS protocol

@@ -1,7 +1,9 @@
 ---
 title: Socket Activation
 description: Use systemd (Linux) or launchd (macOS) socket activation for on-demand startup.
-weight: 80
+weight: 20
+aliases:
+  - /docs/socket-activation/
 ---
 
 Ghostunnel supports socket activation via both systemd (on Linux) and launchd
@@ -152,7 +154,7 @@ systemd will start `ghostunnel.service` on demand when a connection arrives
 on the socket.
 
 Ghostunnel also supports systemd notify and watchdog functionality. See
-[WATCHDOG]({{< ref "WATCHDOG.md" >}}) for details on configuring `Type=notify-reload` services.
+[WATCHDOG]({{< ref "watchdog.md" >}}) for details on configuring `Type=notify-reload` services.
 
 [launchd-guide]: https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html
 [systemd-socket]: https://www.freedesktop.org/software/systemd/man/latest/systemd.socket.html

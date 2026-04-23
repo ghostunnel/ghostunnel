@@ -1,7 +1,7 @@
 ---
 title: Certificate Formats
 description: Supported certificate and key formats, how to prepare them, and how Ghostunnel selects the right loader.
-weight: 12
+weight: 10
 ---
 
 Ghostunnel supports several certificate and private key formats. The format
@@ -76,7 +76,7 @@ cat server-cert.pem intermediate.pem server-key.pem > server-combined.pem
 PKCS#12 (`.p12` / `.pfx`) bundles the certificate chain and private key into a
 single password-protected binary file. This is also the format used when
 importing into the macOS Keychain or Windows Certificate Store (see
-[Keychain Support]({{< ref "KEYCHAIN.md" >}})).
+[Keychain Support]({{< ref "keychain.md" >}})).
 
 ```bash
 ghostunnel server \

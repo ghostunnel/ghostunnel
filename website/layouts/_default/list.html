@@ -5,14 +5,31 @@
   <article class="content">
     <h1>{{ .Title }}</h1>
     {{ .Content }}
+    {{ if .Sections }}
+    {{ range .Sections.ByWeight }}
+    <section class="docs-section">
+      <h2><a href="{{ .RelPermalink }}">{{ .Title }}</a></h2>
+      {{ with .Description }}<p>{{ . }}</p>{{ end }}
+      <div class="docs-list">
+        {{ range .RegularPages.ByWeight }}
+        <div class="docs-card">
+          <h3><a href="{{ .RelPermalink }}">{{ .Title }}</a></h3>
+          {{ with .Description }}<p>{{ . }}</p>{{ end }}
+        </div>
+        {{ end }}
+      </div>
+    </section>
+    {{ end }}
+    {{ else }}
     <div class="docs-list">
-      {{ range .Pages.ByWeight }}
+      {{ range .RegularPages.ByWeight }}
       <div class="docs-card">
         <h3><a href="{{ .RelPermalink }}">{{ .Title }}</a></h3>
         {{ with .Description }}<p>{{ . }}</p>{{ end }}
       </div>
       {{ end }}
     </div>
+    {{ end }}
   </article>
 </div>
 {{ else if eq .Section "releases" }}

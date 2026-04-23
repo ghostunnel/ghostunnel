@@ -1,7 +1,9 @@
 ---
 title: PROXY Protocol
 description: Pass original client connection metadata (IP, TLS version, client certificate) through to plaintext backends using HAProxy's PROXY protocol v2.
-weight: 55
+weight: 10
+aliases:
+  - /docs/proxy-protocol/
 ---
 
 When Ghostunnel terminates TLS, the backend only sees a plaintext connection
@@ -14,7 +16,7 @@ needing their own TLS stack.
 
 ## Enabling
 
-See [Command-Line Flags]({{< ref "FLAGS.md" >}}) for the full flag reference.
+See [Command-Line Flags]({{< ref "flags.md" >}}) for the full flag reference.
 
 Pass `--proxy-protocol` in server mode to enable PROXY protocol v2 with
 connection info (source/destination IP and port):
@@ -104,7 +106,7 @@ sub-TLVs:
 
 The `tls-full` mode is useful when backends need to perform their own access
 control or auditing based on client certificate identity. See [Access Control
-Flags]({{< ref "ACCESS-FLAGS.md" >}}) for how Ghostunnel itself verifies
+Flags]({{< ref "access-flags.md" >}}) for how Ghostunnel itself verifies
 client certificates before forwarding.
 
 Note: `PP2_SUBTYPE_SSL_CLIENT_CERT` (`0x28`) is not part of the original

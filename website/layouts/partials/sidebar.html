@@ -1,11 +1,15 @@
 <aside class="sidebar">
   <h3><a href="{{ "docs/" | relURL }}">Documentation</a></h3>
+  {{ $current := . }}
+  {{ $docs := .Site.GetPage "/docs" }}
+  {{ range $docs.Sections.ByWeight }}
+  <h4><a href="{{ .RelPermalink }}">{{ .Title }}</a></h4>
   <ul>
-    {{ $current := . }}
-    {{ range (where .Site.RegularPages "Section" "docs").ByWeight }}
+    {{ range .RegularPages.ByWeight }}
     <li{{ if eq .RelPermalink $current.RelPermalink }} class="active"{{ end }}>
       <a href="{{ .RelPermalink }}">{{ .Title }}</a>
     </li>
     {{ end }}
   </ul>
+  {{ end }}
 </aside>
