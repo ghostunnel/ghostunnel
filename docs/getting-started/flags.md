@@ -24,7 +24,7 @@ supported file formats and chain ordering.
 | `--cert PATH` | Path to certificate (PEM with certificate chain). |
 | `--key PATH` | Path to certificate private key (PEM with private key). |
 | `--storepass PASS` | Password for keystore (if using PKCS12 keystore, optional). |
-| `--cacert PATH` | Path to CA bundle file (PEM/X509). Uses system trust store by default. |
+| `--cacert CACERT` | Path to CA bundle file (PEM/X509). Uses system trust store by default. |
 | `--use-workload-api` | Certificate and root CAs are retrieved via the SPIFFE Workload API. See [SPIFFE]({{< ref "spiffe-workload-api.md" >}}). |
 | `--use-workload-api-addr ADDR` | Retrieve certificates and root CAs via the SPIFFE Workload API at the specified address (implies `--use-workload-api`). See [SPIFFE]({{< ref "spiffe-workload-api.md" >}}). |
 
@@ -102,8 +102,8 @@ Flags specific to `ghostunnel server`.
 
 ### Required
 
-See [Socket Activation]({{< ref "socket-activation.md" >}}) for `systemd:NAME` and
-`launchd:NAME` addresses.
+See [Systemd]({{< ref "systemd.md" >}}) and [Launchd]({{< ref "launchd.md" >}})
+for `systemd:NAME` and `launchd:NAME` addresses.
 
 | Flag | Description |
 |------|-------------|
@@ -152,8 +152,8 @@ See [Access Control Flags]({{< ref "access-flags.md" >}}) for OPA/Rego policy de
 
 | Flag | Description |
 |------|-------------|
-| `--allow-policy BUNDLE` | Location of an OPA policy bundle. |
-| `--allow-query QUERY` | Rego query to validate against the client certificate and the policy. |
+| `--allow-policy BUNDLE` | Location of an OPA policy bundle. Mutually exclusive with other access control flags. |
+| `--allow-query QUERY` | Rego query to validate against the client certificate and the policy. Must be used with `--allow-policy`. |
 
 ## Client Mode Flags
 
@@ -161,8 +161,8 @@ Flags specific to `ghostunnel client`.
 
 ### Required
 
-See [Socket Activation]({{< ref "socket-activation.md" >}}) for `systemd:NAME` and
-`launchd:NAME` addresses.
+See [Systemd]({{< ref "systemd.md" >}}) and [Launchd]({{< ref "launchd.md" >}})
+for `systemd:NAME` and `launchd:NAME` addresses.
 
 | Flag | Description |
 |------|-------------|

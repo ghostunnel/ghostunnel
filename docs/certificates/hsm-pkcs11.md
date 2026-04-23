@@ -145,7 +145,7 @@ ghostunnel server \
     --pkcs11-pin 123456 \
     --listen localhost:8443 \
     --target localhost:8080 \
-    --cacert ca-cert.pem \
+    --cacert cacert.pem \
     --allow-cn client
 ```
 

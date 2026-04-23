@@ -137,4 +137,4 @@ forwarded the plaintext request to the backend.
 - [ACME Support]({{< ref "acme.md" >}}): automatic certificates from Let's Encrypt
 - [Metrics & Profiling]({{< ref "metrics.md" >}}): status port, Prometheus metrics, pprof
 - [PROXY Protocol]({{< ref "proxy-protocol.md" >}}): pass client connection metadata to backends
-- [Socket Activation]({{< ref "socket-activation.md" >}}) and [Systemd Watchdog]({{< ref "watchdog.md" >}}): run Ghostunnel as a service
+- [Systemd]({{< ref "systemd.md" >}}), [Launchd]({{< ref "launchd.md" >}}), and [Windows Service]({{< ref "windows-service.md" >}}): run Ghostunnel as a service

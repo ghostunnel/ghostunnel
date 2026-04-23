@@ -150,9 +150,12 @@ but the backend doesn't require mutual authentication.
 
 Ghostunnel has support for [Open Policy Agent][opa] (OPA), both in server and
 client mode. The policy must be provided as an [OPA bundle][opa-bundles] on
-disk and the use of OPA is mutually exclusive with any other `allow` (or
-`verify`) flags. Policy bundles can be reloaded at runtime much like
-certificates, with the `--timed-reload` flag or via `SIGHUP`.
+disk. In server mode, the use of OPA is mutually exclusive with other access
+control flags (`--allow-cn`, `--allow-ou`, `--allow-dns`, `--allow-uri`,
+`--allow-all`, and `--disable-authentication`). In client mode,
+`--verify-policy`/`--verify-query` can be combined with other `verify` flags.
+Policy bundles can be reloaded at runtime
+much like certificates, with the `--timed-reload` flag or via `SIGHUP`.
 
 [opa]: https://www.openpolicyagent.org/
 [opa-bundles]: https://www.openpolicyagent.org/docs/latest/management-bundles/

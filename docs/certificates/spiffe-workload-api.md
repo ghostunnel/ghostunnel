@@ -15,10 +15,11 @@ X.509 roots. Peers are expected to present SPIFFE
 [X509-SVIDs](https://github.com/spiffe/spiffe/blob/main/standards/X509-SVID.md),
 which are verified using SPIFFE authentication.
 
-To enable workload API support, use the `--use-workload-api` flag. By default,
-the location of the SPIFFE Workload API socket is picked up from the
-`SPIFFE_ENDPOINT_SOCKET` environment variable. If you prefer to specify this via
-flag, the `--use-workload-api-addr` flag can be used to explicitly set the address.
+To enable workload API support, set the `SPIFFE_ENDPOINT_SOCKET` environment
+variable or pass the `--use-workload-api-addr` flag. Either of these implicitly
+enables `--use-workload-api`, so the explicit flag is not required when the
+address is provided. You can also pass `--use-workload-api` on its own if the
+environment variable is already set.
 
 On UNIX systems (Linux, macOS):
 

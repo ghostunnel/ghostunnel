@@ -101,5 +101,5 @@ connection behavior and may be relevant when tuning shutdown. See
 When running as a systemd service with `Type=notify-reload`, Ghostunnel
 notifies systemd of its state transitions (ready, reloading, stopping). The
 graceful shutdown sequence integrates naturally with systemd's service
-lifecycle. See [Systemd Watchdog]({{< ref "watchdog.md" >}}) for unit file
-examples and configuration details.
+lifecycle. See [Systemd]({{< ref "systemd.md" >}}) for unit file examples and
+configuration details.

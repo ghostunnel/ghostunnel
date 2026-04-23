@@ -1,6 +1,6 @@
 ---
 title: Networking & Integration
-description: Connection metadata, socket activation, graceful draining, and metrics.
+description: PROXY protocol, graceful draining, and metrics.
 weight: 40
 ---
 

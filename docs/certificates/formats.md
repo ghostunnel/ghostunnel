@@ -16,7 +16,6 @@ bytes, so you don't need to specify it explicitly.
 | PEM (combined) | `.pem` | `--keystore` | Single file with cert chain and private key |
 | PKCS#12 | `.p12`, `.pfx` | `--keystore` | Binary bundle; optional `--storepass` for password |
 | JCEKS | `.jceks`, `.jks` | `--keystore` | Java keystore; requires `--storepass` |
-| DER | `.der` | `--keystore` | Raw X.509 or PKCS#7; less common |
 
 These options are mutually exclusive with each other and with `--use-workload-api`,
 `--keychain-identity`, and PKCS#11 flags.
@@ -134,9 +133,9 @@ cat root-ca.pem intermediate-ca.pem > cacert.pem
 Ghostunnel detects the format in this order:
 
 1. **File extension**: `.pem`/`.crt` → PEM, `.p12`/`.pfx` → PKCS#12,
-   `.jceks`/`.jks` → JCEKS, `.der` → DER.
+   `.jceks`/`.jks` → JCEKS.
 2. **Magic bytes**: if the extension is ambiguous, the first bytes of the file
-   are inspected (e.g. `-----BEGIN` → PEM, ASN.1 sequence → PKCS#12 or DER).
+   are inspected (e.g. `-----BEGIN` → PEM, ASN.1 sequence → PKCS#12).
 
 In practice, just use the right file extension and Ghostunnel will do the
 right thing.

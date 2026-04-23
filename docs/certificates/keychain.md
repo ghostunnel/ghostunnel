@@ -79,7 +79,7 @@ ghostunnel server \
     --listen localhost:8443 \
     --target localhost:8080 \
     --cacert cacert.pem \
-    --allow-ou=client
+    --allow-ou client
 ```
 
 This flag is only available on macOS.
