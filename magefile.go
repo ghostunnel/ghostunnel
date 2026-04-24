@@ -85,8 +85,8 @@ func (Go) Lint(ctx context.Context) error {
 }
 
 // Man generates the Ghostunnel man page from the built binary.
-// Also generates docs/MANPAGE-<os>.md from the man page using pandoc,
-// with Hugo front matter prepended for the website.
+// Also generates docs/reference/manpage-<os>.md from the man page using
+// pandoc, with Hugo front matter prepended for the website.
 func (Go) Man(ctx context.Context) error {
 	mg.CtxDeps(ctx, Go.Build)
 
@@ -99,26 +99,28 @@ func (Go) Man(ctx context.Context) error {
 		return fmt.Errorf("failed to write ghostunnel.man: %w", err)
 	}
 
-	// Generate docs/MANPAGE-<os>.md from the man page using pandoc
-	manpageMD := fmt.Sprintf("docs/MANPAGE-%s.md", runtime.GOOS)
+	// Generate docs/reference/manpage-<os>.md from the man page using pandoc
+	manpageMD := fmt.Sprintf("docs/reference/manpage-%s.md", runtime.GOOS)
 	pandocOutput, err := sh.Output("pandoc", "-f", "man", "-t", "gfm", "ghostunnel.man")
 	if err != nil {
 		return fmt.Errorf("failed to convert man page to markdown: %w", err)
 	}
 
-	// Platform-specific titles and weights for Hugo front matter
+	// Platform-specific titles, weights, and aliases for Hugo front matter
 	manPageMeta := map[string]struct {
 		title  string
 		weight int
+		alias  string
 	}{
-		"darwin": {title: "Man Page (macOS)", weight: 91},
-		"linux":  {title: "Man Page (Linux)", weight: 90},
+		"darwin": {title: "Man Page (macOS)", weight: 20, alias: "/docs/manpage-darwin/"},
+		"linux":  {title: "Man Page (Linux)", weight: 10, alias: "/docs/manpage-linux/"},
 	}
 
 	meta, ok := manPageMeta[runtime.GOOS]
 	if !ok {
 		meta.title = fmt.Sprintf("Man Page (%s)", runtime.GOOS)
-		meta.weight = 92
+		meta.weight = 30
+		meta.alias = fmt.Sprintf("/docs/manpage-%s/", runtime.GOOS)
 	}
 
 	var buf bytes.Buffer
@@ -126,6 +128,8 @@ func (Go) Man(ctx context.Context) error {
 	fmt.Fprintf(&buf, "title: %s\n", meta.title)
 	fmt.Fprintf(&buf, "description: Complete command-line reference with all flags, modes, and examples.\n")
 	fmt.Fprintf(&buf, "weight: %d\n", meta.weight)
+	fmt.Fprintf(&buf, "aliases:\n")
+	fmt.Fprintf(&buf, "  - %s\n", meta.alias)
 	fmt.Fprintf(&buf, "---\n\n")
 	fmt.Fprintf(&buf, "> This man page was generated from the %s binary. Some flags may differ on other platforms.\n\n", meta.title[len("Man Page ("):len(meta.title)-1])
 	buf.WriteString(pandocOutput)

@@ -6,8 +6,7 @@ aliases:
   - /docs/flags/
 ---
 
-Quick reference for all Ghostunnel command-line flags, grouped by mode. For
-detailed usage of specific features, see the linked documentation pages.
+For detailed usage of specific features, see the linked documentation pages.
 
 ## Global Flags
 

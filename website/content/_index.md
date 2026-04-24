@@ -3,14 +3,13 @@ title: Ghostunnel
 description: A simple TLS proxy with mutual authentication support
 ---
 
-Ghostunnel is a simple TLS proxy with mutual authentication support for
-securing non-TLS backend applications. Ghostunnel supports two modes, **client
-mode** and **server mode**. Ghostunnel in server mode runs in front of a
-backend server and accepts TLS-secured connections, which are then proxied to
-the (insecure) backend. Ghostunnel in client mode accepts (insecure)
-connections through a TCP or UNIX domain socket and proxies them to a
-TLS-secured service. A backend can be a TCP domain/port or a UNIX domain
-socket.
+Ghostunnel is a TLS proxy with mutual authentication support for securing
+non-TLS services. It runs in one of two modes:
+
+* **Server mode**: accepts TLS connections and forwards them as plaintext to a
+  backend.
+* **Client mode**: accepts plaintext connections on a TCP or UNIX socket and
+  forwards them over TLS to a remote service.
 
 ## Key Features
 
@@ -31,8 +30,8 @@ socket.
 * **Metrics & Profiling**: Built-in status port with JSON and Prometheus
   metrics endpoints, plus optional pprof profiling.
 
-Ghostunnel also supports UNIX domain sockets, PROXY protocol v2, systemd/launchd
-socket activation, and more. See the [documentation](docs/) for details.
+Ghostunnel also supports PROXY protocol v2, systemd/launchd socket activation,
+and more. See the [documentation](docs/) for details.
 
 ## Getting Started
 
@@ -42,11 +41,10 @@ available under [Docs](/docs/).
 
 ## Supported Platforms
 
-Ghostunnel is developed primarily for Linux and macOS, although it should run
-on any UNIX system that exposes `SO_REUSEPORT`, including FreeBSD, OpenBSD and
-NetBSD. Ghostunnel also supports running on Windows, though without
-signal-based certificate reload (use `--timed-reload` instead), syslog output,
-Landlock sandboxing, and socket activation.
+Ghostunnel is developed primarily for Linux and macOS but runs on any UNIX
+system with `SO_REUSEPORT` (FreeBSD, OpenBSD, NetBSD). Windows is also
+supported, though without signal-based certificate reload (use
+`--timed-reload`), syslog, Landlock sandboxing, or socket activation.
 
 ## License
 

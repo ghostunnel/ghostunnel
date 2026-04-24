@@ -32,8 +32,8 @@ go tool mage go:build
 ## Generate Test Certificates
 
 If you already maintain a PKI, you can skip this step and use your existing
-certificates. The steps below are for generating test certificates for
-testing and development purposes only.
+certificates. The steps below generate certificates for
+testing and development only.
 
 You need a CA, a server certificate, and a client certificate. The rest of
 this guide uses the paths from `test-keys/`, so adjust if you use a different

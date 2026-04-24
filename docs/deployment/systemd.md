@@ -156,9 +156,9 @@ on the socket.
 
 ## Security Hardening
 
-systemd provides extensive [sandboxing options][systemd-exec] that complement
-Ghostunnel's built-in Landlock support. The following settings restrict
-the service to only the privileges it needs:
+systemd provides [sandboxing options][systemd-exec] that complement
+Ghostunnel's built-in Landlock support. These settings restrict the service to
+the privileges it needs:
 
 ```ini
 [Service]

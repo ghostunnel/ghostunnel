@@ -6,10 +6,9 @@ aliases:
   - /docs/metrics/
 ---
 
-Ghostunnel has a notion of "status port", a TCP port (or UNIX socket) that can
-be used to expose status and metrics information over HTTPS. The status port
-feature can be controlled via the `--status` flag. Profiling endpoints on the
-status port can be enabled with `--enable-pprof`.
+Ghostunnel provides a status port, a TCP port (or UNIX socket) that
+exposes status and metrics over HTTP(S). Enable it with `--status`. Profiling
+endpoints can be added with `--enable-pprof`.
 
 The X.509 certificate on the status port will be the same as the certificate
 used for proxying (either the client or server certificate). This means you can
@@ -27,9 +26,9 @@ ghostunnel client \
     --status localhost:6060
 ```
 
-Note that we set the status port to "localhost:6060". Ghostunnel will start an
-internal HTTPS server and listen for connections on the given host/port. You
-can also specify a UNIX socket instead of a TCP port.
+Here the status port is set to `localhost:6060`. Ghostunnel starts an internal
+HTTPS server on that address. You can also specify a UNIX socket instead of a
+TCP port.
 
 How to check status and read connection metrics:
 
@@ -54,11 +53,10 @@ curl --cacert test-keys/cacert.pem 'https://localhost:6060/debug/pprof/goroutine
 go tool pprof -seconds 5 https+insecure://localhost:6060/debug/pprof/profile
 ```
 
-Note that `go tool pprof` does not support setting CA certificates at the
-moment, hence the use of the `https+insecure` scheme in the last example. You
-can use the standard `https` scheme if your Ghostunnel is using a certificate
-trusted by your system (see [golang/go#20939][pprof-bug]). For more
-information on profiling via pprof, see the [`runtime/pprof`][pprof] and
+Note: `go tool pprof` does not support custom CA certificates, so the example
+above uses `https+insecure`. Use the standard `https` scheme if Ghostunnel's
+certificate is trusted by your system (see [golang/go#20939][pprof-bug]). For
+more on pprof, see the [`runtime/pprof`][pprof] and
 [`net/http/pprof`][http-pprof] docs.
 
 [pprof]: https://pkg.go.dev/runtime/pprof

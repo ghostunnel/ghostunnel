@@ -7,12 +7,11 @@ aliases:
 ---
 
 When Ghostunnel terminates TLS, the backend only sees a plaintext connection
-from Ghostunnel itself. It has no idea who the original client was, what TLS
+from Ghostunnel itself -- it does not know who the original client was, what TLS
 version was negotiated, or whether a client certificate was presented. The PROXY
-protocol fixes this: Ghostunnel prepends a small binary header to each
-forwarded connection carrying the original client metadata. Backends can then
-do logging, access control, or auditing based on client identity without
-needing their own TLS stack.
+protocol fixes this: Ghostunnel prepends a binary header to each forwarded
+connection with the original client metadata. Backends can then log, enforce
+access control, or audit based on client identity without their own TLS stack.
 
 ## Enabling
 
@@ -125,8 +124,8 @@ frameworks support this:
 - **HAProxy**: `accept-proxy` on `bind` lines
 - **Custom apps**: use a PROXY protocol parsing library for your language
 
-Backends that aren't expecting PROXY protocol will see the binary header as
-garbage at the start of the stream and will reject the connection.
+Backends that do not expect PROXY protocol will see the binary header as
+garbage and reject the connection.
 
 ## References
 

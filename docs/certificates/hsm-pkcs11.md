@@ -6,12 +6,9 @@ aliases:
   - /docs/hsm-pkcs11/
 ---
 
-Ghostunnel has support for loading private keys from [PKCS#11][pkcs11-spec]
-modules, which should work with any hardware security module that exposes a
-PKCS#11 interface.
-An easy way to test the PKCS#11 interface for development purposes is with
-[SoftHSM][softhsm]. Note that CGO is required in order for PKCS#11 support to
-work.
+Ghostunnel can load private keys from any hardware security module that
+exposes a [PKCS#11][pkcs11-spec] interface. CGO is required for PKCS#11
+support. [SoftHSM][softhsm] is an easy way to test without real hardware.
 
 [softhsm]: https://github.com/opendnssec/SoftHSMv2
 
@@ -46,16 +43,15 @@ ghostunnel server \
     --allow-cn client
 ```
 
-The `--pkcs11-module`, `--pkcs11-token-label` and `--pkcs11-pin` flags can be
-used to select the private key to be used from the PKCS#11 module. It's also possible
-to use environment variables to set PKCS#11 options instead of flags (via
-`PKCS11_MODULE`, `PKCS11_TOKEN_LABEL` and `PKCS11_PIN`), useful if you don't want to show the PIN on the command line.
+The `--pkcs11-module`, `--pkcs11-token-label`, and `--pkcs11-pin` flags
+select the private key from the PKCS#11 module. You can also set these via
+environment variables (`PKCS11_MODULE`, `PKCS11_TOKEN_LABEL`, `PKCS11_PIN`)
+to keep the PIN off the command line.
 
-Note that `--cert` needs to point to the certificate chain that corresponds
-to the private key in the PKCS#11 module, with the leaf certificate being the
-first certificate in the chain (see
-[Certificate Formats]({{< ref "formats.md" >}})). Ghostunnel currently
-cannot read the certificate chain directly from the module.
+Note: `--cert` must point to the certificate chain matching the private key in
+the PKCS#11 module, with the leaf certificate first (see [Certificate
+Formats]({{< ref "formats.md" >}})). Ghostunnel cannot read the certificate
+chain from the module directly.
 
 ## Using a YubiKey
 
@@ -181,9 +177,8 @@ pkcs11-tool --module /path/to/libykcs11.dylib -O
 ## Certificate Hotswapping
 
 When using PKCS#11, certificate hotswapping (via `SIGHUP`/`SIGUSR1` or
-`--timed-reload`) reloads only the certificate from disk. The private key
-in the HSM stays put, so the new certificate still needs to match the key
-that was loaded from the HSM.
+`--timed-reload`) reloads only the certificate from disk. The private key in
+the HSM is not reloaded, so the new certificate must still match it.
 
 Note that Landlock sandboxing is automatically disabled when PKCS#11 is used,
 as PKCS#11 modules are opaque shared libraries that may need access to
@@ -191,9 +186,8 @@ arbitrary files and sockets.
 
 ## Inspecting PKCS#11 State
 
-If you need to inspect the state of a PKCS#11 module/token, we recommend the
-[`pkcs11-tool`][pkcs11-tool] utility from OpenSC. For example, it can be used
-to list slots or read certificate(s) from a module:
+Use the [`pkcs11-tool`][pkcs11-tool] utility from OpenSC to inspect PKCS#11
+module/token state. For example:
 
 ```bash
 # List slots on a module

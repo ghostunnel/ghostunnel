@@ -77,8 +77,7 @@ See [Command-Line Flags]({{< ref "flags.md" >}}) for the full flag reference.
 
 ## Choosing a Shutdown Timeout
 
-The default timeout of 5 minutes is deliberately generous. Consider your
-workload when tuning this value:
+The default timeout of 5 minutes is generous. Tune it based on your workload:
 
 - **Short-lived requests** (e.g. REST APIs): a lower timeout like `30s` or
   `1m` is usually sufficient.
@@ -100,6 +99,6 @@ connection behavior and may be relevant when tuning shutdown. See
 
 When running as a systemd service with `Type=notify-reload`, Ghostunnel
 notifies systemd of its state transitions (ready, reloading, stopping). The
-graceful shutdown sequence integrates naturally with systemd's service
+graceful shutdown sequence integrates with systemd's service
 lifecycle. See [Systemd]({{< ref "systemd.md" >}}) for unit file examples and
 configuration details.

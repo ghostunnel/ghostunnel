@@ -4,7 +4,7 @@ description: Landlock sandboxing, TLS protocol settings, cipher suites, address 
 weight: 10
 ---
 
-An overview of Ghostunnel's TLS settings, and some info on Landlock sandboxing.
+Ghostunnel's TLS settings and Landlock sandboxing.
 
 ## TLS Configuration
 
