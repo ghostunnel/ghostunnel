@@ -403,6 +403,15 @@ def require_platform(*platforms):
         '/'.join(platforms), current), file=sys.stderr)
     sys.exit(2)
 
+def require_admin():
+    """Skip the test (exit 2) unless running with Administrator privileges (Windows)."""
+    if not IS_WINDOWS:
+        return
+    import ctypes
+    if not ctypes.windll.shell32.IsUserAnAdmin():
+        print("requires Administrator privileges, skipping", file=sys.stderr)
+        sys.exit(2)
+
 def reload_args():
     """Extra args to enable certificate reload on Windows via --timed-reload."""
     return ['--timed-reload=1s'] if IS_WINDOWS else []

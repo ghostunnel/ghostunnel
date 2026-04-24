@@ -401,6 +401,17 @@ func pythonCmd() string {
 	return "python3"
 }
 
+// cleanCoverage removes stale coverage profiles from previous runs and
+// recreates the coverage directory. Used as a mage dep so that mage's
+// built-in deduplication ensures it runs exactly once per invocation,
+// even when Unit and Integration are triggered in parallel by Test.All.
+func cleanCoverage() error {
+	if err := os.RemoveAll("coverage"); err != nil {
+		return fmt.Errorf("failed to remove coverage directory: %w", err)
+	}
+	return os.MkdirAll("coverage", 0755)
+}
+
 // build builds the *test* binary with coverage instrumentation.
 func (Test) build() error {
 	return sh.Run("go", "test", "-c", "-covermode=count", "-coverpkg", ".,./auth,./certloader,./certloader/jceks,./proxy,./wildcard,./socket")
@@ -415,23 +426,17 @@ func (Test) All(ctx context.Context) error {
 
 // Unit runs the unit tests.
 func (Test) Unit(ctx context.Context) error {
+	mg.Deps(cleanCoverage)
 	printf("Running unit tests...\n")
 
-	if err := os.MkdirAll("coverage", 0755); err != nil {
-		return fmt.Errorf("failed to create coverage directory: %w", err)
-	}
-
-	return sh.Run("go", "test", "-v", "-covermode=count", "-coverpkg", ".,./auth,./certloader,./certloader/jceks,./proxy,./wildcard,./socket", "-coverprofile=coverage/unit-test.profile", "./...")
+	return sh.Run("go", "test", "-v", "-covermode=count", "-coverprofile=coverage/unit-test.profile", "./...")
 }
 
 // Integration runs the integration tests in parallel.
 // Set GHOSTUNNEL_TEST_PARALLEL to control concurrency (default: NumCPU, max 16).
 func (Test) Integration(ctx context.Context) error {
 	mg.CtxDeps(ctx, Test.build)
-
-	if err := os.MkdirAll("coverage", 0755); err != nil {
-		return fmt.Errorf("failed to create coverage directory: %w", err)
-	}
+	mg.Deps(cleanCoverage)
 
 	// Run integration tests
 	testFiles, err := filepath.Glob("tests/test-*.py")
@@ -549,10 +554,7 @@ func (Test) Integration(ctx context.Context) error {
 //	mage test:single test-server-listen-port-conflict.py
 func (Test) Single(ctx context.Context, name string) error {
 	mg.CtxDeps(ctx, Test.build)
-
-	if err := os.MkdirAll("coverage", 0755); err != nil {
-		return fmt.Errorf("failed to create coverage directory: %w", err)
-	}
+	mg.Deps(cleanCoverage)
 
 	// Normalize the test name
 	name = strings.TrimSuffix(name, ".py")
@@ -623,11 +625,45 @@ func (Test) Coverage(ctx context.Context) error {
 		return fmt.Errorf("failed to merge coverage: %w", err)
 	}
 
-	// Filter out internal/test lines (same as Makefile's grep -v)
-	lines := strings.Split(string(mergeOutput), "\n")
+	// Filter to only include coverage for the packages we care about.
+	// The integration test binary uses -coverpkg to instrument these packages;
+	// unit tests run without -coverpkg (to avoid overlapping coverage blocks),
+	// so this allowlist ensures only the desired packages appear in the final
+	// merged profile.
+	coveredPkgs := []string{
+		"github.com/ghostunnel/ghostunnel/",
+		"github.com/ghostunnel/ghostunnel:",
+	}
+	excludedPkgs := []string{
+		"/vendor/",
+		"/internal/test",
+		"/jcekstest",
+	}
+	lines := strings.Split(mergeOutput, "\n")
 	var filtered []string
 	for _, line := range lines {
-		if !strings.Contains(line, "internal/test") && !strings.Contains(line, "jcekstest") {
+		if strings.HasPrefix(line, "mode:") {
+			filtered = append(filtered, line)
+			continue
+		}
+		allowed := false
+		for _, pkg := range coveredPkgs {
+			if strings.Contains(line, pkg) {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			continue
+		}
+		excluded := false
+		for _, pkg := range excludedPkgs {
+			if strings.Contains(line, pkg) {
+				excluded = true
+				break
+			}
+		}
+		if !excluded {
 			filtered = append(filtered, line)
 		}
 	}
