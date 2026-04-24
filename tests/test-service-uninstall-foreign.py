@@ -37,16 +37,19 @@ try:
     ghostunnel = run_ghostunnel(
         ['service', 'uninstall', '--service-name', SERVICE_NAME],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, _ = ghostunnel.communicate(timeout=30)
+    stdout, stderr = ghostunnel.communicate(timeout=30)
     stdout = stdout.decode()
+    stderr = stderr.decode()
 
     if ghostunnel.returncode == 0:
         raise Exception("expected non-zero exit code for foreign service uninstall")
 
-    if 'not' not in stdout.lower() or 'ghostunnel' not in stdout.lower():
-        print("unexpected stdout: {0}".format(stdout), file=sys.stderr)
+    # The error message is printed to stderr by main().
+    combined = stdout + stderr
+    if 'not' not in combined.lower() or 'ghostunnel' not in combined.lower():
+        print("unexpected output: stdout={0!r} stderr={1!r}".format(stdout, stderr), file=sys.stderr)
         raise Exception(
-            "expected 'not managed by ghostunnel' error, got: {0}".format(stdout))
+            "expected 'not managed by ghostunnel' error, got: {0}".format(combined))
 
     print_ok("correctly refused to uninstall foreign service")
     print_ok("OK")

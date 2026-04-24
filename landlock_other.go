@@ -18,8 +18,6 @@
 
 package main
 
-func addLandlockTestPaths(paths []string) {}
-
 func setupLandlock() error {
 	return nil
 }

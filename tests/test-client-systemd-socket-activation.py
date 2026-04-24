@@ -34,8 +34,7 @@ try:
             '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
             '--listen={0}:{1}'.format(LOCALHOST, STATUS_PORT),
             '--fdname=client:status',
-            '--setenv=GHOSTUNNEL_INTEGRATION_TEST',
-            '--setenv=GHOSTUNNEL_INTEGRATION_ARGS',
+            '--setenv=GOCOVERDIR',
             ])
 
     # Connect on status port to trigger socket activation

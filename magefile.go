@@ -401,20 +401,36 @@ func pythonCmd() string {
 	return "python3"
 }
 
-// cleanCoverage removes stale coverage profiles from previous runs and
-// recreates the coverage directory. Used as a mage dep so that mage's
+// coveredPackages is the list of packages to instrument for coverage.
+// Used consistently across unit and integration tests so that coverage
+// blocks are compatible when merged.
+var coveredPackages = ".,./auth,./certloader,./certloader/jceks,./certstore,./policy,./proxy,./wildcard,./socket"
+
+// cleanCoverage removes stale coverage data from previous runs and
+// recreates the coverage subdirectories. Used as a mage dep so that mage's
 // built-in deduplication ensures it runs exactly once per invocation,
 // even when Unit and Integration are triggered in parallel by Test.All.
 func cleanCoverage() error {
 	if err := os.RemoveAll("coverage"); err != nil {
 		return fmt.Errorf("failed to remove coverage directory: %w", err)
 	}
-	return os.MkdirAll("coverage", 0755)
+	for _, sub := range []string{"unit", "integration"} {
+		if err := os.MkdirAll(filepath.Join("coverage", sub), 0755); err != nil {
+			return fmt.Errorf("failed to create coverage/%s: %w", sub, err)
+		}
+	}
+	return nil
 }
 
-// build builds the *test* binary with coverage instrumentation.
+// build builds a coverage-instrumented binary using go build -cover.
+// Unlike go test -c, this produces a normal binary that writes coverage
+// data to GOCOVERDIR on exit (including signal-triggered exits).
 func (Test) build() error {
-	return sh.Run("go", "test", "-c", "-covermode=count", "-coverpkg", ".,./auth,./certloader,./certloader/jceks,./proxy,./wildcard,./socket")
+	output := "ghostunnel.cover"
+	if runtime.GOOS == "windows" {
+		output += ".exe"
+	}
+	return sh.Run("go", "build", "-cover", "-covermode=count", "-coverpkg", coveredPackages, "-tags", "coverage", "-o", output, ".")
 }
 
 // All runs both unit and integration tests, then merges coverage.
@@ -429,7 +445,7 @@ func (Test) Unit(ctx context.Context) error {
 	mg.Deps(cleanCoverage)
 	printf("Running unit tests...\n")
 
-	return sh.Run("go", "test", "-v", "-covermode=count", "-coverprofile=coverage/unit-test.profile", "./...")
+	return sh.Run("go", "test", "-v", "-covermode=count", "-coverpkg", coveredPackages, "-coverprofile=coverage/unit.profile", "./...")
 }
 
 // Integration runs the integration tests in parallel.
@@ -606,70 +622,106 @@ func (Test) Single(ctx context.Context, name string) error {
 	return fmt.Errorf("integration test %s failed: %w", name, err)
 }
 
-// Coverage merges the coverage files into a single file.
+// Coverage merges coverage data from unit and integration tests into
+// a single text profile. Integration tests use GOCOVERDIR (binary format),
+// which is converted to text with go tool covdata. Unit tests produce a
+// text profile directly. The two text profiles are then merged.
 func (Test) Coverage(ctx context.Context) error {
 	mg.CtxDeps(ctx, Test.Unit, Test.Integration)
 
-	// Get all coverage profile files
-	coverageFiles, err := filepath.Glob("coverage/*.profile")
-	if err != nil || len(coverageFiles) == 0 {
-		return fmt.Errorf("failed to find coverage files: %w", err)
+	// Convert integration GOCOVERDIR binary data to a text profile.
+	if err := sh.Run("go", "tool", "covdata", "textfmt",
+		"-i=coverage/integration",
+		"-o=coverage/integration.profile",
+	); err != nil {
+		return fmt.Errorf("failed to convert integration coverage to text: %w", err)
 	}
 
-	// Merge coverage files, excluding internal/test
-	args := []string{"tool", "gocovmerge"}
-	args = append(args, coverageFiles...)
+	// Merge unit and integration text profiles.
+	return mergeProfiles(
+		[]string{"coverage/unit.profile", "coverage/integration.profile"},
+		"coverage/all.profile",
+	)
+}
 
-	mergeOutput, err := sh.Output("go", args...)
-	if err != nil {
-		return fmt.Errorf("failed to merge coverage: %w", err)
+// mergeProfiles merges multiple Go coverage text profiles into one.
+// For blocks that appear in multiple profiles, hit counts are summed.
+func mergeProfiles(inputs []string, output string) error {
+	type block struct {
+		stmts int
+		count int
 	}
 
-	// Filter to only include coverage for the packages we care about.
-	// The integration test binary uses -coverpkg to instrument these packages;
-	// unit tests run without -coverpkg (to avoid overlapping coverage blocks),
-	// so this allowlist ensures only the desired packages appear in the final
-	// merged profile.
-	coveredPkgs := []string{
-		"github.com/ghostunnel/ghostunnel/",
-		"github.com/ghostunnel/ghostunnel:",
-	}
-	excludedPkgs := []string{
-		"/vendor/",
-		"/internal/test",
-		"/jcekstest",
-	}
-	lines := strings.Split(mergeOutput, "\n")
-	var filtered []string
-	for _, line := range lines {
-		if strings.HasPrefix(line, "mode:") {
-			filtered = append(filtered, line)
-			continue
+	mode := ""
+	blocks := map[string]*block{} // key = "file:startline.col,endline.col"
+
+	for _, input := range inputs {
+		data, err := os.ReadFile(input)
+		if err != nil {
+			return fmt.Errorf("failed to read %s: %w", input, err)
 		}
-		allowed := false
-		for _, pkg := range coveredPkgs {
-			if strings.Contains(line, pkg) {
-				allowed = true
-				break
+		for _, line := range strings.Split(string(data), "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			if strings.HasPrefix(line, "mode:") {
+				if mode == "" {
+					mode = strings.TrimSpace(strings.TrimPrefix(line, "mode:"))
+				}
+				continue
+			}
+			// Format: "pkg/file.go:start,end stmts count"
+			lastSpace := strings.LastIndex(line, " ")
+			if lastSpace < 0 {
+				continue
+			}
+			rest := line[:lastSpace]
+			countStr := line[lastSpace+1:]
+
+			secondLastSpace := strings.LastIndex(rest, " ")
+			if secondLastSpace < 0 {
+				continue
+			}
+			key := rest[:secondLastSpace]
+			stmtsStr := rest[secondLastSpace+1:]
+
+			count, err := strconv.Atoi(countStr)
+			if err != nil {
+				continue
+			}
+			stmts, err := strconv.Atoi(stmtsStr)
+			if err != nil {
+				continue
+			}
+
+			if b, ok := blocks[key]; ok {
+				b.count += count
+			} else {
+				blocks[key] = &block{stmts: stmts, count: count}
 			}
 		}
-		if !allowed {
-			continue
-		}
-		excluded := false
-		for _, pkg := range excludedPkgs {
-			if strings.Contains(line, pkg) {
-				excluded = true
-				break
-			}
-		}
-		if !excluded {
-			filtered = append(filtered, line)
-		}
 	}
 
-	// Write merged coverage
-	return os.WriteFile("coverage/all.profile", []byte(strings.Join(filtered, "\n")), 0644)
+	if mode == "" {
+		mode = "count"
+	}
+
+	// Sort keys for deterministic output
+	keys := make([]string, 0, len(blocks))
+	for k := range blocks {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "mode: %s\n", mode)
+	for _, key := range keys {
+		b := blocks[key]
+		fmt.Fprintf(&buf, "%s %d %d\n", key, b.stmts, b.count)
+	}
+
+	return os.WriteFile(output, buf.Bytes(), 0644)
 }
 
 // Keys generates test certificates and keys for development/testing purposes.

@@ -18,14 +18,10 @@ package main
 
 import (
 	"crypto/tls"
-	"encoding/json"
 	"errors"
 	"net"
 	"os"
-	"path"
-	"path/filepath"
 	"runtime"
-	"sync"
 	"testing"
 	"time"
 
@@ -33,66 +29,6 @@ import (
 	"github.com/ghostunnel/ghostunnel/proxy"
 	"github.com/stretchr/testify/assert"
 )
-
-func TestIntegrationMain(t *testing.T) {
-	// This function serves as an entry point for running integration tests.
-	// We're wrapping it in a test case so that we can record the test coverage.
-	isIntegration := os.Getenv("GHOSTUNNEL_INTEGRATION_TEST")
-
-	// Catch panics to make sure test exits normally and writes coverage
-	// even if we got a crash (we might want to test error cases)
-	defer func() {
-		if err := recover(); err != nil {
-			t.Error(err)
-		}
-	}()
-
-	if isIntegration != "true" {
-		t.Skip("skipping, not an integration test")
-		return
-	}
-
-	execPath, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	addLandlockTestPaths([]string{path.Join(filepath.Dir(execPath), "coverage")})
-
-	finished := make(chan bool, 1)
-	once := &sync.Once{}
-
-	// override exit function for test, to make sure calls to exitFunc() don't
-	// actually terminate the process and kill the test w/o capturing results.
-	exitFunc = func(exit int) {
-		once.Do(func() {
-			if exit != 0 {
-				t.Errorf("exit code from ghostunnel: %d", exit)
-			}
-		})
-		finished <- true
-		select {} // block
-	}
-
-	var wrappedArgs []string
-	err = json.Unmarshal([]byte(os.Getenv("GHOSTUNNEL_INTEGRATION_ARGS")), &wrappedArgs)
-	panicOnError(err)
-
-	go func() {
-		err := run(wrappedArgs)
-		if err != nil {
-			t.Errorf("got error from run: %s", err)
-		}
-		finished <- true
-	}()
-
-	select {
-	case <-finished:
-		return
-	case <-time.Tick(10 * time.Minute):
-		panic("timed out")
-	}
-}
 
 func TestInitLoggerQuiet(t *testing.T) {
 	originalLogger := logger

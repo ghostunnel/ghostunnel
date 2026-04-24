@@ -14,7 +14,7 @@ ghostunnel
 ghostunnel.man
 mage-bin
 ghostunnel.exe
-ghostunnel.test
+ghostunnel.cover
 ghostunnel.certstore
 ghostunnel-*
 __pycache__

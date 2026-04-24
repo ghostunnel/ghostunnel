@@ -242,7 +242,6 @@ require (
 	github.com/uudashr/iface v1.4.1 // indirect
 	github.com/valyala/fastjson v1.6.10 // indirect
 	github.com/vektah/gqlparser/v2 v2.5.32 // indirect
-	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	github.com/xen0n/gosmopolitan v1.3.0 // indirect
@@ -285,5 +284,4 @@ go 1.25.1
 tool (
 	github.com/golangci/golangci-lint/v2/cmd/golangci-lint
 	github.com/magefile/mage
-	github.com/wadey/gocovmerge
 )

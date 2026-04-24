@@ -31,24 +31,18 @@ import (
 	"github.com/landlock-lsm/go-landlock/landlock"
 )
 
-var testRules = []landlock.Rule{}
-
 type portRuleFunc = func(port uint16) landlock.NetRule
-
-// addLandlockTestPaths can be used to add extra rules necessary for
-// integration tests to run, e.g. the ability to write a coverage
-// file to the current directory.
-func addLandlockTestPaths(paths []string) {
-	for _, path := range paths {
-		testRules = append(testRules, landlock.RWDirs(path))
-	}
-}
 
 // setupLandlock processes flags given to the process and generates an
 // appropriate landlock rule configuration to limit our privileges.
 func setupLandlock() error {
 	fsRules := []landlock.Rule{}
-	fsRules = append(fsRules, testRules...)
+
+	// Extra RW paths registered by init() hooks (e.g. GOCOVERDIR for
+	// coverage-instrumented builds).
+	for _, path := range extraRWPaths {
+		fsRules = append(fsRules, landlock.RWDirs(path))
+	}
 
 	// Default net rules
 	netRules := []landlock.Rule{
