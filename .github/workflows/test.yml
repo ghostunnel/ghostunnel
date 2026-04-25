@@ -16,7 +16,7 @@ jobs:
     strategy:
       matrix:
         version: [1.26.x]
-        os: [ubuntu-22.04, ubuntu-24.04, macos-latest, windows-latest]
+        os: [ubuntu-24.04, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Set up Go
@@ -48,13 +48,29 @@ jobs:
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       
+  test-freebsd:
+    name: Tests (FreeBSD)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Run tests in FreeBSD
+        uses: vmactions/freebsd-vm@v1
+        with:
+          release: "14.4"
+          usesh: true
+          prepare: |
+            pkg update -f
+            pkg install -y go python3
+          run: |
+            go tool mage -v test:all
+
   test-docker:
-    name: Tests (PKCS#11/SoftHSM)
+    name: Tests (PKCS#11)
     strategy:
       matrix:
         version: [1.26]
-        os: [ubuntu-24.04]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
