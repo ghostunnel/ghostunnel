@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
 """
-Tests the full Windows service lifecycle: install -> start -> status -> stop ->
-uninstall -> verify-gone. Requires Windows and Administrator privileges.
+Tests standalone 'service start' and 'service stop' commands, including
+edge cases: stopping an already-stopped service (idempotent) and starting
+an already-running service (error).
 
-The coverage-instrumented binary (built with go build -cover) is a real
-ghostunnel binary, so the SCM can start it as a Windows service.
+Requires Windows and Administrator privileges.
 """
 
 import os
@@ -19,7 +19,7 @@ from common import (LOCALHOST, LISTEN_PORT, TARGET_PORT, assert_not_zero,
 require_platform('Windows')
 require_admin()
 
-SERVICE_NAME = 'ghostunnel-pytest-lifecycle'
+SERVICE_NAME = 'ghostunnel-pytest-startstop'
 
 root = None
 
@@ -35,7 +35,6 @@ try:
     root = create_default_certs()
 
     # Clean up any leftover service from a previous crashed test run.
-    # If the service doesn't exist, this fails silently.
     proc = run_ghostunnel(
         ['service', 'uninstall', '--service-name', SERVICE_NAME],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -46,7 +45,7 @@ try:
     keystore = os.path.abspath('server.p12')
     cacert = os.path.abspath('root.crt')
 
-    # 1. Install and start service.
+    # 1. Install service (auto-starts).
     rc, stdout, stderr = run_service_cmd([
         'service', 'install', '--service-name', SERVICE_NAME,
         '--', 'server',
@@ -56,60 +55,78 @@ try:
         '--cacert={0}'.format(cacert),
         '--allow-ou=client',
     ])
-    combined = stdout + stderr
     if rc != 0:
-        print("unexpected install output:\nstdout: {0}\nstderr: {1}".format(
+        print("install output:\nstdout: {0}\nstderr: {1}".format(
             stdout, stderr), file=sys.stderr)
         raise Exception("service install failed (rc={0})".format(rc))
-    if 'installed and started' not in combined.lower():
-        print("unexpected install output:\nstdout: {0}\nstderr: {1}".format(
-            stdout, stderr), file=sys.stderr)
-        raise Exception("service install did not produce expected output")
-    print_ok("install: OK (installed and started)")
+    print_ok("install: OK")
 
-    # 2. Status should succeed (service is registered).
-    rc, stdout, stderr = run_service_cmd([
-        'service', 'status', '--service-name', SERVICE_NAME,
-    ])
-    if rc != 0:
-        raise Exception("status failed (rc={0}): {1}".format(rc, stdout))
-    if SERVICE_NAME not in stdout:
-        raise Exception("status output missing service name: {0}".format(stdout))
-    print_ok("status: OK ({0})".format(stdout.strip()))
-
-    # 3. Stop the running service.
+    # 2. Stop via 'service stop'.
     rc, stdout, stderr = run_service_cmd([
         'service', 'stop', '--service-name', SERVICE_NAME,
     ])
     if rc != 0:
-        raise Exception("stop failed (rc={0}): {1}".format(rc, stdout))
+        raise Exception("stop failed (rc={0}): {1}".format(rc, stderr))
     print_ok("stop: OK")
 
-    # 4. Uninstall.
+    # 3. Verify status reports stopped.
     rc, stdout, stderr = run_service_cmd([
-        'service', 'uninstall', '--service-name', SERVICE_NAME,
+        'service', 'status', '--service-name', SERVICE_NAME,
     ])
     if rc != 0:
-        raise Exception("uninstall failed (rc={0}): {1}".format(rc, stdout))
-    if 'removed' not in stdout.lower():
-        raise Exception("uninstall output missing 'removed': {0}".format(stdout))
-    print_ok("uninstall: OK")
+        raise Exception("status failed (rc={0}): {1}".format(rc, stderr))
+    if 'stopped' not in stdout.lower():
+        raise Exception("expected 'stopped' in status output: {0}".format(stdout))
+    print_ok("status after stop: OK (stopped)")
 
-    # 5. Status should fail now (service is gone).
+    # 4. Stop again -- should succeed (already stopped).
+    rc, stdout, stderr = run_service_cmd([
+        'service', 'stop', '--service-name', SERVICE_NAME,
+    ])
+    if rc != 0:
+        raise Exception("stop-when-stopped failed (rc={0}): {1}".format(rc, stderr))
+    print_ok("stop when already stopped: OK (idempotent)")
+
+    # 5. Start via 'service start'.
+    rc, stdout, stderr = run_service_cmd([
+        'service', 'start', '--service-name', SERVICE_NAME,
+    ])
+    if rc != 0:
+        raise Exception("start failed (rc={0}): {1}".format(rc, stderr))
+    print_ok("start: OK")
+
+    # 6. Verify status reports running.
+    rc, stdout, stderr = run_service_cmd([
+        'service', 'status', '--service-name', SERVICE_NAME,
+    ])
+    if rc != 0:
+        raise Exception("status failed (rc={0}): {1}".format(rc, stderr))
+    if 'running' not in stdout.lower():
+        raise Exception("expected 'running' in status output: {0}".format(stdout))
+    print_ok("status after start: OK (running)")
+
+    # 7. Start again -- should fail (already running).
     proc = run_ghostunnel(
-        ['service', 'status', '--service-name', SERVICE_NAME],
+        ['service', 'start', '--service-name', SERVICE_NAME],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     assert_not_zero(proc)
-    print_ok("status after uninstall: correctly reports error")
+    print_ok("start when already running: correctly rejected")
 
     print_ok("OK")
 finally:
-    # Best-effort cleanup in case the test failed partway through.
+    # Best-effort cleanup.
+    try:
+        proc = run_ghostunnel(
+            ['service', 'stop', '--service-name', SERVICE_NAME],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        proc.communicate(timeout=10)
+    except Exception:
+        pass
     try:
         proc = run_ghostunnel(
             ['service', 'uninstall', '--service-name', SERVICE_NAME],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        proc.wait(timeout=10)
+        proc.communicate(timeout=10)
     except Exception:
         pass
     if root:
