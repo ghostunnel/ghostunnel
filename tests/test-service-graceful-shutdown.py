@@ -9,8 +9,7 @@ cleanly with code 0.
 
 Note: this exercises the same shutdownFunc() that the Windows SCM stop
 handler invokes via serviceStopCh, but the trigger mechanism here is
-/_shutdown (not the SCM). A full SCM-triggered test would require a real
-ghostunnel.exe binary rather than the coverage-instrumented test binary.
+/_shutdown (not the SCM).
 """
 
 import http.client

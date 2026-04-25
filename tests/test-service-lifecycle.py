@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 
 """
-Tests the full Windows service lifecycle: install -> status -> stop ->
+Tests the full Windows service lifecycle: install -> start -> status -> stop ->
 uninstall -> verify-gone. Requires Windows and Administrator privileges.
 
-The test binary cannot actually start as a Windows service (the SCM invokes
-main(), which is the Go test runner, not ghostunnel's main). We tolerate the
-start failure and verify the SCM registration itself.
+The coverage-instrumented binary (built with go build -cover) is a real
+ghostunnel binary, so the SCM can start it as a Windows service.
 """
 
 import subprocess
@@ -36,8 +35,7 @@ try:
         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     proc.communicate(timeout=10)
 
-    # 1. Install service. The test binary can't start as a real service,
-    #    so we tolerate a non-zero exit from the start failure.
+    # 1. Install and start service.
     rc, stdout, stderr = run_service_cmd([
         'service', 'install', '--service-name', SERVICE_NAME,
         '--', 'server',
@@ -47,15 +45,16 @@ try:
         '--cacert=root.crt',
         '--allow-ou=client',
     ])
-    # The install itself should succeed (service registered in SCM),
-    # but starting may fail. Check for the "installed" message or
-    # the "could not be started" message (both indicate registration worked).
     combined = stdout + stderr
-    if 'installed' not in combined.lower() and 'could not be started' not in combined.lower():
+    if rc != 0:
+        print("unexpected install output:\nstdout: {0}\nstderr: {1}".format(
+            stdout, stderr), file=sys.stderr)
+        raise Exception("service install failed (rc={0})".format(rc))
+    if 'installed and started' not in combined.lower():
         print("unexpected install output:\nstdout: {0}\nstderr: {1}".format(
             stdout, stderr), file=sys.stderr)
         raise Exception("service install did not produce expected output")
-    print_ok("install: OK (registered in SCM)")
+    print_ok("install: OK (installed and started)")
 
     # 2. Status should succeed (service is registered).
     rc, stdout, stderr = run_service_cmd([
@@ -67,7 +66,7 @@ try:
         raise Exception("status output missing service name: {0}".format(stdout))
     print_ok("status: OK ({0})".format(stdout.strip()))
 
-    # 3. Stop (service is already stopped since it never started).
+    # 3. Stop the running service.
     rc, stdout, stderr = run_service_cmd([
         'service', 'stop', '--service-name', SERVICE_NAME,
     ])

@@ -32,8 +32,6 @@ try:
     print_ok("created dummy service {0}".format(SERVICE_NAME))
 
     # Attempt to uninstall it via ghostunnel -- should be refused.
-    # Errors from run() go through t.Errorf in the Go test harness,
-    # which prints to stdout (not stderr) when the test fails.
     ghostunnel = run_ghostunnel(
         ['service', 'uninstall', '--service-name', SERVICE_NAME],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
