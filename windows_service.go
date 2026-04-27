@@ -187,6 +187,39 @@ func checkGhostunnelMarker(name string) error {
 	return nil
 }
 
+// waitForServiceRunning polls the service status after a start command, waiting
+// up to 10 seconds for it to reach the Running state. Returns an error if the
+// service stops or fails to reach Running within the timeout.
+func waitForServiceRunning(s *mgr.Service, name string) error {
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		status, err := s.Query()
+		if err != nil {
+			return fmt.Errorf("could not query service %q status: %w", name, err)
+		}
+		switch status.State {
+		case svc.Running:
+			// Brief stabilization: the service may crash immediately after
+			// reporting Running (e.g. flag parse failure calls os.Exit).
+			time.Sleep(300 * time.Millisecond)
+			status, err = s.Query()
+			if err != nil {
+				return fmt.Errorf("could not query service %q status: %w", name, err)
+			}
+			if status.State == svc.Stopped {
+				return fmt.Errorf("service %q stopped immediately after start; check service arguments", name)
+			}
+			return nil
+		case svc.Stopped:
+			return fmt.Errorf("service %q stopped immediately after start; check service arguments", name)
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timed out waiting for service %q to reach running state", name)
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
+}
+
 // stopServiceWithTimeout sends a stop control to the service and waits up to
 // 30 seconds for it to reach the Stopped state.
 func stopServiceWithTimeout(s *mgr.Service, name string) error {
@@ -244,9 +277,13 @@ func doInstallService(name string, proxyArgs []string) error {
 
 	// Register an event source so Windows Event Log doesn't show
 	// "The description for Event ID X from source ghostunnel cannot be found."
-	if err := eventlog.InstallAsEventCreate(name, eventlog.Error|eventlog.Warning|eventlog.Info); err != nil {
-		// Non-fatal: the service will still work, log entries just look ugly.
-		fmt.Fprintf(os.Stderr, "warning: could not register event log source: %v\n", err)
+	// On reinstall the source already exists; skip registration to avoid a spurious warning.
+	if elog, err := eventlog.Open(name); err != nil {
+		if err := eventlog.InstallAsEventCreate(name, eventlog.Error|eventlog.Warning|eventlog.Info); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: could not register event log source: %v\n", err)
+		}
+	} else {
+		elog.Close()
 	}
 
 	// Write a registry marker so uninstall can confirm this service was
@@ -267,6 +304,15 @@ func doInstallService(name string, proxyArgs []string) error {
 
 	if err := s.Start(); err != nil {
 		return fmt.Errorf("service %q: %w: %w", name, errServiceNotStarted, err)
+	}
+
+	if err := waitForServiceRunning(s, name); err != nil {
+		if elog, elogErr := eventlog.Open(name); elogErr == nil {
+			_ = elog.Error(1, fmt.Sprintf("ghostunnel service install failed: %v", err))
+			elog.Close()
+		}
+		_ = s.Delete()
+		return fmt.Errorf("%w; service registration has been removed, fix the issue and re-run 'service install'", err)
 	}
 
 	fmt.Printf("Service %q installed and started successfully.\n", name)
@@ -335,6 +381,10 @@ func doStartService(name string) error {
 
 	if err := s.Start(); err != nil {
 		return fmt.Errorf("could not start service %q: %w", name, err)
+	}
+
+	if err := waitForServiceRunning(s, name); err != nil {
+		return err
 	}
 
 	fmt.Printf("Service %q started successfully.\n", name)
