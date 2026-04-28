@@ -153,18 +153,18 @@ func TestWaitForServiceRunningPoll(t *testing.T) {
 		errSubstr string
 	}{
 		{
-			name:    "running immediately, stable",
-			steps:   []pollStep{{state: svc.Running}, {state: svc.Running}},
+			name:    "running immediately",
+			steps:   []pollStep{{state: svc.Running}},
 			wantErr: false,
 		},
 		{
 			name:    "start pending then running",
-			steps:   []pollStep{{state: svc.StartPending}, {state: svc.Running}, {state: svc.Running}},
+			steps:   []pollStep{{state: svc.StartPending}, {state: svc.Running}},
 			wantErr: false,
 		},
 		{
 			name:    "continue pending then running",
-			steps:   []pollStep{{state: svc.ContinuePending}, {state: svc.Running}, {state: svc.Running}},
+			steps:   []pollStep{{state: svc.ContinuePending}, {state: svc.Running}},
 			wantErr: false,
 		},
 		{
@@ -186,26 +186,8 @@ func TestWaitForServiceRunningPoll(t *testing.T) {
 			errSubstr: "failed to reach running state",
 		},
 		{
-			name:      "running then stopped during stabilization",
-			steps:     []pollStep{{state: svc.Running}, {state: svc.Stopped}},
-			wantErr:   true,
-			errSubstr: "failed to reach running state",
-		},
-		{
-			name:      "running then stop pending during stabilization",
-			steps:     []pollStep{{state: svc.Running}, {state: svc.StopPending}},
-			wantErr:   true,
-			errSubstr: "failed to reach running state",
-		},
-		{
 			name:      "query error",
 			steps:     []pollStep{{err: queryFailure}},
-			wantErr:   true,
-			errSubstr: "could not query",
-		},
-		{
-			name:      "query error during stabilization",
-			steps:     []pollStep{{state: svc.Running}, {err: queryFailure}},
 			wantErr:   true,
 			errSubstr: "could not query",
 		},
@@ -214,10 +196,10 @@ func TestWaitForServiceRunningPoll(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			query := newScriptedQuery(tt.steps)
-			// Zero poll/stabilization keep the test instantaneous; a generous
-			// timeout ensures the loop never trips the deadline before the
-			// scripted query yields a terminal state.
-			err := waitForServiceRunningPoll("test-service", query, 0, 0, time.Minute)
+			// Zero poll keeps the test instantaneous; a generous timeout
+			// ensures the loop never trips the deadline before the scripted
+			// query yields a terminal state.
+			err := waitForServiceRunningPoll("test-service", query, 0, time.Minute)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("err = %v, wantErr = %v", err, tt.wantErr)
 			}
@@ -235,7 +217,7 @@ func TestWaitForServiceRunningPollTimeout(t *testing.T) {
 		return svc.Status{State: svc.StartPending}, nil
 	}
 
-	err := waitForServiceRunningPoll("test-service", query, time.Millisecond, 0, 10*time.Millisecond)
+	err := waitForServiceRunningPoll("test-service", query, time.Millisecond, 10*time.Millisecond)
 	if err == nil {
 		t.Fatal("expected timeout error, got nil")
 	}

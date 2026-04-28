@@ -97,8 +97,8 @@ func newStatusHandler(dial proxy.DialFunc, command, listenAddress, forwardAddres
 }
 
 func (s *statusHandler) Listening() {
-	systemdNotifyReady()
-	systemdNotifyStatus(fmt.Sprintf("listening | %s proxying %s => %s", s.command, s.listenAddress, s.forwardAddress))
+	notifyServiceReady()
+	notifyServiceStatus(fmt.Sprintf("listening | %s proxying %s => %s", s.command, s.listenAddress, s.forwardAddress))
 	s.mu.Lock()
 	s.listening = true
 	s.reloading = false
@@ -106,8 +106,8 @@ func (s *statusHandler) Listening() {
 }
 
 func (s *statusHandler) Reloading() {
-	systemdNotifyReloading()
-	systemdNotifyStatus(fmt.Sprintf("reloading | %s proxying %s => %s", s.command, s.listenAddress, s.forwardAddress))
+	notifyServiceReloading()
+	notifyServiceStatus(fmt.Sprintf("reloading | %s proxying %s => %s", s.command, s.listenAddress, s.forwardAddress))
 	s.mu.Lock()
 	s.reloading = true
 	s.lastReload = time.Now()
@@ -115,8 +115,8 @@ func (s *statusHandler) Reloading() {
 }
 
 func (s *statusHandler) Stopping() {
-	systemdNotifyStopping()
-	systemdNotifyStatus(fmt.Sprintf("stopping | %s proxying %s => %s", s.command, s.listenAddress, s.forwardAddress))
+	notifyServiceStopping()
+	notifyServiceStatus(fmt.Sprintf("stopping | %s proxying %s => %s", s.command, s.listenAddress, s.forwardAddress))
 	s.mu.Lock()
 	s.listening = false
 	s.reloading = false
@@ -131,7 +131,7 @@ func (s *statusHandler) HandleWatchdog() {
 	// we can check that's useful inside the status handler. Right now,
 	// this is good enough to report that we're not frozen.
 	//nolint:errcheck
-	go systemdHandleWatchdog(func() bool { return true }, nil)
+	go handleServiceWatchdog(func() bool { return true }, nil)
 }
 
 func (s *statusHandler) status(ctx context.Context) statusResponse {

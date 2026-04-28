@@ -1,4 +1,4 @@
-//go:build !linux
+//go:build !linux && !windows
 
 /*-
  * Copyright 2024, Ghostunnel
@@ -18,19 +18,19 @@
 
 package main
 
-// systemdNotifyStatus sends a message to systemd to inform that we're ready.
-func systemdNotifyStatus(_ string) {}
+// notifyServiceStatus sends a message to systemd to inform that we're ready.
+func notifyServiceStatus(_ string) {}
 
-// systemdNotifyReady sends a message to systemd to inform that we're ready.
-func systemdNotifyReady() {}
+// notifyServiceReady sends a message to systemd to inform that we're ready.
+func notifyServiceReady() {}
 
-// systemdNotifyReloading sends a message to systemd to inform that we're reloading.
-func systemdNotifyReloading() {}
+// notifyServiceReloading sends a message to systemd to inform that we're reloading.
+func notifyServiceReloading() {}
 
-// systemdNotifyStopping sends a message to systemd to inform that we're stopping.
-func systemdNotifyStopping() {}
+// notifyServiceStopping sends a message to systemd to inform that we're stopping.
+func notifyServiceStopping() {}
 
-// systemdHandleWatchdog sends watchdog messages to systemd to keep us alive, if enabled.
-func systemdHandleWatchdog(isHealthy func() bool, shutdown chan bool) error {
+// handleServiceWatchdog sends watchdog messages to systemd to keep us alive, if enabled.
+func handleServiceWatchdog(isHealthy func() bool, shutdown chan bool) error {
 	return nil
 }

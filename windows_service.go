@@ -45,10 +45,6 @@ const (
 	// serviceStatePollInterval is the delay between SCM status queries while
 	// waiting for a state transition.
 	serviceStatePollInterval = 300 * time.Millisecond
-	// runningStabilizationDelay is the brief pause after observing Running to
-	// catch services that crash immediately after reporting Running (e.g. a
-	// flag parse failure that calls os.Exit).
-	runningStabilizationDelay = 300 * time.Millisecond
 
 	// failedToStartMsg is the format string used whenever a service does not
 	// reach Running, regardless of which terminal state was observed. The
@@ -130,13 +126,25 @@ func (s *ghostunnelService) Execute(_ []string, r <-chan svc.ChangeRequest, chan
 		done <- run(os.Args[1:])
 	}()
 
-	// TODO: run() was launched in a goroutine above but may not have finished
-	// binding ports yet. Ideally we'd wait for a readiness signal before
-	// reporting Running to the SCM. This requires a larger refactor to thread
-	// a readiness callback through the startup path.
-	changes <- svc.Status{State: svc.Running, Accepts: svc.AcceptStop | svc.AcceptShutdown}
-	if elog != nil {
-		_ = elog.Info(1, "ghostunnel service started")
+	// Defer the Running transition until the proxy actually starts listening
+	// (signaled via notifyServiceReady, called from statusHandler.Listening).
+	// If run() exits early or never reaches ready, fail the start.
+	select {
+	case <-serviceReadyChan():
+		changes <- svc.Status{State: svc.Running, Accepts: svc.AcceptStop | svc.AcceptShutdown}
+		if elog != nil {
+			_ = elog.Info(1, "ghostunnel service started")
+		}
+	case err := <-done:
+		if elog != nil {
+			_ = elog.Error(1, fmt.Sprintf("ghostunnel exited before reaching ready: %v", err))
+		}
+		return false, 1
+	case <-time.After(serviceStateChangeTimeout):
+		if elog != nil {
+			_ = elog.Error(1, "ghostunnel did not reach ready state within timeout")
+		}
+		return false, 1
 	}
 
 	for {
@@ -239,19 +247,20 @@ func writeEventLogError(name, msg string) {
 // waitForServiceRunning polls the SCM after a start command and waits for the
 // service to reach the Running state, returning an error if the service
 // transitions to a terminal state or does not reach Running within
-// serviceStateChangeTimeout.
+// serviceStateChangeTimeout. Because Execute now defers the Running transition
+// until the proxy is actually accepting connections, observing Running here
+// means startup truly succeeded.
 func waitForServiceRunning(s *mgr.Service, name string) error {
-	return waitForServiceRunningPoll(name, s.Query, serviceStatePollInterval, runningStabilizationDelay, serviceStateChangeTimeout)
+	return waitForServiceRunningPoll(name, s.Query, serviceStatePollInterval, serviceStateChangeTimeout)
 }
 
 // waitForServiceRunningPoll is the testable core of waitForServiceRunning. The
-// poll interval, stabilization delay, and timeout are passed in so tests can
-// use zero or near-zero durations to keep test runtime short.
+// poll interval and timeout are passed in so tests can use zero or near-zero
+// durations to keep test runtime short.
 func waitForServiceRunningPoll(
 	name string,
 	query func() (svc.Status, error),
 	pollInterval time.Duration,
-	stabilizationDelay time.Duration,
 	timeout time.Duration,
 ) error {
 	deadline := time.Now().Add(timeout)
@@ -262,16 +271,6 @@ func waitForServiceRunningPoll(
 		}
 		switch status.State {
 		case svc.Running:
-			// Brief stabilization: the service may crash immediately after
-			// reporting Running (e.g. flag parse failure calls os.Exit).
-			time.Sleep(stabilizationDelay)
-			status, err = query()
-			if err != nil {
-				return fmt.Errorf("could not query service %q status: %w", name, err)
-			}
-			if status.State != svc.Running {
-				return fmt.Errorf(failedToStartMsg, name)
-			}
 			return nil
 		case svc.StartPending, svc.ContinuePending:
 			// Still transitioning; keep polling.

@@ -14,7 +14,7 @@ func TestGetMonotonicUsec(t *testing.T) {
 	}
 }
 
-func TestSystemdNotifyReloadingDoesNotPanic(t *testing.T) {
+func TestNotifyServiceReloadingDoesNotPanic(t *testing.T) {
 	// Should not panic even if systemd is not available
-	systemdNotifyReloading()
+	notifyServiceReloading()
 }
