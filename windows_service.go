@@ -38,6 +38,22 @@ var errServiceNotStarted = errors.New("service installed but could not be starte
 const (
 	serviceNameFlagName = "service-name"
 	defaultServiceName  = "ghostunnel"
+
+	// serviceStateChangeTimeout bounds how long we wait for a service to
+	// transition between states (start or stop) before giving up.
+	serviceStateChangeTimeout = 30 * time.Second
+	// serviceStatePollInterval is the delay between SCM status queries while
+	// waiting for a state transition.
+	serviceStatePollInterval = 300 * time.Millisecond
+	// runningStabilizationDelay is the brief pause after observing Running to
+	// catch services that crash immediately after reporting Running (e.g. a
+	// flag parse failure that calls os.Exit).
+	runningStabilizationDelay = 300 * time.Millisecond
+
+	// failedToStartMsg is the format string used whenever a service does not
+	// reach Running, regardless of which terminal state was observed. The
+	// Event Log is the source of truth for the underlying cause.
+	failedToStartMsg = "service %q failed to reach running state; check the Windows Event Log for details"
 )
 
 var (
@@ -187,13 +203,60 @@ func checkGhostunnelMarker(name string) error {
 	return nil
 }
 
-// waitForServiceRunning polls the service status after a start command, waiting
-// up to 10 seconds for it to reach the Running state. Returns an error if the
-// service stops or fails to reach Running within the timeout.
+// eventLogSourceExists reports whether an event log source with the given
+// name is registered. Used to make event source registration idempotent.
+func eventLogSourceExists(name string) bool {
+	elog, err := eventlog.Open(name)
+	if err != nil {
+		return false
+	}
+	elog.Close()
+	return true
+}
+
+// writeEventLogInfo writes a one-shot Info entry to the named event log
+// source. Best-effort; silently ignores errors (e.g. source not registered).
+func writeEventLogInfo(name, msg string) {
+	elog, err := eventlog.Open(name)
+	if err != nil {
+		return
+	}
+	defer elog.Close()
+	_ = elog.Info(1, msg)
+}
+
+// writeEventLogError writes a one-shot Error entry to the named event log
+// source. Best-effort; silently ignores errors.
+func writeEventLogError(name, msg string) {
+	elog, err := eventlog.Open(name)
+	if err != nil {
+		return
+	}
+	defer elog.Close()
+	_ = elog.Error(1, msg)
+}
+
+// waitForServiceRunning polls the SCM after a start command and waits for the
+// service to reach the Running state, returning an error if the service
+// transitions to a terminal state or does not reach Running within
+// serviceStateChangeTimeout.
 func waitForServiceRunning(s *mgr.Service, name string) error {
-	deadline := time.Now().Add(10 * time.Second)
+	return waitForServiceRunningPoll(name, s.Query, serviceStatePollInterval, runningStabilizationDelay, serviceStateChangeTimeout)
+}
+
+// waitForServiceRunningPoll is the testable core of waitForServiceRunning. The
+// poll interval, stabilization delay, and timeout are passed in so tests can
+// use zero or near-zero durations to keep test runtime short.
+func waitForServiceRunningPoll(
+	name string,
+	query func() (svc.Status, error),
+	pollInterval time.Duration,
+	stabilizationDelay time.Duration,
+	timeout time.Duration,
+) error {
+	deadline := time.Now().Add(timeout)
 	for {
-		status, err := s.Query()
+		status, err := query()
 		if err != nil {
 			return fmt.Errorf("could not query service %q status: %w", name, err)
 		}
@@ -201,27 +264,31 @@ func waitForServiceRunning(s *mgr.Service, name string) error {
 		case svc.Running:
 			// Brief stabilization: the service may crash immediately after
 			// reporting Running (e.g. flag parse failure calls os.Exit).
-			time.Sleep(300 * time.Millisecond)
-			status, err = s.Query()
+			time.Sleep(stabilizationDelay)
+			status, err = query()
 			if err != nil {
 				return fmt.Errorf("could not query service %q status: %w", name, err)
 			}
-			if status.State == svc.Stopped {
-				return fmt.Errorf("service %q stopped immediately after start; check service arguments", name)
+			if status.State != svc.Running {
+				return fmt.Errorf(failedToStartMsg, name)
 			}
 			return nil
-		case svc.Stopped:
-			return fmt.Errorf("service %q stopped immediately after start; check service arguments", name)
+		case svc.StartPending, svc.ContinuePending:
+			// Still transitioning; keep polling.
+		default:
+			// Stopped, StopPending, Paused, PausePending, or any unknown state
+			// observed before Running is a terminal failure.
+			return fmt.Errorf(failedToStartMsg, name)
 		}
 		if time.Now().After(deadline) {
 			return fmt.Errorf("timed out waiting for service %q to reach running state", name)
 		}
-		time.Sleep(300 * time.Millisecond)
+		time.Sleep(pollInterval)
 	}
 }
 
 // stopServiceWithTimeout sends a stop control to the service and waits up to
-// 30 seconds for it to reach the Stopped state.
+// serviceStateChangeTimeout for it to reach the Stopped state.
 func stopServiceWithTimeout(s *mgr.Service, name string) error {
 	status, err := s.Query()
 	if err != nil {
@@ -233,12 +300,12 @@ func stopServiceWithTimeout(s *mgr.Service, name string) error {
 	if _, err := s.Control(svc.Stop); err != nil {
 		return fmt.Errorf("could not stop service %q: %w", name, err)
 	}
-	deadline := time.Now().Add(30 * time.Second)
+	deadline := time.Now().Add(serviceStateChangeTimeout)
 	for status.State != svc.Stopped {
 		if time.Now().After(deadline) {
 			return fmt.Errorf("timed out waiting for service %q to stop", name)
 		}
-		time.Sleep(300 * time.Millisecond)
+		time.Sleep(serviceStatePollInterval)
 		if status, err = s.Query(); err != nil {
 			return fmt.Errorf("could not query service %q: %w", name, err)
 		}
@@ -277,13 +344,15 @@ func doInstallService(name string, proxyArgs []string) error {
 
 	// Register an event source so Windows Event Log doesn't show
 	// "The description for Event ID X from source ghostunnel cannot be found."
-	// On reinstall the source already exists; skip registration to avoid a spurious warning.
-	if elog, err := eventlog.Open(name); err != nil {
+	// On reinstall the source already exists; skip registration to avoid a
+	// spurious warning. Track creation so rollback can remove it.
+	eventSourceCreated := false
+	if !eventLogSourceExists(name) {
 		if err := eventlog.InstallAsEventCreate(name, eventlog.Error|eventlog.Warning|eventlog.Info); err != nil {
 			fmt.Fprintf(os.Stderr, "warning: could not register event log source: %v\n", err)
+		} else {
+			eventSourceCreated = true
 		}
-	} else {
-		elog.Close()
 	}
 
 	// Write a registry marker so uninstall can confirm this service was
@@ -307,11 +376,12 @@ func doInstallService(name string, proxyArgs []string) error {
 	}
 
 	if err := waitForServiceRunning(s, name); err != nil {
-		if elog, elogErr := eventlog.Open(name); elogErr == nil {
-			_ = elog.Error(1, fmt.Sprintf("ghostunnel service install failed: %v", err))
-			elog.Close()
-		}
+		err = fmt.Errorf("%w: %w", errServiceNotStarted, err)
+		writeEventLogError(name, fmt.Sprintf("ghostunnel service install failed: %v", err))
 		_ = s.Delete()
+		if eventSourceCreated {
+			_ = eventlog.Remove(name)
+		}
 		return fmt.Errorf("%w; service registration has been removed, fix the issue and re-run 'service install'", err)
 	}
 
@@ -348,10 +418,7 @@ func doUninstallService(name string) error {
 		return fmt.Errorf("could not delete service %q: %w", name, err)
 	}
 
-	if elog, err := eventlog.Open(name); err == nil {
-		_ = elog.Info(1, fmt.Sprintf("ghostunnel service %q uninstalled", name))
-		elog.Close()
-	}
+	writeEventLogInfo(name, fmt.Sprintf("ghostunnel service %q uninstalled", name))
 	_ = eventlog.Remove(name) // best-effort; non-critical
 
 	fmt.Printf("Service %q stopped and removed successfully.\n", name)
@@ -380,11 +447,11 @@ func doStartService(name string) error {
 	}
 
 	if err := s.Start(); err != nil {
-		return fmt.Errorf("could not start service %q: %w", name, err)
+		return fmt.Errorf("service %q: %w: %w", name, errServiceNotStarted, err)
 	}
 
 	if err := waitForServiceRunning(s, name); err != nil {
-		return err
+		return fmt.Errorf("%w: %w", errServiceNotStarted, err)
 	}
 
 	fmt.Printf("Service %q started successfully.\n", name)
