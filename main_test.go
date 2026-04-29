@@ -17,17 +17,24 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"net"
+	"net/url"
 	"os"
 	"runtime"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
 	"github.com/ghostunnel/ghostunnel/certloader"
 	"github.com/ghostunnel/ghostunnel/proxy"
 	"github.com/stretchr/testify/assert"
+	netproxy "golang.org/x/net/proxy"
 )
 
 func TestInitLoggerQuiet(t *testing.T) {
@@ -1075,4 +1082,382 @@ func TestValidateCipherSuitesUnsafe(t *testing.T) {
 	*allowUnsafeCipherSuites = true
 	err = validateCipherSuites()
 	assert.Nil(t, err, "should allow unsafe cipher suites with flag")
+}
+
+func TestValidateServerOPANoFlags(t *testing.T) {
+	err := validateServerOPA(false, false)
+	assert.Nil(t, err, "validateServerOPA must return nil when no OPA flags are set")
+
+	err = validateServerOPA(true, false)
+	assert.Nil(t, err, "validateServerOPA must return nil when OPA disabled even if access flags set")
+}
+
+// TestGetTLSConfigSourceSpiffeError exercises the SPIFFE branch error path
+// in getTLSConfigSource. Using a hostname (not an IP) in the workload-API
+// address fails synchronously inside spiffeApi.New -> setAddress ->
+// parseTargetFromURLAddr (the host component must be an IP literal).
+func TestGetTLSConfigSourceSpiffeError(t *testing.T) {
+	origUse := *useWorkloadAPI
+	origAddr := *useWorkloadAPIAddr
+	origACME := *serverAutoACMEFQDN
+	origKeystore := *keystorePath
+	origCert := *certPath
+	origKey := *keyPath
+	defer func() {
+		*useWorkloadAPI = origUse
+		*useWorkloadAPIAddr = origAddr
+		*serverAutoACMEFQDN = origACME
+		*keystorePath = origKeystore
+		*certPath = origCert
+		*keyPath = origKey
+	}()
+
+	*useWorkloadAPI = true
+	// Hostname (not an IP) is rejected by SPIFFE address validation in
+	// spiffeApi.New -> setAddress -> parseTargetFromURLAddr.
+	*useWorkloadAPIAddr = "tcp://example.com:8081"
+	*serverAutoACMEFQDN = ""
+	*keystorePath = ""
+	*certPath = ""
+	*keyPath = ""
+
+	source, err := getTLSConfigSource(false)
+	assert.NotNil(t, err, "expected SPIFFE init failure on invalid address")
+	assert.Nil(t, source)
+}
+
+// countingTLSConfigSource extends the failingTLSConfigSource with a counter
+// for tracking Reload() invocations.
+type countingTLSConfigSource struct {
+	failingTLSConfigSource
+	reloadCalls atomic.Int32
+}
+
+func (c *countingTLSConfigSource) Reload() error {
+	c.reloadCalls.Add(1)
+	return nil
+}
+
+// nopListener is a net.Listener whose Accept always errors, allowing a real
+// proxy.Proxy to be constructed without binding any sockets.
+type nopListener struct {
+	closed chan struct{}
+	once   sync.Once
+}
+
+func (l *nopListener) Accept() (net.Conn, error) {
+	<-l.closed
+	return nil, errors.New("listener closed")
+}
+
+func (l *nopListener) Close() error {
+	l.once.Do(func() { close(l.closed) })
+	return nil
+}
+
+func (l *nopListener) Addr() net.Addr {
+	return &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0}
+}
+
+// TestSignalHandlerReloadAndShutdown drives both reachable branches of
+// signalHandler's select loop on Unix: the SIGHUP refresh path (reload) and
+// the shutdownChannel path. The serviceShutdownChan branch is unreachable on
+// non-Windows because serviceShutdownChan() returns nil (see unix.go).
+func TestSignalHandlerReloadAndShutdown(t *testing.T) {
+	// Override exitFunc so the AfterFunc scheduled inside shutdownFunc
+	// (signals.go ~line 54) does not kill the test process if the timer
+	// happens to fire.
+	origExit := exitFunc
+	defer func() { exitFunc = origExit }()
+	exitFunc = func(int) {}
+
+	src := &countingTLSConfigSource{}
+	sh := newStatusHandler(dummyDial, "test", "127.0.0.1:0", "127.0.0.1:0", "")
+	env := &Environment{
+		status:          sh,
+		shutdownChannel: make(chan bool),
+		shutdownTimeout: 5 * time.Second,
+		tlsConfigSource: src,
+	}
+
+	lis := &nopListener{closed: make(chan struct{})}
+	p := proxy.New(
+		lis,
+		time.Second, time.Second, time.Second,
+		1,
+		func(ctx context.Context) (net.Conn, error) {
+			return nil, errors.New("nope")
+		},
+		logger,
+		proxy.LogEverything,
+		proxy.ProxyProtocolOff,
+	)
+
+	done := make(chan struct{})
+	go func() {
+		env.signalHandler(p)
+		close(done)
+	}()
+
+	// Give the goroutine a moment to register signal.Notify before we
+	// send SIGHUP. There is no synchronization seam exposed by
+	// signalHandler, so a small fixed sleep is required here.
+	time.Sleep(100 * time.Millisecond)
+
+	if err := syscall.Kill(syscall.Getpid(), syscall.SIGHUP); err != nil {
+		t.Fatalf("failed to send SIGHUP: %v", err)
+	}
+
+	// Use Eventually-style polling for the reload counter to avoid flakes
+	// on slow CI without a long fixed sleep.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if src.reloadCalls.Load() >= 1 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	assert.GreaterOrEqual(t, src.reloadCalls.Load(), int32(1),
+		"expected at least one reload after SIGHUP")
+
+	// Now trigger graceful shutdown via the channel.
+	close(env.shutdownChannel)
+
+	select {
+	case <-done:
+		// signalHandler returned as expected
+	case <-time.After(2 * time.Second):
+		t.Fatal("signalHandler did not return after shutdownChannel closed")
+	}
+
+	// The serviceShutdownChan branch (windows-only) is unreachable on Unix
+	// because serviceShutdownChan() returns nil on non-Windows (see unix.go).
+}
+
+// TestCheckBackendStatusInvalidURLNonStatus is intentionally absent — the
+// equivalent test is in status_test.go (TestCheckBackendStatusInvalidURL).
+
+// TestServerListenEarlyErrors covers three early-return failure paths in
+// serverListen that occur before any listener is opened:
+//  1. buildServerConfig fails on a bad cipher suite.
+//  2. wildcard.CompileList fails on an invalid URI pattern.
+//  3. policy.LoadFromPath fails on a missing rego file.
+//
+// All three return before serverListen dereferences env, so a zero-value
+// *Environment is sufficient.
+func TestServerListenEarlyErrors(t *testing.T) {
+	origPolicy := *serverAllowPolicy
+	origQuery := *serverAllowQuery
+	origURIs := *serverAllowedURIs
+	origAllowAll := *serverAllowAll
+	origCiphers := *enabledCipherSuites
+	origMaxTLS := *maxTLSVersion
+	defer func() {
+		*serverAllowPolicy = origPolicy
+		*serverAllowQuery = origQuery
+		*serverAllowedURIs = origURIs
+		*serverAllowAll = origAllowAll
+		*enabledCipherSuites = origCiphers
+		*maxTLSVersion = origMaxTLS
+	}()
+
+	cases := []struct {
+		name       string
+		setup      func()
+		wantSubstr string // matched case-insensitively; "" means any non-nil error
+	}{
+		{
+			name: "bad cipher suite",
+			setup: func() {
+				*enabledCipherSuites = "BOGUS-SUITE"
+				*maxTLSVersion = ""
+				*serverAllowedURIs = nil
+				*serverAllowPolicy = ""
+				*serverAllowQuery = ""
+				*serverAllowAll = true
+			},
+			wantSubstr: "cipher suite",
+		},
+		{
+			name: "invalid URI pattern",
+			setup: func() {
+				*enabledCipherSuites = "AES,CHACHA"
+				*maxTLSVersion = ""
+				*serverAllowedURIs = []string{""} // empty pattern fails wildcard.Compile
+				*serverAllowPolicy = ""
+				*serverAllowQuery = ""
+				*serverAllowAll = false
+			},
+			wantSubstr: "",
+		},
+		{
+			name: "policy load fails",
+			setup: func() {
+				*enabledCipherSuites = "AES,CHACHA"
+				*maxTLSVersion = ""
+				*serverAllowedURIs = nil
+				*serverAllowPolicy = "/nonexistent.rego"
+				*serverAllowQuery = "data.policy.allow"
+				*serverAllowAll = false
+			},
+			wantSubstr: "",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			c.setup()
+			env := &Environment{}
+			err := serverListen(env)
+			assert.NotNil(t, err, "expected non-nil error from serverListen")
+			if c.wantSubstr != "" && err != nil {
+				assert.Contains(t, strings.ToLower(err.Error()), c.wantSubstr)
+			}
+		})
+	}
+}
+
+// TestClientListenSocketOpenFails covers the clientListen early-return path
+// when socket.ParseAndOpen fails. Using a unix socket whose parent directory
+// does not exist exercises the failure inside socket.Open (after ParseAddress
+// succeeds), driving the err branch of clientListen.
+func TestClientListenSocketOpenFails(t *testing.T) {
+	orig := *clientListenAddress
+	t.Cleanup(func() { *clientListenAddress = orig })
+
+	*clientListenAddress = "unix:/nonexistent/dir/sock.sock"
+
+	err := clientListen(&Environment{})
+	assert.NotNil(t, err, "expected error for invalid socket address")
+	if err != nil {
+		// Loose assertion to stay resilient to error wording across OSes.
+		msg := strings.ToLower(err.Error())
+		assert.True(t,
+			strings.Contains(msg, "no such") ||
+				strings.Contains(msg, "socket") ||
+				strings.Contains(msg, "listen") ||
+				strings.Contains(msg, "directory"),
+			"unexpected error: %q", err.Error())
+	}
+}
+
+// fakeNonContextDialer is a netproxy.Dialer that intentionally does NOT
+// implement netproxy.ContextDialer. Used to exercise the type-assertion
+// failure branch in clientBackendDialer.
+type fakeNonContextDialer struct{ forward netproxy.Dialer }
+
+func (d *fakeNonContextDialer) Dial(network, addr string) (net.Conn, error) {
+	return d.forward.Dial(network, addr)
+}
+
+// TestClientBackendDialerProxyNotContextDialer covers the branch in
+// clientBackendDialer (~main.go:964-969) where the dialer returned by
+// netproxy.FromURL does not implement netproxy.ContextDialer, producing the
+// "did not implement context dialing" error before any actual dialing.
+func TestClientBackendDialerProxyNotContextDialer(t *testing.T) {
+	origKeystorePath := *keystorePath
+	origCertPath := *certPath
+	origKeyPath := *keyPath
+	origCaBundlePath := *caBundlePath
+	origClientServerName := *clientServerName
+	origClientAllowedURIs := *clientAllowedURIs
+	origClientAllowPolicy := *clientAllowPolicy
+	origClientAllowQuery := *clientAllowQuery
+	origConnectTimeout := *connectTimeout
+	origEnabledCipherSuites := *enabledCipherSuites
+	origClientProxy := *clientProxy
+	defer func() {
+		*keystorePath = origKeystorePath
+		*certPath = origCertPath
+		*keyPath = origKeyPath
+		*caBundlePath = origCaBundlePath
+		*clientServerName = origClientServerName
+		*clientAllowedURIs = origClientAllowedURIs
+		*clientAllowPolicy = origClientAllowPolicy
+		*clientAllowQuery = origClientAllowQuery
+		*connectTimeout = origConnectTimeout
+		*enabledCipherSuites = origEnabledCipherSuites
+		*clientProxy = origClientProxy
+	}()
+
+	certFile := writeTempFile(t, "test-cert-*.pem", []byte(testKeystoreCertOnly))
+	defer os.Remove(certFile)
+	keyFile := writeTempFile(t, "test-key-*.pem", []byte(testKeystoreKeyPath))
+	defer os.Remove(keyFile)
+	caFile := writeTempFile(t, "test-ca-*.pem", []byte(testCertificate))
+	defer os.Remove(caFile)
+
+	*keystorePath = ""
+	*certPath = certFile
+	*keyPath = keyFile
+	*caBundlePath = caFile
+	*clientServerName = "localhost"
+	*clientAllowedURIs = nil
+	*clientAllowPolicy = ""
+	*clientAllowQuery = ""
+	*connectTimeout = 5 * time.Second
+	*enabledCipherSuites = "AES,CHACHA"
+
+	// Register a custom proxy scheme whose factory returns a Dial-only dialer.
+	// The golang.org/x/net/proxy registry has no remove API, so re-registration
+	// in the same process is idempotent overwrite. Using a unique scheme name
+	// avoids interference with other tests.
+	netproxy.RegisterDialerType("testnoctx", func(u *url.URL, fwd netproxy.Dialer) (netproxy.Dialer, error) {
+		return &fakeNonContextDialer{fwd}, nil
+	})
+
+	proxyURL, err := url.Parse("testnoctx://dummy:9999")
+	assert.Nil(t, err)
+	*clientProxy = proxyURL
+
+	src, err := getTLSConfigSource(false)
+	assert.Nil(t, err, "should create TLS config source")
+
+	_, _, err = clientBackendDialer(src, "tcp", "localhost:8443", "localhost")
+	assert.NotNil(t, err, "should error when proxy dialer is not a ContextDialer")
+	if err != nil {
+		assert.Contains(t, err.Error(), "did not implement context dialing")
+	}
+}
+
+// TestValidateServerOPA exercises the partial-OPA-flag and mutual-exclusivity
+// branches of validateServerOPA directly. The early-return path is covered by
+// TestValidateServerOPANoFlags above.
+func TestValidateServerOPA(t *testing.T) {
+	origPolicy, origQuery := *serverAllowPolicy, *serverAllowQuery
+	t.Cleanup(func() {
+		*serverAllowPolicy = origPolicy
+		*serverAllowQuery = origQuery
+	})
+
+	cases := []struct {
+		name           string
+		hasAccessFlags bool
+		hasOPAFlags    bool
+		policy, query  string
+		wantErrSubstr  string // "" means expect nil
+	}{
+		{"no flags", false, false, "", "", ""},
+		{"access only", true, false, "", "", ""},
+		{"OPA only - missing query", false, true, "policy", "", "have to be used together"},
+		{"OPA only - missing policy", false, true, "", "query", "have to be used together"},
+		{"both OPA and access", true, true, "policy", "query", "mutually exclusive"},
+		{"OPA only - both set", false, true, "policy", "query", ""},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			*serverAllowPolicy = c.policy
+			*serverAllowQuery = c.query
+
+			err := validateServerOPA(c.hasAccessFlags, c.hasOPAFlags)
+			if c.wantErrSubstr == "" {
+				assert.NoError(t, err)
+				return
+			}
+			if assert.Error(t, err) {
+				assert.Contains(t, err.Error(), c.wantErrSubstr)
+			}
+		})
+	}
 }

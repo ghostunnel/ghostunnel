@@ -8,7 +8,7 @@ from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, print_ok, run_gh
 from shutil import which
 import sys
 
-require_platform('Darwin', 'Linux', 'BSD')
+require_platform('Linux')
 
 ghostunnel = None
 

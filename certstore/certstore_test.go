@@ -300,6 +300,17 @@ func TestStoreClose(t *testing.T) {
 	})
 }
 
+func TestImportWrongPFXPassword(t *testing.T) {
+	withStore(t, func(store Store) {
+		pfx := leafRSA.PFX("correctpassword")
+
+		err := store.Import(pfx, "wrongpassword")
+		if err == nil {
+			t.Fatal("expected non-nil error importing PFX with wrong password")
+		}
+	})
+}
+
 func TestCertificateRSA(t *testing.T) {
 	CertificateHelper(t, leafRSA)
 }

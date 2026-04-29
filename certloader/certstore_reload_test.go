@@ -370,8 +370,8 @@ func (i *flakyChainIdentity) CertificateChain() ([]*x509.Certificate, error) {
 }
 
 func (i *flakyChainIdentity) Signer() (crypto.Signer, error) { return i.signer, nil }
-func (i *flakyChainIdentity) Delete() error                   { return nil }
-func (i *flakyChainIdentity) Close()                          {}
+func (i *flakyChainIdentity) Delete() error                  { return nil }
+func (i *flakyChainIdentity) Close()                         {}
 
 func TestReload_SignerError(t *testing.T) {
 	cert := newTestCert("my-cert", "ca", 1, time.Now().Add(24*time.Hour))

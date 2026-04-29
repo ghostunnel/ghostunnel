@@ -30,6 +30,7 @@ var (
 	shutdownSignals = []os.Signal{syscall.SIGINT, syscall.SIGTERM}
 	refreshSignals  = []os.Signal{syscall.SIGHUP, syscall.SIGUSR1}
 	syslogFlag      = app.Flag("syslog", "Send logs to syslog instead of stdout (Unix/macOS only).").Bool()
+	newSyslogger    = gsyslog.NewLogger
 )
 
 func useSystemLog() bool {
@@ -37,7 +38,7 @@ func useSystemLog() bool {
 }
 
 func initSystemLogger() error {
-	w, err := gsyslog.NewLogger(gsyslog.LOG_INFO, "DAEMON", "")
+	w, err := newSyslogger(gsyslog.LOG_INFO, "DAEMON", "")
 	if err != nil {
 		return err
 	}

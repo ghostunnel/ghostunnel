@@ -235,6 +235,45 @@ func TestSpiffeTLSConfigSourceReload(t *testing.T) {
 	require.NoError(t, err, "Reload should not return an error")
 }
 
+func TestTLSConfigSourceFromWorkloadAPIInvalidAddress(t *testing.T) {
+	// Scheme is not "tcp" or "unix" -> setAddress returns ErrInvalidEndpointScheme
+	// synchronously, so spiffeApi.New returns an error and TLSConfigSourceFromWorkloadAPI
+	// exercises its `return nil, err` branch.
+	source, err := TLSConfigSourceFromWorkloadAPI("invalid://malformed", false, log.Default())
+	require.Error(t, err)
+	require.Nil(t, source)
+}
+
+func TestNewConfigX509SourceErrorOnClosedClient(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := spiffetest.NewCA(t, td)
+	svid := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/foo"))
+
+	api := spiffetest.New(t)
+	api.SetX509SVIDResponse(&spiffetest.X509SVIDResponse{
+		Bundle: ca.X509Bundle(),
+		SVIDs:  []*x509svid.SVID{svid},
+	})
+	defer api.Stop()
+
+	source, err := TLSConfigSourceFromWorkloadAPI(api.Addr(), false, log.Default())
+	require.NoError(t, err)
+
+	// Force the client into a failure state by closing the underlying gRPC ClientConn.
+	// Subsequent calls reach newConfig, which calls spiffeApi.NewX509Source. The internal
+	// watcher's WatchX509Context call fails on the closed connection and propagates
+	// through errCh, exercising newConfig's `return nil, err` branch.
+	require.NoError(t, source.(*spiffeTLSConfigSource).Close())
+
+	_, err = source.GetClientConfig(&tls.Config{})
+	require.Error(t, err)
+
+	// Also exercise GetServerConfig — both call sites at spiffe_tls_config.go:60-66
+	// route through newConfig, so this documents that both paths fail consistently.
+	_, err = source.GetServerConfig(&tls.Config{})
+	require.Error(t, err)
+}
+
 func TestSpiffeTLSConfigSourceCanServe(t *testing.T) {
 	td := spiffeid.RequireTrustDomainFromString("example.org")
 	ca := spiffetest.NewCA(t, td)

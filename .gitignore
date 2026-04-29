@@ -27,4 +27,5 @@ tests/tmp_*
 website/content/contributors.md
 website/public/
 public/
+.claude
 .hugo_build.lock

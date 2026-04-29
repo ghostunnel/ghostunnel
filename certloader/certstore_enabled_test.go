@@ -98,4 +98,3 @@ func TestSerializeChainEmpty(t *testing.T) {
 	result := serializeChain([]*x509.Certificate{})
 	assert.Equal(t, 0, len(result))
 }
-

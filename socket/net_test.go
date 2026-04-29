@@ -123,6 +123,17 @@ func TestOpenUnixSocket(t *testing.T) {
 	assert.NotNil(t, ln.Addr(), "listener should have an address")
 }
 
+func TestOpenUnixSocketListenError(t *testing.T) {
+	tmpDir := t.TempDir()
+	sockPath := filepath.Join(tmpDir, "missing", "test.sock")
+	ln, err := Open("unix", sockPath)
+	assert.NotNil(t, err, "should fail to open Unix socket under non-existent directory")
+	assert.Nil(t, ln, "listener should be nil on error")
+	if ln != nil {
+		_ = ln.Close()
+	}
+}
+
 func TestParseAndOpenTCPSuccess(t *testing.T) {
 	ln, err := ParseAndOpen("127.0.0.1:0")
 	assert.Nil(t, err, "should be able to parse and open TCP address")

@@ -114,7 +114,8 @@ func (s macStore) Import(data []byte, password string) error {
 	return nil
 }
 
-// Close implements the Store interface.
+// Close implements the Store interface. No-op on macOS — the system
+// keychain is process-global and does not need to be closed.
 func (s macStore) Close() {}
 
 // macIdentity implements the Identity interface.
@@ -335,7 +336,14 @@ func (i *macIdentity) getAlgo(hash crypto.Hash, opts crypto.SignerOpts) (algo C.
 		return
 	}
 
-	switch crt.PublicKey.(type) {
+	return algoForPublicKey(crt.PublicKey, hash, opts)
+}
+
+// algoForPublicKey maps a public key type and hash to the appropriate
+// SecKeyAlgorithm constant. Extracted from getAlgo so the key-type switch can
+// be unit-tested independently of keychain state.
+func algoForPublicKey(pub crypto.PublicKey, hash crypto.Hash, opts crypto.SignerOpts) (algo C.SecKeyAlgorithm, err error) {
+	switch pub.(type) {
 	case *ecdsa.PublicKey:
 		switch hash {
 		case crypto.SHA1:

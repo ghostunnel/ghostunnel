@@ -3,8 +3,10 @@
 package main
 
 import (
+	"errors"
 	"testing"
 
+	gsyslog "github.com/hashicorp/go-syslog"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,4 +26,23 @@ func TestInitSystemLoggerSuccess(t *testing.T) {
 	}
 	assert.NotEqual(t, originalLogger, logger, "logger should be updated")
 	assert.NotNil(t, logger)
+}
+
+func TestInitSystemLoggerError(t *testing.T) {
+	originalLogger := logger
+	originalNew := newSyslogger
+	defer func() {
+		logger = originalLogger
+		newSyslogger = originalNew
+	}()
+
+	sentinel := errors.New("syslog dial failed")
+	newSyslogger = func(p gsyslog.Priority, facility, tag string) (gsyslog.Syslogger, error) {
+		return nil, sentinel
+	}
+
+	err := initSystemLogger()
+	assert.Error(t, err)
+	assert.Equal(t, sentinel, err)
+	assert.Equal(t, originalLogger, logger, "logger must not be mutated on failure")
 }
