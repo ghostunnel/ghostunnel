@@ -73,6 +73,34 @@ var (
 	serviceInstallArgs = serviceInstallCmd.Arg("args", "Proxy arguments to pass to the service, separated from service flags by '--' (e.g. -- server --listen :8443 --target localhost:8080).").Strings()
 )
 
+// serviceReadyCh is signaled the first time notifyServiceReady is called,
+// allowing ghostunnelService.Execute to defer the SCM Running transition
+// until the proxy is actually accepting connections.
+var serviceReadyCh = make(chan struct{}, 1)
+
+// notifyServiceReady signals that the proxy has started listening. Idempotent:
+// subsequent calls (e.g. on reload) are dropped because the channel is buffered
+// and the send is non-blocking.
+func notifyServiceReady() {
+	select {
+	case serviceReadyCh <- struct{}{}:
+	default:
+	}
+}
+
+// notifyServiceStatus, notifyServiceReloading, notifyServiceStopping have no
+// SCM equivalent: Windows services report state transitions via the changes
+// channel in Execute, not through ambient notifications.
+func notifyServiceStatus(_ string) {}
+func notifyServiceReloading()      {}
+func notifyServiceStopping()       {}
+
+// handleServiceWatchdog is a no-op on Windows. SCM tracks service liveness via
+// process exit, not via periodic pings, so there is nothing to send.
+func handleServiceWatchdog(_ func() bool, _ chan bool) error {
+	return nil
+}
+
 // currentServiceName discovers the name of the Windows service for the current
 // process by matching PIDs via the SCM. Returns defaultServiceName on failure.
 // This iterates all registered services, which may be slow on systems with many
@@ -130,14 +158,18 @@ func (s *ghostunnelService) Execute(_ []string, r <-chan svc.ChangeRequest, chan
 	// (signaled via notifyServiceReady, called from statusHandler.Listening).
 	// If run() exits early or never reaches ready, fail the start.
 	select {
-	case <-serviceReadyChan():
+	case <-serviceReadyCh:
 		changes <- svc.Status{State: svc.Running, Accepts: svc.AcceptStop | svc.AcceptShutdown}
 		if elog != nil {
 			_ = elog.Info(1, "ghostunnel service started")
 		}
 	case err := <-done:
 		if elog != nil {
-			_ = elog.Error(1, fmt.Sprintf("ghostunnel exited before reaching ready: %v", err))
+			msg := "ghostunnel exited before reaching ready"
+			if err != nil {
+				msg = fmt.Sprintf("%s: %v", msg, err)
+			}
+			_ = elog.Error(1, msg)
 		}
 		return false, 1
 	case <-time.After(serviceStateChangeTimeout):

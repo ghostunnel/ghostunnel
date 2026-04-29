@@ -43,7 +43,7 @@ func getMonotonicUsec() (int64, error) {
 	return (sec * 1e6) + (nsec / 1000), nil
 }
 
-// notifyServiceStatus sends a message to systemd to inform that we're ready.
+// notifyServiceStatus sends a free-form status message to systemd via sd_notify.
 func notifyServiceStatus(status string) {
 	msg := fmt.Sprintf("STATUS=%s", status)
 	_, _ = daemon.SdNotify(false, msg)

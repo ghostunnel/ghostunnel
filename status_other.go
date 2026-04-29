@@ -18,19 +18,15 @@
 
 package main
 
-// notifyServiceStatus sends a message to systemd to inform that we're ready.
+// These are no-op stubs for platforms without a service-manager integration
+// (e.g. macOS, FreeBSD when not run under launchd/rc.d). Linux and Windows
+// have their own implementations that route to systemd or the SCM.
+
 func notifyServiceStatus(_ string) {}
+func notifyServiceReady()          {}
+func notifyServiceReloading()      {}
+func notifyServiceStopping()       {}
 
-// notifyServiceReady sends a message to systemd to inform that we're ready.
-func notifyServiceReady() {}
-
-// notifyServiceReloading sends a message to systemd to inform that we're reloading.
-func notifyServiceReloading() {}
-
-// notifyServiceStopping sends a message to systemd to inform that we're stopping.
-func notifyServiceStopping() {}
-
-// handleServiceWatchdog sends watchdog messages to systemd to keep us alive, if enabled.
-func handleServiceWatchdog(isHealthy func() bool, shutdown chan bool) error {
+func handleServiceWatchdog(_ func() bool, _ chan bool) error {
 	return nil
 }

@@ -263,9 +263,9 @@ func TestServeHTTPReturnsJSON(t *testing.T) {
 	}
 }
 
-func TestSystemdStubsAreNoOps(t *testing.T) {
+func TestNonLinuxNotifyHelpersDoNotPanic(t *testing.T) {
 	if runtime.GOOS == "linux" {
-		t.Skip("stubs are only compiled on non-Linux")
+		t.Skip("Linux uses the real systemd implementation")
 	}
 
 	// These should not panic

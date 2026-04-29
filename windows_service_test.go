@@ -225,3 +225,44 @@ func TestWaitForServiceRunningPollTimeout(t *testing.T) {
 		t.Errorf("err = %q, want timeout message", err)
 	}
 }
+
+func TestNotifyServiceReadySignalsChannel(t *testing.T) {
+	// Drain any prior signal so the test is independent of run order.
+	select {
+	case <-serviceReadyCh:
+	default:
+	}
+
+	notifyServiceReady()
+
+	select {
+	case <-serviceReadyCh:
+	case <-time.After(time.Second):
+		t.Fatal("notifyServiceReady did not signal serviceReadyCh within 1s")
+	}
+}
+
+func TestNotifyServiceReadyIsIdempotent(t *testing.T) {
+	// Drain any prior signal.
+	select {
+	case <-serviceReadyCh:
+	default:
+	}
+
+	// Multiple calls must not block even though only one fits in the buffer.
+	for i := 0; i < 5; i++ {
+		notifyServiceReady()
+	}
+
+	// Exactly one signal should be buffered (the rest dropped).
+	select {
+	case <-serviceReadyCh:
+	case <-time.After(time.Second):
+		t.Fatal("expected at least one buffered ready signal")
+	}
+	select {
+	case <-serviceReadyCh:
+		t.Fatal("expected only one buffered ready signal, got more")
+	case <-time.After(50 * time.Millisecond):
+	}
+}
