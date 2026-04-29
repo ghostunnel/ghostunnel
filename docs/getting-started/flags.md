@@ -197,6 +197,33 @@ See [Access Control Flags]({{< ref "access-flags.md" >}}) for OPA/Rego policy de
 | `--verify-policy BUNDLE` | Location of an OPA policy bundle. |
 | `--verify-query QUERY` | Rego query to evaluate against the server certificate and the policy. |
 
+## Service Subcommands (Windows)
+
+Manage Ghostunnel as a native Windows service via the Service Control Manager.
+All `service` subcommands require **Administrator** privileges and are only
+available on Windows. See [Windows Service]({{< ref "windows-service.md" >}}) for
+the full guide.
+
+### Subcommands
+
+| Subcommand | Description |
+|------------|-------------|
+| `service install [--service-name NAME] -- ARGS...` | Register, configure, and start the service. Proxy arguments follow `--` (e.g. `-- server --listen :8443 --target localhost:8080`). |
+| `service uninstall [--service-name NAME]` | Stop and remove the service. Refuses to remove services not installed by Ghostunnel. |
+| `service start [--service-name NAME]` | Start an existing stopped service. |
+| `service stop [--service-name NAME]` | Gracefully stop a running service. |
+| `service status [--service-name NAME]` | Show the current service state. |
+
+### Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--service-name NAME` | `ghostunnel` | Name to use for the Windows service. May contain letters, digits, hyphens, underscores, and spaces (max 256 characters). |
+
+To send service logs to the Windows Event Log instead of stdout, pass
+`--eventlog` in the proxy arguments after `--`. See `--eventlog` under
+[Status / Logging](#status--logging).
+
 ## Environment Variables
 
 Several flags can also be set via environment variables.
