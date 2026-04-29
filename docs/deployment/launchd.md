@@ -9,6 +9,9 @@ Launchd socket activation is supported for the `--listen` and `--status` flags
 by passing an address of the form `launchd:<name>`, where `<name>` matches the
 socket key defined in your plist.
 
+On macOS, Ghostunnel can also load TLS identities directly from the system
+keychain via `--keychain-identity`. See [Keychain]({{< ref "keychain.md" >}}).
+
 ## Example Plist
 
 A launchd plist to run Ghostunnel in server mode, listening on `:8081`,
@@ -38,6 +41,10 @@ with a status port on `:8082`, forwarding connections to `:8083`:
       <string>--allow-cn</string>
       <string>client</string>
     </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
     <key>StandardOutPath</key>
     <string>/var/log/ghostunnel.out.log</string>
     <key>StandardErrorPath</key>
@@ -67,6 +74,10 @@ with a status port on `:8082`, forwarding connections to `:8083`:
 </plist>
 ```
 
+`RunAtLoad` starts the service when the plist is bootstrapped (or at boot for
+system daemons). `KeepAlive` restarts the process if it exits unexpectedly,
+equivalent to systemd's `Restart=always`.
+
 Both `SockType` and `SockFamily` must be defined for each socket. If the
 family is omitted, launchd opens two sockets (IPv4 and IPv6) for each key,
 which Ghostunnel does not currently support.
@@ -89,5 +100,33 @@ On older macOS versions (before 10.11), use `launchctl load` and
 
 Use `~/Library/LaunchAgents/` (with `gui/<uid>/` instead of `system/`)
 if running as a user agent rather than a system daemon.
+
+## Reloading Certificates
+
+To reload certificates without restarting the service, send `SIGHUP`:
+
+```bash
+sudo launchctl kill SIGHUP system/ghostunnel
+```
+
+This triggers the same certificate reload as sending `SIGHUP` to the process
+directly.
+
+For automatic periodic reloads (e.g. with short-lived certificates), pass
+`--timed-reload DURATION` in the plist's `ProgramArguments`. Ghostunnel
+re-reads the keystore at that interval and refreshes the listener if the
+certificate changed, without needing `SIGHUP`.
+
+## Graceful Shutdown
+
+By default, launchd waits 20 seconds between sending `SIGTERM` and force-killing
+the process with `SIGKILL`. If Ghostunnel's `--shutdown-timeout` (default `5m`)
+exceeds that window, in-flight connections will be cut off when launchd kills
+the process. To allow the full drain window, raise `ExitTimeOut` in the plist:
+
+```xml
+<key>ExitTimeOut</key>
+<integer>360</integer>
+```
 
 [launchd-guide]: https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html
