@@ -21,17 +21,31 @@ package socket
 import (
 	"fmt"
 	"net"
+	"sync"
 
 	"github.com/coreos/go-systemd/v22/activation"
 )
 
+// activation.ListenersWithNames consumes the LISTEN_FDS environment on first
+// call (so the fds aren't inherited by child processes), which means we can
+// only ask the activation library for sockets once. Cache the result so
+// callers requesting different names (e.g. --listen=systemd:foo and
+// --status=systemd:bar) all see the full set.
+var (
+	systemdListenersOnce sync.Once
+	systemdListeners     map[string][]net.Listener
+	systemdListenersErr  error
+)
+
 func systemdSocket(name string) (net.Listener, error) {
-	listeners, err := activation.ListenersWithNames()
-	if err != nil {
-		return nil, err
+	systemdListenersOnce.Do(func() {
+		systemdListeners, systemdListenersErr = activation.ListenersWithNames()
+	})
+	if systemdListenersErr != nil {
+		return nil, systemdListenersErr
 	}
 
-	return systemdSocketFromMap(name, listeners)
+	return systemdSocketFromMap(name, systemdListeners)
 }
 
 func systemdSocketFromMap(name string, listeners map[string][]net.Listener) (net.Listener, error) {

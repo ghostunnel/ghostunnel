@@ -292,7 +292,6 @@ func TestReadCertsFromStreamUnknown(t *testing.T) {
 	assert.Contains(t, err.Error(), "unknown file type")
 }
 
-
 // --- readJCEKSBlocks tests ---
 
 func TestReadJCEKSBlocksTrustedCert(t *testing.T) {
@@ -476,6 +475,58 @@ func TestReadPKCS12BlocksIOError(t *testing.T) {
 	assert.Contains(t, err.Error(), "unable to read input")
 }
 
+func TestReadJCEKSBlocksWrongPassword(t *testing.T) {
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "wrong-pw"},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+	}
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, pub, priv)
+	require.NoError(t, err)
+
+	jceksData := jcekstest.BuildMinimalJCEKS(t, "alias", certDER, "correct-password")
+
+	_, err = readJCEKSBlocks(bytes.NewReader(jceksData), "wrong-password")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unable to parse keystore")
+}
+
+func TestReadJCEKSBlocksCorruptCipher(t *testing.T) {
+	type encryptedPrivateKeyInfo struct {
+		Algo         pkix.AlgorithmIdentifier
+		EncryptedKey []byte
+	}
+	oidPBEWithMD5AndDES3CBC := asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 42, 2, 19, 1}
+	envelope := encryptedPrivateKeyInfo{
+		Algo:         pkix.AlgorithmIdentifier{Algorithm: oidPBEWithMD5AndDES3CBC},
+		EncryptedKey: bytes.Repeat([]byte{0xAA}, 32),
+	}
+	encDER, err := asn1.Marshal(envelope)
+	require.NoError(t, err)
+
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "corrupt"},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+	}
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, pub, priv)
+	require.NoError(t, err)
+
+	password := "changeit"
+	jceksData := jcekstest.BuildJCEKSWithPrivateKey(t, "corruptkey", encDER, certDER, password)
+
+	_, err = readJCEKSBlocks(bytes.NewReader(jceksData), password)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unable to recover private key 'corruptkey'")
+}
+
 func TestReadJCEKSBlocksGetPrivateKeyError(t *testing.T) {
 	// Build a JCEKS with a private key entry whose protectedKey is invalid ASN.1.
 	// This causes Recover to fail, which readJCEKSBlocks should propagate.
@@ -499,7 +550,6 @@ func TestReadJCEKSBlocksGetPrivateKeyError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unable to recover private key 'badkey'")
 }
-
 
 func TestFormatDetectionP7bExtension(t *testing.T) {
 	reader := bufio.NewReaderSize(bytes.NewReader([]byte("----")), 4)

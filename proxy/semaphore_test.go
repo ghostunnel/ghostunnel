@@ -44,4 +44,10 @@ func TestUnlimitedSemaphoreRelease(t *testing.T) {
 	sem.Release(1)
 	sem.Release(100)
 	sem.Release(0)
+
+	// Exercise via interface, matching production usage in proxy.go.
+	// Also serves as a compile-time assertion that *unlimitedSemaphore
+	// satisfies the semaphore interface.
+	var s semaphore = &unlimitedSemaphore{}
+	s.Release(1)
 }

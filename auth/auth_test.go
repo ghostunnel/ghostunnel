@@ -476,3 +476,53 @@ func TestVerifyOPARejectAllOU(t *testing.T) {
 	}
 	assert.NotNil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "Rego policy rejects none OU")
 }
+
+func TestAuthorizeOPAEvalError(t *testing.T) {
+	module := `package policy
+	import input
+	default allow := false
+	allow if {
+		to_number(input.certificate.Subject.CommonName) == 1
+	}
+	`
+	allowQuery, err := rego.New(
+		rego.Query("data.policy.allow"),
+		rego.Module("test.rego", module),
+		rego.StrictBuiltinErrors(true),
+	).PrepareForEval(context.Background())
+	assert.NoError(t, err, "policy should compile cleanly; error must occur at Eval time")
+
+	testACL := ACL{
+		AllowOPAQuery:   policy.WrapForTest(&allowQuery),
+		OPAQueryTimeout: 10 * time.Second,
+	}
+	err = testACL.VerifyPeerCertificateServer(nil, fakeChains)
+	assert.Error(t, err, "Rego eval error should surface as an unauthorized error")
+	assert.Contains(t, err.Error(), "unauthorized: policy returned error:",
+		"server should wrap eval error with policy-returned-error prefix")
+}
+
+func TestVerifyOPAEvalError(t *testing.T) {
+	module := `package policy
+	import input
+	default allow := false
+	allow if {
+		to_number(input.certificate.Subject.CommonName) == 1
+	}
+	`
+	allowQuery, err := rego.New(
+		rego.Query("data.policy.allow"),
+		rego.Module("test.rego", module),
+		rego.StrictBuiltinErrors(true),
+	).PrepareForEval(context.Background())
+	assert.NoError(t, err, "policy should compile cleanly; error must occur at Eval time")
+
+	testACL := ACL{
+		AllowOPAQuery:   policy.WrapForTest(&allowQuery),
+		OPAQueryTimeout: 10 * time.Second,
+	}
+	err = testACL.VerifyPeerCertificateClient(nil, fakeChains)
+	assert.Error(t, err, "Rego eval error should surface as an unauthorized error")
+	assert.Contains(t, err.Error(), "unauthorized: policy returned error:",
+		"client should wrap eval error with policy-returned-error prefix")
+}

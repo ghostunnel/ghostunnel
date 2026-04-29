@@ -416,8 +416,8 @@ func TestRecoverWrongPassword(t *testing.T) {
 
 	pkcs1DER := x509.MarshalPKCS1PrivateKey(key)
 	pki := privateKeyInfo{
-		Version: 0,
-		Algo:    pkix.AlgorithmIdentifier{Algorithm: oidPublicKeyRSA},
+		Version:    0,
+		Algo:       pkix.AlgorithmIdentifier{Algorithm: oidPublicKeyRSA},
 		PrivateKey: pkcs1DER,
 	}
 	pkcs8DER, err := asn1.Marshal(pki)
@@ -489,7 +489,6 @@ func TestGetPrivateKeyAndCertsNonExistent(t *testing.T) {
 	assert.Nil(t, key)
 	assert.Nil(t, certs)
 }
-
 
 func TestWithMaxCertificateBytes(t *testing.T) {
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
@@ -1384,6 +1383,8 @@ func TestRecoverECGarbageAlgoParameters(t *testing.T) {
 	certDER, key := generateECDSACert(t)
 	password := "changeit"
 
+	// Build a valid ecPrivateKey DER so the inner Unmarshal at decoder.go:344
+	// succeeds and we reach the curve-OID Unmarshal at decoder.go:348.
 	ecDER, err := x509.MarshalECPrivateKey(key)
 	require.NoError(t, err)
 	var ecKey ecPrivateKey
@@ -1393,15 +1394,24 @@ func TestRecoverECGarbageAlgoParameters(t *testing.T) {
 	strippedDER, err := asn1.Marshal(ecKey)
 	require.NoError(t, err)
 
+	// {0x05, 0x00} is a well-formed NULL TLV. The outer privateKeyInfo
+	// ASN.1 decode succeeds (RawValue accepts any TLV), but
+	// asn1.Unmarshal(..., &oid) fails because the tag is not OID (0x06).
 	pki := privateKeyInfo{
 		Version: 0,
 		Algo: pkix.AlgorithmIdentifier{
 			Algorithm:  oidPublicKeyEC,
-			Parameters: asn1.RawValue{FullBytes: []byte{0x01, 0x02}}, // garbage
+			Parameters: asn1.RawValue{FullBytes: []byte{0x05, 0x00}},
 		},
 		PrivateKey: strippedDER,
 	}
 	pkcs8DER, err := asn1.Marshal(pki)
+	require.NoError(t, err)
+
+	// Sanity-check: the outer privateKeyInfo decode must succeed so we reach
+	// the OID-tag mismatch at decoder.go:348-350.
+	var sanity privateKeyInfo
+	_, err = asn1.Unmarshal(pkcs8DER, &sanity)
 	require.NoError(t, err)
 
 	encryptedKey := encryptPBEWithMD5AndDES3CBC(t, pkcs8DER, password)
@@ -1433,7 +1443,7 @@ func TestRecoverPBEDecryptsToGarbageASN1(t *testing.T) {
 // errByteReader is an io.ByteReader that always returns an error.
 type errByteReader struct{ err error }
 
-func (r *errByteReader) ReadByte() (byte, error) { return 0, r.err }
+func (r *errByteReader) ReadByte() (byte, error)  { return 0, r.err }
 func (r *errByteReader) Read([]byte) (int, error) { return 0, r.err }
 
 func TestReadModifiedUTF8NonEOFError(t *testing.T) {
@@ -1445,4 +1455,204 @@ func TestReadModifiedUTF8NonEOFError(t *testing.T) {
 func TestReadBytesEmptyReader(t *testing.T) {
 	_, err := readBytes(bytes.NewReader([]byte{}), 1024)
 	assert.Error(t, err)
+}
+
+func TestParseTrustedCertTruncatedAlias(t *testing.T) {
+	var buf bytes.Buffer
+	require.NoError(t, binary.Write(&buf, binary.BigEndian, uint32(jceksMagic)))
+	require.NoError(t, binary.Write(&buf, binary.BigEndian, uint32(jceksVersion)))
+	require.NoError(t, binary.Write(&buf, binary.BigEndian, uint32(1)))
+	require.NoError(t, binary.Write(&buf, binary.BigEndian, uint32(trustedCertEntryTag)))
+	// EOF — readString fails reading the 2-byte length prefix.
+
+	ks := new(KeyStore)
+	err := ks.Parse(&buf, nil)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, errInvalidJCEKSData)
+	assert.Contains(t, err.Error(), "reading alias")
+}
+
+func TestParsePrivateKeyTruncatedPerCert(t *testing.T) {
+	var buf bytes.Buffer
+	require.NoError(t, binary.Write(&buf, binary.BigEndian, uint32(jceksMagic)))
+	require.NoError(t, binary.Write(&buf, binary.BigEndian, uint32(jceksVersion)))
+	require.NoError(t, binary.Write(&buf, binary.BigEndian, uint32(1)))
+	require.NoError(t, binary.Write(&buf, binary.BigEndian, uint32(privateKeyEntryTag)))
+	alias := "k"
+	require.NoError(t, binary.Write(&buf, binary.BigEndian, uint16(len(alias))))
+	buf.WriteString(alias)
+	require.NoError(t, binary.Write(&buf, binary.BigEndian, time.Now().UnixMilli()))
+	require.NoError(t, binary.Write(&buf, binary.BigEndian, int32(4)))
+	buf.Write([]byte{0x30, 0x02, 0x05, 0x00})
+	require.NoError(t, binary.Write(&buf, binary.BigEndian, int32(1)))
+	// EOF — readCertificate fails reading the cert-type length prefix.
+
+	ks := new(KeyStore)
+	err := ks.Parse(&buf, nil)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, errInvalidJCEKSData)
+	assert.Contains(t, err.Error(), "reading certificate 0")
+}
+
+func TestRecoverPBEErrors(t *testing.T) {
+	password := []byte("changeit")
+	salt := []byte{0x01, 0x02, 0x03, 0x04, 0xFE, 0xFD, 0xFC, 0xFB}
+	iterations := uint(1)
+
+	mkParams := func(t *testing.T) []byte {
+		t.Helper()
+		b, err := asn1.Marshal(pbeParameters{Salt: salt, Iterations: int(iterations)})
+		require.NoError(t, err)
+		return b
+	}
+	mkEPKI := func(t *testing.T, ct []byte) encryptedPrivateKeyInfo {
+		return encryptedPrivateKeyInfo{
+			Algo: pkix.AlgorithmIdentifier{
+				Algorithm:  oidPBEWithMD5AndDES3CBC,
+				Parameters: asn1.RawValue{FullBytes: mkParams(t)},
+			},
+			EncryptedKey: ct,
+		}
+	}
+
+	t.Run("non-block-aligned ciphertext", func(t *testing.T) {
+		_, err := recoverPBEWithMD5AndDES3CBC(mkEPKI(t, make([]byte, 7)), password)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "multiple of block length")
+	})
+
+	t.Run("invalid pkcs5 padding", func(t *testing.T) {
+		key, iv := derivePBEWithMD5AndDES3CBCParams(password, salt, iterations)
+		blk, err := des.NewTripleDESCipher(key)
+		require.NoError(t, err)
+		plaintext := []byte{0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0x00}
+		ct := make([]byte, len(plaintext))
+		cipher.NewCBCEncrypter(blk, iv).CryptBlocks(ct, plaintext)
+
+		_, err = recoverPBEWithMD5AndDES3CBC(mkEPKI(t, ct), password)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, errInvalidCiphertext)
+	})
+
+	t.Run("decrypts to non-asn1", func(t *testing.T) {
+		ct := encryptPBEWithMD5AndDES3CBC(t, []byte{0xFF, 0xFF, 0xFF}, "changeit")
+		var epki encryptedPrivateKeyInfo
+		_, err := asn1.Unmarshal(ct, &epki)
+		require.NoError(t, err)
+
+		_, err = recoverPBEWithMD5AndDES3CBC(epki, password)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to unmarshal private key")
+	})
+}
+
+// TestParsePrivateKeyTruncatedStream covers the I/O error wrappers in
+// parsePrivateKey at decoder.go:281 (reading protected key) and decoder.go:285
+// (reading certificate count) by feeding a valid private-key keystore that has
+// been truncated just before each read point. Existing TruncatedProtectedKey /
+// TruncatedCertCount tests append an integrity hash, which gets consumed by
+// the truncated reads instead of producing an EOF — so they don't actually
+// hit the wrappers we target here.
+func TestParsePrivateKeyTruncatedStream(t *testing.T) {
+	alias := "key1"
+	encryptedKey := []byte{0x30, 0x01, 0x42} // arbitrary non-empty payload; not parsed in this path
+	certDER, _ := generateRSACert(t)
+	password := "changeit"
+
+	full := buildJCEKSWithPrivateKey(t, alias, encryptedKey, certDER, password)
+
+	// Body layout up to the protected-key length prefix:
+	//   magic(4) + version(4) + entryCount(4) + entryTag(4) + aliasLen(2) + alias(N) + timestamp(8)
+	headerSize := 4 + 4 + 4 + 4 + 2 + len(alias) + 8
+	truncBeforeProtKey := full[:headerSize]
+
+	// Add protectedKeyLen(4) + protectedKey(M); next read would be the cert count int32.
+	truncBeforeCertCount := full[:headerSize+4+len(encryptedKey)]
+
+	cases := []struct {
+		name       string
+		data       []byte
+		wantSubstr string
+	}{
+		{"truncated before protected key", truncBeforeProtKey, "protected key"},
+		{"truncated before cert count", truncBeforeCertCount, "certificate count"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			ks := new(KeyStore)
+			// Pass nil password to skip the integrity-tee path; the entry-loop error
+			// fires first regardless. Note: binary.Read of an int32 from an exhausted
+			// reader returns io.EOF (not io.ErrUnexpectedEOF), so we assert on the
+			// wrapper substring rather than a specific sentinel.
+			err := ks.Parse(bytes.NewReader(c.data), nil)
+			require.Error(t, err)
+			assert.ErrorIs(t, err, errInvalidJCEKSData)
+			assert.Contains(t, err.Error(), c.wantSubstr)
+		})
+	}
+}
+
+// TestParseTrustedCertCorruptDER covers the wrapper at decoder.go:313-315 by
+// constructing a syntactically-valid JCEKS stream whose cert payload framing
+// is well-formed (correct "X.509" tag and length prefix) but whose body is
+// not a parseable X.509 certificate — making readCertificate fail inside
+// x509.ParseCertificate rather than during framing.
+func TestParseTrustedCertCorruptDER(t *testing.T) {
+	alias := "badcert"
+	password := "changeit"
+
+	// Arbitrary garbage as the cert payload — framing is valid (buildMinimalJCEKS
+	// writes the "X.509" tag and a length prefix), but x509.ParseCertificate will
+	// reject the body. 32 bytes is comfortably under maxCertBytes.
+	garbage := bytes.Repeat([]byte{0xFF}, 32)
+	data := buildMinimalJCEKS(t, alias, garbage, password)
+
+	_, err := LoadFromReader(bytes.NewReader(data), []byte(password))
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errInvalidJCEKSData)
+	// Wrapping chain:
+	//   parseWithOptions: "...failed to parse certificate entry 0: %w"
+	//   parseTrustedCert: "reading certificate: %w"
+	//   readCertificate:  "failed to parse certificate: %w"
+	assert.Contains(t, err.Error(), "reading certificate")
+	assert.Contains(t, err.Error(), "failed to parse certificate")
+}
+
+// TestParseWithOptionsEncodeIntegrityPasswordError covers the wrapper at
+// decoder.go:141-143 by passing a non-nil but empty password to Parse. The
+// integrity-tee branch is gated on password != nil (line 139), so passing
+// []byte("") (length 0, but non-nil) reaches EncodeIntegrityPassword, which
+// then returns errInvalidPassword for empty passwords.
+func TestParseWithOptionsEncodeIntegrityPasswordError(t *testing.T) {
+	ks := &KeyStore{}
+	err := ks.Parse(bytes.NewReader(nil), []byte(""))
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errInvalidPassword)
+	assert.Contains(t, err.Error(), "encoding integrity password")
+}
+
+// TestParseWithOptionsTruncatedIntegrityTrailer covers the wrapper at
+// decoder.go:188-190 by truncating the trailing 20-byte SHA-1 trailer from
+// an otherwise-valid keystore. parseWithOptions parses the entry successfully,
+// then io.ReadFull on the missing trailer fails.
+func TestParseWithOptionsTruncatedIntegrityTrailer(t *testing.T) {
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "test"},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+	}
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, pub, priv)
+	require.NoError(t, err)
+
+	full := buildMinimalJCEKS(t, "alias", certDER, "password")
+	truncated := full[:len(full)-20] // drop the SHA-1 trailer
+
+	_, err = LoadFromReader(bytes.NewReader(truncated), []byte("password"))
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errInvalidJCEKSData)
+	assert.Contains(t, err.Error(), "failed to read integrity checksum")
 }
