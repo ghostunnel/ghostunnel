@@ -15,7 +15,7 @@ stapling.
 
 To enable ACME, use the `--auto-acme-cert` flag with the FQDN to obtain a
 certificate for. You must also specify an email address with
-`--auto-acme-email` (for CA notifications about certificate lifecycle events)
+`--auto-acme-email` (used by the CA for expiration and renewal notices)
 and agree to the CA's Terms of Service with `--auto-acme-agree-to-tos`:
 
 ```bash

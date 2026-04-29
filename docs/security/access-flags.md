@@ -6,51 +6,42 @@ aliases:
   - /docs/access-flags/
 ---
 
-Ghostunnel uses TLS with mutual authentication for authentication and access
-control. This means that both the client and server present a certificate that
-can be verified by the other party.
+Ghostunnel uses mutual TLS for authentication and access control. Both the
+client and server present a certificate that the other party verifies.
 
 ## Server mode
 
-There are several flags available to restrict which clients can connect to a
-Ghostunnel server, based on checks on the client certificate.
+Several flags restrict which clients can connect, based on fields in the
+client certificate.
 
-Access control flags in server mode are treated as a logical disjunction (OR)
-when multiple flags are specified. This means that a client will be allowed to
-complete a connection as long as at least one flag matches.
+When multiple access control flags are specified, they are OR'd together: a
+client is allowed if at least one flag matches.
 
 * `--allow-all`
 
-Setting this flag allows all clients with a valid certificate, regardless of
-the client certificate subject. This flag is mutually exclusive with other
-access control flags.
+Allow all clients with a valid certificate, regardless of the certificate
+subject. Mutually exclusive with other access control flags.
 
 * `--allow-cn`
 
-Allow clients with given common name (CN) in the subject. Can be repeated to
-allow multiple clients with different CNs to connect. Performs an exact string
-comparison on the CN field.
+Allow clients with the given common name (CN). Can be repeated. Performs an
+exact string match.
 
 * `--allow-ou`
 
-Allow clients with given organizational unit (OU) field in the subject. Can be
-repeated to allow multiple clients with different OUs to connect. Performs an
-exact string comparison on the OU field.
+Allow clients with the given organizational unit (OU). Can be repeated.
+Performs an exact string match.
 
 * `--allow-dns`
 
-Allow clients with given DNS subject alternative name (DNS SAN) on the
-certificate. Can be repeated to allow multiple clients with different DNS SANs
-to connect. Note that this performs the access check based on a comparison of
-the DNS SAN value of the client certificate, it does not perform any DNS
-lookups.
+Allow clients with the given DNS subject alternative name (DNS SAN). Can be
+repeated. Matches the DNS SAN value on the certificate, no DNS lookups are
+performed.
 
 * `--allow-uri`
 
-Allow clients with given URI subject alternative name (URI SAN) on the
-certificate. Can be repeated to allow multiple clients with different URI SANs
-to connect. This flag may also contain `*` and `**` wildcards that can be used
-to match multiple clients.
+Allow clients with the given URI subject alternative name (URI SAN). Can be
+repeated. Supports `*` and `**` wildcards.
 
 For example, setting `--allow-uri=spiffe://ghostunnel/*` would allow clients
 with `spiffe://ghostunnel/client1` or `spiffe://ghostunnel/client2` URI SANs (as
@@ -64,10 +55,8 @@ For more information, see the Open Policy Agent section below.
 
 * `--disable-authentication`
 
-Disables client authentication entirely, no client certificate will be required
-from any client. This means that anyone will be able to establish a connection
-to the Ghostunnel server. This flag is mutually exclusive with other access
-control flags.
+Disable client authentication entirely, no client certificate is required.
+Anyone can connect. Mutually exclusive with other access control flags.
 
 ### Passing Client Identity to Backends
 
@@ -80,50 +69,40 @@ extensions.
 
 ## Client mode
 
-Ghostunnel in client mode offers various flags that can be used to augment and
-perform additional checks on servers it connects to. Regardless of flags passed
-to the client, it will always perform standard hostname verification to check
-the hostname against the server certificate.
+In client mode, additional flags can verify properties of the server
+certificate. Standard hostname verification always runs regardless of which
+flags are set.
 
-Access control flags in client mode are treated as a logical disjunction (OR)
-when multiple flags are specified. This means that a connection to the server
-will be allowed as long as at least one flag matches, assuming that hostname
-verification was also successful.
+When multiple verification flags are specified, they are OR'd together: a
+connection is allowed if at least one flag matches (and hostname verification
+passes).
 
 * `--override-server-name`
 
-If set, overrides the server name used for hostname verification to be
-different from the hostname that was passed in `--target`. This also sets the
-hostname passed to the backend for SNI purposes. The logic for hostname
-verification is implemented as part of the [crypto/tls][tls] package in Go's
-standard library, see the `ServerName` field on the `tls.Config` struct.
+Override the server name used for hostname verification and SNI, instead of
+using the hostname from `--target`. See the `ServerName` field on
+[`tls.Config`][tls].
 
 * `--verify-cn`
 
-Verify the common name (CN) of the server certificate, on top of the hostname.
-Can be repeated to check that at least one of a set of CNs is present. This
-performs an exact string comparison on the CN field of the certificate.
+Verify the common name (CN) of the server certificate, in addition to
+hostname verification. Can be repeated. Performs an exact string match.
 
 * `--verify-ou`
 
-Verify the organizational unit (OU) of the server certificate, on top of the
-hostname. Can be repeated to check that at least one of a set of OUs is
-present. This performs an exact string comparison on the OU field of the
-certificate.
+Verify the organizational unit (OU) of the server certificate, in addition to
+hostname verification. Can be repeated. Performs an exact string match.
 
 * `--verify-dns`
 
-Verify the presence of a DNS subject alternative name (DNS SAN) on the server
-certificate, on top of the hostname. This checks that the given DNS name is
-listed as a valid name on the certificate. Can be repeated to require
-that at least one of a set of hostnames is present.
+Verify that a DNS subject alternative name (DNS SAN) is present on the server
+certificate, in addition to hostname verification. Can be repeated.
 
 * `--verify-uri`
 
-Verify the presence of a URI subject alternative name (URI SAN) on the server
-certificate, on top of the hostname. This checks that the given URI name is
-listed as a valid name on the certificate. This flag may also contain `*` and
-`**` wildcards that can be used to match multiple servers.
+Verify that a URI subject alternative name (URI SAN) is present on the server
+certificate, in addition to hostname verification. Supports `*` and `**`
+wildcards.
 
 For example, setting `--verify-uri=spiffe://ghostunnel/*` would allow servers
 with `spiffe://ghostunnel/server1` or `spiffe://ghostunnel/server2` URI SANs (as
@@ -137,9 +116,8 @@ For more information, see the Open Policy Agent section below.
 
 * `--disable-authentication`
 
-Disable client authentication, no certificate will be provided to the server.
-This is useful if you just want to use Ghostunnel to wrap a connection in TLS
-but the backend doesn't require mutual authentication.
+Disable client authentication, no certificate is sent to the server. Useful
+when the backend does not require mutual TLS.
 
 [tls]: https://pkg.go.dev/crypto/tls
 [wildcard]: https://pkg.go.dev/github.com/ghostunnel/ghostunnel/wildcard
@@ -148,11 +126,11 @@ but the backend doesn't require mutual authentication.
 
 *Available since v1.7.0, OPA bundle support available since v1.9.0.*
 
-Ghostunnel has support for [Open Policy Agent][opa] (OPA), both in server and
-client mode. The policy must be provided as an [OPA bundle][opa-bundles] on
-disk and the use of OPA is mutually exclusive with any other `allow` (or
-`verify`) flags. Policy bundles can be reloaded at runtime much like
-certificates, with the `--timed-reload` flag or via `SIGHUP`.
+Ghostunnel supports [Open Policy Agent][opa] (OPA) in both server and client
+mode. The policy must be an [OPA bundle][opa-bundles] on disk. When using OPA,
+we recommend expressing all access control logic in the policy itself and not
+combining it with other access control flags. Policy bundles reload at runtime
+via `--timed-reload` or `SIGHUP`, just like certificates.
 
 [opa]: https://www.openpolicyagent.org/
 [opa-bundles]: https://www.openpolicyagent.org/docs/latest/management-bundles/
@@ -180,10 +158,9 @@ Example:
 ghostunnel client [...] --verify-policy=bundle.tar.gz --verify-query=data.policy.allow
 ```
 
-Inside your policy, you can access the reflected X.509 peer certificate using
-`input.certificate`. For example, the policy below verifies that the presented
-client certificate contains at least one of the allowed common names or SPIFFE
-IDs.
+Inside your policy, the peer's X.509 certificate is available as
+`input.certificate`. The example below checks whether the client certificate
+contains an allowed common name or SPIFFE ID.
 
 You can use the [Rego Playground](https://play.openpolicyagent.org) to test and
 develop policies. See the documentation for [x509.Certificate](https://pkg.go.dev/crypto/x509#Certificate)
@@ -235,27 +212,24 @@ allow if {
 }
 ```
 
-The corresponding query for this policy is `data.policy.allow`, because we
-want to determine the outcome of the policy by looking at `allow`.
+The corresponding query for this policy is `data.policy.allow`.
 
-See the documentation about [Golang's x509.Certificate
-struct](https://pkg.go.dev/crypto/x509#Certificate) for more about other
-properties you can match on, and the [Rego
-documentation](https://www.openpolicyagent.org/docs/latest/policy-language/)
-for more about the policy language.
+See [x509.Certificate](https://pkg.go.dev/crypto/x509#Certificate) for all
+available fields, and the
+[Rego documentation](https://www.openpolicyagent.org/docs/latest/policy-language/)
+for the policy language reference.
 
 ### Notes
 
-* There is no mechanism to load a policy bundle from a remote OPA server. The policy
-  bundle has to be local, or be retrieved and stored locally out of band by a
-  different process.
-* Older versions of Ghostunnel allowed specifying a Rego file rather than a
-  bundle as an argument to the `--allow-policy` and `--verify-policy` flags. This
-  still works, but the policy will be treated as a V0 policy for backward
-  compatibility. It's recommended to specify a bundle so you can set the language
-  version directly in the bundle manifest.
-* By standard OPA convention, we consider a policy to be "allowed" if the query
-  is exactly one result with exactly one element that has the value `true`.
+* Policy bundles must be local files. There is no built-in support for loading
+  from a remote OPA server. Fetch and store bundles locally using a separate
+  process.
+* Passing a raw `.rego` file instead of a bundle to `--allow-policy` or
+  `--verify-policy` still works for backward compatibility (treated as V0).
+  Using a bundle is recommended so you can set the Rego language version in
+  the bundle manifest.
+* By OPA convention, a policy is considered "allowed" if the query produces
+  exactly one result with a single element whose value is `true`.
 * Policy evaluation timeout is the same as the connection timeout. If a policy
   takes more time to execute than the specified connection timeout, the connection
   will fail.

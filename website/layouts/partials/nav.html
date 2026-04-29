@@ -10,7 +10,7 @@
     </label>
     <ul class="nav-links">
       {{ range .Site.Menus.main }}
-      <li><a href="{{ .URL }}"{{ if hasPrefix .URL "http" }} target="_blank" rel="noopener"{{ end }}>{{ if eq .Name "GitHub" }}{{ partial "icon-github.html" }} {{ end }}{{ .Name }}</a></li>
+      <li><a href="{{ .URL }}"{{ if hasPrefix .URL "http" }} target="_blank" rel="noopener"{{ end }}>{{ with .Params.icon }}{{ partial (printf "%s.html" .) }}{{ end }}<span>{{ .Name }}</span></a></li>
       {{ end }}
     </ul>
   </div>

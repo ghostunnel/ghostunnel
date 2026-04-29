@@ -6,8 +6,7 @@ aliases:
   - /docs/flags/
 ---
 
-Quick reference for all Ghostunnel command-line flags, grouped by mode. For
-detailed usage of specific features, see the linked documentation pages.
+For detailed usage of specific features, see the linked documentation pages.
 
 ## Global Flags
 
@@ -24,7 +23,7 @@ supported file formats and chain ordering.
 | `--cert PATH` | Path to certificate (PEM with certificate chain). |
 | `--key PATH` | Path to certificate private key (PEM with private key). |
 | `--storepass PASS` | Password for keystore (if using PKCS12 keystore, optional). |
-| `--cacert PATH` | Path to CA bundle file (PEM/X509). Uses system trust store by default. |
+| `--cacert CACERT` | Path to CA bundle file (PEM/X509). Uses system trust store by default. |
 | `--use-workload-api` | Certificate and root CAs are retrieved via the SPIFFE Workload API. See [SPIFFE]({{< ref "spiffe-workload-api.md" >}}). |
 | `--use-workload-api-addr ADDR` | Retrieve certificates and root CAs via the SPIFFE Workload API at the specified address (implies `--use-workload-api`). See [SPIFFE]({{< ref "spiffe-workload-api.md" >}}). |
 
@@ -84,6 +83,7 @@ metrics endpoints, and profiling.
 | `--enable-shutdown` | Enable `/_shutdown` endpoint alongside `/_status` to allow terminating via HTTP POST. | All platforms |
 | `--quiet` | Silence log messages. Values: `all`, `conns`, `conn-errs`, `handshake-errs`. Can be repeated. | All platforms |
 | `--syslog` | Send logs to syslog instead of stdout. | Linux, macOS |
+| `--eventlog` | Send logs to Windows Event Log instead of stdout. | Windows |
 | `--skip-resolve` | Skip resolving target host on startup (useful to start before network is up). | All platforms |
 
 ### Landlock
@@ -101,8 +101,8 @@ Flags specific to `ghostunnel server`.
 
 ### Required
 
-See [Socket Activation]({{< ref "socket-activation.md" >}}) for `systemd:NAME` and
-`launchd:NAME` addresses.
+See [Systemd]({{< ref "systemd.md" >}}) and [Launchd]({{< ref "launchd.md" >}})
+for `systemd:NAME` and `launchd:NAME` addresses.
 
 | Flag | Description |
 |------|-------------|
@@ -151,8 +151,8 @@ See [Access Control Flags]({{< ref "access-flags.md" >}}) for OPA/Rego policy de
 
 | Flag | Description |
 |------|-------------|
-| `--allow-policy BUNDLE` | Location of an OPA policy bundle. |
-| `--allow-query QUERY` | Rego query to validate against the client certificate and the policy. |
+| `--allow-policy BUNDLE` | Location of an OPA policy bundle. Mutually exclusive with other access control flags. |
+| `--allow-query QUERY` | Rego query to validate against the client certificate and the policy. Must be used with `--allow-policy`. |
 
 ## Client Mode Flags
 
@@ -160,8 +160,8 @@ Flags specific to `ghostunnel client`.
 
 ### Required
 
-See [Socket Activation]({{< ref "socket-activation.md" >}}) for `systemd:NAME` and
-`launchd:NAME` addresses.
+See [Systemd]({{< ref "systemd.md" >}}) and [Launchd]({{< ref "launchd.md" >}})
+for `systemd:NAME` and `launchd:NAME` addresses.
 
 | Flag | Description |
 |------|-------------|
@@ -196,6 +196,32 @@ See [Access Control Flags]({{< ref "access-flags.md" >}}) for OPA/Rego policy de
 |------|-------------|
 | `--verify-policy BUNDLE` | Location of an OPA policy bundle. |
 | `--verify-query QUERY` | Rego query to evaluate against the server certificate and the policy. |
+
+## Service Subcommands (Windows)
+
+Manage Ghostunnel as a native Windows service via the Service Control Manager.
+All `service` subcommands require **Administrator** privileges. See
+[Windows Service]({{< ref "windows-service.md" >}}) for the full guide.
+
+### Subcommands
+
+| Subcommand | Description |
+|------------|-------------|
+| `service install [--service-name NAME] -- ARGS...` | Install and start the service. Proxy arguments follow `--` (e.g. `-- server --listen :8443 --target localhost:8080`). |
+| `service uninstall [--service-name NAME]` | Stop and remove the service. Refuses to remove services not installed by Ghostunnel. |
+| `service start [--service-name NAME]` | Start an existing stopped service. |
+| `service stop [--service-name NAME]` | Gracefully stop a running service. |
+| `service status [--service-name NAME]` | Show the current service state. |
+
+### Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--service-name NAME` | `ghostunnel` | Name to use for the Windows service. May contain letters, digits, hyphens, underscores, and spaces (max 256 characters). |
+
+To send service logs to the Windows Event Log instead of stdout, pass
+`--eventlog` in the proxy arguments after `--`. See
+[Status / Logging](#status--logging).
 
 ## Environment Variables
 

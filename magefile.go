@@ -85,8 +85,8 @@ func (Go) Lint(ctx context.Context) error {
 }
 
 // Man generates the Ghostunnel man page from the built binary.
-// Also generates docs/MANPAGE-<os>.md from the man page using pandoc,
-// with Hugo front matter prepended for the website.
+// Also generates docs/reference/manpage-<os>.md from the man page using
+// pandoc, with Hugo front matter prepended for the website.
 func (Go) Man(ctx context.Context) error {
 	mg.CtxDeps(ctx, Go.Build)
 
@@ -99,26 +99,28 @@ func (Go) Man(ctx context.Context) error {
 		return fmt.Errorf("failed to write ghostunnel.man: %w", err)
 	}
 
-	// Generate docs/MANPAGE-<os>.md from the man page using pandoc
-	manpageMD := fmt.Sprintf("docs/MANPAGE-%s.md", runtime.GOOS)
+	// Generate docs/reference/manpage-<os>.md from the man page using pandoc
+	manpageMD := fmt.Sprintf("docs/reference/manpage-%s.md", runtime.GOOS)
 	pandocOutput, err := sh.Output("pandoc", "-f", "man", "-t", "gfm", "ghostunnel.man")
 	if err != nil {
 		return fmt.Errorf("failed to convert man page to markdown: %w", err)
 	}
 
-	// Platform-specific titles and weights for Hugo front matter
+	// Platform-specific titles, weights, and aliases for Hugo front matter
 	manPageMeta := map[string]struct {
 		title  string
 		weight int
+		alias  string
 	}{
-		"darwin": {title: "Man Page (macOS)", weight: 91},
-		"linux":  {title: "Man Page (Linux)", weight: 90},
+		"darwin": {title: "Man Page (macOS)", weight: 20, alias: "/docs/manpage-darwin/"},
+		"linux":  {title: "Man Page (Linux)", weight: 10, alias: "/docs/manpage-linux/"},
 	}
 
 	meta, ok := manPageMeta[runtime.GOOS]
 	if !ok {
 		meta.title = fmt.Sprintf("Man Page (%s)", runtime.GOOS)
-		meta.weight = 92
+		meta.weight = 30
+		meta.alias = fmt.Sprintf("/docs/manpage-%s/", runtime.GOOS)
 	}
 
 	var buf bytes.Buffer
@@ -126,6 +128,8 @@ func (Go) Man(ctx context.Context) error {
 	fmt.Fprintf(&buf, "title: %s\n", meta.title)
 	fmt.Fprintf(&buf, "description: Complete command-line reference with all flags, modes, and examples.\n")
 	fmt.Fprintf(&buf, "weight: %d\n", meta.weight)
+	fmt.Fprintf(&buf, "aliases:\n")
+	fmt.Fprintf(&buf, "  - %s\n", meta.alias)
 	fmt.Fprintf(&buf, "---\n\n")
 	fmt.Fprintf(&buf, "> This man page was generated from the %s binary. Some flags may differ on other platforms.\n\n", meta.title[len("Man Page ("):len(meta.title)-1])
 	buf.WriteString(pandocOutput)
@@ -397,9 +401,36 @@ func pythonCmd() string {
 	return "python3"
 }
 
-// build builds the *test* binary with coverage instrumentation.
+// coveredPackages is the list of packages to instrument for coverage.
+// Used consistently across unit and integration tests so that coverage
+// blocks are compatible when merged.
+var coveredPackages = ".,./auth,./certloader,./certloader/jceks,./certstore,./policy,./proxy,./wildcard,./socket"
+
+// cleanCoverage removes stale coverage data from previous runs and
+// recreates the coverage subdirectories. Used as a mage dep so that mage's
+// built-in deduplication ensures it runs exactly once per invocation,
+// even when Unit and Integration are triggered in parallel by Test.All.
+func cleanCoverage() error {
+	if err := os.RemoveAll("coverage"); err != nil {
+		return fmt.Errorf("failed to remove coverage directory: %w", err)
+	}
+	for _, sub := range []string{"unit", "integration"} {
+		if err := os.MkdirAll(filepath.Join("coverage", sub), 0755); err != nil {
+			return fmt.Errorf("failed to create coverage/%s: %w", sub, err)
+		}
+	}
+	return nil
+}
+
+// build builds a coverage-instrumented binary using go build -cover.
+// Unlike go test -c, this produces a normal binary that writes coverage
+// data to GOCOVERDIR on exit (including signal-triggered exits).
 func (Test) build() error {
-	return sh.Run("go", "test", "-c", "-covermode=count", "-coverpkg", ".,./auth,./certloader,./certloader/jceks,./proxy,./wildcard,./socket")
+	output := "ghostunnel.cover"
+	if runtime.GOOS == "windows" {
+		output += ".exe"
+	}
+	return sh.Run("go", "build", "-cover", "-covermode=count", "-coverpkg", coveredPackages, "-tags", "coverage", "-o", output, ".")
 }
 
 // All runs both unit and integration tests, then merges coverage.
@@ -411,23 +442,17 @@ func (Test) All(ctx context.Context) error {
 
 // Unit runs the unit tests.
 func (Test) Unit(ctx context.Context) error {
+	mg.Deps(cleanCoverage)
 	printf("Running unit tests...\n")
 
-	if err := os.MkdirAll("coverage", 0755); err != nil {
-		return fmt.Errorf("failed to create coverage directory: %w", err)
-	}
-
-	return sh.Run("go", "test", "-v", "-covermode=count", "-coverpkg", ".,./auth,./certloader,./certloader/jceks,./proxy,./wildcard,./socket", "-coverprofile=coverage/unit-test.profile", "./...")
+	return sh.Run("go", "test", "-v", "-covermode=count", "-coverpkg", coveredPackages, "-coverprofile=coverage/unit.profile", "./...")
 }
 
 // Integration runs the integration tests in parallel.
 // Set GHOSTUNNEL_TEST_PARALLEL to control concurrency (default: NumCPU, max 16).
 func (Test) Integration(ctx context.Context) error {
 	mg.CtxDeps(ctx, Test.build)
-
-	if err := os.MkdirAll("coverage", 0755); err != nil {
-		return fmt.Errorf("failed to create coverage directory: %w", err)
-	}
+	mg.Deps(cleanCoverage)
 
 	// Run integration tests
 	testFiles, err := filepath.Glob("tests/test-*.py")
@@ -545,10 +570,7 @@ func (Test) Integration(ctx context.Context) error {
 //	mage test:single test-server-listen-port-conflict.py
 func (Test) Single(ctx context.Context, name string) error {
 	mg.CtxDeps(ctx, Test.build)
-
-	if err := os.MkdirAll("coverage", 0755); err != nil {
-		return fmt.Errorf("failed to create coverage directory: %w", err)
-	}
+	mg.Deps(cleanCoverage)
 
 	// Normalize the test name
 	name = strings.TrimSuffix(name, ".py")
@@ -600,36 +622,106 @@ func (Test) Single(ctx context.Context, name string) error {
 	return fmt.Errorf("integration test %s failed: %w", name, err)
 }
 
-// Coverage merges the coverage files into a single file.
+// Coverage merges coverage data from unit and integration tests into
+// a single text profile. Integration tests use GOCOVERDIR (binary format),
+// which is converted to text with go tool covdata. Unit tests produce a
+// text profile directly. The two text profiles are then merged.
 func (Test) Coverage(ctx context.Context) error {
 	mg.CtxDeps(ctx, Test.Unit, Test.Integration)
 
-	// Get all coverage profile files
-	coverageFiles, err := filepath.Glob("coverage/*.profile")
-	if err != nil || len(coverageFiles) == 0 {
-		return fmt.Errorf("failed to find coverage files: %w", err)
+	// Convert integration GOCOVERDIR binary data to a text profile.
+	if err := sh.Run("go", "tool", "covdata", "textfmt",
+		"-i=coverage/integration",
+		"-o=coverage/integration.profile",
+	); err != nil {
+		return fmt.Errorf("failed to convert integration coverage to text: %w", err)
 	}
 
-	// Merge coverage files, excluding internal/test
-	args := []string{"tool", "gocovmerge"}
-	args = append(args, coverageFiles...)
+	// Merge unit and integration text profiles.
+	return mergeProfiles(
+		[]string{"coverage/unit.profile", "coverage/integration.profile"},
+		"coverage/all.profile",
+	)
+}
 
-	mergeOutput, err := sh.Output("go", args...)
-	if err != nil {
-		return fmt.Errorf("failed to merge coverage: %w", err)
+// mergeProfiles merges multiple Go coverage text profiles into one.
+// For blocks that appear in multiple profiles, hit counts are summed.
+func mergeProfiles(inputs []string, output string) error {
+	type block struct {
+		stmts int
+		count int
 	}
 
-	// Filter out internal/test lines (same as Makefile's grep -v)
-	lines := strings.Split(string(mergeOutput), "\n")
-	var filtered []string
-	for _, line := range lines {
-		if !strings.Contains(line, "internal/test") && !strings.Contains(line, "jcekstest") {
-			filtered = append(filtered, line)
+	mode := ""
+	blocks := map[string]*block{} // key = "file:startline.col,endline.col"
+
+	for _, input := range inputs {
+		data, err := os.ReadFile(input)
+		if err != nil {
+			return fmt.Errorf("failed to read %s: %w", input, err)
+		}
+		for _, line := range strings.Split(string(data), "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			if strings.HasPrefix(line, "mode:") {
+				if mode == "" {
+					mode = strings.TrimSpace(strings.TrimPrefix(line, "mode:"))
+				}
+				continue
+			}
+			// Format: "pkg/file.go:start,end stmts count"
+			lastSpace := strings.LastIndex(line, " ")
+			if lastSpace < 0 {
+				continue
+			}
+			rest := line[:lastSpace]
+			countStr := line[lastSpace+1:]
+
+			secondLastSpace := strings.LastIndex(rest, " ")
+			if secondLastSpace < 0 {
+				continue
+			}
+			key := rest[:secondLastSpace]
+			stmtsStr := rest[secondLastSpace+1:]
+
+			count, err := strconv.Atoi(countStr)
+			if err != nil {
+				continue
+			}
+			stmts, err := strconv.Atoi(stmtsStr)
+			if err != nil {
+				continue
+			}
+
+			if b, ok := blocks[key]; ok {
+				b.count += count
+			} else {
+				blocks[key] = &block{stmts: stmts, count: count}
+			}
 		}
 	}
 
-	// Write merged coverage
-	return os.WriteFile("coverage/all.profile", []byte(strings.Join(filtered, "\n")), 0644)
+	if mode == "" {
+		mode = "count"
+	}
+
+	// Sort keys for deterministic output
+	keys := make([]string, 0, len(blocks))
+	for k := range blocks {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "mode: %s\n", mode)
+	for _, key := range keys {
+		b := blocks[key]
+		fmt.Fprintf(&buf, "%s %d %d\n", key, b.stmts, b.count)
+	}
+
+	return os.WriteFile(output, buf.Bytes(), 0644)
 }
 
 // Keys generates test certificates and keys for development/testing purposes.

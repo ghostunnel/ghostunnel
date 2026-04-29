@@ -43,19 +43,19 @@ func getMonotonicUsec() (int64, error) {
 	return (sec * 1e6) + (nsec / 1000), nil
 }
 
-// systemdNotifyStatus sends a message to systemd to inform that we're ready.
-func systemdNotifyStatus(status string) {
+// notifyServiceStatus sends a free-form status message to systemd via sd_notify.
+func notifyServiceStatus(status string) {
 	msg := fmt.Sprintf("STATUS=%s", status)
 	_, _ = daemon.SdNotify(false, msg)
 }
 
-// systemdNotifyReady sends a message to systemd to inform that we're ready.
-func systemdNotifyReady() {
+// notifyServiceReady sends a message to systemd to inform that we're ready.
+func notifyServiceReady() {
 	_, _ = daemon.SdNotify(false, daemon.SdNotifyReady)
 }
 
-// systemdNotifyReloading sends a message to systemd to inform that we're reloading.
-func systemdNotifyReloading() {
+// notifyServiceReloading sends a message to systemd to inform that we're reloading.
+func notifyServiceReloading() {
 	usec, err := getMonotonicUsec()
 	if err != nil {
 		_, _ = daemon.SdNotify(false, daemon.SdNotifyReloading)
@@ -65,13 +65,13 @@ func systemdNotifyReloading() {
 	_, _ = daemon.SdNotify(false, msg)
 }
 
-// systemdNotifyStopping sends a message to systemd to inform that we're stopping.
-func systemdNotifyStopping() {
+// notifyServiceStopping sends a message to systemd to inform that we're stopping.
+func notifyServiceStopping() {
 	_, _ = daemon.SdNotify(false, daemon.SdNotifyStopping)
 }
 
-// systemdHandleWatchdog sends watchdog messages to systemd to keep us alive, if enabled.
-func systemdHandleWatchdog(isHealthy func() bool, shutdown chan bool) error {
+// handleServiceWatchdog sends watchdog messages to systemd to keep us alive, if enabled.
+func handleServiceWatchdog(isHealthy func() bool, shutdown chan bool) error {
 	dur, err := daemon.SdWatchdogEnabled(false)
 	if err != nil {
 		return err

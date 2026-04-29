@@ -32,8 +32,8 @@ go tool mage go:build
 ## Generate Test Certificates
 
 If you already maintain a PKI, you can skip this step and use your existing
-certificates. The steps below are for generating test certificates for
-testing and development purposes only.
+certificates. The steps below generate certificates for
+testing and development only.
 
 You need a CA, a server certificate, and a client certificate. The rest of
 this guide uses the paths from `test-keys/`, so adjust if you use a different
@@ -137,4 +137,4 @@ forwarded the plaintext request to the backend.
 - [ACME Support]({{< ref "acme.md" >}}): automatic certificates from Let's Encrypt
 - [Metrics & Profiling]({{< ref "metrics.md" >}}): status port, Prometheus metrics, pprof
 - [PROXY Protocol]({{< ref "proxy-protocol.md" >}}): pass client connection metadata to backends
-- [Socket Activation]({{< ref "socket-activation.md" >}}) and [Systemd Watchdog]({{< ref "watchdog.md" >}}): run Ghostunnel as a service
+- [Systemd]({{< ref "systemd.md" >}}), [Launchd]({{< ref "launchd.md" >}}), and [Windows Service]({{< ref "windows-service.md" >}}): run Ghostunnel as a service

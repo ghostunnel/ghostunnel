@@ -14,11 +14,15 @@ FROM golang:${GO_VERSION}
 RUN apt-get update && \
     apt-get install -y build-essential python3-minimal netcat-traditional softhsm2 rsyslog git openssl default-jre-headless </dev/null && \
     mkdir -p /etc/softhsm /var/lib/softhsm/tokens /go/src/github.com/ghostunnel/ghostunnel && \
-    go install github.com/wadey/gocovmerge@latest && \
     go install golang.org/x/tools/cmd/cover@latest && \
     go install github.com/magefile/mage@latest
 
 WORKDIR /go/src/github.com/ghostunnel/ghostunnel
+
+# Mark workspace as safe for git — the volume mount at runtime may have
+# different ownership than the container user, which causes git (and
+# therefore go build with VCS stamping) to fail.
+RUN git config --global --add safe.directory /go/src/github.com/ghostunnel/ghostunnel
 
 ENV GO111MODULE=on
 

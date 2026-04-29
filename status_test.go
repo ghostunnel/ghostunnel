@@ -79,9 +79,9 @@ func TestStatusHandleWatchdogError(t *testing.T) {
 	defer os.Unsetenv("WATCHDOG_PID")
 	defer os.Unsetenv("WATCHDOG_USEC")
 
-	err := systemdHandleWatchdog(func() bool { return true }, nil)
+	err := handleServiceWatchdog(func() bool { return true }, nil)
 	if err == nil {
-		t.Error("systemdHandleWatchdog did not handle invalid watchdog settings correctly")
+		t.Error("handleServiceWatchdog did not handle invalid watchdog settings correctly")
 	}
 }
 
@@ -101,7 +101,7 @@ func TestStatusHandleWatchdog(t *testing.T) {
 	shutdown := make(chan bool, 1)
 	done := make(chan bool, 1)
 	go func() {
-		err := systemdHandleWatchdog(func() bool {
+		err := handleServiceWatchdog(func() bool {
 			// Send shutdown signal to stop handler
 			shutdown <- true
 			return true
@@ -263,20 +263,20 @@ func TestServeHTTPReturnsJSON(t *testing.T) {
 	}
 }
 
-func TestSystemdStubsAreNoOps(t *testing.T) {
+func TestNonLinuxNotifyHelpersDoNotPanic(t *testing.T) {
 	if runtime.GOOS == "linux" {
-		t.Skip("stubs are only compiled on non-Linux")
+		t.Skip("Linux uses the real systemd implementation")
 	}
 
 	// These should not panic
-	systemdNotifyStatus("test")
-	systemdNotifyReady()
-	systemdNotifyReloading()
-	systemdNotifyStopping()
+	notifyServiceStatus("test")
+	notifyServiceReady()
+	notifyServiceReloading()
+	notifyServiceStopping()
 
-	err := systemdHandleWatchdog(func() bool { return true }, nil)
+	err := handleServiceWatchdog(func() bool { return true }, nil)
 	if err != nil {
-		t.Errorf("systemdHandleWatchdog stub should return nil, got: %v", err)
+		t.Errorf("handleServiceWatchdog stub should return nil, got: %v", err)
 	}
 }
 

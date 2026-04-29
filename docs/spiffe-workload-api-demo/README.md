@@ -1,8 +1,8 @@
 # SPIFFE Workload API Support Demo
 
-The following demonstrates using the SPIFFE Workload API to supply Ghostunnel
-with an X.509 identity and trusted CA roots that are used to facilitate
-communication between a frontend and backend service.
+This demo shows Ghostunnel using the SPIFFE Workload API to obtain X.509
+identities and trusted CA roots for mutual TLS between a frontend and backend
+service.
 
 ## Prerequisites
 

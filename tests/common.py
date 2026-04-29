@@ -1,3 +1,4 @@
+import subprocess
 from subprocess import call, check_call, check_output, Popen, DEVNULL
 from tempfile import mkstemp, mkdtemp
 import atexit
@@ -9,6 +10,7 @@ import socket
 import ssl
 import os
 import platform
+import signal
 import struct
 import urllib.error
 import urllib.request
@@ -45,7 +47,7 @@ def _poll_sleep(iteration):
 # Store original directory paths before changing working directory
 _TESTS_DIR = os.path.abspath(os.path.dirname(__file__) or '.')
 _ROOT_DIR = os.path.abspath(os.path.join(_TESTS_DIR, '..'))
-_GHOSTUNNEL_BINARY = os.path.join(_ROOT_DIR, 'ghostunnel.test.exe' if IS_WINDOWS else 'ghostunnel.test')
+_GHOSTUNNEL_BINARY = os.path.join(_ROOT_DIR, 'ghostunnel.cover.exe' if IS_WINDOWS else 'ghostunnel.cover')
 _COVERAGE_DIR = os.path.join(_ROOT_DIR, 'coverage')
 os.makedirs(_COVERAGE_DIR, exist_ok=True)
 
@@ -113,28 +115,34 @@ def run_ghostunnel(args, stdout=sys.stdout.buffer, stderr=sys.stderr.buffer, pre
     if not any('close-timeout' in f for f in args):
         args.append('--close-timeout=1s')
 
-    # Pass args through env var into integration test hook
     env = os.environ.copy()
     env["SYSTEMD_LOG_TARGET"] = "console"
     env["SYSTEMD_LOG_LEVEL"] = "debug"
-    env["GHOSTUNNEL_INTEGRATION_TEST"] = "true"
-    env["GHOSTUNNEL_INTEGRATION_ARGS"] = json.dumps(args)
 
-    # Run it, hook up stdout/stderr if desired
-    test = os.path.basename(sys.argv[0]).replace('.py', '.profile')
-    cmd = [
-        _GHOSTUNNEL_BINARY,
-        '-test.run=TestIntegrationMain',
-        '-test.coverprofile={0}/{1}'.format(_COVERAGE_DIR, test)
-    ]
+    # Set GOCOVERDIR for binary-format coverage data (merged by go tool covdata).
+    # The binary is built with go build -cover and writes coverage counters
+    # to this directory on exit (including signal-triggered exits).
+    integration_coverdir = os.path.join(_COVERAGE_DIR, 'integration')
+    os.makedirs(integration_coverdir, exist_ok=True)
+    env["GOCOVERDIR"] = integration_coverdir
+
+    # Run ghostunnel directly with args (binary built with go build -cover)
+    cmd = [_GHOSTUNNEL_BINARY] + args
 
     if prefix:
         cmd = prefix + cmd
 
     # Print cmd for debugging
-    print_ok("running:\n {0}\nwith args:\n {1}".format(' \\\n  '.join(cmd), ' \\\n  '.join(args)))
+    print_ok("running:\n {0}".format(' \\\n  '.join(cmd)))
 
-    return Popen(cmd, stdout=stdout, stderr=stderr, env=env)
+    # On Windows, create a new process group so we can send CTRL_BREAK_EVENT
+    # for graceful shutdown (TerminateProcess kills immediately without
+    # allowing coverage data to be flushed).
+    kwargs = {}
+    if IS_WINDOWS:
+        kwargs['creationflags'] = subprocess.CREATE_NEW_PROCESS_GROUP
+
+    return Popen(cmd, stdout=stdout, stderr=stderr, env=env, **kwargs)
 
 def assert_not_zero(ghostunnel):
     ret = ghostunnel.wait(timeout=5)
@@ -148,7 +156,14 @@ def terminate(ghostunnel):
     print_ok("terminating ghostunnel instance")
     try:
         if ghostunnel:
-            ghostunnel.terminate()
+            if IS_WINDOWS:
+                # Send CTRL_BREAK_EVENT for graceful shutdown. Go catches
+                # this as os.Interrupt, allowing signal handlers to run and
+                # coverage data to be flushed. TerminateProcess (the default
+                # for Popen.terminate on Windows) kills immediately.
+                ghostunnel.send_signal(signal.CTRL_BREAK_EVENT)
+            else:
+                ghostunnel.terminate()
             for i in range(10):
                 try:
                     ghostunnel.wait(timeout=1)
@@ -402,6 +417,15 @@ def require_platform(*platforms):
     print("skipped: requires {0} (running on {1})".format(
         '/'.join(platforms), current), file=sys.stderr)
     sys.exit(2)
+
+def require_admin():
+    """Skip the test (exit 2) unless running with Administrator privileges (Windows)."""
+    if not IS_WINDOWS:
+        return
+    import ctypes
+    if not ctypes.windll.shell32.IsUserAnAdmin():
+        print("requires Administrator privileges, skipping", file=sys.stderr)
+        sys.exit(2)
 
 def reload_args():
     """Extra args to enable certificate reload on Windows via --timed-reload."""

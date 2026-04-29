@@ -29,22 +29,38 @@ enableGitInfo = true
     name = "Docs"
     url = "/docs/"
     weight = 1
+    [menu.main.params]
+      icon = "icon-docs"
   [[menu.main]]
     name = "Releases"
     url = "/releases/"
     weight = 2
+    [menu.main.params]
+      icon = "icon-releases"
   [[menu.main]]
     name = "Contributors"
     url = "/contributors/"
     weight = 3
+    [menu.main.params]
+      icon = "icon-contributors"
   [[menu.main]]
     name = "Contact"
     url = "/contact/"
     weight = 4
+    [menu.main.params]
+      icon = "icon-contact"
   [[menu.main]]
     name = "GitHub"
     url = "https://github.com/ghostunnel/ghostunnel"
     weight = 5
+    [menu.main.params]
+      icon = "icon-github"
+  [[menu.main]]
+    name = "Docker"
+    url = "https://hub.docker.com/r/ghostunnel/ghostunnel"
+    weight = 6
+    [menu.main.params]
+      icon = "icon-docker"
 
 [markup.goldmark.renderer]
   unsafe = true

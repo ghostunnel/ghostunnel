@@ -19,8 +19,11 @@
 package main
 
 import (
+	"log"
 	"os"
 	"syscall"
+
+	gsyslog "github.com/hashicorp/go-syslog"
 )
 
 var (
@@ -29,6 +32,28 @@ var (
 	syslogFlag      = app.Flag("syslog", "Send logs to syslog instead of stdout (Unix/macOS only).").Bool()
 )
 
-func useSyslog() bool {
+func useSystemLog() bool {
 	return *syslogFlag
 }
+
+func initSystemLogger() error {
+	w, err := gsyslog.NewLogger(gsyslog.LOG_INFO, "DAEMON", "")
+	if err != nil {
+		return err
+	}
+	logger = log.New(w, "", log.LstdFlags|log.Lmicroseconds)
+	return nil
+}
+
+// serviceShutdownChan returns nil on non-Windows platforms. A nil channel
+// in a select statement blocks forever, so the service stop case in
+// signalHandler is effectively disabled on Unix.
+func serviceShutdownChan() <-chan bool {
+	return nil
+}
+
+func isRunningAsService() bool { return false }
+
+func runAsService() {}
+
+func runServiceCommand(_ string) (bool, error) { return false, nil }

@@ -41,7 +41,7 @@ import (
 
 	kingpin "github.com/alecthomas/kingpin/v2"
 	graphite "github.com/cyberdelia/go-metrics-graphite"
-	gsyslog "github.com/hashicorp/go-syslog"
+
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	metrics "github.com/rcrowley/go-metrics"
 	sqmetrics "github.com/square/go-sq-metrics"
@@ -195,6 +195,11 @@ func init() {
 
 var exitFunc = os.Exit
 
+// extraRWPaths collects additional filesystem paths that should be
+// read-writable under landlock. Populated by init() hooks (e.g. the
+// coverage build tag registers GOCOVERDIR here).
+var extraRWPaths []string
+
 // Environment groups listening context data together.
 type Environment struct {
 	status          *statusHandler
@@ -210,21 +215,18 @@ type Environment struct {
 // Global logger instance
 var logger = log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
 
-func initLogger(syslog bool, flags []string) (err error) {
-	// If user has indicated request for syslog, override default stdout
-	// logger with a syslog one instead. This can fail, e.g. in containers
-	// that don't have syslog available.
+func initLogger(systemLog bool, flags []string) (err error) {
+	// If user has indicated request for system log (syslog on Unix, event
+	// log on Windows), override default stdout logger with the platform
+	// system logger instead. This can fail, e.g. in containers that don't
+	// have syslog available.
 	if slices.Contains(flags, "all") {
 		// If --quiet=all if passed, disable all logging
 		logger = log.New(io.Discard, "", 0)
 		return
 	}
-	if syslog {
-		var syslogWriter gsyslog.Syslogger
-		syslogWriter, err = gsyslog.NewLogger(gsyslog.LOG_INFO, "DAEMON", "")
-		if err == nil {
-			logger = log.New(syslogWriter, "", log.LstdFlags|log.Lmicroseconds)
-		}
+	if systemLog {
+		err = initSystemLogger()
 	}
 	return
 }
@@ -478,6 +480,10 @@ func serverProxyProtoMode() proxy.ProxyProtocolMode {
 }
 
 func main() {
+	if isRunningAsService() {
+		runAsService()
+		return
+	}
 	err := run(os.Args[1:])
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
@@ -492,7 +498,13 @@ func run(args []string) error {
 	app.Version(fmt.Sprintf("rev %s built with %s (pkcs11: %v, keychain: %v)", version, runtime.Version(), certloader.SupportsPKCS11(), certloader.SupportsKeychain()))
 	app.Validate(validateFlags)
 	app.UsageTemplate(kingpin.LongHelpTemplate)
-	command := kingpin.MustParse(app.Parse(args))
+
+	command, parseErr := app.Parse(args)
+	command = kingpin.MustParse(command, parseErr)
+
+	if handled, err := runServiceCommand(command); handled {
+		return err
+	}
 
 	// use-workload-api-addr implies use-workload-api
 	if *useWorkloadAPIAddr != "" {
@@ -500,7 +512,7 @@ func run(args []string) error {
 	}
 
 	// Logger
-	err := initLogger(useSyslog(), *quiet)
+	err := initLogger(useSystemLog(), *quiet)
 	if err != nil {
 		return fmt.Errorf("unable to set up logger: %w", err)
 	}

@@ -1,4 +1,4 @@
-//go:build !linux
+//go:build !linux && !windows
 
 /*-
  * Copyright 2024, Ghostunnel
@@ -18,19 +18,15 @@
 
 package main
 
-// systemdNotifyStatus sends a message to systemd to inform that we're ready.
-func systemdNotifyStatus(_ string) {}
+// These are no-op stubs for platforms without a service-manager integration
+// (e.g. macOS, FreeBSD when not run under launchd/rc.d). Linux and Windows
+// have their own implementations that route to systemd or the SCM.
 
-// systemdNotifyReady sends a message to systemd to inform that we're ready.
-func systemdNotifyReady() {}
+func notifyServiceStatus(_ string) {}
+func notifyServiceReady()          {}
+func notifyServiceReloading()      {}
+func notifyServiceStopping()       {}
 
-// systemdNotifyReloading sends a message to systemd to inform that we're reloading.
-func systemdNotifyReloading() {}
-
-// systemdNotifyStopping sends a message to systemd to inform that we're stopping.
-func systemdNotifyStopping() {}
-
-// systemdHandleWatchdog sends watchdog messages to systemd to keep us alive, if enabled.
-func systemdHandleWatchdog(isHealthy func() bool, shutdown chan bool) error {
+func handleServiceWatchdog(_ func() bool, _ chan bool) error {
 	return nil
 }
