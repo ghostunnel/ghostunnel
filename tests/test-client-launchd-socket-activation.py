@@ -6,7 +6,7 @@ Spins up a client and tests launchd socket activation (success path).
 
 import os
 import subprocess
-from common import (LOCALHOST, LISTEN_PORT, STATUS_PORT, RootCert, TcpClient,
+from common import (LISTEN_PORT, STATUS_PORT, RootCert, TcpClient,
                     print_ok, require_platform, _GHOSTUNNEL_BINARY,
                     _COVERAGE_DIR, _WORK_DIR, _extra_port_sockets)
 
