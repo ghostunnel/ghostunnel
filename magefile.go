@@ -644,8 +644,34 @@ func (Test) Coverage(ctx context.Context) error {
 	)
 }
 
+// coverageExcludedPatterns lists basename glob patterns whose blocks are
+// dropped during coverage merging.
+var coverageExcludedPatterns = []string{
+	"test_helpers_*.go",
+}
+
+// isCoverageExcluded reports whether a coverage block key (e.g.
+// "github.com/ghostunnel/ghostunnel/certstore/test_helpers_darwin.go:10.1,12.2")
+// belongs to a file that should be excluded from coverage reports.
+func isCoverageExcluded(key string) bool {
+	colon := strings.LastIndex(key, ":")
+	if colon < 0 {
+		return false
+	}
+	base := filepath.Base(key[:colon])
+	for _, pat := range coverageExcludedPatterns {
+		if ok, _ := filepath.Match(pat, base); ok {
+			return true
+		}
+	}
+	return false
+}
+
 // mergeProfiles merges multiple Go coverage text profiles into one.
 // For blocks that appear in multiple profiles, hit counts are summed.
+// Blocks from files matching coverageExcluded are dropped — these are
+// test-only helpers that have to live in non-_test.go files (cgo is not
+// allowed in _test.go) and would otherwise skew package coverage.
 func mergeProfiles(inputs []string, output string) error {
 	type block struct {
 		stmts int
@@ -685,6 +711,10 @@ func mergeProfiles(inputs []string, output string) error {
 			}
 			key := rest[:secondLastSpace]
 			stmtsStr := rest[secondLastSpace+1:]
+
+			if isCoverageExcluded(key) {
+				continue
+			}
 
 			count, err := strconv.Atoi(countStr)
 			if err != nil {
