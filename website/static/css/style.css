@@ -249,7 +249,7 @@ a:hover {
   top: 6px;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 800px) {
   .nav-toggle-label {
     display: block;
   }
@@ -571,10 +571,14 @@ a:hover {
     overflow-x: hidden;
   }
 
-  .content table {
-    display: block;
+  .table-scroll {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    margin-bottom: 1rem;
+  }
+
+  .content .table-scroll table {
+    margin-bottom: 0;
   }
 
   .content th,
