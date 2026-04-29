@@ -9,8 +9,8 @@ Launchd socket activation is supported for the `--listen` and `--status` flags
 by passing an address of the form `launchd:<name>`, where `<name>` matches the
 socket key defined in your plist.
 
-On macOS, Ghostunnel can also load TLS identities directly from the system
-keychain via `--keychain-identity`. See [Keychain]({{< ref "keychain.md" >}}).
+Ghostunnel can also load TLS identities from the system keychain via
+`--keychain-identity`. See [Keychain]({{< ref "keychain.md" >}}).
 
 ## Example Plist
 
@@ -109,20 +109,17 @@ To reload certificates without restarting the service, send `SIGHUP`:
 sudo launchctl kill SIGHUP system/ghostunnel
 ```
 
-This triggers the same certificate reload as sending `SIGHUP` to the process
-directly.
-
 For automatic periodic reloads (e.g. with short-lived certificates), pass
 `--timed-reload DURATION` in the plist's `ProgramArguments`. Ghostunnel
 re-reads the keystore at that interval and refreshes the listener if the
-certificate changed, without needing `SIGHUP`.
+certificate changed.
 
 ## Graceful Shutdown
 
-By default, launchd waits 20 seconds between sending `SIGTERM` and force-killing
-the process with `SIGKILL`. If Ghostunnel's `--shutdown-timeout` (default `5m`)
-exceeds that window, in-flight connections will be cut off when launchd kills
-the process. To allow the full drain window, raise `ExitTimeOut` in the plist:
+By default, launchd waits 20 seconds between `SIGTERM` and `SIGKILL`. If
+Ghostunnel's `--shutdown-timeout` (default `5m`) exceeds that window, in-flight
+connections will be cut off. To allow the full drain window, raise
+`ExitTimeOut` in the plist:
 
 ```xml
 <key>ExitTimeOut</key>
