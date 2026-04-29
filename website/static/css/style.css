@@ -194,6 +194,11 @@ a:hover {
   opacity: 0.8;
   font-size: 0.9rem;
   font-weight: 400;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  transform: translateZ(0);
+  will-change: opacity;
   transition: opacity 0.15s ease, color 0.15s ease;
 }
 
@@ -206,7 +211,7 @@ a:hover {
 .icon {
   width: 1em;
   height: 1em;
-  vertical-align: -0.125em;
+  flex-shrink: 0;
 }
 
 .nav-toggle {
