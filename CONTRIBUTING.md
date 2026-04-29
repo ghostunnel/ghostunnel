@@ -100,9 +100,13 @@ GHOSTUNNEL_TEST_PARALLEL=4 go tool mage test:integration   # control parallelism
 Integration tests run in parallel by default (up to `NumCPU`, capped at 16).
 Set `GHOSTUNNEL_TEST_PARALLEL` to control the number of concurrent tests (may exceed the default cap).
 
-The integration test runner first builds a coverage-instrumented test binary
-(`go test -c`), then runs each `tests/test-*.py` script against that binary.
-Each Python test starts a ghostunnel process, exercises it, and verifies behavior.
+The integration test runner first builds a coverage-instrumented binary with
+`go build -cover -tags coverage` (a normal binary, not a `go test -c` test
+binary). Each Python test starts that binary with `GOCOVERDIR` pointing at a
+per-run directory; the `coverage` build tag (see `coverage_enabled.go`) flushes
+counters on exit so data survives signal-triggered shutdowns. After the run,
+`go tool covdata textfmt` converts the binary coverage data to a text profile,
+which is then merged with the unit-test profile.
 
 ## Architecture Overview
 
