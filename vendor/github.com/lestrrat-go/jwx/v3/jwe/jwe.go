@@ -1,6 +1,11 @@
 //go:generate ../tools/cmd/genjwe.sh
 
-// Package jwe implements JWE as described in https://tools.ietf.org/html/rfc7516
+// Package jwe implements JWE as described in https://tools.ietf.org/html/rfc7516.
+//
+// Legacy note: RSA-PKCS1 v1.5 key encryption (`jwa.RSA1_5()`) is supported
+// only for interoperability with existing peers. New applications should
+// prefer an RSA-OAEP variant such as `jwa.RSA_OAEP_256()` because PKCS#1 v1.5
+// decryption is exposed to Bleichenbacher-style oracle attacks.
 package jwe
 
 // #region imports
@@ -11,7 +16,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"sync"
+	"math"
+	"slices"
+	"sync/atomic"
 
 	"github.com/lestrrat-go/blackmagic"
 	"github.com/lestrrat-go/jwx/v3/internal/base64"
@@ -28,23 +35,56 @@ import (
 
 // #region globals
 
-var muSettings sync.RWMutex
-var maxPBES2Count = 10000
-var maxDecompressBufferSize int64 = 10 * 1024 * 1024 // 10MB
+var maxPBES2Count atomic.Int64
+var minPBES2Count atomic.Int64
+var pbes2Count atomic.Int64
+var maxRecipients atomic.Int64
+var maxDecompressBufferSize atomic.Int64
+
+func init() {
+	maxPBES2Count.Store(10000)
+	minPBES2Count.Store(1000)
+	pbes2Count.Store(int64(tokens.PBES2DefaultIterations))
+	maxRecipients.Store(100)
+	maxDecompressBufferSize.Store(10 * 1024 * 1024) // 10MB
+}
 
 func Settings(options ...GlobalOption) {
-	muSettings.Lock()
-	defer muSettings.Unlock()
 	for _, option := range options {
 		switch option.Ident() {
 		case identMaxPBES2Count{}:
-			if err := option.Value(&maxPBES2Count); err != nil {
+			var v int
+			if err := option.Value(&v); err != nil {
 				panic(fmt.Sprintf("jwe.Settings: value for option WithMaxPBES2Count must be an int: %s", err))
 			}
+			maxPBES2Count.Store(int64(v))
+		case identMinPBES2Count{}:
+			var v int
+			if err := option.Value(&v); err != nil {
+				panic(fmt.Sprintf("jwe.Settings: value for option WithMinPBES2Count must be an int: %s", err))
+			}
+			minPBES2Count.Store(int64(v))
+		case identPBES2Count{}:
+			var v int
+			if err := option.Value(&v); err != nil {
+				panic(fmt.Sprintf("jwe.Settings: value for option WithPBES2Count must be an int: %s", err))
+			}
+			if v <= 0 {
+				v = tokens.PBES2DefaultIterations
+			}
+			pbes2Count.Store(int64(v))
+		case identMaxRecipients{}:
+			var v int
+			if err := option.Value(&v); err != nil {
+				panic(fmt.Sprintf("jwe.Settings: value for option WithMaxRecipients must be an int: %s", err))
+			}
+			maxRecipients.Store(int64(v))
 		case identMaxDecompressBufferSize{}:
-			if err := option.Value(&maxDecompressBufferSize); err != nil {
+			var v int64
+			if err := option.Value(&v); err != nil {
 				panic(fmt.Sprintf("jwe.Settings: value for option WithMaxDecompressBufferSize must be an int64: %s", err))
 			}
+			maxDecompressBufferSize.Store(v)
 		case identCBCBufferSize{}:
 			var v int64
 			if err := option.Value(&v); err != nil {
@@ -63,15 +103,13 @@ const (
 	fmtMax
 )
 
-var _ = fmtInvalid
-var _ = fmtMax
-
 var registry = json.NewRegistry()
 
 type recipientBuilder struct {
-	alg     jwa.KeyEncryptionAlgorithm
-	key     any
-	headers Headers
+	alg        jwa.KeyEncryptionAlgorithm
+	key        any
+	headers    Headers
+	pbes2Count int
 }
 
 func (b *recipientBuilder) Build(r Recipient, cek []byte, calg jwa.ContentEncryptionAlgorithm, _ *content_crypt.Generic) ([]byte, error) {
@@ -104,7 +142,7 @@ func (b *recipientBuilder) Build(r Recipient, cek []byte, calg jwa.ContentEncryp
 
 	hdr := b.headers
 	if hdr == nil {
-		hdr = NewHeaders()
+		hdr = r.Headers()
 	}
 
 	if val, ok := hdr.AgreementPartyUInfo(); ok {
@@ -116,10 +154,7 @@ func (b *recipientBuilder) Build(r Recipient, cek []byte, calg jwa.ContentEncryp
 	}
 
 	// Create the encrypter using the new jwebb pattern
-	enc, err := newEncrypter(b.alg, calg, b.key, rawKey, apu, apv)
-	if err != nil {
-		return nil, fmt.Errorf(`jwe.Encrypt: recipientBuilder: failed to create encrypter: %w`, err)
-	}
+	enc := newEncrypter(b.alg, calg, b.key, rawKey, apu, apv, b.pbes2Count)
 
 	_ = r.SetHeaders(hdr)
 
@@ -168,9 +203,9 @@ func (b *recipientBuilder) Build(r Recipient, cek []byte, calg jwa.ContentEncryp
 // option.
 //
 //	jwe.Encrypt(payload, jwe.WithKey(alg, key))
-//	jwe.Encrypt(payload, jws.WithJSON(), jws.WithKey(alg1, key1), jws.WithKey(alg2, key2))
+//	jwe.Encrypt(payload, jwe.WithJSON(), jwe.WithKey(alg1, key1), jwe.WithKey(alg2, key2))
 //
-// Note that in the second example the `jws.WithJSON()` option is
+// Note that in the second example the `jwe.WithJSON()` option is
 // specified as well. This is because the compact serialization
 // format does not support multiple recipients, and users must
 // specifically ask for the JSON serialization format.
@@ -178,7 +213,18 @@ func (b *recipientBuilder) Build(r Recipient, cek []byte, calg jwa.ContentEncryp
 // Read the documentation for `jwe.WithKey()` to learn more about the
 // possible values that can be used for `alg` and `key`.
 //
-// Look for options that return `jwe.EncryptOption` or `jws.EncryptDecryptOption`
+// `jwa.RSA1_5()` is supported only for interoperability with legacy peers.
+// New applications should prefer an RSA-OAEP variant such as
+// `jwa.RSA_OAEP_256()` because PKCS#1 v1.5 decryption is exposed to
+// Bleichenbacher-style oracle attacks.
+// If you enable `jwe.WithCompress()`, this library does not enforce a
+// producer-side payload size limit before compression. Callers that accept
+// untrusted or arbitrarily large plaintext must bound the input size before
+// calling `jwe.Encrypt()`. Recipients may also reject compressed messages
+// whose decompressed payload exceeds their `jwe.WithMaxDecompressBufferSize()`
+// setting.
+//
+// Look for options that return `jwe.EncryptOption` or `jwe.EncryptDecryptOption`
 // for a complete list of options that can be passed to this function.
 //
 // As of v3.0.12, users can specify `jwe.WithLegacyHeaderMerging()` to
@@ -188,11 +234,11 @@ func Encrypt(payload []byte, options ...EncryptOption) ([]byte, error) {
 	ec := encryptContextPool.Get()
 	defer encryptContextPool.Put(ec)
 	if err := ec.ProcessOptions(options); err != nil {
-		return nil, encryptError{fmt.Errorf(`jwe.Encrypt: failed to process options: %w`, err)}
+		return nil, makeEncryptError(`jwe.Encrypt`, `failed to process options: %w`, err)
 	}
 	ret, err := ec.EncryptMessage(payload, nil)
 	if err != nil {
-		return nil, encryptError{fmt.Errorf(`jwe.Encrypt: %w`, err)}
+		return nil, makeEncryptError(`jwe.Encrypt`, `%w`, err)
 	}
 	return ret, nil
 }
@@ -202,6 +248,32 @@ func Encrypt(payload []byte, options ...EncryptOption) ([]byte, error) {
 // Encrypt function such that the latter does not accidentally use a static
 // CEK.
 //
+// Unless `jwe.WithContentEncryption()` is provided, `EncryptStatic` uses
+// `jwa.A256GCM()`, which requires a 32-byte CEK.
+//
+// The CEK used to encrypt the payload must match the selected content
+// encryption algorithm:
+//
+//   - `jwa.A128GCM()`: 16 bytes
+//   - `jwa.A192GCM()`: 24 bytes
+//   - `jwa.A256GCM()`: 32 bytes
+//   - `jwa.A128CBC_HS256()`: 32 bytes
+//   - `jwa.A192CBC_HS384()`: 48 bytes
+//   - `jwa.A256CBC_HS512()`: 64 bytes
+//
+// `EncryptStatic` validates the final CEK length before payload encryption
+// and returns an error if it does not match the selected `enc` algorithm.
+//
+// NOTE: when the chosen key-encryption algorithm derives the CEK rather than
+// wrapping it — specifically `jwa.DIRECT()` and bare `jwa.ECDH_ES()` (without
+// a key-wrap suffix) — the `cek` argument supplied here is ignored for
+// content encryption. In those modes the effective CEK is the shared/derived
+// key produced by the `jwe.WithKey()` input, and the byte-length check
+// described above is enforced against that derived CEK, not against the
+// value passed as `cek`. To pin the CEK deterministically, pair
+// `EncryptStatic` only with key-wrapping algorithms such as
+// `jwa.RSA_OAEP()`, `jwa.A256KW()`, or `jwa.ECDH_ES_A256KW()`.
+//
 // DO NOT attempt to use this function unless you completely understand the
 // security implications to using static CEKs. You have been warned.
 //
@@ -209,16 +281,16 @@ func Encrypt(payload []byte, options ...EncryptOption) ([]byte, error) {
 // future changes across minor/micro versions.
 func EncryptStatic(payload, cek []byte, options ...EncryptOption) ([]byte, error) {
 	if len(cek) <= 0 {
-		return nil, encryptError{fmt.Errorf(`jwe.EncryptStatic: empty CEK`)}
+		return nil, makeEncryptError(`jwe.EncryptStatic`, `empty CEK`)
 	}
 	ec := encryptContextPool.Get()
 	defer encryptContextPool.Put(ec)
 	if err := ec.ProcessOptions(options); err != nil {
-		return nil, encryptError{fmt.Errorf(`jwe.EncryptStatic: failed to process options: %w`, err)}
+		return nil, makeEncryptError(`jwe.EncryptStatic`, `failed to process options: %w`, err)
 	}
 	ret, err := ec.EncryptMessage(payload, cek)
 	if err != nil {
-		return nil, encryptError{fmt.Errorf(`jwe.EncryptStatic: %w`, err)}
+		return nil, makeEncryptError(`jwe.EncryptStatic`, `%w`, err)
 	}
 	return ret, nil
 }
@@ -229,7 +301,12 @@ type decryptContext struct {
 	keyUsed                 any
 	cek                     *[]byte
 	dst                     *Message
+	maxRecipients           int
 	maxDecompressBufferSize int64
+	maxPBES2Count           int
+	minPBES2Count           int
+	critValidation          bool
+	criticalExtensions      []string
 	//nolint:containedctx
 	ctx context.Context
 }
@@ -247,16 +324,21 @@ func freeDecryptContext(dc *decryptContext) *decryptContext {
 	dc.keyUsed = nil
 	dc.cek = nil
 	dc.dst = nil
+	dc.maxRecipients = 0
 	dc.maxDecompressBufferSize = 0
+	dc.maxPBES2Count = 0
+	dc.minPBES2Count = 0
+	dc.critValidation = false
+	dc.criticalExtensions = dc.criticalExtensions[:0]
 	dc.ctx = context.Background()
 	return dc
 }
 
 func (dc *decryptContext) ProcessOptions(options []DecryptOption) error {
-	// Set default max decompress buffer size
-	muSettings.RLock()
-	dc.maxDecompressBufferSize = maxDecompressBufferSize
-	muSettings.RUnlock()
+	dc.maxRecipients = int(maxRecipients.Load())
+	dc.maxDecompressBufferSize = maxDecompressBufferSize.Load()
+	dc.maxPBES2Count = int(maxPBES2Count.Load())
+	dc.minPBES2Count = int(minPBES2Count.Load())
 
 	for _, option := range options {
 		switch option.Ident() {
@@ -288,14 +370,36 @@ func (dc *decryptContext) ProcessOptions(options []DecryptOption) error {
 			if err := option.Value(&dc.cek); err != nil {
 				return fmt.Errorf("jwe.decrypt: WithCEK must be a *[]byte: %w", err)
 			}
+		case identMaxRecipients{}:
+			if err := option.Value(&dc.maxRecipients); err != nil {
+				return fmt.Errorf("jwe.decrypt: WithMaxRecipients must be int: %w", err)
+			}
 		case identMaxDecompressBufferSize{}:
 			if err := option.Value(&dc.maxDecompressBufferSize); err != nil {
 				return fmt.Errorf("jwe.decrypt: WithMaxDecompressBufferSize must be int64: %w", err)
+			}
+		case identMaxPBES2Count{}:
+			if err := option.Value(&dc.maxPBES2Count); err != nil {
+				return fmt.Errorf("jwe.decrypt: WithMaxPBES2Count must be int: %w", err)
+			}
+		case identMinPBES2Count{}:
+			if err := option.Value(&dc.minPBES2Count); err != nil {
+				return fmt.Errorf("jwe.decrypt: WithMinPBES2Count must be int: %w", err)
 			}
 		case identContext{}:
 			if err := option.Value(&dc.ctx); err != nil {
 				return fmt.Errorf("jwe.decrypt: WithContext must be a context.Context: %w", err)
 			}
+		case identCritValidation{}:
+			if err := option.Value(&dc.critValidation); err != nil {
+				return fmt.Errorf("jwe.decrypt: WithCritValidation must be a bool: %w", err)
+			}
+		case identCritExtension{}:
+			var names []string
+			if err := option.Value(&names); err != nil {
+				return fmt.Errorf("jwe.decrypt: WithCritExtension must be a string: %w", err)
+			}
+			dc.criticalExtensions = append(dc.criticalExtensions, names...)
 		}
 	}
 
@@ -306,20 +410,107 @@ func (dc *decryptContext) ProcessOptions(options []DecryptOption) error {
 	return nil
 }
 
-func (dc *decryptContext) DecryptMessage(buf []byte) ([]byte, error) {
-	msg, err := parseJSONOrCompact(buf, true)
-	if err != nil {
-		return nil, fmt.Errorf(`failed to parse buffer for Decrypt: %w`, err)
+// validateCritical checks the "crit" header per RFC 7516 Section 4.1.13
+// (which references RFC 7515 Section 4.1.11). It enforces:
+//   - the list is non-empty
+//   - no entry is the empty string
+//   - no entry duplicates another
+//   - no entry names a standard JOSE/JWE header parameter
+//   - every entry appears as a header parameter in the protected header
+//   - every entry is in the caller-supplied allowedExtensions allowlist
+//
+// The last check is the central RFC requirement: recipients MUST reject
+// any "crit" extension they do not understand, and the only way the
+// library knows which extensions the caller understands is via the
+// allowlist (populated from jwe.WithCritExtension()).
+func validateCritical(protected Headers, allowedExtensions []string) error {
+	if !protected.Has(CriticalKey) {
+		return nil
 	}
 
-	// Process things that are common to the message
+	crit, _ := protected.Critical()
+	if len(crit) == 0 {
+		return makeDecryptError(`"crit" header must not be empty`)
+	}
+
+	seen := make(map[string]struct{}, len(crit))
+	for _, name := range crit {
+		if name == "" {
+			return makeDecryptError(`"crit" header must not contain an empty extension name`)
+		}
+		if _, dup := seen[name]; dup {
+			return makeDecryptError(`"crit" header must not contain duplicate extension %q`, name)
+		}
+		seen[name] = struct{}{}
+
+		// RFC 7515 Section 4.1.11: "crit" MUST NOT include names defined
+		// by the JOSE Header specification itself.
+		if slices.Contains(stdHeaderNames, name) {
+			return makeDecryptError(`"crit" header must not contain standard header parameter %q`, name)
+		}
+
+		// The extension must be present in the protected header.
+		if !protected.Has(name) {
+			return makeDecryptError(`"crit" header references extension %q, but it is not present in the protected header`, name)
+		}
+
+		// The recipient must have declared support for the extension.
+		if !slices.Contains(allowedExtensions, name) {
+			return makeDecryptError(`"crit" header references extension %q, but the recipient has not declared support for it (use jwe.WithCritExtension(%q))`, name, name)
+		}
+	}
+
+	return nil
+}
+
+// concatAAD returns the AAD value used to seal or open a JWE payload:
+// the protected-header segment, optionally followed by ASCII '.' and
+// the caller-supplied external aad (RFC 7516 §5.1 step 14 / §5.2
+// step 14). A fresh slice is always allocated so the caller's computed
+// and aad slices are never appended into, which matters because
+// computedAad often aliases a Message field whose backing array is
+// still referenced elsewhere.
+func concatAAD(computed, aad []byte) []byte {
+	if len(aad) == 0 {
+		return computed
+	}
+	out := make([]byte, len(computed)+1+len(aad))
+	n := copy(out, computed)
+	out[n] = tokens.Period
+	copy(out[n+1:], aad)
+	return out
+}
+
+func (dc *decryptContext) DecryptMessage(buf []byte) ([]byte, error) {
+	msg, err := parseJSONOrCompact(buf, true, dc.maxRecipients)
+	if err != nil {
+		return nil, fmt.Errorf(`jwe.Decrypt: failed to parse buffer: %w`, err)
+	}
+
+	// Validate the "crit" header per RFC 7516 Section 4.1.13. The check
+	// runs against the protected header only — RFC says "crit" MUST live
+	// there — and short-circuits before any key-decrypt or content-decrypt
+	// work happens.
+	if dc.critValidation {
+		if err := validateCritical(msg.protectedHeaders, dc.criticalExtensions); err != nil {
+			return nil, err
+		}
+	}
+
+	// Clone the shared (top-level) protected header as our working copy.
+	// We deliberately do NOT merge msg.unprotectedHeaders (the shared,
+	// top-level *unprotected* header) here: it is never covered by the
+	// AEAD tag, so it must not contribute algorithm parameters.
+	//
+	// Per-recipient unprotected headers are a separate case — RFC 7516
+	// §5.3 explicitly permits them to carry recipient-specific algorithm
+	// parameters (alg, epk, p2s, p2c, iv, tag, apu, apv, …), and
+	// decryptContent merges recipient.Headers() onto this base below.
+	// That merge is bounded by WithMaxRecipients and, for PBES2, by
+	// WithMaxPBES2Count (applied per recipient).
 	h, err := msg.protectedHeaders.Clone()
 	if err != nil {
-		return nil, fmt.Errorf(`failed to copy protected headers: %w`, err)
-	}
-	h, err = h.Merge(msg.unprotectedHeaders)
-	if err != nil {
-		return nil, fmt.Errorf(`failed to merge headers for message decryption: %w`, err)
+		return nil, fmt.Errorf(`jwe.Decrypt: failed to copy protected headers: %w`, err)
 	}
 
 	var aad []byte
@@ -335,7 +526,7 @@ func (dc *decryptContext) DecryptMessage(buf []byte) ([]byte, error) {
 		var err error
 		computedAad, err = msg.protectedHeaders.Encode()
 		if err != nil {
-			return nil, fmt.Errorf(`failed to encode protected headers: %w`, err)
+			return nil, fmt.Errorf(`jwe.Decrypt: failed to encode protected headers: %w`, err)
 		}
 	}
 
@@ -345,7 +536,7 @@ func (dc *decryptContext) DecryptMessage(buf []byte) ([]byte, error) {
 	if len(recipients) == 0 {
 		r := NewRecipient()
 		if err := r.SetHeaders(msg.protectedHeaders); err != nil {
-			return nil, fmt.Errorf(`failed to set headers to recipient: %w`, err)
+			return nil, fmt.Errorf(`jwe.Decrypt: failed to set headers to recipient: %w`, err)
 		}
 		recipients = append(recipients, r)
 	}
@@ -354,7 +545,7 @@ func (dc *decryptContext) DecryptMessage(buf []byte) ([]byte, error) {
 	for _, recipient := range recipients {
 		decrypted, err := dc.tryRecipient(msg, recipient, h, aad, computedAad)
 		if err != nil {
-			errs = append(errs, recipientError{err})
+			errs = append(errs, makeRecipientError(err))
 			continue
 		}
 		if dc.dst != nil {
@@ -364,7 +555,7 @@ func (dc *decryptContext) DecryptMessage(buf []byte) ([]byte, error) {
 		}
 		return decrypted, nil
 	}
-	return nil, fmt.Errorf(`failed to decrypt any of the recipients: %w`, errors.Join(errs...))
+	return nil, fmt.Errorf(`jwe.Decrypt: failed to decrypt any of the recipients: %w`, errors.Join(errs...))
 }
 
 func (dc *decryptContext) tryRecipient(msg *Message, recipient Recipient, protectedHeaders Headers, aad, computedAad []byte) ([]byte, error) {
@@ -484,7 +675,10 @@ func (dc *decryptContext) decryptContent(msg *Message, alg jwa.KeyEncryptionAlgo
 		}
 	case jwa.A128GCMKW(), jwa.A192GCMKW(), jwa.A256GCMKW():
 		var ivB64 string
-		if err := h2.Get(InitializationVectorKey, &ivB64); err == nil {
+		if h2.Has(InitializationVectorKey) {
+			if err := h2.Get(InitializationVectorKey, &ivB64); err != nil {
+				return nil, fmt.Errorf(`field %q is not a string: %w`, InitializationVectorKey, err)
+			}
 			iv, err := base64.DecodeString(ivB64)
 			if err != nil {
 				return nil, fmt.Errorf(`failed to b64-decode 'iv': %w`, err)
@@ -492,7 +686,10 @@ func (dc *decryptContext) decryptContent(msg *Message, alg jwa.KeyEncryptionAlgo
 			dec.KeyInitializationVector(iv)
 		}
 		var tagB64 string
-		if err := h2.Get(TagKey, &tagB64); err == nil {
+		if h2.Has(TagKey) {
+			if err := h2.Get(TagKey, &tagB64); err != nil {
+				return nil, fmt.Errorf(`field %q is not a string: %w`, TagKey, err)
+			}
 			tag, err := base64.DecodeString(tagB64)
 			if err != nil {
 				return nil, fmt.Errorf(`failed to b64-decode 'tag': %w`, err)
@@ -526,10 +723,15 @@ func (dc *decryptContext) decryptContent(msg *Message, alg jwa.KeyEncryptionAlgo
 			countFlt = count
 		}
 
-		muSettings.RLock()
-		maxCount := maxPBES2Count
-		muSettings.RUnlock()
+		maxCount := dc.maxPBES2Count
+		minCount := dc.minPBES2Count
+		if math.IsNaN(countFlt) || math.IsInf(countFlt, 0) || math.Trunc(countFlt) != countFlt {
+			return nil, fmt.Errorf("invalid 'p2c' value")
+		}
 		if countFlt > float64(maxCount) {
+			return nil, fmt.Errorf("invalid 'p2c' value")
+		}
+		if countFlt < float64(minCount) {
 			return nil, fmt.Errorf("invalid 'p2c' value")
 		}
 		salt, err := base64.DecodeString(saltB64)
@@ -548,7 +750,7 @@ func (dc *decryptContext) decryptContent(msg *Message, alg jwa.KeyEncryptionAlgo
 	if v, ok := h2.Compression(); ok && v == jwa.Deflate() {
 		buf, err := uncompress(plaintext, dc.maxDecompressBufferSize)
 		if err != nil {
-			return nil, fmt.Errorf(`jwe.Derypt: failed to uncompress payload: %w`, err)
+			return nil, fmt.Errorf(`jwe.Decrypt: failed to uncompress payload: %w`, err)
 		}
 		plaintext = buf
 	}
@@ -565,6 +767,7 @@ type encryptContext struct {
 	calg                jwa.ContentEncryptionAlgorithm
 	compression         jwa.CompressionAlgorithm
 	format              int
+	pbes2Count          int
 	builders            []*recipientBuilder
 	protected           Headers
 	legacyHeaderMerging bool
@@ -584,6 +787,7 @@ func freeEncryptContext(ec *encryptContext) *encryptContext {
 	ec.calg = jwa.A256GCM()
 	ec.compression = jwa.NoCompress()
 	ec.format = fmtCompact
+	ec.pbes2Count = 0
 	ec.builders = ec.builders[:0]
 	ec.protected = nil
 	return ec
@@ -591,6 +795,7 @@ func freeEncryptContext(ec *encryptContext) *encryptContext {
 
 func (ec *encryptContext) ProcessOptions(options []EncryptOption) error {
 	ec.legacyHeaderMerging = true
+	ec.pbes2Count = int(pbes2Count.Load())
 	var mergeProtected bool
 	var useRawCEK bool
 	for _, option := range options {
@@ -612,6 +817,14 @@ func (ec *encryptContext) ProcessOptions(options []EncryptOption) error {
 				key:     wk.key,
 				headers: wk.headers,
 			})
+		case identPBES2Count{}:
+			var v int
+			if err := option.Value(&v); err != nil {
+				return fmt.Errorf("jwe.encrypt: WithPBES2Count must be int: %w", err)
+			}
+			if v > 0 {
+				ec.pbes2Count = v
+			}
 		case identContentEncryptionAlgorithm{}:
 			var c jwa.ContentEncryptionAlgorithm
 			if err := option.Value(&c); err != nil {
@@ -671,7 +884,7 @@ func (ec *encryptContext) ProcessOptions(options []EncryptOption) error {
 
 	if useRawCEK {
 		if len(ec.builders) != 1 {
-			return fmt.Errorf(`multiple recipients for ECDH-ES/DIRECT mode supported`)
+			return fmt.Errorf(`multiple recipients for ECDH-ES/DIRECT mode are not supported`)
 		}
 	}
 
@@ -714,10 +927,14 @@ func freeHeaders(h Headers) Headers {
 var recipientPool = pool.New(NewRecipient, freeRecipient)
 
 func freeRecipient(r Recipient) Recipient {
+	// Return the recipient's headers to headerPool and install a fresh
+	// instance so the next recipientPool.Get() never hands out a
+	// pointer the caller may still hold a reference to. This is safe
+	// because WithPerRecipientHeaders clones the caller-supplied
+	// Headers, so anything we receive here is already library-owned.
 	if h := r.Headers(); h != nil {
-		if c, ok := h.(interface{ clear() }); ok {
-			c.clear()
-		}
+		headerPool.Put(h)
+		_ = r.SetHeaders(headerPool.Get())
 	}
 
 	if sr, ok := r.(*stdRecipient); ok {
@@ -777,6 +994,7 @@ func (ec *encryptContext) EncryptMessage(payload []byte, cek []byte) ([]byte, er
 	defer recipientSlicePool.Put(recipients)
 
 	for i, builder := range ec.builders {
+		builder.pbes2Count = ec.pbes2Count
 		r := recipientPool.Get()
 		defer recipientPool.Put(r)
 
@@ -792,6 +1010,10 @@ func (ec *encryptContext) EncryptMessage(payload []byte, cek []byte) ([]byte, er
 		if useRawCEK {
 			cek = rawCEK
 		}
+	}
+
+	if len(cek) != contentcrypt.KeySize() {
+		return nil, fmt.Errorf(`content encryption key length %d does not match enc %q (expected %d bytes)`, len(cek), ec.calg.String(), contentcrypt.KeySize())
 	}
 
 	if err := protected.Set(ContentEncryptionKey, ec.calg); err != nil {
@@ -869,6 +1091,13 @@ func (ec *encryptContext) EncryptMessage(payload []byte, cek []byte) ([]byte, er
 		return nil, fmt.Errorf(`failed to encrypt payload: %w`, err)
 	}
 
+	// Fast path for compact serialization: assemble directly from
+	// pre-encoded headers and raw fields, avoiding the full Message
+	// construction and redundant header re-encoding that Compact() does.
+	if ec.format == fmtCompact {
+		return compactSerialize(aad, recipients[0].EncryptedKey(), iv, ciphertext, tag), nil
+	}
+
 	msg := msgPool.Get()
 	defer msgPool.Put(msg)
 
@@ -889,8 +1118,6 @@ func (ec *encryptContext) EncryptMessage(payload []byte, cek []byte) ([]byte, er
 	}
 
 	switch ec.format {
-	case fmtCompact:
-		return Compact(msg)
 	case fmtJSON:
 		return json.Marshal(msg)
 	case fmtJSONPretty:
@@ -904,11 +1131,11 @@ func (ec *encryptContext) EncryptMessage(payload []byte, cek []byte) ([]byte, er
 // payload (e.g. the key encryption algorithm and the corresponding
 // key to decrypt the JWE message) in its optional arguments. See
 // the examples and list of options that return a DecryptOption for possible
-// values. Upon successful decryptiond returns the decrypted payload.
+// values. Upon successful decryption returns the decrypted payload.
 //
 // The JWE message can be either compact or full JSON format.
 //
-// When using `jwe.WithKeyEncryptionAlgorithm()`, you can pass a `jwa.KeyAlgorithm`
+// When using `jwe.WithKey()`, you can pass a `jwa.KeyAlgorithm`
 // for convenience: this is mainly to allow you to directly pass the result of `(jwk.Key).Algorithm()`.
 // However, do note that while `(jwk.Key).Algorithm()` could very well contain key encryption
 // algorithms, it could also contain other types of values, such as _signature algorithms_.
@@ -934,12 +1161,12 @@ func Decrypt(buf []byte, options ...DecryptOption) ([]byte, error) {
 	defer decryptContextPool.Put(dc)
 
 	if err := dc.ProcessOptions(options); err != nil {
-		return nil, decryptError{fmt.Errorf(`jwe.Decrypt: failed to process options: %w`, err)}
+		return nil, makeDecryptError(`failed to process options: %w`, err)
 	}
 
 	ret, err := dc.DecryptMessage(buf)
 	if err != nil {
-		return nil, decryptError{fmt.Errorf(`jwe.Decrypt: %w`, err)}
+		return nil, makeDecryptError(`%w`, err)
 	}
 	return ret, nil
 }
@@ -947,18 +1174,18 @@ func Decrypt(buf []byte, options ...DecryptOption) ([]byte, error) {
 // Parse parses the JWE message into a Message object. The JWE message
 // can be either compact or full JSON format.
 //
-// Parse() currently does not take any options, but the API accepts it
-// in anticipation of future addition.
+// Bounding the input size is the caller's responsibility; this function
+// trusts the caller-provided buf. See docs/13-input-size.md.
 func Parse(buf []byte, _ ...ParseOption) (*Message, error) {
-	return parseJSONOrCompact(buf, false)
+	return parseJSONOrCompact(buf, false, int(maxRecipients.Load()))
 }
 
 // errors are wrapped within this function, because we call it directly
 // from Decrypt as well.
-func parseJSONOrCompact(buf []byte, storeProtectedHeaders bool) (*Message, error) {
+func parseJSONOrCompact(buf []byte, storeProtectedHeaders bool, maxR int) (*Message, error) {
 	buf = bytes.TrimSpace(buf)
 	if len(buf) == 0 {
-		return nil, parseError{fmt.Errorf(`jwe.Parse: empty buffer`)}
+		return nil, makeParseError(`jwe.Parse`, `empty buffer`)
 	}
 
 	var msg *Message
@@ -970,29 +1197,38 @@ func parseJSONOrCompact(buf []byte, storeProtectedHeaders bool) (*Message, error
 	}
 
 	if err != nil {
-		return nil, parseError{fmt.Errorf(`jwe.Parse: %w`, err)}
+		return nil, makeParseError(`jwe.Parse`, `%w`, err)
 	}
+
+	if maxR > 0 && len(msg.recipients) > maxR {
+		return nil, makeParseError(`jwe.Parse`, `too many recipients in JWE message (%d > %d)`, len(msg.recipients), maxR)
+	}
+
 	return msg, nil
 }
 
 // ParseString is the same as Parse, but takes a string.
-func ParseString(s string) (*Message, error) {
+func ParseString(s string, _ ...ParseOption) (*Message, error) {
 	msg, err := Parse([]byte(s))
 	if err != nil {
-		return nil, parseError{fmt.Errorf(`jwe.ParseString: %w`, err)}
+		return nil, makeParseError(`jwe.ParseString`, `%w`, err)
 	}
 	return msg, nil
 }
 
 // ParseReader is the same as Parse, but takes an io.Reader.
-func ParseReader(src io.Reader) (*Message, error) {
+//
+// Bounding the input size is the caller's responsibility: wrap src with
+// [io.LimitReader] or [net/http.MaxBytesReader] before passing it in. See
+// docs/13-input-size.md for the rationale.
+func ParseReader(src io.Reader, _ ...ParseOption) (*Message, error) {
 	buf, err := io.ReadAll(src)
 	if err != nil {
-		return nil, parseError{fmt.Errorf(`jwe.ParseReader: failed to read from io.Reader: %w`, err)}
+		return nil, makeParseError(`jwe.ParseReader`, `failed to read from io.Reader: %w`, err)
 	}
 	msg, err := Parse(buf)
 	if err != nil {
-		return nil, parseError{fmt.Errorf(`jwe.ParseReader: %w`, err)}
+		return nil, makeParseError(`jwe.ParseReader`, `%w`, err)
 	}
 	return msg, nil
 }

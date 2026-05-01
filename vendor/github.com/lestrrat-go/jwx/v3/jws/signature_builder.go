@@ -52,26 +52,35 @@ func freeSignatureBuilder(sb *signatureBuilder) *signatureBuilder {
 }
 
 func (sb *signatureBuilder) Build(sc *signContext, payload []byte) (*Signature, error) {
-	protected := sb.protected
-	if protected == nil {
+	// Clone caller-provided headers before mutating so that re-using the
+	// same Headers instance across multiple Sign calls does not cause
+	// cross-contamination of alg/kid.
+	var protected Headers
+	if sb.protected != nil {
+		cloned, err := sb.protected.Clone()
+		if err != nil {
+			return nil, makeSignError(prefixJwsSign, `failed to clone protected headers: %w`, err)
+		}
+		protected = cloned
+	} else {
 		protected = NewHeaders()
 	}
 
 	if err := protected.Set(AlgorithmKey, sb.alg); err != nil {
-		return nil, signerr(`failed to set "alg" header: %w`, err)
+		return nil, makeSignError(prefixJwsSign, `failed to set "alg" header: %w`, err)
 	}
 
 	if key, ok := sb.key.(jwk.Key); ok {
 		if kid, ok := key.KeyID(); ok && kid != "" {
 			if err := protected.Set(KeyIDKey, kid); err != nil {
-				return nil, signerr(`failed to set "kid" header: %w`, err)
+				return nil, makeSignError(prefixJwsSign, `failed to set "kid" header: %w`, err)
 			}
 		}
 	}
 
 	hdrs, err := mergeHeaders(sb.public, protected)
 	if err != nil {
-		return nil, signerr(`failed to merge headers: %w`, err)
+		return nil, makeSignError(prefixJwsSign, `failed to merge headers: %w`, err)
 	}
 
 	// raw, json format headers

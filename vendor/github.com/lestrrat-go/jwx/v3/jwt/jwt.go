@@ -1,28 +1,34 @@
 //go:generate ../tools/cmd/genjwt.sh
 //go:generate stringer -type=TokenOption -output=token_options_gen.go
 
-// Package jwt implements JSON Web Tokens as described in https://tools.ietf.org/html/rfc7519
 package jwt
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/lestrrat-go/jwx/v3"
 	"github.com/lestrrat-go/jwx/v3/internal/json"
 	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jws"
 	jwterrs "github.com/lestrrat-go/jwx/v3/jwt/internal/errors"
 	"github.com/lestrrat-go/jwx/v3/jwt/internal/types"
 )
 
+var muSettings sync.Mutex
 var defaultTruncation atomic.Int64
 
 // Settings controls global settings that are specific to JWTs.
 func Settings(options ...GlobalOption) {
+	muSettings.Lock()
+	defer muSettings.Unlock()
+
 	var flattenAudience bool
 	var parsePedantic bool
 	var parsePrecision = types.MaxPrecision + 1  // illegal value, so we can detect nothing was set
@@ -64,38 +70,29 @@ func Settings(options ...GlobalOption) {
 	}
 
 	if parsePrecision <= types.MaxPrecision { // remember we set default to max + 1
-		v := atomic.LoadUint32(&types.ParsePrecision)
-		if v != parsePrecision {
-			atomic.CompareAndSwapUint32(&types.ParsePrecision, v, parsePrecision)
-		}
+		types.ParsePrecision.Store(parsePrecision)
 	}
 
 	if formatPrecision <= types.MaxPrecision { // remember we set default to max + 1
-		v := atomic.LoadUint32(&types.FormatPrecision)
-		if v != formatPrecision {
-			atomic.CompareAndSwapUint32(&types.FormatPrecision, v, formatPrecision)
-		}
+		types.FormatPrecision.Store(formatPrecision)
 	}
 
 	{
-		v := atomic.LoadUint32(&types.Pedantic)
-		if (v == 1) != parsePedantic {
-			var newVal uint32
-			if parsePedantic {
-				newVal = 1
-			}
-			atomic.CompareAndSwapUint32(&types.Pedantic, v, newVal)
+		var newVal uint32
+		if parsePedantic {
+			newVal = 1
 		}
+		types.Pedantic.Store(newVal)
 	}
 
 	{
-		defaultOptionsMu.Lock()
+		opts := TokenOptionSet(defaultOptions.Load())
 		if flattenAudience {
-			defaultOptions.Enable(FlattenAudience)
+			opts.Enable(FlattenAudience)
 		} else {
-			defaultOptions.Disable(FlattenAudience)
+			opts.Disable(FlattenAudience)
 		}
-		defaultOptionsMu.Unlock()
+		defaultOptions.Store(opts.Value())
 	}
 
 	if truncation >= 0 {
@@ -118,27 +115,33 @@ func ParseString(s string, options ...ParseOption) (Token, error) {
 // The token must be encoded in JWS compact format, or a raw JSON form of JWT
 // without any signatures.
 //
-// If you need JWE support on top of JWS, you will need to rollout your
-// own workaround.
+// Signed input is verified by default. Pass `jwt.WithKey()`,
+// `jwt.WithKeySet()`, `jwt.WithKeyProvider()`, or
+// `jwt.WithVerifyAuto(fetcher, fetchOptions...)` when verification is
+// required. A bare `jwt.Parse()` call returns an error; to intentionally
+// skip verification, pass `jwt.WithVerify(false)` or use
+// `jwt.ParseInsecure()`.
 //
-// If the token is signed, and you want to verify the payload matches the signature,
-// you must pass the jwt.WithKey(alg, key) or jwt.WithKeySet(jwk.Set) option.
-// If you do not specify these parameters, no verification will be performed.
+// `Parse()` also accepts `ValidateOption` values. Validation runs by default
+// after parsing, so `jwt.WithValidate(true)` is only needed to override a
+// prior `jwt.WithValidate(false)` in the same option set. Pass
+// `jwt.WithValidate(false)` if you need to defer validation and call
+// `Validate()` yourself later.
+//
+// To produce nested JWTs, use
+// `jwt.NewSerializer().Sign(...).Encrypt(...).Serialize(...)`. `Parse()` does
+// not decrypt JWE envelopes; decrypt the outer JWE before calling it.
 //
 // During verification, if the JWS headers specify a key ID (`kid`), the
 // key used for verification must match the specified ID. If you are somehow
 // using a key without a `kid` (which is highly unlikely if you are working
-// with a JWT from a well-know provider), you can work around this by modifying
-// the `jwk.Key` and setting the `kid` header.
-//
-// If you also want to assert the validity of the JWT itself (i.e. expiration
-// and such), use the `Validate()` function on the returned token, or pass the
-// `WithValidate(true)` option. Validate options can also be passed to
-// `Parse`
+// with a JWT from a well-known provider), you can work around this by
+// modifying the `jwk.Key` and setting its `kid` field.
 //
 // This function takes both ParseOption and ValidateOption types:
-// ParseOptions control the parsing behavior, and ValidateOptions are
-// passed to `Validate()` when `jwt.WithValidate` is specified.
+// ParseOptions control parsing and verification behavior, and
+// ValidateOptions are passed to `Validate()` when automatic validation is
+// enabled.
 func Parse(s []byte, options ...ParseOption) (Token, error) {
 	tok, err := parseBytes(s, options...)
 	if err != nil {
@@ -150,14 +153,19 @@ func Parse(s []byte, options ...ParseOption) (Token, error) {
 // ParseInsecure is exactly the same as Parse(), but it disables
 // signature verification and token validation.
 //
-// You cannot override `jwt.WithVerify()` or `jwt.WithValidate()`
-// using this function. Providing these options would result in
-// an error
+// `jwt.WithVerify()` and `jwt.WithValidate()` may not be specified
+// because they would conflict with the function's purpose. Likewise,
+// the key-bearing options `jwt.WithKey()`, `jwt.WithKeySet()`,
+// `jwt.WithKeyProvider()`, and `jwt.WithVerifyAuto()` are rejected so
+// that typos like `jwt.ParseInsecure(data, jwt.WithKey(...))` cannot
+// silently skip verification. Use `jwt.Parse` when a key is available.
 func ParseInsecure(s []byte, options ...ParseOption) (Token, error) {
 	for _, option := range options {
 		switch option.Ident() {
 		case identVerify{}, identValidate{}:
 			return nil, jwterrs.ParseErrorf(`jwt.ParseInsecure`, `jwt.WithVerify() and jwt.WithValidate() may not be specified`)
+		case identKey{}, identKeySet{}, identKeyProvider{}, identVerifyAuto{}:
+			return nil, jwterrs.ParseErrorf(`jwt.ParseInsecure`, `key-bearing options (jwt.WithKey, jwt.WithKeySet, jwt.WithKeyProvider, jwt.WithVerifyAuto) may not be specified; use jwt.Parse to verify with a key`)
 		}
 	}
 
@@ -169,9 +177,12 @@ func ParseInsecure(s []byte, options ...ParseOption) (Token, error) {
 	return tok, nil
 }
 
-// ParseReader calls Parse against an io.Reader
+// ParseReader calls Parse against an io.Reader.
+//
+// Bounding the input size is the caller's responsibility: wrap src with
+// [io.LimitReader] or [net/http.MaxBytesReader] before passing it in. See
+// docs/13-input-size.md for the rationale.
 func ParseReader(src io.Reader, options ...ParseOption) (Token, error) {
-	// We're going to need the raw bytes regardless. Read it.
 	data, err := io.ReadAll(src)
 	if err != nil {
 		return nil, jwterrs.ParseErrorf(`jwt.ParseReader`, `failed to read from token data source: %w`, err)
@@ -184,15 +195,16 @@ func ParseReader(src io.Reader, options ...ParseOption) (Token, error) {
 }
 
 type parseCtx struct {
-	token            Token
-	validateOpts     []ValidateOption
-	verifyOpts       []jws.VerifyOption
-	localReg         *json.Registry
-	pedantic         bool
-	skipVerification bool
-	validate         bool
-	withKeyCount     int
-	withKey          *withKey // this is used to detect if we have a WithKey option
+	token              Token
+	validateOpts       []ValidateOption
+	verifyOpts         []jws.VerifyOption
+	localReg           *json.Registry
+	strictStringClaims *bool // per-call override; nil = use global
+	pedantic           bool
+	skipVerification   bool
+	validate           bool
+	withKeyCount       int
+	withKey            *withKey // this is used to detect if we have a WithKey option
 }
 
 func parseBytes(data []byte, options ...ParseOption) (Token, error) {
@@ -262,6 +274,12 @@ func parseBytes(data []byte, options ...ParseOption) (Token, error) {
 				ctx.localReg = json.NewRegistry()
 			}
 			ctx.localReg.Register(pair.Name, pair.Value)
+		case identStrictStringClaims{}:
+			var v bool
+			if err := o.Value(&v); err != nil {
+				return nil, fmt.Errorf("jwt.parseBytes: value for WithStrictStringClaims must be bool: %w", err)
+			}
+			ctx.strictStringClaims = &v
 		}
 	}
 
@@ -306,10 +324,20 @@ func verifyJWS(ctx *parseCtx, payload []byte) ([]byte, int, error) {
 		alg, ok := wk.alg.(jwa.SignatureAlgorithm)
 		if ok && len(wk.options) == 0 {
 			verified, err := jws.VerifyCompactFast(wk.key, payload, alg)
-			if err != nil {
-				return nil, _JwsVerifyDone, err
+			if err == nil {
+				return verified, _JwsVerifyDone, nil
 			}
-			return verified, _JwsVerifyDone, nil
+			// VerifyCompactFast refuses crit-bearing messages. In v3
+			// jws.Verify defaults critValidation=false, so the generic
+			// fall-through path would still silently accept "crit".
+			// Force the strict path here: jwt.Parse must not be laxer
+			// than jws.Verify + WithCritValidation.
+			if errors.Is(err, jws.ErrCritPresent()) {
+				verifyOpts := append(ctx.verifyOpts, jws.WithCompact(), jws.WithCritValidation(true))
+				verified, err := jws.Verify(payload, verifyOpts...)
+				return verified, _JwsVerifyDone, err
+			}
+			return nil, _JwsVerifyDone, err
 		}
 	}
 
@@ -415,12 +443,18 @@ OUTER:
 		ctx.token = New()
 	}
 
-	if ctx.localReg != nil {
+	if ctx.localReg != nil || ctx.strictStringClaims != nil {
 		dcToken, ok := ctx.token.(TokenWithDecodeCtx)
 		if !ok {
-			return nil, fmt.Errorf(`typed claim was requested, but the token (%T) does not support DecodeCtx`, ctx.token)
+			return nil, fmt.Errorf(`typed claim or strict string claims was requested, but the token (%T) does not support DecodeCtx`, ctx.token)
 		}
-		dc := json.NewDecodeCtx(ctx.localReg)
+
+		var strict bool
+		if ctx.strictStringClaims != nil {
+			strict = *ctx.strictStringClaims
+		}
+
+		dc := json.NewDecodeCtxStrictStrings(ctx.localReg, strict)
 		dcToken.SetDecodeCtx(dc)
 		defer func() { dcToken.SetDecodeCtx(nil) }()
 	}
@@ -473,10 +507,30 @@ func Sign(t Token, options ...SignOption) ([]byte, error) {
 				return nil, fmt.Errorf(`jwt.Sign: invalid algorithm type %T. jwa.SignatureAlgorithm is required`, wk.alg)
 			}
 
+			// Reject algorithm names that would require JSON escaping
+			// in the protected header. Unlike kid (which may be attacker-
+			// influenced and silently falls through to jws.Sign), an
+			// unsafe alg is almost certainly a caller bug or an injection
+			// attempt, so we fail fast rather than emit any signature.
+			if !fastPathAlgSafe(alg.String()) {
+				return nil, fmt.Errorf(`jwt.Sign: algorithm %q contains bytes that require JSON escaping`, alg.String())
+			}
+
 			// Check if option contains anything other than alg/key
 			if len(wk.options) == 0 {
-				// yay, we have something we can put in the FAST PATH!
-				return signFast(t, alg, wk.key)
+				// If the key carries a kid that would require JSON escaping,
+				// skip the fast path (which concatenates kid raw into the
+				// protected header) and fall through to jws.Sign.
+				fastSafe := true
+				if jwkKey, ok := wk.key.(jwk.Key); ok {
+					if v, ok := jwkKey.KeyID(); ok && !fastPathKidSafe(v) {
+						fastSafe = false
+					}
+				}
+				if fastSafe {
+					// yay, we have something we can put in the FAST PATH!
+					return signFast(t, alg, wk.key)
+				}
 			}
 			// fallthrough
 		}

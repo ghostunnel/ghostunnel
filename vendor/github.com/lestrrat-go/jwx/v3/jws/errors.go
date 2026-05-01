@@ -1,14 +1,36 @@
 package jws
 
 import (
+	"errors"
 	"fmt"
 )
+
+// errCritPresent is returned by VerifyCompactFast when the protected
+// header carries a "crit" list. The fast path cannot enforce RFC 7515
+// §4.1.11 (it has no WithCritExtension allowlist), so it refuses rather
+// than silently accepting. Callers that wrap VerifyCompactFast and want
+// the full validateCritical rule set applied should detect this via
+// errors.Is(err, jws.ErrCritPresent()) and retry through jws.Verify.
+var errCritPresent = errors.New("VerifyCompactFast: protected header contains \"crit\"; use jws.Verify")
+
+// ErrCritPresent returns the sentinel error returned by VerifyCompactFast
+// when the protected header contains a "crit" list. Callers that front
+// VerifyCompactFast with an auto-fallback to jws.Verify can detect it
+// via errors.Is.
+func ErrCritPresent() error {
+	return errCritPresent
+}
 
 type signError struct {
 	error
 }
 
-var errDefaultSignError = signerr(`unknown error`)
+const (
+	prefixJwsSign    = `jws.Sign`
+	prefixJwsCompact = `jws.Compact`
+)
+
+var errDefaultSignError = makeSignError(prefixJwsSign, `unknown error`)
 
 // SignError returns an error that can be passed to `errors.Is` to check if the error is a sign error.
 func SignError() error {
@@ -24,8 +46,8 @@ func (signError) Is(err error) bool {
 	return ok
 }
 
-func signerr(f string, args ...any) error {
-	return signError{fmt.Errorf(`jws.Sign: `+f, args...)}
+func makeSignError(prefix string, f string, args ...any) error {
+	return signError{fmt.Errorf(prefix+`: `+f, args...)}
 }
 
 // This error is returned when jws.Verify fails, but note that there's another type of
@@ -34,7 +56,7 @@ type verifyError struct {
 	error
 }
 
-var errDefaultVerifyError = verifyerr(`unknown error`)
+var errDefaultVerifyError = makeVerifyError(`unknown error`)
 
 // VerifyError returns an error that can be passed to `errors.Is` to check if the error is a verify error.
 func VerifyError() error {
@@ -50,7 +72,7 @@ func (verifyError) Is(err error) bool {
 	return ok
 }
 
-func verifyerr(f string, args ...any) error {
+func makeVerifyError(f string, args ...any) error {
 	return verifyError{fmt.Errorf(`jws.Verify: `+f, args...)}
 }
 
@@ -79,7 +101,7 @@ type parseError struct {
 	error
 }
 
-var errDefaultParseError = parseerr(`unknown error`)
+var errDefaultParseError = makeParseError(`jws.Parse`, `unknown error`)
 
 // ParseError returns an error that can be passed to `errors.Is` to check if the error is a parse error.
 func ParseError() error {
@@ -95,18 +117,6 @@ func (parseError) Is(err error) bool {
 	return ok
 }
 
-func bparseerr(prefix string, f string, args ...any) error {
+func makeParseError(prefix string, f string, args ...any) error {
 	return parseError{fmt.Errorf(prefix+": "+f, args...)}
-}
-
-func parseerr(f string, args ...any) error {
-	return bparseerr(`jws.Parse`, f, args...)
-}
-
-func sparseerr(f string, args ...any) error {
-	return bparseerr(`jws.ParseString`, f, args...)
-}
-
-func rparseerr(f string, args ...any) error {
-	return bparseerr(`jws.ParseReader`, f, args...)
 }
