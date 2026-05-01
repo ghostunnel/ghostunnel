@@ -901,13 +901,21 @@ func (enc *Encoder) EncodeTrustStoreEntries(entries []TrustStoreEntry, password 
 	}
 
 	if enc.macAlgorithm != nil {
-		// compute the MAC
-		pfx.MacData.Mac.Algorithm.Algorithm = enc.macAlgorithm
-		pfx.MacData.MacSalt = make([]byte, enc.saltLen)
-		if _, err = enc.rand.Read(pfx.MacData.MacSalt); err != nil {
+		macSalt := make([]byte, enc.saltLen)
+		if _, err = enc.rand.Read(macSalt); err != nil {
 			return nil, err
 		}
-		pfx.MacData.Iterations = enc.macIterations
+		pfx.MacData.Mac.Algorithm.Algorithm = enc.macAlgorithm
+		if enc.macAlgorithm.Equal(oidPBMAC1) {
+			var err error
+			pfx.MacData.Mac.Algorithm.Parameters.FullBytes, err = makePBMAC1Parameters(macSalt, enc.macIterations)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			pfx.MacData.MacSalt = macSalt
+			pfx.MacData.Iterations = enc.macIterations
+		}
 		if err = computeMac(&pfx.MacData, authenticatedSafeBytes, encodedPassword); err != nil {
 			return nil, err
 		}
