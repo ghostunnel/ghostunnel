@@ -183,7 +183,12 @@ func setupLandlock() error {
 }
 
 func ruleFromStringAddress(addr string, ruleFromPort portRuleFunc) (landlock.Rule, error) {
+	if strings.HasPrefix(addr, "unix://") {
+		// URL-style unix:// with an empty authority component, e.g. unix:///var/run/foo.sock
+		return landlock.RWFiles(addr[7:]), nil
+	}
 	if strings.HasPrefix(addr, "unix:") {
+		// Bare unix: form, e.g. unix:/var/run/foo.sock
 		return landlock.RWFiles(addr[5:]), nil
 	}
 	if strings.HasPrefix(addr, "systemd:") || strings.HasPrefix(addr, "launchd:") {
