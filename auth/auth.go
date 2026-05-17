@@ -18,6 +18,8 @@ package auth
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -71,6 +73,50 @@ type ACL struct {
 	// OPAQueryTimeout sets the timeout for AllowOPAQuery. It has no effect
 	// if AllowOPAQuery is nil.
 	OPAQueryTimeout time.Duration
+
+	// Pins holds the raw SHA-256 hashes (32 bytes each) of the expected
+	// peer's SubjectPublicKeyInfo (SPKI). When non-empty, verification uses
+	// out-of-band key pinning (in the style of RFC 7858 section 4.2): the peer
+	// is authenticated solely by requiring the leaf certificate's SPKI hash to
+	// match one of these pins, and the certificate chain, validity period, and
+	// hostname are not verified. Multiple pins may be supplied so that a
+	// current and a backup key can both be accepted during key rotation. This
+	// is mutually exclusive with all other ACL fields.
+	Pins [][]byte
+}
+
+// PinningEnabled reports whether this ACL authenticates peers via SPKI pinning
+// (see Pins). It is the single source of truth for pin mode: when it returns
+// true, the transport MUST disable normal certificate verification
+// (InsecureSkipVerify on clients, RequireAnyClientCert on servers) so that
+// verifyPin becomes the sole authentication check, and VerifyPeerCertificate{Server,Client}
+// enforce the pin. Keeping both decisions derived from this one predicate
+// prevents the transport and the verifier from drifting out of sync.
+func (a ACL) PinningEnabled() bool {
+	return len(a.Pins) > 0
+}
+
+// verifyPin checks whether the leaf certificate in rawCerts matches one of the
+// configured SPKI pins. It is called when pinning is enabled, bypassing all
+// chain-based verification.
+func (a ACL) verifyPin(rawCerts [][]byte) error {
+	if len(rawCerts) == 0 {
+		return errors.New("unauthorized: no certificate presented")
+	}
+
+	cert, err := x509.ParseCertificate(rawCerts[0])
+	if err != nil {
+		return fmt.Errorf("unauthorized: failed to parse certificate: %w", err)
+	}
+
+	hash := sha256.Sum256(cert.RawSubjectPublicKeyInfo)
+	for _, pin := range a.Pins {
+		if subtle.ConstantTimeCompare(hash[:], pin) == 1 {
+			return nil
+		}
+	}
+
+	return errors.New("unauthorized: pin verification failed")
 }
 
 // VerifyPeerCertificateServer is an implementation of VerifyPeerCertificate
@@ -78,6 +124,10 @@ type ACL struct {
 // enforce access controls based on the given ACL. If the given ACL is empty,
 // no clients will be allowed (fails closed).
 func (a ACL) VerifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+	if a.PinningEnabled() {
+		return a.verifyPin(rawCerts)
+	}
+
 	if len(verifiedChains) == 0 {
 		return errors.New("unauthorized: invalid principal, or principal not allowed")
 	}
@@ -139,6 +189,10 @@ func (a ACL) VerifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*
 // all servers will be allowed (this function assumes that DNS name verification
 // has already taken place, and therefore fails open).
 func (a ACL) VerifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+	if a.PinningEnabled() {
+		return a.verifyPin(rawCerts)
+	}
+
 	if len(verifiedChains) == 0 {
 		return errors.New("unauthorized: invalid principal, or principal not allowed")
 	}

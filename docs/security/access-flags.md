@@ -52,6 +52,27 @@ with `spiffe://ghostunnel/client1` or `spiffe://ghostunnel/client2` URI SANs (as
 well as other values). See documentation for the [wildcard][wildcard] package
 for more information.
 
+* `--allow-pin`
+
+Allow clients whose leaf certificate's public key matches the given SPKI pin, a
+base64-encoded SHA-256 hash of the DER-encoded SubjectPublicKeyInfo (hash
+construction per [RFC 7469 §2.4][rfc7469]). Can be repeated to allow multiple
+keys (e.g. a current and a backup key for rotation).
+
+This is out-of-band key pinning in the style of [RFC 7858 §4.2][rfc7858]: the
+client is authenticated by the pin alone, so the certificate chain, validity
+period, and hostname are *not* verified and a pinned key need not chain to a
+trusted CA. Mutually exclusive with other access control flags and with
+`--use-workload-api`.
+
+> **Prefer an OPA policy if the client is already PKIX-valid.** `--allow-pin` is
+> for clients whose certificate is *not* otherwise trusted (self-signed or
+> out-of-band-distributed keys). If clients already present a certificate that
+> chains to `--cacert` and you only want to *additionally* restrict to a specific
+> key, keep normal chain validation and pin via `--allow-policy` over
+> `input.certificate.RawSubjectPublicKeyInfo` (its SHA-256 is the SPKI pin). See
+> the Open Policy Agent section below.
+
 * `--allow-policy` and `--allow-query` (*OPA bundle support since v1.9.0*)
 
 Allow clients where a Rego policy evaluates to `true` with the given query.
@@ -78,11 +99,13 @@ certificate. Standard hostname verification always runs regardless of which
 flags are set; by default it checks the hostname from `--target` against the
 server certificate's DNS/IP SANs, but `--override-server-name` (see below) can
 redirect verification to a different name (e.g. when dialing by IP, or when
-the cert's SAN doesn't match the dialed host). The one exception is the
-[SPIFFE Workload API]({{< ref "spiffe-workload-api.md" >}}): when
+the cert's SAN doesn't match the dialed host). Two flags are exceptions that
+replace hostname verification entirely rather than adding to it: the
+[SPIFFE Workload API]({{< ref "spiffe-workload-api.md" >}}) (when
 `--use-workload-api` is set, hostname verification is replaced by SPIFFE
-authentication (peers are verified as presenting a valid X509-SVID), so use
-`--verify-uri` to pin the expected SPIFFE ID.
+authentication — peers are verified as presenting a valid X509-SVID, so use
+`--verify-uri` to pin the expected SPIFFE ID), and `--verify-pin` (see below,
+which authenticates the server by its SPKI pin alone).
 
 When multiple verification flags are specified, they are OR'd together: a
 connection is allowed if at least one flag matches (and hostname verification
@@ -122,6 +145,27 @@ with `spiffe://ghostunnel/server1` or `spiffe://ghostunnel/server2` URI SANs (as
 well as other values). See documentation for the [wildcard][wildcard] package
 for more information.
 
+* `--verify-pin`
+
+Verify the server's leaf certificate's public key against the given SPKI pin, a
+base64-encoded SHA-256 hash of the DER-encoded SubjectPublicKeyInfo (hash
+construction per [RFC 7469 §2.4][rfc7469]). Can be repeated to accept multiple
+keys (e.g. a current and a backup key for rotation).
+
+Unlike the other verification flags, this is out-of-band key pinning in the
+style of [RFC 7858 §4.2][rfc7858]: the server is authenticated by the pin
+alone, so standard hostname verification, chain validation, and validity-period
+checks do *not* run. Mutually exclusive with other verification/authentication
+flags and with `--use-workload-api`.
+
+> **Prefer an OPA policy if the server is already PKIX-valid.** `--verify-pin` is
+> for servers whose certificate is *not* otherwise trusted (self-signed or
+> out-of-band-distributed keys). If the server already presents a certificate
+> that chains to `--cacert` and passes hostname verification, and you only want
+> to *additionally* restrict to a specific key, keep normal validation and pin
+> via `--verify-policy` over `input.certificate.RawSubjectPublicKeyInfo` (its
+> SHA-256 is the SPKI pin). See the Open Policy Agent section below.
+
 * `--verify-policy` and `--verify-query` (*OPA bundle support since v1.9.0*)
 
 Verify that a Rego policy evaluates to `true` with the given query.
@@ -134,6 +178,8 @@ when the backend does not require mutual TLS.
 
 [tls]: https://pkg.go.dev/crypto/tls
 [wildcard]: https://pkg.go.dev/github.com/ghostunnel/ghostunnel/wildcard
+[rfc7469]: https://www.rfc-editor.org/rfc/rfc7469#section-2.4
+[rfc7858]: https://www.rfc-editor.org/rfc/rfc7858#section-4.2
 
 ## Open Policy Agent
 

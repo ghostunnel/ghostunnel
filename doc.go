@@ -123,6 +123,14 @@ To set allowed clients, you must specify at least one of \fB--allow-all\fR,
 Multiple flags are treated as a logical disjunction (OR), meaning clients can
 connect as long as any of the flags match. To disable requiring client
 certificates, use \fB--disable-authentication\fR.
+.PP
+Alternatively, \fB--allow-pin\fR authenticates clients by out-of-band SPKI key
+pinning (RFC 7858 section 4.2): only clients presenting a certificate whose
+public key matches the given base64-encoded SHA-256 SPKI pin are allowed. The
+flag may be repeated to accept multiple keys (e.g. for key rotation). Because
+the client is authenticated by the pin alone, the certificate chain, validity
+period, and hostname are not verified. \fB--allow-pin\fR is mutually exclusive
+with the other access control flags.
 
 .SH "EXAMPLE: CLIENT MODE"
 Start a ghostunnel in client mode to proxy connections from localhost:8080
@@ -146,6 +154,15 @@ certificates, such as \fB--verify-cn\fR, \fB--verify-ou\fR, \fB--verify-dns\fR,
 logical disjunction (OR), meaning clients will connect to the server as long as
 any of the flags match, assuming that hostname verification was also successful.
 To disable sending client certificates, use \fB--disable-authentication\fR.
+.PP
+Alternatively, \fB--verify-pin\fR authenticates the server by out-of-band SPKI
+key pinning (RFC 7858 section 4.2): the connection succeeds only if the server
+presents a certificate whose public key matches the given base64-encoded SHA-256
+SPKI pin. The flag may be repeated to accept multiple keys (e.g. for key
+rotation). Unlike the other verification flags, the server is authenticated by
+the pin alone, so regular hostname verification, chain validation, and
+validity-period checks are not performed. \fB--verify-pin\fR is mutually
+exclusive with the other verification flags.
 
 .SH "EXAMPLE: UNIX SOCKETS"
 Ghostunnel supports UNIX domain sockets for both listening and forwarding:

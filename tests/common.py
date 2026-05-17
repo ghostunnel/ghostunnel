@@ -2,7 +2,9 @@ import subprocess
 from subprocess import call, check_call, check_output, Popen, DEVNULL
 from tempfile import mkstemp, mkdtemp
 import atexit
+import base64
 import json
+import hashlib
 import shutil
 import sys
 import time
@@ -597,6 +599,14 @@ def convert_p12_to_jceks(p12_name, jceks_name, password):
     if ret != 0:
         print("keytool -importkeystore failed", file=sys.stderr)
         sys.exit(2)
+
+def get_spki_pin(cert_file):
+    """Extract the SHA-256 SPKI pin from a cert file."""
+    der = check_output(
+        'openssl x509 -in {0} -pubkey -noout | openssl pkey -pubin -outform DER'.format(cert_file),
+        shell=True,
+    )
+    return base64.b64encode(hashlib.sha256(der).digest()).decode()
 
 def print_ok(msg):
     print("\033[92m{0}\033[0m".format(msg))

@@ -18,8 +18,13 @@ package auth
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"math/big"
 	"net"
 	"net/url"
 	"testing"
@@ -475,6 +480,117 @@ func TestVerifyOPARejectAllOU(t *testing.T) {
 		OPAQueryTimeout: 10 * time.Second,
 	}
 	assert.NotNil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "Rego policy rejects none OU")
+}
+
+// makePinTestCert generates a self-signed ECDSA certificate and returns its
+// DER encoding along with the SHA-256 SPKI pin.
+func makePinTestCert(t *testing.T) (certDER []byte, pin []byte) {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	assert.NoError(t, err)
+
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "pin-test"},
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(time.Hour),
+	}
+	certDER, err = x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	assert.NoError(t, err)
+
+	cert, err := x509.ParseCertificate(certDER)
+	assert.NoError(t, err)
+
+	hash := sha256.Sum256(cert.RawSubjectPublicKeyInfo)
+	return certDER, hash[:]
+}
+
+func TestAuthorizePinMatch(t *testing.T) {
+	certDER, pin := makePinTestCert(t)
+
+	testACL := ACL{Pins: [][]byte{pin}}
+
+	err := testACL.VerifyPeerCertificateServer([][]byte{certDER}, nil)
+	assert.Nil(t, err, "matching pin should allow connection")
+
+	err = testACL.VerifyPeerCertificateClient([][]byte{certDER}, nil)
+	assert.Nil(t, err, "matching pin should allow connection")
+}
+
+// TestAuthorizePinMultiple verifies that when several pins are configured (e.g.
+// a current and a backup key), a peer matching any one of them is accepted.
+func TestAuthorizePinMultiple(t *testing.T) {
+	certDER, pin := makePinTestCert(t)
+	otherPin := make([]byte, 32) // a backup/rotation pin that does not match
+
+	// Pin matches whether it is first or last in the list.
+	for _, pins := range [][][]byte{
+		{pin, otherPin},
+		{otherPin, pin},
+	} {
+		testACL := ACL{Pins: pins}
+		err := testACL.VerifyPeerCertificateServer([][]byte{certDER}, nil)
+		assert.Nil(t, err, "connection should be allowed when one of the pins matches")
+		err = testACL.VerifyPeerCertificateClient([][]byte{certDER}, nil)
+		assert.Nil(t, err, "connection should be allowed when one of the pins matches")
+	}
+}
+
+// TestAuthorizePinExpiredCert locks in the intentional behavior that SPKI
+// pinning authenticates by public key alone: an expired certificate whose key
+// matches the pin is still accepted, because the validity period is not
+// checked. If this ever changes, it must be a deliberate decision.
+func TestAuthorizePinExpiredCert(t *testing.T) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	assert.NoError(t, err)
+
+	// A certificate that became valid two hours ago and expired one hour ago.
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "pin-test-expired"},
+		NotBefore:    time.Now().Add(-2 * time.Hour),
+		NotAfter:     time.Now().Add(-1 * time.Hour),
+	}
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	assert.NoError(t, err)
+
+	cert, err := x509.ParseCertificate(certDER)
+	assert.NoError(t, err)
+	hash := sha256.Sum256(cert.RawSubjectPublicKeyInfo)
+
+	testACL := ACL{Pins: [][]byte{hash[:]}}
+
+	assert.Nil(t, testACL.VerifyPeerCertificateServer([][]byte{certDER}, nil),
+		"expired cert with matching pin should be accepted (expiry is not checked)")
+	assert.Nil(t, testACL.VerifyPeerCertificateClient([][]byte{certDER}, nil),
+		"expired cert with matching pin should be accepted (expiry is not checked)")
+}
+
+func TestAuthorizePinMismatch(t *testing.T) {
+	certDER, _ := makePinTestCert(t)
+
+	wrongPin := make([]byte, 32)
+
+	testACL := ACL{Pins: [][]byte{wrongPin}}
+
+	err := testACL.VerifyPeerCertificateServer([][]byte{certDER}, nil)
+	assert.NotNil(t, err, "mismatched pin should reject connection")
+	assert.Contains(t, err.Error(), "pin verification failed")
+
+	err = testACL.VerifyPeerCertificateClient([][]byte{certDER}, nil)
+	assert.NotNil(t, err, "mismatched pin should reject connection")
+	assert.Contains(t, err.Error(), "pin verification failed")
+}
+
+func TestAuthorizePinNoRawCerts(t *testing.T) {
+	pin := make([]byte, 32)
+	testACL := ACL{Pins: [][]byte{pin}}
+
+	err := testACL.VerifyPeerCertificateServer(nil, nil)
+	assert.NotNil(t, err, "no raw certs should reject connection")
+
+	err = testACL.VerifyPeerCertificateClient(nil, nil)
+	assert.NotNil(t, err, "no raw certs should reject connection")
 }
 
 func TestAuthorizeOPAEvalError(t *testing.T) {
