@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -33,10 +34,29 @@ import (
 
 type portRuleFunc = func(port uint16) landlock.NetRule
 
+var defaultReadWritePaths = []string{
+	"/dev",     // /dev/log syslog socket, /dev/urandom, /dev/null
+	"/run",     // sd_notify socket, journald socket, runtime state
+	"/var/run", // legacy alias of /run; some syslog daemons listen here
+	"/proc",    // Go runtime: /proc/self/* for GC and scheduler
+	"/tmp",     // temporary files (e.g. spooled writes, Go runtime)
+}
+
+var defaultReadOnlyPaths = []string{
+	"/sys",                             // Go runtime: cgroup info for GOMAXPROCS, CPU topology
+	"/etc",                             // DNS config, hosts, nsswitch, localtime, distro CA bundles
+	"/usr/share/zoneinfo",              // tzdata, referenced via /etc/localtime symlink
+	"/run/systemd/resolve",             // systemd-resolved stub resolv.conf
+	"/usr/share/ca-certificates",       // Debian/Ubuntu CA cert source files
+	"/usr/local/share/ca-certificates", // locally-installed CA certs (Debian/Ubuntu)
+	"/var/lib/ca-certificates",         // openSUSE/SLES CA bundle location
+}
+
 // setupLandlock processes flags given to the process and generates an
 // appropriate landlock rule configuration to limit our privileges.
 func setupLandlock() error {
 	fsRules := []landlock.Rule{}
+	netRules := []landlock.Rule{}
 
 	// Extra RW paths registered by init() hooks (e.g. GOCOVERDIR for
 	// coverage-instrumented builds).
@@ -44,16 +64,14 @@ func setupLandlock() error {
 		fsRules = append(fsRules, landlock.RWDirs(path))
 	}
 
-	// Default net rules
-	netRules := []landlock.Rule{
-		// For DNS over TCP/53 (sometimes enabled for name resolution)
-		landlock.ConnectTCP(uint16(53)),
-	}
+	// DNS over TCP as a fallback path for Go's resolver when a UDP response
+	// is truncated. UDP DNS is not gated by landlock net rules.
+	netRules = append(netRules, landlock.ConnectTCP(53))
 
 	// Default RW FS rules. Some paths we need always accessible for syslog and
 	// for creating runtime/temporary files. Note that syslog can be in multiple
 	// places not just /dev/log, e.g. /var/run is an option.
-	for _, path := range []string{"/dev", "/var/run", "/tmp", "/proc"} {
+	for _, path := range defaultReadWritePaths {
 		fsRules = append(fsRules, landlock.RWDirs(path).IgnoreIfMissing())
 	}
 
@@ -62,8 +80,40 @@ func setupLandlock() error {
 	// that we could have chosen to limit ourselves to specific files (e.g.
 	// /etc/nsswitch.conf, /etc/gai.conf), but it's difficult to enumerate the
 	// exact set of files required in every conceivable situation.
-	for _, path := range []string{"/etc", "/usr/share/zoneinfo"} {
+	for _, path := range defaultReadOnlyPaths {
 		fsRules = append(fsRules, landlock.RODirs(path).IgnoreIfMissing())
+	}
+
+	// When ACME is enabled, certmagic persists certificates and keys to
+	// $XDG_DATA_HOME/certmagic (defaulting to $HOME/.local/share/certmagic).
+	// Allow RW on that directory so cert acquisition and renewal can write.
+	// The path is per-user so it's not safe to add unconditionally. Outbound
+	// access to the ACME CA URL (for directory/order/finalize and cert
+	// downloads) is granted via the ConnectTCP loop below using the configured
+	// --auto-acme-ca / --auto-acme-testca URLs, falling back to Let's Encrypt
+	// on tcp/443 when neither is set. TLS-ALPN-01 challenge traffic is inbound
+	// on the listener and is already covered by its BindTCP rule.
+	if serverAutoACMEFQDN != nil && *serverAutoACMEFQDN != "" {
+		fsRules = append(fsRules, landlock.RWDirs(certmagicDataDir()).IgnoreIfMissing())
+		if (serverAutoACMEProdCA == nil || *serverAutoACMEProdCA == "") &&
+			(serverAutoACMETestCA == nil || *serverAutoACMETestCA == "") {
+			netRules = append(netRules, landlock.ConnectTCP(443))
+		}
+	}
+
+	// SSL_CERT_FILE and SSL_CERT_DIR override Go's compiled-in CA bundle search
+	// paths (see crypto/x509/root_unix.go), so if an operator has set these the
+	// default RO paths above won't cover what Go actually reads.
+	if f := os.Getenv("SSL_CERT_FILE"); f != "" {
+		fsRules = append(fsRules, rulesFromFile(f)...)
+	}
+	if d := os.Getenv("SSL_CERT_DIR"); d != "" {
+		for _, dir := range strings.Split(d, ":") {
+			if dir == "" {
+				continue
+			}
+			fsRules = append(fsRules, rulesFromCertDir(dir)...)
+		}
 	}
 
 	// Process string flags containing addresses or URLs.
@@ -91,6 +141,8 @@ func setupLandlock() error {
 		clientForwardAddress,
 		useWorkloadAPIAddr,
 		metricsURL,
+		serverAutoACMEProdCA,
+		serverAutoACMETestCA,
 	} {
 		if addr == nil || len(*addr) == 0 {
 			continue
@@ -105,9 +157,7 @@ func setupLandlock() error {
 		}
 	}
 
-	// Process string flags containing file paths. Since we need to able to
-	// reload these files even after the file was changed/rewritten, we need to
-	// add a RO rule on the entire parent directory.
+	// Process string flags containing file paths.
 	for _, path := range []*string{
 		serverAllowPolicy,
 		clientAllowPolicy,
@@ -119,18 +169,7 @@ func setupLandlock() error {
 		if path == nil || len(*path) == 0 {
 			continue
 		}
-
-		// Note: If one of these args is a symlink, we also need to add a rule for
-		// the target of the symlink.
-		fsRules = append(fsRules, landlock.RODirs(filepath.Dir(*path)).IgnoreIfMissing())
-
-		target, err := filepath.EvalSymlinks(*path)
-		if err != nil {
-			continue
-		}
-		if target != *path {
-			fsRules = append(fsRules, landlock.RODirs(filepath.Dir(target)).IgnoreIfMissing())
-		}
+		fsRules = append(fsRules, rulesFromFile(*path)...)
 	}
 
 	// Process net.TCPAddr flags.
@@ -142,6 +181,19 @@ func setupLandlock() error {
 		rule, err := ruleFromTCPAddress(*addr, landlock.ConnectTCP)
 		if err != nil {
 			return fmt.Errorf("error processing argument '%s' for landlock rule: %w", *addr, err)
+		}
+		if rule != nil {
+			netRules = append(netRules, rule)
+		}
+	}
+
+	// Outbound HTTP from Go's net/http transport (certmagic ACME calls,
+	// --metrics-url POSTs) honors the HTTP_PROXY / HTTPS_PROXY env vars at
+	// request time. If they're set, allow outbound connect to the proxy.
+	for _, u := range proxyURLsFromEnv() {
+		rule, err := ruleFromURL(u, landlock.ConnectTCP)
+		if err != nil {
+			return fmt.Errorf("error processing proxy env URL '%s' for landlock rule: %w", u, err)
 		}
 		if rule != nil {
 			netRules = append(netRules, rule)
@@ -182,6 +234,10 @@ func setupLandlock() error {
 	return config.RestrictNet(netRules...)
 }
 
+// ruleFromStringAddress turns a flag-supplied address string into a landlock
+// rule. Handles unix sockets (RW on the socket path), systemd/launchd socket
+// activation (no rule needed; the FD is inherited), HTTP/HTTPS URLs, and
+// host:port forms. ruleFromPort selects bind vs connect semantics.
 func ruleFromStringAddress(addr string, ruleFromPort portRuleFunc) (landlock.Rule, error) {
 	if strings.HasPrefix(addr, "unix:") {
 		return landlock.RWFiles(addr[5:]), nil
@@ -211,6 +267,9 @@ func ruleFromStringAddress(addr string, ruleFromPort portRuleFunc) (landlock.Rul
 	return ruleFromPort(uint16(port)), nil
 }
 
+// ruleFromTCPAddress turns a *net.TCPAddr (from already-parsed flags like
+// --metrics-graphite) into a port-based landlock rule. ruleFromPort selects
+// bind vs connect semantics.
 func ruleFromTCPAddress(addr *net.TCPAddr, ruleFromPort portRuleFunc) (landlock.Rule, error) {
 	if addr.Port == 0 {
 		return nil, errors.New("unable to extract port number from address")
@@ -218,14 +277,19 @@ func ruleFromTCPAddress(addr *net.TCPAddr, ruleFromPort portRuleFunc) (landlock.
 	return ruleFromPort(uint16(addr.Port)), nil
 }
 
+// ruleFromURL turns a *url.URL into a port-based landlock rule, defaulting
+// the port by scheme when none is explicit: 80 for http, 443 for https,
+// 1080 for socks5/socks5h. ruleFromPort selects bind vs connect semantics.
 func ruleFromURL(u *url.URL, ruleFromPort portRuleFunc) (landlock.Rule, error) {
 	port := u.Port()
 	if len(port) == 0 {
-		if u.Scheme == "http" {
+		switch u.Scheme {
+		case "http":
 			return ruleFromPort(uint16(80)), nil
-		}
-		if u.Scheme == "https" {
+		case "https":
 			return ruleFromPort(uint16(443)), nil
+		case "socks5", "socks5h":
+			return ruleFromPort(uint16(1080)), nil
 		}
 	}
 	numericPort, err := strconv.ParseUint(port, 10, 16)
@@ -236,4 +300,79 @@ func ruleFromURL(u *url.URL, ruleFromPort portRuleFunc) (landlock.Rule, error) {
 		return nil, errors.New("unable to extract port number from address")
 	}
 	return ruleFromPort(uint16(numericPort)), nil
+}
+
+// proxyURLsFromEnv returns deduplicated proxy URLs that Go's net/http would
+// honor via HTTP_PROXY / HTTPS_PROXY (and the lowercase variants) at request
+// time. NO_PROXY is a bypass list, not a destination, so it needs no rule.
+// Mirrors the fallback in golang.org/x/net/http/httpproxy: if the value isn't
+// a URL with a recognized scheme, retry with "http://" prepended.
+func proxyURLsFromEnv() []*url.URL {
+	var urls []*url.URL
+	seen := make(map[string]bool)
+	for _, name := range []string{"HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"} {
+		v := os.Getenv(name)
+		if v == "" || seen[v] {
+			continue
+		}
+		seen[v] = true
+		u, err := url.Parse(v)
+		if err != nil || u.Host == "" ||
+			(u.Scheme != "http" && u.Scheme != "https" &&
+				u.Scheme != "socks5" && u.Scheme != "socks5h") {
+			u, err = url.Parse("http://" + v)
+			if err != nil || u.Host == "" {
+				continue
+			}
+		}
+		urls = append(urls, u)
+	}
+	return urls
+}
+
+// rulesFromFile returns RO rules covering the parent directory of path, and
+// (if path is a symlink) the parent directory of the symlink target. We grant
+// the parent rather than the file itself so the file can be replaced
+// atomically (write-new-then-rename) and reloaded without breaking the rule.
+func rulesFromFile(path string) []landlock.Rule {
+	rules := []landlock.Rule{landlock.RODirs(filepath.Dir(path)).IgnoreIfMissing()}
+	if target, err := filepath.EvalSymlinks(path); err == nil && target != path {
+		rules = append(rules, landlock.RODirs(filepath.Dir(target)).IgnoreIfMissing())
+	}
+	return rules
+}
+
+// rulesFromCertDir returns RO rules covering dir and the parent directory of
+// every symlink target inside it. Distros commonly populate cert directories
+// (e.g. /etc/ssl/certs) with symlinks pointing into a vendor-specific bundle
+// location, and Go's crypto/x509 follows those symlinks when scanning
+// SSL_CERT_DIR — so we need rules covering the eventual targets too.
+func rulesFromCertDir(dir string) []landlock.Rule {
+	rules := []landlock.Rule{landlock.RODirs(dir).IgnoreIfMissing()}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return rules
+	}
+	for _, entry := range entries {
+		target, err := filepath.EvalSymlinks(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			continue
+		}
+		rules = append(rules, landlock.RODirs(filepath.Dir(target)).IgnoreIfMissing())
+	}
+	return rules
+}
+
+// certmagicDataDir mirrors the path resolution logic in certmagic's
+// FileStorage so the landlock rule covers exactly what the library writes to.
+// See vendor/github.com/caddyserver/certmagic/filestorage.go (dataDir).
+func certmagicDataDir() string {
+	if xdg := os.Getenv("XDG_DATA_HOME"); xdg != "" {
+		return filepath.Join(xdg, "certmagic")
+	}
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		home = "."
+	}
+	return filepath.Join(home, ".local", "share", "certmagic")
 }
