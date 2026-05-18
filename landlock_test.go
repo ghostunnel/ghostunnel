@@ -124,7 +124,9 @@ func TestLandlockRulesFromCertDir(t *testing.T) {
 
 	// Three symlinks pointing into the same external bundle dir, plus one
 	// regular file and one dangling symlink. Expect: 1 rule for dir itself,
-	// 1 rule for the deduped bundle dir.
+	// plus 1 rule per entry whose EvalSymlinks succeeds (3 symlinks + bundle
+	// subdir + regular.pem) = 6 rules; landlock dedupes overlapping rules at
+	// the kernel level.
 	bundleDir := filepath.Join(dir, "bundle")
 	if err := os.Mkdir(bundleDir, 0700); err != nil {
 		t.Fatal(err)

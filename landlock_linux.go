@@ -46,7 +46,6 @@ var defaultReadOnlyPaths = []string{
 	"/sys",                             // Go runtime: cgroup info for GOMAXPROCS, CPU topology
 	"/etc",                             // DNS config, hosts, nsswitch, localtime, distro CA bundles
 	"/usr/share/zoneinfo",              // tzdata, referenced via /etc/localtime symlink
-	"/run/systemd/resolve",             // systemd-resolved stub resolv.conf
 	"/usr/share/ca-certificates",       // Debian/Ubuntu CA cert source files
 	"/usr/local/share/ca-certificates", // locally-installed CA certs (Debian/Ubuntu)
 	"/var/lib/ca-certificates",         // openSUSE/SLES CA bundle location
@@ -86,15 +85,16 @@ func setupLandlock() error {
 
 	// When ACME is enabled, certmagic persists certificates and keys to
 	// $XDG_DATA_HOME/certmagic (defaulting to $HOME/.local/share/certmagic).
-	// Allow RW on that directory so cert acquisition and renewal can write.
-	// The path is per-user so it's not safe to add unconditionally. Outbound
-	// access to the ACME CA URL (for directory/order/finalize and cert
-	// downloads) is granted via the ConnectTCP loop below using the configured
-	// --auto-acme-ca / --auto-acme-testca URLs, falling back to Let's Encrypt
-	// on tcp/443 when neither is set. TLS-ALPN-01 challenge traffic is inbound
-	// on the listener and is already covered by its BindTCP rule.
+	// Grant RW on the parent dir so certmagic can create and populate the
+	// certmagic/ subdirectory on first use. The path is per-user so it's not
+	// safe to add unconditionally. Outbound access to the ACME CA URL (for
+	// directory/order/finalize and cert downloads) is granted via the
+	// ConnectTCP loop below using the configured --auto-acme-ca /
+	// --auto-acme-testca URLs, falling back to Let's Encrypt on tcp/443 when
+	// neither is set. TLS-ALPN-01 challenge traffic is inbound on the
+	// listener and is already covered by its BindTCP rule.
 	if serverAutoACMEFQDN != nil && *serverAutoACMEFQDN != "" {
-		fsRules = append(fsRules, landlock.RWDirs(certmagicDataDir()).IgnoreIfMissing())
+		fsRules = append(fsRules, landlock.RWDirs(filepath.Dir(certmagicDataDir())).IgnoreIfMissing())
 		if (serverAutoACMEProdCA == nil || *serverAutoACMEProdCA == "") &&
 			(serverAutoACMETestCA == nil || *serverAutoACMETestCA == "") {
 			netRules = append(netRules, landlock.ConnectTCP(443))
@@ -187,9 +187,9 @@ func setupLandlock() error {
 		}
 	}
 
-	// Outbound HTTP from Go's net/http transport (certmagic ACME calls,
-	// --metrics-url POSTs) honors the HTTP_PROXY / HTTPS_PROXY env vars at
-	// request time. If they're set, allow outbound connect to the proxy.
+	// Outbound HTTP from Go's net/http transport (certmagic ACME calls)
+	// honors the HTTP_PROXY / HTTPS_PROXY env vars at request time. If
+	// they're set, allow outbound connect to the proxy.
 	for _, u := range proxyURLsFromEnv() {
 		rule, err := ruleFromURL(u, landlock.ConnectTCP)
 		if err != nil {
@@ -342,11 +342,13 @@ func rulesFromFile(path string) []landlock.Rule {
 	return rules
 }
 
-// rulesFromCertDir returns RO rules covering dir and the parent directory of
-// every symlink target inside it. Distros commonly populate cert directories
-// (e.g. /etc/ssl/certs) with symlinks pointing into a vendor-specific bundle
-// location, and Go's crypto/x509 follows those symlinks when scanning
-// SSL_CERT_DIR — so we need rules covering the eventual targets too.
+// rulesFromCertDir returns an RO rule for dir, plus an RO rule for the parent
+// directory of every readable entry whose symlinks resolve. Distros commonly
+// populate cert directories (e.g. /etc/ssl/certs) with symlinks pointing into
+// a vendor-specific bundle location, and Go's crypto/x509 follows those
+// symlinks when scanning SSL_CERT_DIR — so we need rules covering the
+// eventual targets too. Plain files and subdirs produce redundant rules,
+// which landlock dedupes at the kernel level.
 func rulesFromCertDir(dir string) []landlock.Rule {
 	rules := []landlock.Rule{landlock.RODirs(dir).IgnoreIfMissing()}
 	entries, err := os.ReadDir(dir)
