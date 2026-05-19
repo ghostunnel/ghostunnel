@@ -102,12 +102,13 @@ that limits which files and network ports a process can access.
 After parsing flags and loading certificates, Ghostunnel builds a minimal set
 of Landlock rules based on the flags it was given:
 
-- **File access**: Read-only access to certificate files, CA bundles, and OPA
-  policy bundles (and their parent directories, to support file rotation).
-  Read-write access to `/dev`, `/var/run`, `/tmp`, `/proc` for syslog and temp files.
-- **Network access**: Bind access for `--listen` and `--status` ports. Connect
-  access for `--target`, `--metrics-graphite`, `--metrics-url`, and SPIFFE
-  Workload API ports. DNS (TCP/53) is always allowed.
+- **File access**: Read-only access to files referenced by flags (certificates,
+  CA bundles, OPA policy bundles) including their parent directories so file
+  rotation works. Read-write access to a small set of system paths needed for
+  syslog, temporary files, and Go runtime state.
+- **Network access**: Bind access for listening ports and connect access for
+  upstream targets, metrics endpoints, and other outbound destinations derived
+  from the configured flags. DNS resolution is always allowed.
 
 ### Best-Effort Mode
 
