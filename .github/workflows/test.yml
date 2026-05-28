@@ -15,18 +15,18 @@ jobs:
     name: Tests
     strategy:
       matrix:
-        version: [1.26.x]
         os: [ubuntu-22.04, ubuntu-24.04, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: ${{ matrix.version }}
+          go-version-file: go.mod
+          check-latest: true
           cache: false
         id: go
-      - name: Checkout
-        uses: actions/checkout@v6
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
@@ -52,7 +52,6 @@ jobs:
     name: Tests (PKCS#11/SoftHSM)
     strategy:
       matrix:
-        version: [1.26]
         os: [ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     steps:
@@ -61,10 +60,11 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: ${{ matrix.version }}
+          go-version-file: go.mod
+          check-latest: true
           cache: false
       - name: Run tests in Docker
-        run: GO_VERSION=${{ matrix.version }} go tool mage -v test:docker
+        run: go tool mage -v test:docker
       - name: Codecov upload
         uses: codecov/codecov-action@v6
         if: ${{ github.actor != 'dependabot[bot]' }}

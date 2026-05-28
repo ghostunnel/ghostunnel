@@ -28,7 +28,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.26.x'
+          go-version-file: go.mod
+          check-latest: true
           cache: false
       - name: Build containers
         run: go tool mage -v docker:build
@@ -39,7 +40,6 @@ jobs:
     name: Build (Linux)
     strategy:
       matrix:
-        version: [1.26.x]
         os: [ubuntu-22.04, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     steps:
@@ -47,17 +47,18 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
-      - name: Set up toolchain
-        uses: actions/setup-go@v6
-        with:
-          go-version: ${{ matrix.version }}
-          cache: false
-        id: go
       - name: Checkout
         uses: actions/checkout@v6
         with:
           fetch-depth: 100
           fetch-tags: true
+      - name: Set up toolchain
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          check-latest: true
+          cache: false
+        id: go
       - name: Build binary
         run: |
           go tool mage -compile ./mage-bin
@@ -78,22 +79,20 @@ jobs:
 
   build-darwin:
     name: Build (MacOS)
-    strategy:
-      matrix:
-        version: [1.26.x]
     runs-on: macos-latest
     steps:
-      - name: Set up toolchain
-        uses: actions/setup-go@v6
-        with:
-          go-version: ${{ matrix.version }}
-          cache: false
-        id: go
       - name: Checkout
         uses: actions/checkout@v6
         with:
           fetch-depth: 100
           fetch-tags: true
+      - name: Set up toolchain
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          check-latest: true
+          cache: false
+        id: go
       - name: Build binary
         run: |
           go tool mage -compile ./mage-bin
@@ -120,22 +119,20 @@ jobs:
 
   build-windows:
     name: Build (Windows)
-    strategy:
-      matrix:
-        version: [1.26.x]
     runs-on: windows-latest
     steps:
-      - name: Set up toolchain
-        uses: actions/setup-go@v6
-        with:
-          go-version: ${{ matrix.version }}
-          cache: false
-        id: go
       - name: Checkout
         uses: actions/checkout@v6
         with:
           fetch-depth: 100
           fetch-tags: true
+      - name: Set up toolchain
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          check-latest: true
+          cache: false
+        id: go
       - name: Build binary
         run: go tool mage -v go:build
       - name: Upload artifact
