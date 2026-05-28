@@ -709,8 +709,27 @@ func serverListen(env *Environment) error {
 		OPAQueryTimeout: *connectTimeout,
 	}
 
+	// verifyCtx is the context passed to the OPA evaluation inside
+	// serverACL.VerifyPeerCertificateServer. We bind it to the proxy
+	// lifetime context below (after proxy.New) so OPA evaluations are
+	// cancelled on Shutdown. It starts as Background so the closure is
+	// safe to invoke even if proxy.New fails or initialization races.
+	//
+	// We install the verify callback on the base *tls.Config here so that
+	// any wrapping done inside GetServerConfig — notably the SPIFFE wrap
+	// at certloader/spiffe_tls_config.go which calls
+	// WrapVerifyPeerCertificate(config.VerifyPeerCertificate, ...) — sees
+	// our callback as its inner ("wrapped") function. That is what threads
+	// the SPIFFE-parsed verified chains through to our ACL; if we instead
+	// composed after GetServerConfig, SPIFFE would wrap nil and our ACL
+	// would receive empty verifiedChains and fail closed.
+	verifyCtx := context.Background()
 	if *serverDisableAuth {
 		config.ClientAuth = tls.NoClientCert
+	} else {
+		config.VerifyPeerCertificate = func(raw [][]byte, chains [][]*x509.Certificate) error {
+			return serverACL.VerifyPeerCertificateServer(verifyCtx, raw, chains)
+		}
 	}
 
 	listener, err := socket.ParseAndOpen(*serverListenAddress)
@@ -739,12 +758,11 @@ func serverListen(env *Environment) error {
 		serverProxyProtoMode(),
 	)
 
-	if !*serverDisableAuth {
-		proxyCtx := p.Context()
-		tlsListener.SetVerify(func(raw [][]byte, chains [][]*x509.Certificate) error {
-			return serverACL.VerifyPeerCertificateServer(proxyCtx, raw, chains)
-		})
-	}
+	// Bind the verify context to the proxy's lifetime context so OPA
+	// evaluations unblock on Shutdown. The Go memory model guarantees
+	// the write here happens-before any handshake callback run from a
+	// goroutine started by p.Accept() below.
+	verifyCtx = p.Context()
 
 	if *statusAddress != "" {
 		err := env.serveStatus()
@@ -956,10 +974,19 @@ func clientBackendDialer(
 		OPAQueryTimeout: *connectTimeout,
 	}
 
-	verify := func(ctx context.Context) certloader.VerifyPeerCertificateFunc {
-		return func(raw [][]byte, chains [][]*x509.Certificate) error {
-			return clientACL.VerifyPeerCertificateClient(ctx, raw, chains)
-		}
+	// Install the verify callback on the base *tls.Config so any wrapping
+	// done inside GetClientConfig (notably the SPIFFE wrap at
+	// certloader/spiffe_tls_config.go, which calls
+	// WrapVerifyPeerCertificate(config.VerifyPeerCertificate, ...)) sees our
+	// callback as its inner ("wrapped") function. That is what threads the
+	// SPIFFE-parsed verified chains through to our ACL; composing after
+	// GetClientConfig would leave our ACL with empty verifiedChains.
+	//
+	// The context here is Background: per-dial cancellation does not flow
+	// into the client-side OPA evaluation. OPAQueryTimeout still bounds the
+	// call, matching the historical behavior.
+	config.VerifyPeerCertificate = func(raw [][]byte, chains [][]*x509.Certificate) error {
+		return clientACL.VerifyPeerCertificateClient(context.Background(), raw, chains)
 	}
 
 	var dialer netproxy.ContextDialer = &net.Dialer{Timeout: *connectTimeout}
@@ -984,7 +1011,7 @@ func clientBackendDialer(
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to get client TLS config: %w", err)
 	}
-	d := certloader.DialerWithCertificate(clientConfig, verify, *connectTimeout, dialer)
+	d := certloader.DialerWithCertificate(clientConfig, *connectTimeout, dialer)
 	return func(ctx context.Context) (net.Conn, error) {
 			return d.DialContext(ctx, network, address)
 		},

@@ -19,58 +19,30 @@ package certloader
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"net"
 	"time"
 
 	netproxy "golang.org/x/net/proxy"
 )
 
-// VerifyBuilder returns a VerifyPeerCertificate callback bound to a
-// specific context. The dialer invokes it once per connection so callers
-// can plumb the per-dial context into TLS verification (e.g. for OPA
-// policy evaluation that should be cancelled with the dial).
-type VerifyBuilder func(ctx context.Context) VerifyPeerCertificateFunc
-
 type mtlsDialer struct {
-	config        TLSClientConfig
-	verifyBuilder VerifyBuilder
-	timeout       time.Duration
-	dialer        netproxy.ContextDialer
+	config  TLSClientConfig
+	timeout time.Duration
+	dialer  netproxy.ContextDialer
 }
 
 // DialerWithCertificate creates a dialer that reloads its certificate (if set) before dialing new connections.
 // If the certificate is nil, the dialer will still work, but it won't supply client certificates on connections.
-//
-// If verify is non-nil, it is invoked per-dial to produce a VerifyPeerCertificate
-// callback that has access to the per-dial context. The callback composes with
-// any existing VerifyPeerCertificate on the *tls.Config returned by the config
-// source (for example, the SPIFFE wrapper), running the existing callback first.
-func DialerWithCertificate(config TLSClientConfig, verify VerifyBuilder, timeout time.Duration, dialer netproxy.ContextDialer) netproxy.ContextDialer {
+func DialerWithCertificate(config TLSClientConfig, timeout time.Duration, dialer netproxy.ContextDialer) netproxy.ContextDialer {
 	return &mtlsDialer{
-		config:        config,
-		verifyBuilder: verify,
-		timeout:       timeout,
-		dialer:        dialer,
+		config:  config,
+		timeout: timeout,
+		dialer:  dialer,
 	}
 }
 
 func (d *mtlsDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	cfg := d.config.GetClientConfig()
-	if d.verifyBuilder != nil {
-		ours := d.verifyBuilder(ctx)
-		if existing := cfg.VerifyPeerCertificate; existing != nil {
-			cfg.VerifyPeerCertificate = func(raw [][]byte, chains [][]*x509.Certificate) error {
-				if err := existing(raw, chains); err != nil {
-					return err
-				}
-				return ours(raw, chains)
-			}
-		} else {
-			cfg.VerifyPeerCertificate = ours
-		}
-	}
-	return dialWithDialer(d.dialer, ctx, d.timeout, network, address, cfg)
+	return dialWithDialer(d.dialer, ctx, d.timeout, network, address, d.config.GetClientConfig())
 }
 
 // Internal copy of tls.DialWithDialer, adapted so it can work with proxy dialers.
