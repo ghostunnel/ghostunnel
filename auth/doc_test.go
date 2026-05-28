@@ -16,7 +16,11 @@
 
 package auth
 
-import "crypto/tls"
+import (
+	"context"
+	"crypto/tls"
+	"crypto/x509"
+)
 
 func ExampleACL_server() {
 	// Configure an access control list for incoming connections.
@@ -28,20 +32,21 @@ func ExampleACL_server() {
 		},
 	}
 
-	// Example tls.Config for a TLS server.
+	// The VerifyPeerCertificate hook on crypto/tls is invoked synchronously
+	// during the handshake. Wrap our context-aware ACL method in a closure
+	// that supplies the appropriate context for OPA policy evaluation —
+	// typically the proxy / listener lifetime context so the OPA query is
+	// cancelled cleanly on shutdown.
+	ctx := context.Background()
 	_ = tls.Config{
-		// Set VerifyPeerCertificate on our tls.Config to point to our access
-		// control list. When accepting connections on a TLS listener with this
-		// config, Go will call our verify function and pass the peer certificates
-		// as an argument. The ACL implementation will check that the peer has one
-		// of the attributes configured in the ACL before allowing the connection
-		// to proceed.
-		VerifyPeerCertificate: acl.VerifyPeerCertificateServer,
+		VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+			return acl.VerifyPeerCertificateServer(ctx, rawCerts, verifiedChains)
+		},
 	}
 }
 
 func ExampleACL_client() {
-	// Configure an access control list for incoming connections.
+	// Configure an access control list for outgoing connections.
 	acl := ACL{
 		AllowedCNs: []string{
 			// Allow peers with CN 'server1' or 'server2'
@@ -50,14 +55,13 @@ func ExampleACL_client() {
 		},
 	}
 
-	// Example tls.Config for a TLS server.
+	// As with the server example, wrap the context-aware method in a closure
+	// so the OPA evaluation honors the supplied context (here, the per-dial
+	// context if you have one available).
+	ctx := context.Background()
 	_ = tls.Config{
-		// Set VerifyPeerCertificate on our tls.Config to point to our access
-		// control list. When initiating connections to a TLS server with this
-		// config, Go will call our verify function and pass the peer certificates
-		// as an argument. The ACL implementation will check that the peer has one
-		// of the attributes configured in the ACL before allowing the connection
-		// to proceed.
-		VerifyPeerCertificate: acl.VerifyPeerCertificateClient,
+		VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+			return acl.VerifyPeerCertificateClient(ctx, rawCerts, verifiedChains)
+		},
 	}
 }

@@ -277,6 +277,14 @@ func New(
 	return p
 }
 
+// Context returns the proxy's lifetime context. It is cancelled when
+// Shutdown is called. Callers that want to wire cancellation into TLS
+// verify callbacks or other per-connection work can derive from it; the
+// proxy itself uses it to bound the per-connection handshake context.
+func (p *Proxy) Context() context.Context {
+	return p.context
+}
+
 // Shutdown tells the proxy to close the listener & stop accepting connections.
 func (p *Proxy) Shutdown() {
 	if err := p.context.Err(); err != nil {

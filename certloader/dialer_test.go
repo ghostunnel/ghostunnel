@@ -69,7 +69,7 @@ func TestDialerWithCertificate(t *testing.T) {
 		InsecureSkipVerify: true, // Skip verification for test simplicity
 	}
 	mockConfig := &mockTLSClientConfig{config: clientConfig}
-	dialer := DialerWithCertificate(mockConfig, 5*time.Second, &net.Dialer{})
+	dialer := DialerWithCertificate(mockConfig, nil, 5*time.Second, &net.Dialer{})
 
 	// Test successful dial
 	conn, err := dialer.DialContext(context.Background(), "tcp", listener.Addr().String())

@@ -52,7 +52,7 @@ func TestAuthorizeNotVerified(t *testing.T) {
 		AllowAll: true,
 	}
 
-	assert.NotNil(t, testACL.VerifyPeerCertificateServer(nil, nil), "conn w/o cert should be rejected")
+	assert.NotNil(t, testACL.VerifyPeerCertificateServer(context.Background(), nil, nil), "conn w/o cert should be rejected")
 }
 
 func TestAuthorizeReject(t *testing.T) {
@@ -63,7 +63,7 @@ func TestAuthorizeReject(t *testing.T) {
 		AllowedURIs: []wildcard.Matcher{wildcard.MustCompile("test")},
 	}
 
-	assert.NotNil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "should reject cert w/o matching CN/OU")
+	assert.NotNil(t, testACL.VerifyPeerCertificateServer(context.Background(), nil, fakeChains), "should reject cert w/o matching CN/OU")
 }
 
 func TestAuthorizeAllowAll(t *testing.T) {
@@ -71,7 +71,7 @@ func TestAuthorizeAllowAll(t *testing.T) {
 		AllowAll: true,
 	}
 
-	assert.Nil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "allow-all should always allow authed clients")
+	assert.Nil(t, testACL.VerifyPeerCertificateServer(context.Background(), nil, fakeChains), "allow-all should always allow authed clients")
 }
 
 func TestAuthorizeAllowCN(t *testing.T) {
@@ -79,7 +79,7 @@ func TestAuthorizeAllowCN(t *testing.T) {
 		AllowedCNs: []string{"gopher"},
 	}
 
-	assert.Nil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "allow-cn should allow clients with matching CN")
+	assert.Nil(t, testACL.VerifyPeerCertificateServer(context.Background(), nil, fakeChains), "allow-cn should allow clients with matching CN")
 }
 
 func TestAuthorizeAllowOU(t *testing.T) {
@@ -87,7 +87,7 @@ func TestAuthorizeAllowOU(t *testing.T) {
 		AllowedOUs: []string{"circle"},
 	}
 
-	assert.Nil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "allow-ou should allow clients with matching OU")
+	assert.Nil(t, testACL.VerifyPeerCertificateServer(context.Background(), nil, fakeChains), "allow-ou should allow clients with matching OU")
 }
 
 func TestAuthorizeAllowDNS(t *testing.T) {
@@ -95,7 +95,7 @@ func TestAuthorizeAllowDNS(t *testing.T) {
 		AllowedDNSs: []string{"circle"},
 	}
 
-	assert.Nil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "allow-dns-san should allow clients with matching DNS SAN")
+	assert.Nil(t, testACL.VerifyPeerCertificateServer(context.Background(), nil, fakeChains), "allow-dns-san should allow clients with matching DNS SAN")
 }
 
 func TestAuthorizeAllowIP(t *testing.T) {
@@ -103,7 +103,7 @@ func TestAuthorizeAllowIP(t *testing.T) {
 		AllowedIPs: []net.IP{net.IPv4(192, 168, 99, 100)},
 	}
 
-	assert.Nil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "allow-ip-san should allow clients with matching IP SAN")
+	assert.Nil(t, testACL.VerifyPeerCertificateServer(context.Background(), nil, fakeChains), "allow-ip-san should allow clients with matching IP SAN")
 }
 
 func TestAuthorizeAllowURI(t *testing.T) {
@@ -111,7 +111,7 @@ func TestAuthorizeAllowURI(t *testing.T) {
 		AllowedURIs: []wildcard.Matcher{wildcard.MustCompile("scheme://valid/path")},
 	}
 
-	assert.Nil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "allow-uri-san should allow clients with matching URI SAN")
+	assert.Nil(t, testACL.VerifyPeerCertificateServer(context.Background(), nil, fakeChains), "allow-uri-san should allow clients with matching URI SAN")
 }
 
 func TestAuthorizeRejectURI(t *testing.T) {
@@ -119,7 +119,7 @@ func TestAuthorizeRejectURI(t *testing.T) {
 		AllowedURIs: []wildcard.Matcher{wildcard.MustCompile("scheme://invalid/path")},
 	}
 
-	assert.NotNil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "should reject cert w/o matching URI")
+	assert.NotNil(t, testACL.VerifyPeerCertificateServer(context.Background(), nil, fakeChains), "should reject cert w/o matching URI")
 }
 
 func TestAuthorizeOPARejectCommonName(t *testing.T) {
@@ -139,7 +139,7 @@ func TestAuthorizeOPARejectCommonName(t *testing.T) {
 		AllowOPAQuery:   policy.WrapForTest(&allowQuery),
 		OPAQueryTimeout: 10 * time.Second,
 	}
-	assert.NotNil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "Rego policy on different CN should be rejected")
+	assert.NotNil(t, testACL.VerifyPeerCertificateServer(context.Background(), nil, fakeChains), "Rego policy on different CN should be rejected")
 }
 
 func TestAuthorizeOPAAcceptCommonName(t *testing.T) {
@@ -159,7 +159,7 @@ func TestAuthorizeOPAAcceptCommonName(t *testing.T) {
 		AllowOPAQuery:   policy.WrapForTest(&allowQuery),
 		OPAQueryTimeout: 10 * time.Second,
 	}
-	assert.Nil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "Rego policy validates CN should pass")
+	assert.Nil(t, testACL.VerifyPeerCertificateServer(context.Background(), nil, fakeChains), "Rego policy validates CN should pass")
 }
 
 func TestAuthorizeOPAAcceptDNSn(t *testing.T) {
@@ -181,7 +181,7 @@ func TestAuthorizeOPAAcceptDNSn(t *testing.T) {
 		AllowOPAQuery:   policy.WrapForTest(&allowQuery),
 		OPAQueryTimeout: 10 * time.Second,
 	}
-	assert.Nil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "Rego policy validates testing DNS names")
+	assert.Nil(t, testACL.VerifyPeerCertificateServer(context.Background(), nil, fakeChains), "Rego policy validates testing DNS names")
 }
 
 func TestAuthorizeOPAAcceptURIs(t *testing.T) {
@@ -205,7 +205,7 @@ func TestAuthorizeOPAAcceptURIs(t *testing.T) {
 		AllowOPAQuery:   policy.WrapForTest(&allowQuery),
 		OPAQueryTimeout: 10 * time.Second,
 	}
-	assert.Nil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "Rego policy validates testing URIs")
+	assert.Nil(t, testACL.VerifyPeerCertificateServer(context.Background(), nil, fakeChains), "Rego policy validates testing URIs")
 }
 
 func TestAuthorizeOPAAcceptOneOU(t *testing.T) {
@@ -227,7 +227,7 @@ func TestAuthorizeOPAAcceptOneOU(t *testing.T) {
 		AllowOPAQuery:   policy.WrapForTest(&allowQuery),
 		OPAQueryTimeout: 10 * time.Second,
 	}
-	assert.Nil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "Rego policy validates one OU")
+	assert.Nil(t, testACL.VerifyPeerCertificateServer(context.Background(), nil, fakeChains), "Rego policy validates one OU")
 }
 
 func TestAuthorizeOPARejectAllOU(t *testing.T) {
@@ -249,7 +249,7 @@ func TestAuthorizeOPARejectAllOU(t *testing.T) {
 		AllowOPAQuery:   policy.WrapForTest(&allowQuery),
 		OPAQueryTimeout: 10 * time.Second,
 	}
-	assert.NotNil(t, testACL.VerifyPeerCertificateServer(nil, fakeChains), "Rego policy rejects none OU")
+	assert.NotNil(t, testACL.VerifyPeerCertificateServer(context.Background(), nil, fakeChains), "Rego policy rejects none OU")
 }
 
 func TestVerifyAllowEmpty(t *testing.T) {
@@ -258,7 +258,7 @@ func TestVerifyAllowEmpty(t *testing.T) {
 	// For VerifyPeerCertificateClient, we perform hostname verification
 	// and skip ACLs if the ACL is empty (i.e. no flag has been set to verify
 	// any attributes of the server peer certificate).
-	assert.Nil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "empty client ACL skips extra checks")
+	assert.Nil(t, testACL.VerifyPeerCertificateClient(context.Background(), nil, fakeChains), "empty client ACL skips extra checks")
 }
 
 func TestVerifyAllowCN(t *testing.T) {
@@ -266,7 +266,7 @@ func TestVerifyAllowCN(t *testing.T) {
 		AllowedCNs: []string{"gopher"},
 	}
 
-	assert.Nil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "verify-cn should allow servers with matching CN")
+	assert.Nil(t, testACL.VerifyPeerCertificateClient(context.Background(), nil, fakeChains), "verify-cn should allow servers with matching CN")
 }
 
 func TestVerifyAllowOU(t *testing.T) {
@@ -274,7 +274,7 @@ func TestVerifyAllowOU(t *testing.T) {
 		AllowedOUs: []string{"circle"},
 	}
 
-	assert.Nil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "verify-ou should allow servers with matching OU")
+	assert.Nil(t, testACL.VerifyPeerCertificateClient(context.Background(), nil, fakeChains), "verify-ou should allow servers with matching OU")
 }
 
 func TestVerifyAllowDNS(t *testing.T) {
@@ -282,7 +282,7 @@ func TestVerifyAllowDNS(t *testing.T) {
 		AllowedDNSs: []string{"circle"},
 	}
 
-	assert.Nil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "verify-dns-san should allow servers with matching DNS SAN")
+	assert.Nil(t, testACL.VerifyPeerCertificateClient(context.Background(), nil, fakeChains), "verify-dns-san should allow servers with matching DNS SAN")
 }
 
 func TestVerifyAllowIP(t *testing.T) {
@@ -290,7 +290,7 @@ func TestVerifyAllowIP(t *testing.T) {
 		AllowedIPs: []net.IP{net.IPv4(192, 168, 99, 100)},
 	}
 
-	assert.Nil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "verify-ip-san should allow servers with matching IP SAN")
+	assert.Nil(t, testACL.VerifyPeerCertificateClient(context.Background(), nil, fakeChains), "verify-ip-san should allow servers with matching IP SAN")
 }
 
 func TestVerifyRejectCN(t *testing.T) {
@@ -298,7 +298,7 @@ func TestVerifyRejectCN(t *testing.T) {
 		AllowedCNs: []string{"test"},
 	}
 
-	assert.NotNil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "should reject cert w/o matching CN")
+	assert.NotNil(t, testACL.VerifyPeerCertificateClient(context.Background(), nil, fakeChains), "should reject cert w/o matching CN")
 }
 
 func TestVerifyRejectOU(t *testing.T) {
@@ -306,7 +306,7 @@ func TestVerifyRejectOU(t *testing.T) {
 		AllowedOUs: []string{"test"},
 	}
 
-	assert.NotNil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "should reject cert w/o matching OU")
+	assert.NotNil(t, testACL.VerifyPeerCertificateClient(context.Background(), nil, fakeChains), "should reject cert w/o matching OU")
 }
 
 func TestVerifyRejectDNS(t *testing.T) {
@@ -314,7 +314,7 @@ func TestVerifyRejectDNS(t *testing.T) {
 		AllowedDNSs: []string{"test"},
 	}
 
-	assert.NotNil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "should reject cert w/o matching DNS SAN")
+	assert.NotNil(t, testACL.VerifyPeerCertificateClient(context.Background(), nil, fakeChains), "should reject cert w/o matching DNS SAN")
 }
 
 func TestVerifyRejectIP(t *testing.T) {
@@ -322,7 +322,7 @@ func TestVerifyRejectIP(t *testing.T) {
 		AllowedIPs: []net.IP{net.IPv4(1, 1, 1, 1)},
 	}
 
-	assert.NotNil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "should reject cert w/o matching IP SAN")
+	assert.NotNil(t, testACL.VerifyPeerCertificateClient(context.Background(), nil, fakeChains), "should reject cert w/o matching IP SAN")
 }
 
 func TestVerifyAllowURI(t *testing.T) {
@@ -330,7 +330,7 @@ func TestVerifyAllowURI(t *testing.T) {
 		AllowedURIs: []wildcard.Matcher{wildcard.MustCompile("scheme://valid/path")},
 	}
 
-	assert.Nil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "verify-uri-san should allow clients with matching URI SAN")
+	assert.Nil(t, testACL.VerifyPeerCertificateClient(context.Background(), nil, fakeChains), "verify-uri-san should allow clients with matching URI SAN")
 }
 
 func TestVerifyRejectURI(t *testing.T) {
@@ -338,13 +338,13 @@ func TestVerifyRejectURI(t *testing.T) {
 		AllowedURIs: []wildcard.Matcher{wildcard.MustCompile("scheme://invalid/path")},
 	}
 
-	assert.NotNil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "should reject cert w/o matching URI")
+	assert.NotNil(t, testACL.VerifyPeerCertificateClient(context.Background(), nil, fakeChains), "should reject cert w/o matching URI")
 }
 
 func TestVerifyNoVerifiedChains(t *testing.T) {
 	testACL := ACL{}
 
-	assert.NotNil(t, testACL.VerifyPeerCertificateClient(nil, nil), "should reject if no verified chains")
+	assert.NotNil(t, testACL.VerifyPeerCertificateClient(context.Background(), nil, nil), "should reject if no verified chains")
 }
 
 func TestVerifyOPARejectCommonName(t *testing.T) {
@@ -364,7 +364,7 @@ func TestVerifyOPARejectCommonName(t *testing.T) {
 		AllowOPAQuery:   policy.WrapForTest(&allowQuery),
 		OPAQueryTimeout: 10 * time.Second,
 	}
-	assert.NotNil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "Rego policy on different CN should be rejected")
+	assert.NotNil(t, testACL.VerifyPeerCertificateClient(context.Background(), nil, fakeChains), "Rego policy on different CN should be rejected")
 }
 
 func TestVerifyOPAAcceptCommonName(t *testing.T) {
@@ -384,7 +384,7 @@ func TestVerifyOPAAcceptCommonName(t *testing.T) {
 		AllowOPAQuery:   policy.WrapForTest(&allowQuery),
 		OPAQueryTimeout: 10 * time.Second,
 	}
-	assert.Nil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "Rego policy validates CN should pass")
+	assert.Nil(t, testACL.VerifyPeerCertificateClient(context.Background(), nil, fakeChains), "Rego policy validates CN should pass")
 }
 
 func TestVerifyOPAAcceptDNSn(t *testing.T) {
@@ -406,7 +406,7 @@ func TestVerifyOPAAcceptDNSn(t *testing.T) {
 		AllowOPAQuery:   policy.WrapForTest(&allowQuery),
 		OPAQueryTimeout: 10 * time.Second,
 	}
-	assert.Nil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "Rego policy validates testing DNS names")
+	assert.Nil(t, testACL.VerifyPeerCertificateClient(context.Background(), nil, fakeChains), "Rego policy validates testing DNS names")
 }
 
 func TestVerifyOPAAcceptURIs(t *testing.T) {
@@ -430,7 +430,7 @@ func TestVerifyOPAAcceptURIs(t *testing.T) {
 		AllowOPAQuery:   policy.WrapForTest(&allowQuery),
 		OPAQueryTimeout: 10 * time.Second,
 	}
-	assert.Nil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "Rego policy validates testing URIs")
+	assert.Nil(t, testACL.VerifyPeerCertificateClient(context.Background(), nil, fakeChains), "Rego policy validates testing URIs")
 }
 
 func TestVerifyOPAAcceptOneOU(t *testing.T) {
@@ -452,7 +452,7 @@ func TestVerifyOPAAcceptOneOU(t *testing.T) {
 		AllowOPAQuery:   policy.WrapForTest(&allowQuery),
 		OPAQueryTimeout: 10 * time.Second,
 	}
-	assert.Nil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "Rego policy validates one OU")
+	assert.Nil(t, testACL.VerifyPeerCertificateClient(context.Background(), nil, fakeChains), "Rego policy validates one OU")
 }
 
 func TestVerifyOPARejectAllOU(t *testing.T) {
@@ -474,7 +474,7 @@ func TestVerifyOPARejectAllOU(t *testing.T) {
 		AllowOPAQuery:   policy.WrapForTest(&allowQuery),
 		OPAQueryTimeout: 10 * time.Second,
 	}
-	assert.NotNil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "Rego policy rejects none OU")
+	assert.NotNil(t, testACL.VerifyPeerCertificateClient(context.Background(), nil, fakeChains), "Rego policy rejects none OU")
 }
 
 func TestAuthorizeOPAEvalError(t *testing.T) {
@@ -496,10 +496,64 @@ func TestAuthorizeOPAEvalError(t *testing.T) {
 		AllowOPAQuery:   policy.WrapForTest(&allowQuery),
 		OPAQueryTimeout: 10 * time.Second,
 	}
-	err = testACL.VerifyPeerCertificateServer(nil, fakeChains)
+	err = testACL.VerifyPeerCertificateServer(context.Background(), nil, fakeChains)
 	assert.Error(t, err, "Rego eval error should surface as an unauthorized error")
 	assert.Contains(t, err.Error(), "unauthorized: policy returned error:",
 		"server should wrap eval error with policy-returned-error prefix")
+}
+
+// blockingPolicy is a Policy whose Eval blocks until the supplied ctx is
+// cancelled, then returns ctx.Err(). It is used to verify that ACL plumbs
+// the caller's context through to OPA.
+type blockingPolicy struct{}
+
+func (blockingPolicy) Reload() error { return nil }
+func (blockingPolicy) Eval(ctx context.Context, _ ...rego.EvalOption) (rego.ResultSet, error) {
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+func TestVerifyPeerCertificateServerHonorsCallerCancel(t *testing.T) {
+	testACL := ACL{
+		AllowOPAQuery: blockingPolicy{},
+		// Long OPA timeout so the test signal is unambiguously caller-cancel.
+		OPAQueryTimeout: time.Hour,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+
+	start := time.Now()
+	err := testACL.VerifyPeerCertificateServer(ctx, nil, fakeChains)
+	elapsed := time.Since(start)
+
+	assert.Error(t, err, "should return an unauthorized error when OPA Eval is cancelled")
+	assert.Contains(t, err.Error(), "unauthorized: policy returned error:",
+		"caller cancellation should surface as a policy error")
+	assert.Less(t, elapsed, time.Second,
+		"server verify must return promptly after caller cancel, not wait for OPAQueryTimeout")
+}
+
+func TestVerifyPeerCertificateClientHonorsCallerDeadline(t *testing.T) {
+	testACL := ACL{
+		AllowOPAQuery: blockingPolicy{},
+		// Long OPA timeout — caller deadline should win.
+		OPAQueryTimeout: time.Hour,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	err := testACL.VerifyPeerCertificateClient(ctx, nil, fakeChains)
+	elapsed := time.Since(start)
+
+	assert.Error(t, err, "should return an unauthorized error when caller deadline expires")
+	assert.Less(t, elapsed, time.Second,
+		"client verify must honor the shorter caller deadline, not wait for OPAQueryTimeout")
 }
 
 func TestVerifyOPAEvalError(t *testing.T) {
@@ -521,7 +575,7 @@ func TestVerifyOPAEvalError(t *testing.T) {
 		AllowOPAQuery:   policy.WrapForTest(&allowQuery),
 		OPAQueryTimeout: 10 * time.Second,
 	}
-	err = testACL.VerifyPeerCertificateClient(nil, fakeChains)
+	err = testACL.VerifyPeerCertificateClient(context.Background(), nil, fakeChains)
 	assert.Error(t, err, "Rego eval error should surface as an unauthorized error")
 	assert.Contains(t, err.Error(), "unauthorized: policy returned error:",
 		"client should wrap eval error with policy-returned-error prefix")

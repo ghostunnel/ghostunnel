@@ -77,7 +77,11 @@ type ACL struct {
 // for crypto/tls.Config for servers terminating TLS connections that will
 // enforce access controls based on the given ACL. If the given ACL is empty,
 // no clients will be allowed (fails closed).
-func (a ACL) VerifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+//
+// The supplied context bounds any OPA policy evaluation; it composes with
+// OPAQueryTimeout via context.WithTimeout, so the OPA call honors whichever
+// deadline expires first.
+func (a ACL) VerifyPeerCertificateServer(ctx context.Context, rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
 	if len(verifiedChains) == 0 {
 		return errors.New("unauthorized: invalid principal, or principal not allowed")
 	}
@@ -116,7 +120,7 @@ func (a ACL) VerifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*
 
 	// Check against OPA
 	if a.AllowOPAQuery != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), a.OPAQueryTimeout)
+		ctx, cancel := context.WithTimeout(ctx, a.OPAQueryTimeout)
 		defer cancel()
 		input := map[string]any{
 			"certificate": cert,
@@ -138,7 +142,11 @@ func (a ACL) VerifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*
 // validate the server certificate based on the given ACL. If the ACL is empty,
 // all servers will be allowed (this function assumes that DNS name verification
 // has already taken place, and therefore fails open).
-func (a ACL) VerifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+//
+// The supplied context bounds any OPA policy evaluation; it composes with
+// OPAQueryTimeout via context.WithTimeout, so the OPA call honors whichever
+// deadline expires first.
+func (a ACL) VerifyPeerCertificateClient(ctx context.Context, rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
 	if len(verifiedChains) == 0 {
 		return errors.New("unauthorized: invalid principal, or principal not allowed")
 	}
@@ -178,7 +186,7 @@ func (a ACL) VerifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*
 
 	// Check against OPA
 	if a.AllowOPAQuery != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), a.OPAQueryTimeout)
+		ctx, cancel := context.WithTimeout(ctx, a.OPAQueryTimeout)
 		defer cancel()
 		input := map[string]any{
 			"certificate": cert,

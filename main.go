@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -710,8 +711,6 @@ func serverListen(env *Environment) error {
 
 	if *serverDisableAuth {
 		config.ClientAuth = tls.NoClientCert
-	} else {
-		config.VerifyPeerCertificate = serverACL.VerifyPeerCertificateServer
 	}
 
 	listener, err := socket.ParseAndOpen(*serverListenAddress)
@@ -727,8 +726,9 @@ func serverListen(env *Environment) error {
 		return err
 	}
 
+	tlsListener := certloader.NewListener(listener, serverConfig)
 	p := proxy.New(
-		certloader.NewListener(listener, serverConfig),
+		tlsListener,
 		*connectTimeout,
 		*closeTimeout,
 		*maxConnLifetime,
@@ -738,6 +738,13 @@ func serverListen(env *Environment) error {
 		proxyLoggerFlags(*quiet),
 		serverProxyProtoMode(),
 	)
+
+	if !*serverDisableAuth {
+		proxyCtx := p.Context()
+		tlsListener.SetVerify(func(raw [][]byte, chains [][]*x509.Certificate) error {
+			return serverACL.VerifyPeerCertificateServer(proxyCtx, raw, chains)
+		})
+	}
 
 	if *statusAddress != "" {
 		err := env.serveStatus()
@@ -949,7 +956,11 @@ func clientBackendDialer(
 		OPAQueryTimeout: *connectTimeout,
 	}
 
-	config.VerifyPeerCertificate = clientACL.VerifyPeerCertificateClient
+	verify := func(ctx context.Context) certloader.VerifyPeerCertificateFunc {
+		return func(raw [][]byte, chains [][]*x509.Certificate) error {
+			return clientACL.VerifyPeerCertificateClient(ctx, raw, chains)
+		}
+	}
 
 	var dialer netproxy.ContextDialer = &net.Dialer{Timeout: *connectTimeout}
 
@@ -973,7 +984,7 @@ func clientBackendDialer(
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to get client TLS config: %w", err)
 	}
-	d := certloader.DialerWithCertificate(clientConfig, *connectTimeout, dialer)
+	d := certloader.DialerWithCertificate(clientConfig, verify, *connectTimeout, dialer)
 	return func(ctx context.Context) (net.Conn, error) {
 			return d.DialContext(ctx, network, address)
 		},
