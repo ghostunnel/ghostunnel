@@ -295,6 +295,7 @@ func TestBuildServerConfig(t *testing.T) {
 	conf, err := buildServerConfig("AES,CHACHA", "")
 	assert.Nil(t, err, "should be able to build server TLS config")
 	assert.Equal(t, tls.RequireAndVerifyClientCert, conf.ClientAuth, "server config should require client cert")
+	assert.Contains(t, conf.CurvePreferences, tls.X25519MLKEM768, "should include hybrid PQ X25519MLKEM768")
 	assert.Contains(t, conf.CurvePreferences, tls.X25519, "should include X25519 curve")
 	assert.Contains(t, conf.CurvePreferences, tls.CurveP256, "should include P256 curve")
 }

@@ -123,9 +123,8 @@ func buildConfig(enabledCipherSuites string, maxTLSVersion string) (*tls.Config,
 	}
 
 	config := &tls.Config{
-		PreferServerCipherSuites: true,
-		MinVersion:               tls.VersionTLS12,
-		CipherSuites:             suites,
+		MinVersion:   tls.VersionTLS12,
+		CipherSuites: suites,
 	}
 
 	if maxTLSVersion != "" {
@@ -156,8 +155,13 @@ func buildServerConfig(enabledCipherSuites string, maxTLSVersion string) (*tls.C
 	// Require client cert by default
 	config.ClientAuth = tls.RequireAndVerifyClientCert
 
-	// P-256/X25519 have an ASM implementation, others do not (at least on x86-64).
+	// Enable hybrid PQ (X25519+ML-KEM-768) alongside classical curves with
+	// assembly implementations on common platforms. Go picks the actual key
+	// exchange via an internal preference order (CurvePreferences ordering is
+	// ignored); we list curves explicitly to avoid silently inheriting any new
+	// defaults a future Go release might add without us evaluating them.
 	config.CurvePreferences = []tls.CurveID{
+		tls.X25519MLKEM768,
 		tls.X25519,
 		tls.CurveP256,
 	}
