@@ -715,13 +715,11 @@ func serverListen(ctx context.Context, cancel context.CancelFunc, env *Environme
 		OPAQueryTimeout: *connectTimeout,
 	}
 
-	// The verify closure is installed on the base *tls.Config so that
-	// wrapping done inside GetServerConfig — notably the SPIFFE wrap at
-	// certloader/spiffe_tls_config.go which calls
-	// WrapVerifyPeerCertificate(config.VerifyPeerCertificate, ...) — sees
-	// our callback as its inner ("wrapped") function. Installing after
-	// GetServerConfig would leave SPIFFE wrapping nil and our ACL would
-	// receive empty verifiedChains and fail closed. The caller's ctx
+	// The verify closure is installed on the base *tls.Config so that wrapping
+	// done inside GetServerConfig (notably the SPIFFE wrap in certloader which
+	// calls WrapVerifyPeerCertificate sees our callback as its inner function.
+	// Installing after GetServerConfig would leave SPIFFE wrapping nil and our
+	// ACL would receive empty verifiedChains and fail closed. The caller's ctx
 	// propagates cancellation to in-flight OPA evaluations on Shutdown.
 	if *serverDisableAuth {
 		config.ClientAuth = tls.NoClientCert

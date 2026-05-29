@@ -44,11 +44,7 @@ func (env *Environment) signalHandler(p *proxy.Proxy) {
 	shutdownFunc := func() {
 		env.status.Stopping()
 
-		// Best-effort graceful shutdown of status listener. Bound the
-		// Shutdown call by env.shutdownTimeout so it stops trying at the
-		// same instant the force-exit timer fires below; today it would
-		// otherwise sit on Background() forever and only be torn down by
-		// the process exiting.
+		// Best-effort graceful shutdown of status listener.
 		if env.statusHTTP != nil {
 			go func() {
 				ctx, cancel := context.WithTimeout(context.Background(), env.shutdownTimeout)
