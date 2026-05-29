@@ -604,8 +604,11 @@ func run(args []string) error {
 		}
 		go env.reloadHandler(*timedReload)
 
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
 		// Start listening
-		err = serverListen(env)
+		err = serverListen(ctx, cancel, env)
 		if err != nil {
 			logger.Printf("error from server listen: %s\n", err)
 		}
@@ -657,8 +660,11 @@ func run(args []string) error {
 		}
 		go env.reloadHandler(*timedReload)
 
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
 		// Start listening
-		err = clientListen(env)
+		err = clientListen(ctx, cancel, env)
 		if err != nil {
 			logger.Printf("error from client listen: %s\n", err)
 		}
@@ -673,7 +679,7 @@ func run(args []string) error {
 // allows us to have multiple sockets listening on the same port and accept
 // connections. This is useful for the purpose of replacing certificates
 // in-place without having to take downtime, e.g. if a certificate is expiring.
-func serverListen(env *Environment) error {
+func serverListen(ctx context.Context, cancel context.CancelFunc, env *Environment) error {
 	config, err := buildServerConfig(*enabledCipherSuites, *maxTLSVersion)
 	if err != nil {
 		logger.Printf("error trying to read CA bundle: %s", err)
@@ -709,20 +715,14 @@ func serverListen(env *Environment) error {
 		OPAQueryTimeout: *connectTimeout,
 	}
 
-	// We own the proxy lifetime context here so the verify closure below
-	// can capture it directly; Shutdown() propagates cancellation to any
-	// in-flight OPA evaluation.
-	//
-	// The closure is installed on the base *tls.Config so that wrapping
-	// done inside GetServerConfig — notably the SPIFFE wrap at
+	// The verify closure is installed on the base *tls.Config so that
+	// wrapping done inside GetServerConfig — notably the SPIFFE wrap at
 	// certloader/spiffe_tls_config.go which calls
 	// WrapVerifyPeerCertificate(config.VerifyPeerCertificate, ...) — sees
 	// our callback as its inner ("wrapped") function. Installing after
 	// GetServerConfig would leave SPIFFE wrapping nil and our ACL would
-	// receive empty verifiedChains and fail closed.
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
+	// receive empty verifiedChains and fail closed. The caller's ctx
+	// propagates cancellation to in-flight OPA evaluations on Shutdown.
 	if *serverDisableAuth {
 		config.ClientAuth = tls.NoClientCert
 	} else {
@@ -780,7 +780,7 @@ func serverListen(env *Environment) error {
 }
 
 // Open listening socket in client mode.
-func clientListen(env *Environment) error {
+func clientListen(ctx context.Context, cancel context.CancelFunc, env *Environment) error {
 	listener, err := socket.ParseAndOpen(*clientListenAddress)
 	if err != nil {
 		logger.Printf("error opening socket: %s", err)
@@ -791,9 +791,6 @@ func clientListen(env *Environment) error {
 	if ul, ok := listener.(*net.UnixListener); ok {
 		ul.SetUnlinkOnClose(true)
 	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	p := proxy.New(
 		ctx,

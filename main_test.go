@@ -17,6 +17,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"net"
@@ -1199,7 +1200,9 @@ func TestServerListenEarlyErrors(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			c.setup()
 			env := &Environment{}
-			err := serverListen(env)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			err := serverListen(ctx, cancel, env)
 			assert.NotNil(t, err, "expected non-nil error from serverListen")
 			if c.wantSubstr != "" && err != nil {
 				assert.Contains(t, strings.ToLower(err.Error()), c.wantSubstr)
@@ -1218,7 +1221,9 @@ func TestClientListenSocketOpenFails(t *testing.T) {
 
 	*clientListenAddress = "unix:/nonexistent/dir/sock.sock"
 
-	err := clientListen(&Environment{})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	err := clientListen(ctx, cancel, &Environment{})
 	assert.NotNil(t, err, "expected error for invalid socket address")
 	if err != nil {
 		// Loose assertion to stay resilient to error wording across OSes.
