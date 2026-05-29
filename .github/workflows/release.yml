@@ -25,8 +25,7 @@ jobs:
       - name: Set up toolchain
         uses: actions/setup-go@v6
         with:
-          go-version-file: go.mod
-          check-latest: true
+          go-version: stable
           cache: false
         id: go
       - name: Build binary
@@ -60,8 +59,7 @@ jobs:
       - name: Set up toolchain
         uses: actions/setup-go@v6
         with:
-          go-version-file: go.mod
-          check-latest: true
+          go-version: stable
           cache: false
         id: go
       - name: Build binary
@@ -119,8 +117,7 @@ jobs:
       - name: Set up toolchain
         uses: actions/setup-go@v6
         with:
-          go-version-file: go.mod
-          check-latest: true
+          go-version: stable
           cache: false
         id: go
       - name: Build binary
@@ -147,8 +144,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: go.mod
-          check-latest: true
+          go-version: stable
           cache: false
       - name: Download all artifacts
         uses: actions/download-artifact@v8

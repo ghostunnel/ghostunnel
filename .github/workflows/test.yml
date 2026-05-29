@@ -23,8 +23,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: go.mod
-          check-latest: true
+          go-version: stable
           cache: false
         id: go
       - name: Set up Python
@@ -60,8 +59,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: go.mod
-          check-latest: true
+          go-version: stable
           cache: false
       - name: Run tests in Docker
         run: go tool mage -v test:docker
