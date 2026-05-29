@@ -639,7 +639,10 @@ func run(args []string) error {
 		}
 		logger.Printf("using target address %s", *clientForwardAddress)
 
-		dial, policy, err := clientBackendDialer(tlsConfigSource, network, address, host)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		dial, policy, err := clientBackendDialer(ctx, tlsConfigSource, network, address, host)
 		if err != nil {
 			logger.Printf("error: unable to build dialer: %s\n", err)
 			return err
@@ -659,9 +662,6 @@ func run(args []string) error {
 			regoPolicy:      policy,
 		}
 		go env.reloadHandler(*timedReload)
-
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
 
 		// Start listening
 		err = clientListen(ctx, cancel, env)
@@ -927,8 +927,12 @@ func serverBackendDialer() (proxy.DialFunc, error) {
 	}, nil
 }
 
-// Get backend dialer function in client mode (connecting to a TLS port)
+// Get backend dialer function in client mode (connecting to a TLS port).
+// The ctx is captured by the verify closure installed on the base TLS config
+// so that in-flight OPA evaluations cancel on proxy shutdown, matching the
+// server-side behavior.
 func clientBackendDialer(
+	ctx context.Context,
 	tlsConfigSource certloader.TLSConfigSource,
 	network, address, host string,
 ) (proxy.DialFunc, policy.Policy, error) {
@@ -977,12 +981,8 @@ func clientBackendDialer(
 	// callback as its inner ("wrapped") function. That is what threads the
 	// SPIFFE-parsed verified chains through to our ACL; composing after
 	// GetClientConfig would leave our ACL with empty verifiedChains.
-	//
-	// The context here is Background: per-dial cancellation does not flow
-	// into the client-side OPA evaluation. OPAQueryTimeout still bounds the
-	// call, matching the historical behavior.
 	config.VerifyPeerCertificate = func(raw [][]byte, chains [][]*x509.Certificate) error {
-		return clientACL.VerifyPeerCertificateClient(context.Background(), raw, chains)
+		return clientACL.VerifyPeerCertificateClient(ctx, raw, chains)
 	}
 
 	var dialer netproxy.ContextDialer = &net.Dialer{Timeout: *connectTimeout}

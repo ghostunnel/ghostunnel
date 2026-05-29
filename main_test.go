@@ -862,7 +862,7 @@ default allow := true
 	source, err := getTLSConfigSource(false)
 	assert.Nil(t, err, "should create TLS config source")
 
-	dial, regoPolicy, err := clientBackendDialer(source, "tcp", "localhost:8443", "localhost")
+	dial, regoPolicy, err := clientBackendDialer(context.Background(), source, "tcp", "localhost:8443", "localhost")
 	assert.Nil(t, err, "should create client backend dialer with OPA")
 	assert.NotNil(t, dial, "dialer should not be nil")
 	assert.NotNil(t, regoPolicy, "rego policy should not be nil")
@@ -913,7 +913,7 @@ func TestClientBackendDialerWithServerNameOverride(t *testing.T) {
 	source, err := getTLSConfigSource(false)
 	assert.Nil(t, err, "should create TLS config source")
 
-	dial, regoPolicy, err := clientBackendDialer(source, "tcp", "localhost:8443", "localhost")
+	dial, regoPolicy, err := clientBackendDialer(context.Background(), source, "tcp", "localhost:8443", "localhost")
 	assert.Nil(t, err, "should create client backend dialer with server name override")
 	assert.NotNil(t, dial, "dialer should not be nil")
 	assert.Nil(t, regoPolicy, "rego policy should be nil when not configured")
@@ -965,7 +965,7 @@ func TestClientBackendDialerInvalidURI(t *testing.T) {
 	source, err := getTLSConfigSource(false)
 	assert.Nil(t, err, "should create TLS config source")
 
-	_, _, err = clientBackendDialer(source, "tcp", "localhost:8443", "localhost")
+	_, _, err = clientBackendDialer(context.Background(), source, "tcp", "localhost:8443", "localhost")
 	assert.NotNil(t, err, "should fail with empty URI pattern")
 }
 
@@ -1014,7 +1014,7 @@ func TestClientBackendDialerInvalidOPAPolicy(t *testing.T) {
 	source, err := getTLSConfigSource(false)
 	assert.Nil(t, err, "should create TLS config source")
 
-	_, _, err = clientBackendDialer(source, "tcp", "localhost:8443", "localhost")
+	_, _, err = clientBackendDialer(context.Background(), source, "tcp", "localhost:8443", "localhost")
 	assert.NotNil(t, err, "should fail with invalid OPA policy path")
 }
 
@@ -1309,7 +1309,7 @@ func TestClientBackendDialerProxyNotContextDialer(t *testing.T) {
 	src, err := getTLSConfigSource(false)
 	assert.Nil(t, err, "should create TLS config source")
 
-	_, _, err = clientBackendDialer(src, "tcp", "localhost:8443", "localhost")
+	_, _, err = clientBackendDialer(context.Background(), src, "tcp", "localhost:8443", "localhost")
 	assert.NotNil(t, err, "should error when proxy dialer is not a ContextDialer")
 	if err != nil {
 		assert.Contains(t, err.Error(), "did not implement context dialing")
