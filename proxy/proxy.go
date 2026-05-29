@@ -232,7 +232,15 @@ func buildSSLTLV(state *tls.ConnectionState, mode ProxyProtocolMode) (proxyproto
 }
 
 // New creates a new proxy.
+//
+// The caller owns ctx and cancel: ctx bounds the proxy's lifetime and is the
+// parent of every per-connection handshake/dial context, while Shutdown calls
+// cancel to unblock those derived contexts. Callers that also want to wire
+// cancellation into TLS verify callbacks (e.g. to bound an OPA evaluation)
+// can capture ctx in those closures directly.
 func New(
+	ctx context.Context,
+	cancel context.CancelFunc,
 	listener net.Listener,
 	connectTimeout, closeTimeout, maxConnLifetime time.Duration,
 	maxConcurrentConnections int64,
@@ -240,8 +248,6 @@ func New(
 	logger Logger,
 	loggerFlags int,
 	proxyProtocol ProxyProtocolMode) *Proxy {
-
-	ctx, cancel := context.WithCancel(context.Background())
 
 	p := &Proxy{
 		Listener:        listener,
@@ -275,14 +281,6 @@ func New(
 	// calls Wait() on the proxy object.
 	p.handlers.Add(1)
 	return p
-}
-
-// Context returns the proxy's lifetime context. It is cancelled when
-// Shutdown is called. Callers that want to wire cancellation into TLS
-// verify callbacks or other per-connection work can derive from it; the
-// proxy itself uses it to bound the per-connection handshake context.
-func (p *Proxy) Context() context.Context {
-	return p.context
 }
 
 // Shutdown tells the proxy to close the listener & stop accepting connections.

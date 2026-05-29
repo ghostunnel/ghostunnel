@@ -53,11 +53,13 @@ func (m *failingListener) Close() error              { return nil }
 func (m *failingListener) Addr() net.Addr            { return nil }
 
 func proxyForTest(listener net.Listener, dialer DialFunc) *Proxy {
-	return New(listener, 5*time.Second, 5*time.Second, 5*time.Second, 1, dialer, &testLogger{}, LogEverything, ProxyProtocolOff)
+	ctx, cancel := context.WithCancel(context.Background())
+	return New(ctx, cancel, listener, 5*time.Second, 5*time.Second, 5*time.Second, 1, dialer, &testLogger{}, LogEverything, ProxyProtocolOff)
 }
 
 func proxyForTestWithProxyProtocol(listener net.Listener, dialer DialFunc) *Proxy {
-	return New(listener, 5*time.Second, 5*time.Second, 5*time.Second, 1, dialer, &testLogger{}, LogEverything, ProxyProtocolConn)
+	ctx, cancel := context.WithCancel(context.Background())
+	return New(ctx, cancel, listener, 5*time.Second, 5*time.Second, 5*time.Second, 1, dialer, &testLogger{}, LogEverything, ProxyProtocolConn)
 }
 
 func TestAbortedConnection(t *testing.T) {
@@ -542,7 +544,9 @@ func TestForceHandshakeNonTLSConn(t *testing.T) {
 
 func TestLogConnectionMessageDisabled(t *testing.T) {
 	// Test with LogConnections disabled
-	p := New(nil, 5*time.Second, 5*time.Second, 0, 0, nil, &testLogger{}, 0, ProxyProtocolOff)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	p := New(ctx, cancel, nil, 5*time.Second, 5*time.Second, 0, 0, nil, &testLogger{}, 0, ProxyProtocolOff)
 
 	// Create pipe connections
 	src, dst := net.Pipe()
@@ -560,7 +564,9 @@ func TestLogConditional(t *testing.T) {
 	}}
 
 	// Test with flag enabled
-	p := New(nil, 5*time.Second, 5*time.Second, 0, 0, nil, logger, LogConnectionErrors, ProxyProtocolOff)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	p := New(ctx, cancel, nil, 5*time.Second, 5*time.Second, 0, 0, nil, logger, LogConnectionErrors, ProxyProtocolOff)
 	p.logConditional(LogConnectionErrors, "test message")
 	assert.True(t, logged, "should log when flag is enabled")
 
@@ -922,7 +928,9 @@ func TestProxyProtocolTLSModeSuccess(t *testing.T) {
 		return d.DialContext(ctx, "tcp", target.Addr().String())
 	}
 
-	p := New(incoming, 5*time.Second, 5*time.Second, 5*time.Second, 1, dialer, &testLogger{}, LogEverything, ProxyProtocolTLS)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	p := New(ctx, cancel, incoming, 5*time.Second, 5*time.Second, 5*time.Second, 1, dialer, &testLogger{}, LogEverything, ProxyProtocolTLS)
 	go p.Accept()
 	defer p.Shutdown()
 

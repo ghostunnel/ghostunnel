@@ -119,7 +119,11 @@ func TestSignalHandlerReloadAndShutdown(t *testing.T) {
 	}
 
 	lis := &nopListener{closed: make(chan struct{})}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	p := proxy.New(
+		ctx,
+		cancel,
 		lis,
 		time.Second, time.Second, time.Second,
 		1,

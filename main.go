@@ -709,26 +709,25 @@ func serverListen(env *Environment) error {
 		OPAQueryTimeout: *connectTimeout,
 	}
 
-	// verifyCtx is the context passed to the OPA evaluation inside
-	// serverACL.VerifyPeerCertificateServer. We bind it to the proxy
-	// lifetime context below (after proxy.New) so OPA evaluations are
-	// cancelled on Shutdown. It starts as Background so the closure is
-	// safe to invoke even if proxy.New fails or initialization races.
+	// We own the proxy lifetime context here so the verify closure below
+	// can capture it directly; Shutdown() propagates cancellation to any
+	// in-flight OPA evaluation.
 	//
-	// We install the verify callback on the base *tls.Config here so that
-	// any wrapping done inside GetServerConfig — notably the SPIFFE wrap
-	// at certloader/spiffe_tls_config.go which calls
+	// The closure is installed on the base *tls.Config so that wrapping
+	// done inside GetServerConfig — notably the SPIFFE wrap at
+	// certloader/spiffe_tls_config.go which calls
 	// WrapVerifyPeerCertificate(config.VerifyPeerCertificate, ...) — sees
-	// our callback as its inner ("wrapped") function. That is what threads
-	// the SPIFFE-parsed verified chains through to our ACL; if we instead
-	// composed after GetServerConfig, SPIFFE would wrap nil and our ACL
-	// would receive empty verifiedChains and fail closed.
-	verifyCtx := context.Background()
+	// our callback as its inner ("wrapped") function. Installing after
+	// GetServerConfig would leave SPIFFE wrapping nil and our ACL would
+	// receive empty verifiedChains and fail closed.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	if *serverDisableAuth {
 		config.ClientAuth = tls.NoClientCert
 	} else {
 		config.VerifyPeerCertificate = func(raw [][]byte, chains [][]*x509.Certificate) error {
-			return serverACL.VerifyPeerCertificateServer(verifyCtx, raw, chains)
+			return serverACL.VerifyPeerCertificateServer(ctx, raw, chains)
 		}
 	}
 
@@ -745,9 +744,10 @@ func serverListen(env *Environment) error {
 		return err
 	}
 
-	tlsListener := certloader.NewListener(listener, serverConfig)
 	p := proxy.New(
-		tlsListener,
+		ctx,
+		cancel,
+		certloader.NewListener(listener, serverConfig),
 		*connectTimeout,
 		*closeTimeout,
 		*maxConnLifetime,
@@ -757,12 +757,6 @@ func serverListen(env *Environment) error {
 		proxyLoggerFlags(*quiet),
 		serverProxyProtoMode(),
 	)
-
-	// Bind the verify context to the proxy's lifetime context so OPA
-	// evaluations unblock on Shutdown. The Go memory model guarantees
-	// the write here happens-before any handshake callback run from a
-	// goroutine started by p.Accept() below.
-	verifyCtx = p.Context()
 
 	if *statusAddress != "" {
 		err := env.serveStatus()
@@ -798,7 +792,12 @@ func clientListen(env *Environment) error {
 		ul.SetUnlinkOnClose(true)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	p := proxy.New(
+		ctx,
+		cancel,
 		listener,
 		*connectTimeout,
 		*closeTimeout,
