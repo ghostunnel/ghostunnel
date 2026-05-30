@@ -12,25 +12,22 @@ permissions:
 jobs:
   build-linux:
     name: Build (Linux)
-    strategy:
-      matrix:
-        version: [1.26.x]
     runs-on: ubuntu-22.04
     steps:
       - name: Set up cross toolchain
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
-      - name: Set up toolchain
-        uses: actions/setup-go@v6
-        with:
-          go-version: ${{ matrix.version }}
-          cache: false
-        id: go
       - name: Checkout
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+      - name: Set up toolchain
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: false
+        id: go
       - name: Build binary
         env:
           VERSION: ${{ github.ref_name }}
@@ -53,21 +50,18 @@ jobs:
 
   build-darwin:
     name: Build (MacOS)
-    strategy:
-      matrix:
-        version: [1.26.x]
     runs-on: macos-latest
     steps:
-      - name: Set up toolchain
-        uses: actions/setup-go@v6
-        with:
-          go-version: ${{ matrix.version }}
-          cache: false
-        id: go
       - name: Checkout
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+      - name: Set up toolchain
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: false
+        id: go
       - name: Build binary
         env:
           VERSION: ${{ github.ref_name }}
@@ -114,21 +108,18 @@ jobs:
 
   build-windows:
     name: Build (Windows)
-    strategy:
-      matrix:
-        version: [1.26.x]
     runs-on: windows-latest
     steps:
-      - name: Set up toolchain
-        uses: actions/setup-go@v6
-        with:
-          go-version: ${{ matrix.version }}
-          cache: false
-        id: go
       - name: Checkout
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+      - name: Set up toolchain
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: false
+        id: go
       - name: Build binary
         env:
           VERSION: ${{ github.ref_name }}
@@ -153,7 +144,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.26.x'
+          go-version: stable
           cache: false
       - name: Download all artifacts
         uses: actions/download-artifact@v8

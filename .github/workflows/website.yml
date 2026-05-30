@@ -31,7 +31,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: go.mod
+          go-version: stable
           cache: false
       - name: Setup Hugo
         uses: peaceiris/actions-hugo@v3
