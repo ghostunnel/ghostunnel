@@ -31,6 +31,7 @@ type InsertAndCompileOptions struct {
 	EnablePrintStatements bool
 	ParserOptions         ast.ParserOptions
 	BundleActivatorPlugin string
+	ExternalSources       *util.HasherMap[ast.Ref, ast.ExternalRuleSource]
 }
 
 // InsertAndCompileResult contains the output of the operation.
@@ -59,18 +60,31 @@ func InsertAndCompile(ctx context.Context, opts InsertAndCompileOptions) (*Inser
 		SetErrorLimit(opts.MaxErrors).
 		WithPathConflictsCheck(storage.NonEmpty(ctx, opts.Store, opts.Txn)).
 		WithEnablePrintStatements(opts.EnablePrintStatements)
+
+	// Apply external sources to the compiler before bundle activation.
+	// Bundle activation applies them again via compileModules, but we need them
+	// here too: there may be no bundles, or a custom activator plugin may not
+	// call compileModules.
+	if opts.ExternalSources != nil {
+		opts.ExternalSources.Iter(func(ref ast.Ref, source ast.ExternalRuleSource) bool {
+			compiler = compiler.WithExternalSource(ref, source)
+			return false
+		})
+	}
+
 	m := metrics.New()
 
 	activation := &bundle.ActivateOpts{
-		Ctx:           ctx,
-		Store:         opts.Store,
-		Txn:           opts.Txn,
-		Compiler:      compiler,
-		Metrics:       m,
-		Bundles:       opts.Bundles,
-		ExtraModules:  policies,
-		ParserOptions: opts.ParserOptions,
-		Plugin:        opts.BundleActivatorPlugin,
+		Ctx:             ctx,
+		Store:           opts.Store,
+		Txn:             opts.Txn,
+		Compiler:        compiler,
+		Metrics:         m,
+		Bundles:         opts.Bundles,
+		ExtraModules:    policies,
+		ExternalSources: opts.ExternalSources,
+		ParserOptions:   opts.ParserOptions,
+		Plugin:          opts.BundleActivatorPlugin,
 	}
 
 	err := bundle.Activate(activation)
@@ -129,21 +143,20 @@ func LoadPaths(paths []string,
 	processAnnotations bool,
 	caps *ast.Capabilities,
 	fsys fs.FS) (*LoadPathsResult, error) {
-	return LoadPathsForRegoVersion(ast.RegoV0, paths, filter, asBundle, bvc, skipVerify, bundleLazyLoading, processAnnotations, false, caps, fsys)
+	return LoadPathsForRegoVersion(ast.ParserOptions{RegoVersion: ast.RegoV0, ProcessAnnotation: processAnnotations, Capabilities: caps}, paths, filter, asBundle, bvc, skipVerify, bundleLazyLoading, false, fsys)
 }
 
-func LoadPathsForRegoVersion(regoVersion ast.RegoVersion,
+func LoadPathsForRegoVersion(popts ast.ParserOptions,
 	paths []string,
 	filter loader.Filter,
 	asBundle bool,
 	bvc *bundle.VerificationConfig,
 	skipVerify bool,
 	bundleLazyLoading bool,
-	processAnnotations bool,
 	followSymlinks bool,
-	caps *ast.Capabilities,
 	fsys fs.FS) (*LoadPathsResult, error) {
 
+	caps := popts.Capabilities
 	if caps == nil {
 		caps = ast.CapabilitiesForThisVersion()
 	}
@@ -166,9 +179,9 @@ func LoadPathsForRegoVersion(regoVersion ast.RegoVersion,
 				WithSkipBundleVerification(skipVerify).
 				WithBundleLazyLoadingMode(bundleLazyLoading).
 				WithFilter(filter).
-				WithProcessAnnotation(processAnnotations).
+				WithProcessAnnotation(popts.ProcessAnnotation).
 				WithCapabilities(caps).
-				WithRegoVersion(regoVersion).
+				WithRegoVersion(popts.RegoVersion).
 				WithFollowSymlinks(followSymlinks).
 				AsBundle(path)
 			if err != nil {
@@ -184,9 +197,9 @@ func LoadPathsForRegoVersion(regoVersion ast.RegoVersion,
 	files, err := loader.NewFileLoader().
 		WithFS(fsys).
 		WithBundleLazyLoadingMode(bundleLazyLoading).
-		WithProcessAnnotation(processAnnotations).
+		WithProcessAnnotation(popts.ProcessAnnotation).
 		WithCapabilities(caps).
-		WithRegoVersion(regoVersion).
+		WithRegoVersion(popts.RegoVersion).
 		Filtered(nonBundlePaths, filter)
 
 	if err != nil {
