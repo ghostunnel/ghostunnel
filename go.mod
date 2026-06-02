@@ -24,7 +24,7 @@ require (
 	github.com/wrouesnel/go.connect-proxy-scheme v0.0.0-20240822095422-f6d0c8f327b9
 	golang.org/x/net v0.53.0
 	golang.org/x/sync v0.20.0
-	golang.org/x/sys v0.44.0
+	golang.org/x/sys v0.45.0
 	google.golang.org/grpc v1.81.1
 	google.golang.org/protobuf v1.36.11
 	software.sslmate.com/src/go-pkcs12 v0.7.1
