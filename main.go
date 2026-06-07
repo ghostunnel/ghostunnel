@@ -412,15 +412,21 @@ func validateServerProxyProtocol() error {
 }
 
 func validateClientCredentials() error {
-	count := validateCredentials([]bool{
+	fileCredCount := validateCredentials([]bool{
 		*keystorePath != "",
 		hasKeychainIdentity(),
 		(*certPath != "" && *keyPath != ""),
 		(*certPath != "" && hasPKCS11()),
-		*clientDisableAuth,
 	})
+	if *useWorkloadAPI && fileCredCount > 0 {
+		return errors.New("--use-workload-api is mutually exclusive with --keystore, --cert/--key, and --keychain-identity/issuer")
+	}
+	count := fileCredCount
+	if *clientDisableAuth {
+		count++
+	}
 	if count == 0 && !*useWorkloadAPI {
-		return errors.New("at least one of --keystore, --cert/--key, --keychain-identity/issuer (if supported) or --disable-authentication flags is required")
+		return errors.New("at least one of --keystore, --cert/--key, --keychain-identity/issuer (if supported), --use-workload-api or --disable-authentication flags is required")
 	}
 	if count > 1 {
 		return errors.New("--keystore, --cert/--key, --keychain-identity/issuer and --disable-authentication flags are mutually exclusive")

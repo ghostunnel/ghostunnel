@@ -7,6 +7,7 @@ ghostunnel2 = None
 ghostunnel3 = None
 ghostunnel4 = None
 ghostunnel5 = None
+ghostunnel6 = None
 try:
     # create certs
     root = RootCert('root')
@@ -52,9 +53,18 @@ try:
                                   '--cert=server.key',
                                   '--cacert=root.crt'])
     assert_not_zero(ghostunnel5)
+
+    ghostunnel6 = run_ghostunnel(['client',
+                                  '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
+                                  '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
+                                  '--use-workload-api',
+                                  '--keystore=server.p12',
+                                  '--cacert=root.crt'])
+    assert_not_zero(ghostunnel6)
 finally:
     terminate(ghostunnel1)
     terminate(ghostunnel2)
     terminate(ghostunnel3)
     terminate(ghostunnel4)
     terminate(ghostunnel5)
+    terminate(ghostunnel6)
