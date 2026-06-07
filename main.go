@@ -772,11 +772,6 @@ func clientListen(env *Environment) error {
 		return err
 	}
 
-	// If this is a UNIX socket, make sure we cleanup files on close.
-	if ul, ok := listener.(*net.UnixListener); ok {
-		ul.SetUnlinkOnClose(true)
-	}
-
 	p := proxy.New(
 		listener,
 		*connectTimeout,
