@@ -30,42 +30,63 @@ import (
 )
 
 func TestLandlockRuleFromStringAddress(t *testing.T) {
+	// kind names which of (fs, net) is expected to be non-nil.
+	type kind int
+	const (
+		none    kind = iota // both nil, no error (systemd:/launchd:)
+		fsOnly              // FS rule, net nil — unix sockets
+		netOnly             // net rule, fs nil — TCP / URL forms
+		invalid             // both nil, err non-nil
+	)
 	testCases := []struct {
-		addr  string
-		valid bool
+		addr string
+		want kind
 	}{
-		{"unix:/tmp/test", true},
-		{"systemd:test", false}, // no rule needed
-		{"launchd:test", false}, // no rule needed
-		{"1.2.3.4:5", true},
-		{"asdf:50", true},
-		{"[1fff:0:a88:85a3::ac1f]:8001", true},
-		{"foobar:80", true},
-		{"foobar", false},              // invalid port
-		{"foobar:foobar", false},       // invalid port
-		{"foobar:100000000000", false}, // invalid port
-		{"foobar:0", false},            // invalid port
-		{"http://127.0.0.1:8001/something", true},
-		{"https://127.0.0.1:8001/something", true},
-		{"http://[1fff:0:a88:85a3::ac1f]:8001/something", true},
-		{"https://[1fff:0:a88:85a3::ac1f]:8001/something", true},
-		{"http://localhost", true},
-		{"https://localhost", true},
-		{"http://_:_!", false},                            // invalid domain
-		{"https://_:_!", false},                           // invalid domain
-		{"http://127.0.0.1:0/something", false},           // invalid port
-		{"https://127.0.0.1:1000000000/something", false}, // invalid port
-		{"!", false},                                      // invalid string
-		{"", false},                                       // invalid string
+		{"unix:/tmp/test", fsOnly},
+		{"unix:/var/lib/myapp/in.sock", fsOnly}, // non-default path — the regression case
+		{"systemd:test", none},
+		{"launchd:test", none},
+		{"1.2.3.4:5", netOnly},
+		{"asdf:50", netOnly},
+		{"[1fff:0:a88:85a3::ac1f]:8001", netOnly},
+		{"foobar:80", netOnly},
+		{"foobar", invalid},
+		{"foobar:foobar", invalid},
+		{"foobar:100000000000", invalid},
+		{"foobar:0", invalid},
+		{"http://127.0.0.1:8001/something", netOnly},
+		{"https://127.0.0.1:8001/something", netOnly},
+		{"http://[1fff:0:a88:85a3::ac1f]:8001/something", netOnly},
+		{"https://[1fff:0:a88:85a3::ac1f]:8001/something", netOnly},
+		{"http://localhost", netOnly},
+		{"https://localhost", netOnly},
+		{"http://_:_!", invalid},
+		{"https://_:_!", invalid},
+		{"http://127.0.0.1:0/something", invalid},
+		{"https://127.0.0.1:1000000000/something", invalid},
+		{"!", invalid},
+		{"", invalid},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.addr, func(t *testing.T) {
-			rule, _ := ruleFromStringAddress(tc.addr, landlock.ConnectTCP)
-			if tc.valid && rule == nil {
-				t.Errorf("no result on valid input")
-			}
-			if !tc.valid && rule != nil {
-				t.Errorf("got result on invalid input")
+			fsRule, netRule, err := ruleFromStringAddress(tc.addr, landlock.ConnectTCP)
+			switch tc.want {
+			case none:
+				if fsRule != nil || netRule != nil || err != nil {
+					t.Errorf("want both nil, got fs=%v net=%v err=%v", fsRule, netRule, err)
+				}
+			case fsOnly:
+				if fsRule == nil || netRule != nil || err != nil {
+					t.Errorf("want fs rule only, got fs=%v net=%v err=%v", fsRule, netRule, err)
+				}
+			case netOnly:
+				if fsRule != nil || netRule == nil || err != nil {
+					t.Errorf("want net rule only, got fs=%v net=%v err=%v", fsRule, netRule, err)
+				}
+			case invalid:
+				if fsRule != nil || netRule != nil {
+					t.Errorf("want no rule on invalid input, got fs=%v net=%v", fsRule, netRule)
+				}
 			}
 		})
 	}
