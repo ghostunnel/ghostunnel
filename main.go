@@ -412,18 +412,22 @@ func validateServerProxyProtocol() error {
 }
 
 func validateClientCredentials() error {
+	// --disable-authentication is mutex with file-based identity flags, but
+	// may be combined with --use-workload-api for server verification only.
+	disableAuthCounts := *clientDisableAuth && !*useWorkloadAPI
 	count := validateCredentials([]bool{
 		*keystorePath != "",
 		hasKeychainIdentity(),
 		(*certPath != "" && *keyPath != ""),
 		(*certPath != "" && hasPKCS11()),
-		*clientDisableAuth,
+		*useWorkloadAPI,
+		disableAuthCounts,
 	})
-	if count == 0 && !*useWorkloadAPI {
-		return errors.New("at least one of --keystore, --cert/--key, --keychain-identity/issuer (if supported) or --disable-authentication flags is required")
+	if count == 0 {
+		return errors.New("at least one of --keystore, --cert/--key, --keychain-identity/issuer (if supported), --use-workload-api or --disable-authentication flags is required")
 	}
 	if count > 1 {
-		return errors.New("--keystore, --cert/--key, --keychain-identity/issuer and --disable-authentication flags are mutually exclusive")
+		return errors.New("--keystore, --cert/--key, --keychain-identity/issuer, --use-workload-api and --disable-authentication flags are mutually exclusive")
 	}
 	return validateCertKeyPair()
 }
