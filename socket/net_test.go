@@ -17,6 +17,7 @@
 package socket
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -121,6 +122,36 @@ func TestOpenUnixSocket(t *testing.T) {
 	assert.Nil(t, err, "should be able to open Unix socket")
 	defer func() { _ = ln.Close() }()
 	assert.NotNil(t, ln.Addr(), "listener should have an address")
+}
+
+// TestOpenUnixSocketUnlinksOnClose pins down the contract that callers
+// (clientListen, serverListen) rely on: when Open creates a UNIX socket on
+// behalf of ghostunnel, it owns the path and unlinks it on Close. If this
+// guarantee is removed, the redundant cleanup that used to live in
+// clientListen would need to be restored.
+func TestOpenUnixSocketUnlinksOnClose(t *testing.T) {
+	// Use a short tmpdir to stay under macOS's 104-char sun_path limit.
+	tmpDir, err := os.MkdirTemp("", "gs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
+	sockPath := filepath.Join(tmpDir, "test.sock")
+
+	ln, err := Open("unix", sockPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(sockPath); err != nil {
+		t.Fatalf("socket should exist after Open: %v", err)
+	}
+
+	if err := ln.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = os.Stat(sockPath)
+	assert.True(t, os.IsNotExist(err), "socket should be unlinked after Close, but got: %v", err)
 }
 
 func TestOpenUnixSocketListenError(t *testing.T) {
