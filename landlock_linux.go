@@ -251,13 +251,20 @@ func setupLandlock() error {
 // inside go-landlock and is silently dropped.
 func ruleFromStringAddress(addr string, ruleFromPort portRuleFunc) (landlock.Rule, landlock.Rule, error) {
 	if strings.HasPrefix(addr, "unix:") {
+		path := addr[5:]
+		if path == "" {
+			// socket.ParseAddress accepts "unix:" with an empty path;
+			// reject here so we don't silently grant RW on the CWD via
+			// filepath.Dir("") == "." before the bind error surfaces.
+			return nil, nil, errors.New("unix socket path is empty")
+		}
 		// Grant RW on the parent directory rather than the socket file
 		// itself: the file does not exist at bind(2) time, and shutdown
 		// may unlink it. No IgnoreIfMissing — if the operator-supplied
 		// parent is missing at startup, fail loud (landlock setup errors
 		// and the warning at the call site fires) rather than silently
 		// dropping the rule and denying bind/connect later.
-		return landlock.RWDirs(filepath.Dir(addr[5:])), nil, nil
+		return landlock.RWDirs(filepath.Dir(path)), nil, nil
 	}
 	if strings.HasPrefix(addr, "systemd:") || strings.HasPrefix(addr, "launchd:") {
 		// Socket activation - no rule needed

@@ -44,6 +44,7 @@ func TestLandlockRuleFromStringAddress(t *testing.T) {
 	}{
 		{"unix:/tmp/test", fsOnly},
 		{"unix:/var/lib/myapp/in.sock", fsOnly}, // non-default path — the regression case
+		{"unix:", invalid},                      // empty path — would otherwise grant RW on CWD
 		{"systemd:test", none},
 		{"launchd:test", none},
 		{"1.2.3.4:5", netOnly},
@@ -84,8 +85,8 @@ func TestLandlockRuleFromStringAddress(t *testing.T) {
 					t.Errorf("want net rule only, got fs=%v net=%v err=%v", fsRule, netRule, err)
 				}
 			case invalid:
-				if fsRule != nil || netRule != nil {
-					t.Errorf("want no rule on invalid input, got fs=%v net=%v", fsRule, netRule)
+				if fsRule != nil || netRule != nil || err == nil {
+					t.Errorf("want error on invalid input, got fs=%v net=%v err=%v", fsRule, netRule, err)
 				}
 			}
 		})
