@@ -126,12 +126,15 @@ func setupLandlock() error {
 			continue
 		}
 
-		rule, err := ruleFromStringAddress(*addr, landlock.BindTCP)
+		fsRule, netRule, err := ruleFromStringAddress(*addr, landlock.BindTCP)
 		if err != nil {
 			return fmt.Errorf("error processing argument '%s' for landlock rule: %w", *addr, err)
 		}
-		if rule != nil {
-			netRules = append(netRules, rule)
+		if fsRule != nil {
+			fsRules = append(fsRules, fsRule)
+		}
+		if netRule != nil {
+			netRules = append(netRules, netRule)
 		}
 	}
 
@@ -148,12 +151,15 @@ func setupLandlock() error {
 			continue
 		}
 
-		rule, err := ruleFromStringAddress(*addr, landlock.ConnectTCP)
+		fsRule, netRule, err := ruleFromStringAddress(*addr, landlock.ConnectTCP)
 		if err != nil {
 			return fmt.Errorf("error processing argument '%s' for landlock rule: %w", *addr, err)
 		}
-		if rule != nil {
-			netRules = append(netRules, rule)
+		if fsRule != nil {
+			fsRules = append(fsRules, fsRule)
+		}
+		if netRule != nil {
+			netRules = append(netRules, netRule)
 		}
 	}
 
@@ -235,36 +241,55 @@ func setupLandlock() error {
 }
 
 // ruleFromStringAddress turns a flag-supplied address string into a landlock
-// rule. Handles unix sockets (RW on the socket path), systemd/launchd socket
-// activation (no rule needed; the FD is inherited), HTTP/HTTPS URLs, and
-// host:port forms. ruleFromPort selects bind vs connect semantics.
-func ruleFromStringAddress(addr string, ruleFromPort portRuleFunc) (landlock.Rule, error) {
+// rule. Handles unix sockets (RW on the socket's parent dir), systemd/launchd
+// socket activation (no rule needed; the FD is inherited), HTTP/HTTPS URLs,
+// and host:port forms. ruleFromPort selects bind vs connect semantics.
+//
+// Returns at most one non-nil rule: an FS rule for unix-socket addresses,
+// otherwise a net rule. Callers must dispatch each into the correct slice —
+// passing an FS rule to RestrictNet (or vice versa) intersects to zero access
+// inside go-landlock and is silently dropped.
+func ruleFromStringAddress(addr string, ruleFromPort portRuleFunc) (landlock.Rule, landlock.Rule, error) {
 	if strings.HasPrefix(addr, "unix:") {
-		return landlock.RWFiles(addr[5:]), nil
+		path := addr[5:]
+		if path == "" {
+			// socket.ParseAddress accepts "unix:" with an empty path;
+			// reject here so we don't silently grant RW on the CWD via
+			// filepath.Dir("") == "." before the bind error surfaces.
+			return nil, nil, errors.New("unix socket path is empty")
+		}
+		// Grant RW on the parent directory rather than the socket file
+		// itself: the file does not exist at bind(2) time, and shutdown
+		// may unlink it. No IgnoreIfMissing — if the operator-supplied
+		// parent is missing at startup, fail loud (landlock setup errors
+		// and the warning at the call site fires) rather than silently
+		// dropping the rule and denying bind/connect later.
+		return landlock.RWDirs(filepath.Dir(path)), nil, nil
 	}
 	if strings.HasPrefix(addr, "systemd:") || strings.HasPrefix(addr, "launchd:") {
 		// Socket activation - no rule needed
-		return nil, nil
+		return nil, nil, nil
 	}
 	if strings.HasPrefix(addr, "http://") || strings.HasPrefix(addr, "https://") {
 		u, err := url.Parse(addr)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		return ruleFromURL(u, ruleFromPort)
+		rule, err := ruleFromURL(u, ruleFromPort)
+		return nil, rule, err
 	}
 	parts := strings.Split(addr, ":")
 	if len(parts) < 2 {
-		return nil, errors.New("unable to extract port number from address")
+		return nil, nil, errors.New("unable to extract port number from address")
 	}
 	port, err := strconv.ParseUint(parts[len(parts)-1], 10, 16)
 	if err != nil {
-		return nil, errors.New("unable to extract port number from address")
+		return nil, nil, errors.New("unable to extract port number from address")
 	}
 	if port == 0 {
-		return nil, errors.New("unable to extract port number from address")
+		return nil, nil, errors.New("unable to extract port number from address")
 	}
-	return ruleFromPort(uint16(port)), nil
+	return nil, ruleFromPort(uint16(port)), nil
 }
 
 // ruleFromTCPAddress turns a *net.TCPAddr (from already-parsed flags like
