@@ -414,6 +414,118 @@ def check_keytool():
         print("keytool not available", file=sys.stderr)
         sys.exit(2)
 
+def require_pebble():
+    """Skip the test unless the Pebble ACME test server is available.
+
+    Pebble (https://github.com/letsencrypt/pebble) is Let's Encrypt's
+    mini-CA for local testing. We look for it on PATH; if absent, skip.
+    """
+    if not shutil.which('pebble'):
+        print("pebble (Let's Encrypt test ACME server) not available on PATH",
+              file=sys.stderr)
+        sys.exit(2)
+
+
+def start_pebble(work_dir, directory_port, mgmt_port, tls_alpn_port,
+                 cert_validity_seconds=7776000):
+    """Start a Pebble ACME server bound to the given ports.
+
+    work_dir                : writable directory for Pebble's config + key
+                              files
+    directory_port          : port for the ACME directory HTTPS endpoint
+    mgmt_port               : port for Pebble's management HTTP API
+    tls_alpn_port           : port Pebble will dial to perform TLS-ALPN-01
+                              validation (must be where ghostunnel listens)
+    cert_validity_seconds   : validity period of issued certs, in seconds.
+                              Default 90 days; tests that want a quick
+                              renewal can pass a small value (e.g. 30) to
+                              force certmagic to renew soon.
+
+    Returns (Popen handle, directory_url, ca_cert_path).
+    The caller is responsible for terminate_pebble() in finally.
+    """
+    # Pebble needs its own self-signed cert for the directory endpoint.
+    # We use openssl to generate one. The CA cert path is returned so the
+    # ACME client (ghostunnel) can be told to trust it via PEBBLE_CA env
+    # var when launched (Go's crypto/x509 honors SSL_CERT_FILE).
+    pebble_key = os.path.join(work_dir, 'pebble.key')
+    pebble_crt = os.path.join(work_dir, 'pebble.crt')
+    check_call(
+        'openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 '
+        '-nodes -days 1 -subj /CN=pebble '
+        '-addext subjectAltName=DNS:localhost,IP:127.0.0.1 '
+        '-keyout {0} -out {1}'.format(pebble_key, pebble_crt),
+        shell=True, stdout=DEVNULL, stderr=DEVNULL)
+
+    config_path = os.path.join(work_dir, 'pebble-config.json')
+    config = {
+        "pebble": {
+            "listenAddress": "{0}:{1}".format(LOCALHOST, directory_port),
+            "managementListenAddress": "{0}:{1}".format(LOCALHOST, mgmt_port),
+            "certificate": pebble_crt,
+            "privateKey": pebble_key,
+            "httpPort": 80,  # unused (we run TLS-ALPN-01 only)
+            "tlsPort": tls_alpn_port,
+            "ocspResponderURL": "",
+            "externalAccountBindingRequired": False,
+            "profiles": {
+                "default": {
+                    "description": "ghostunnel integration test",
+                    "validityPeriod": int(cert_validity_seconds),
+                },
+            },
+        }
+    }
+    with open(config_path, 'w') as f:
+        json.dump(config, f)
+
+    env = os.environ.copy()
+    # Make validations deterministic: no random sleep, never reject valid
+    # challenges. We still want real TLS-ALPN-01 validation to happen.
+    env['PEBBLE_VA_NOSLEEP'] = '1'
+    env['PEBBLE_VA_ALWAYS_VALID'] = '0'
+    # Skip CAA checks; we have no DNS in tests.
+    env['PEBBLE_VA_NOCAACHECK'] = '1'
+
+    handle = Popen(
+        ['pebble', '-config', config_path, '-strict'],
+        stdout=sys.stderr.buffer, stderr=sys.stderr.buffer, env=env)
+
+    directory_url = 'https://{0}:{1}/dir'.format(LOCALHOST, directory_port)
+
+    # Poll the directory endpoint until it responds.
+    ctx = ssl.create_default_context(cafile=pebble_crt)
+    deadline = time.time() + 15
+    iteration = 0
+    while time.time() < deadline:
+        if handle.poll() is not None:
+            raise RuntimeError(
+                "pebble exited prematurely with code {0}".format(handle.returncode))
+        try:
+            urllib.request.urlopen(directory_url, context=ctx, timeout=2).read()
+            return handle, directory_url, pebble_crt
+        except Exception:
+            _poll_sleep(iteration)
+            iteration += 1
+    handle.terminate()
+    raise TimeoutError("pebble directory endpoint did not respond in time")
+
+
+def terminate_pebble(handle):
+    """Gracefully terminate Pebble. Best-effort: cleanup must not raise."""
+    if handle is None:
+        return
+    try:
+        handle.terminate()
+        try:
+            handle.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            handle.kill()
+    except OSError:
+        # Process already gone (race with natural exit). Nothing to clean up.
+        pass
+
+
 def require_platform(*platforms):
     """Skip the test unless running on one of the specified platforms.
 
@@ -431,13 +543,48 @@ def require_platform(*platforms):
     sys.exit(2)
 
 def require_admin():
-    """Skip the test (exit 2) unless running with Administrator privileges (Windows)."""
-    if not IS_WINDOWS:
+    """Skip the test (exit 2) unless running with Administrator/root privileges.
+
+    On POSIX, this means euid == 0 — needed e.g. to bind privileged ports.
+    On Windows, this calls into shell32 to check the admin token.
+    """
+    if IS_WINDOWS:
+        import ctypes
+        if not ctypes.windll.shell32.IsUserAnAdmin():
+            print("requires Administrator privileges, skipping", file=sys.stderr)
+            sys.exit(2)
         return
-    import ctypes
-    if not ctypes.windll.shell32.IsUserAnAdmin():
-        print("requires Administrator privileges, skipping", file=sys.stderr)
+    if os.geteuid() != 0:
+        print("requires root privileges, skipping", file=sys.stderr)
         sys.exit(2)
+
+
+def require_can_bind_privileged_port():
+    """Skip unless ghostunnel can bind a privileged (<1024) TCP port.
+
+    Either the test process must be root, or the ghostunnel coverage binary
+    must carry CAP_NET_BIND_SERVICE (Linux file capabilities). The capability
+    is not granted automatically; an operator or CI image can apply it via
+    `setcap cap_net_bind_service=+ep ghostunnel.cover` so the test runs
+    without root.
+    """
+    if IS_WINDOWS:
+        # Windows uses the admin token model; defer to require_admin.
+        require_admin()
+        return
+    if os.geteuid() == 0:
+        return
+    if platform.system() == 'Linux' and shutil.which('getcap'):
+        try:
+            out = check_output(['getcap', _GHOSTUNNEL_BINARY],
+                               stderr=DEVNULL).decode()
+            if 'cap_net_bind_service' in out.lower():
+                return
+        except subprocess.CalledProcessError:
+            pass
+    print("requires root or CAP_NET_BIND_SERVICE on the ghostunnel binary, "
+          "skipping", file=sys.stderr)
+    sys.exit(2)
 
 def reload_args():
     """Extra args to enable certificate reload on Windows via --timed-reload."""

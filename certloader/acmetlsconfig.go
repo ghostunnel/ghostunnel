@@ -47,6 +47,12 @@ type ACMEConfig struct {
 	// Maximum number of attempts to obtain the initial ACME certificate.
 	// Defaults to 5 if zero.
 	MaxAttempts int
+
+	// Override certmagic's background renewal-check interval. Zero means use
+	// certmagic's default (10 minutes). Intended for the integration test
+	// that needs to observe a renewal moment within a few seconds; not
+	// useful as a production tuning knob.
+	RenewCheckInterval time.Duration
 }
 
 // TLSConfigSourceFromACME creates a TLSConfigSource that obtains certificates via ACME.
@@ -84,7 +90,7 @@ func TLSConfigSourceFromACME(acme *ACMEConfig) (TLSConfigSource, error) {
 		}
 	}
 
-	magicConfig := certmagic.NewDefault()
+	magicConfig := newCertmagicConfig(acme.RenewCheckInterval)
 
 	// Force an initial synchronous load of the certificate on startup,
 	// but retry with backoff instead of exiting the whole process. If no certificate
@@ -125,6 +131,24 @@ func TLSConfigSourceFromACME(acme *ACMEConfig) (TLSConfigSource, error) {
 	}
 
 	return newACMETLSConfigSource(magicConfig, acme)
+}
+
+// newCertmagicConfig builds a certmagic.Config. If renewCheckInterval > 0,
+// it creates a fresh Cache with that interval; otherwise it uses
+// certmagic.NewDefault() and the package singleton cache (production path).
+func newCertmagicConfig(renewCheckInterval time.Duration) *certmagic.Config {
+	if renewCheckInterval <= 0 {
+		return certmagic.NewDefault()
+	}
+	var cache *certmagic.Cache
+	cache = certmagic.NewCache(certmagic.CacheOptions{
+		GetConfigForCert: func(certmagic.Certificate) (*certmagic.Config, error) {
+			return certmagic.New(cache, certmagic.Default), nil
+		},
+		RenewCheckInterval: renewCheckInterval,
+		Logger:             certmagic.Default.Logger,
+	})
+	return certmagic.New(cache, certmagic.Default)
 }
 
 func newACMETLSConfigSource(magicConfig *certmagic.Config, acme *ACMEConfig) (*acmeTLSConfigSource, error) {
