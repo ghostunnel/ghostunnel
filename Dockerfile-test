@@ -42,5 +42,9 @@ ENV SOFTHSM2_CONF=/etc/softhsm/softhsm2.conf
 # Add GOPATH/bin to PATH for mage (default GOPATH in golang images is /go)
 ENV PATH=$PATH:/go/bin
 
-ENTRYPOINT ["mage"]
+# Redirect Python test fixtures (cert work dir, unix socket parents) out of
+# /tmp at container start so we exercise ghostunnel's per-address landlock
+# rules instead of riding on /tmp being in defaultReadWritePaths. A fresh
+# random dir per container run keeps repeated runs isolated.
+ENTRYPOINT ["sh", "-c", "export GHOSTUNNEL_TEST_TMPDIR=$(mktemp -d /var/ghostunnel-test-XXXXXX) && exec mage \"$@\"", "--"]
 CMD ["-v", "test:softhsmimport", "test:all"]

@@ -89,8 +89,20 @@ STATUS_PORT = get_free_port()
 LISTEN_PORT = get_free_port()
 TARGET_PORT = get_free_port()
 
+def _test_tmpdir():
+    """Override the default mkdtemp/mkstemp parent for fixtures.
+
+    GHOSTUNNEL_TEST_TMPDIR lets the test environment redirect cert
+    work dirs and unix-socket fixtures out of /tmp (which is in
+    ghostunnel's landlock defaultReadWritePaths and therefore masks
+    bugs in per-address rule installation). Unset: mkdtemp's default
+    ($TMPDIR or /tmp), matching historical behavior.
+    """
+    return os.environ.get('GHOSTUNNEL_TEST_TMPDIR') or None
+
+
 # Create a per-test temporary working directory for cert file isolation
-_WORK_DIR = mkdtemp(prefix='ghostunnel-test-')
+_WORK_DIR = mkdtemp(prefix='ghostunnel-test-', dir=_test_tmpdir())
 os.chdir(_WORK_DIR)
 
 
@@ -649,7 +661,7 @@ class TlsServer(MySocket):
 class UnixClient(MySocket):
     def __init__(self):
         super().__init__()
-        self.socket_path = os.path.join(mkdtemp(), 'ghostunnel-test-socket')
+        self.socket_path = os.path.join(mkdtemp(dir=_test_tmpdir()), 'ghostunnel-test-socket')
 
     def get_socket_path(self):
         return self.socket_path
@@ -679,7 +691,7 @@ class UnixClient(MySocket):
 class UnixServer(MySocket):
     def __init__(self):
         super().__init__()
-        self.socket_path = os.path.join(mkdtemp(), 'ghostunnel-test-socket')
+        self.socket_path = os.path.join(mkdtemp(dir=_test_tmpdir()), 'ghostunnel-test-socket')
         self.listening = False
         self.listener = None
 
