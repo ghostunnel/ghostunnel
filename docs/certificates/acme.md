@@ -61,6 +61,34 @@ intervention or `--timed-reload` is needed for ACME certificates.
 If a valid certificate already exists locally, Ghostunnel loads it from cache
 on startup without contacting the CA.
 
+## Renewal Under mTLS
+
+Renewal works even when client certificate authentication is enabled with
+flags like `--allow-cn`, `--allow-ou`, or `--allow-dns-san`. To check that
+you control the domain, the ACME CA opens a TLS handshake to port 443 that
+advertises the `acme-tls/1` ALPN protocol and presents no client
+certificate. Ghostunnel lets that one handshake complete without requiring
+a client cert. Every other connection still needs a valid client cert as
+you configured.
+
+Several rules keep this exemption from turning into a way around mTLS:
+
+- The ClientHello must offer exactly `["acme-tls/1"]` as its ALPN list. A
+  client that offers `acme-tls/1` alongside another protocol such as `h2`
+  is treated as a normal client and must present a valid client cert.
+- The relaxed handshake pins ALPN to `acme-tls/1` and cannot fall back to a
+  different protocol.
+- TLS session resumption is disabled for the relaxed handshake. A ticket
+  issued during a renewal probe cannot be reused later by a real client to
+  skip mTLS.
+- After the handshake finishes, Ghostunnel checks which ALPN was
+  negotiated. Any connection on `acme-tls/1` is closed without dialing the
+  backend. The validator only reads the challenge certificate from the
+  handshake and never sends application data, so closing here keeps probe
+  traffic away from your backend without breaking renewal.
+
+There are no flags to configure this. It is always on when ACME is enabled.
+
 ## Revoking or Force-Renewing
 
 Certmagic handles renewal automatically, but if you need to force a renewal

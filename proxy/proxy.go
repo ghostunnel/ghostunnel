@@ -343,6 +343,16 @@ func (p *Proxy) Accept() {
 				return
 			}
 
+			// TLS-ALPN-01 challenge probes complete the handshake to deliver
+			// the challenge certificate, but carry no application data and
+			// must never reach the backend. The handshake itself ran with
+			// ClientAuth relaxed (see certloader/acmetlsconfig.go); refusing
+			// to proxy ensures that relaxation cannot become an mTLS bypass.
+			if isACMEChallengeConn(conn) {
+				p.logConditional(LogConnections, "completed ACME TLS-ALPN-01 challenge from %s; not forwarding to backend", conn.RemoteAddr())
+				return
+			}
+
 			backend, err := p.Dial(ctx)
 			if err != nil {
 				p.logConditional(LogConnectionErrors, "error on dial: %s", err)
@@ -368,6 +378,19 @@ func (p *Proxy) Accept() {
 			p.fuse(conn, backend)
 		})
 	}
+}
+
+// isACMEChallengeConn reports whether the (already-handshaken) connection
+// negotiated the TLS-ALPN-01 challenge protocol from RFC 8737. Such a
+// connection is an ACME validator probe and must not be proxied to the
+// backend: the relaxed ClientAuth in certloader/acmetlsconfig.go is scoped
+// to making the handshake complete, not to authorizing application data.
+func isACMEChallengeConn(conn net.Conn) bool {
+	tlsConn, ok := conn.(*tls.Conn)
+	if !ok {
+		return false
+	}
+	return tlsConn.ConnectionState().NegotiatedProtocol == "acme-tls/1"
 }
 
 // Force handshake. Handshake usually happens on first read/write, but we want
