@@ -22,7 +22,7 @@ supported file formats and chain ordering.
 | `--keystore PATH` | Path to keystore (combined PEM with cert/key, or PKCS12 keystore). |
 | `--cert PATH` | Path to certificate (PEM with certificate chain). |
 | `--key PATH` | Path to certificate private key (PEM with private key). |
-| `--storepass PASS` | Password for keystore (if using PKCS12 keystore, optional). |
+| `--storepass PASS` | Password for keystore (PKCS#12 or JCEKS; optional for PKCS#12). |
 | `--cacert CACERT` | Path to CA bundle file (PEM/X509). Uses system trust store by default. |
 | `--use-workload-api` | Certificate and root CAs are retrieved via the SPIFFE Workload API. See [SPIFFE]({{< ref "spiffe-workload-api.md" >}}). |
 | `--use-workload-api-addr ADDR` | Retrieve certificates and root CAs via the SPIFFE Workload API at the specified address (implies `--use-workload-api`). See [SPIFFE]({{< ref "spiffe-workload-api.md" >}}). |
@@ -79,8 +79,8 @@ metrics endpoints, and profiling.
 | Flag | Description | Availability |
 |------|-------------|--------------|
 | `--status ADDR` | Enable `/_status` and `/_metrics` on given HOST:PORT (or `unix:SOCKET`). | All platforms |
-| `--enable-pprof` | Enable `/debug/pprof` endpoints alongside `/_status` (for profiling). | All platforms |
-| `--enable-shutdown` | Enable `/_shutdown` endpoint alongside `/_status` to allow terminating via HTTP POST. | All platforms |
+| `--enable-pprof` | Enable `/debug/pprof` endpoints alongside `/_status` (for profiling). Requires `--status`. | All platforms |
+| `--enable-shutdown` | Enable `/_shutdown` endpoint alongside `/_status` to allow terminating via HTTP POST. Requires `--status`. | All platforms |
 | `--quiet` | Silence log messages. Values: `all`, `conns`, `conn-errs`, `handshake-errs`. Can be repeated. | All platforms |
 | `--syslog` | Send logs to syslog instead of stdout. | Linux, macOS |
 | `--eventlog` | Send logs to Windows Event Log instead of stdout. | Windows |
@@ -130,6 +130,7 @@ See [Access Control Flags]({{< ref "access-flags.md" >}}).
 | `--allow-cn CN` | Allow clients with given common name (repeatable). |
 | `--allow-ou OU` | Allow clients with given organizational unit name (repeatable). |
 | `--allow-dns DNS` | Allow clients with given DNS subject alternative name (repeatable). |
+| `--allow-ip IP` | Allow clients with given IP subject alternative name (repeatable). |
 | `--allow-uri URI` | Allow clients with given URI subject alternative name (repeatable). |
 | `--disable-authentication` | Disable client authentication, no client certificate will be required. |
 
@@ -186,6 +187,7 @@ See [Access Control Flags]({{< ref "access-flags.md" >}}).
 | `--verify-cn CN` | Allow servers with given common name (repeatable). |
 | `--verify-ou OU` | Allow servers with given organizational unit name (repeatable). |
 | `--verify-dns DNS` | Allow servers with given DNS subject alternative name (repeatable). |
+| `--verify-ip IP` | Allow servers with given IP subject alternative name (repeatable). |
 | `--verify-uri URI` | Allow servers with given URI subject alternative name (repeatable). |
 
 ### OPA Policy (Client)

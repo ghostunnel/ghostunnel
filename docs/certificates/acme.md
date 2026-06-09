@@ -64,9 +64,9 @@ on startup without contacting the CA.
 ## Renewal Under mTLS
 
 Renewal works even when client certificate authentication is enabled with
-flags like `--allow-cn`, `--allow-ou`, or `--allow-dns-san`. To check that
+flags like `--allow-cn`, `--allow-ou`, or `--allow-dns`. To check that
 you control the domain, the ACME CA opens a TLS handshake to port 443 that
-advertises the `acme-tls/1` ALPN protocol and presents no client cert. 
+advertises the `acme-tls/1` ALPN protocol and presents no client cert.
 Ghostunnel lets that one handshake complete without requiring a client cert.
 Every other connection still needs a valid client cert as configured.
 
@@ -76,8 +76,8 @@ Several rules keep this exemption from turning into a way around mTLS:
   client that offers `acme-tls/1` alongside another protocol such as `h2`
   is treated as a normal client and must present a valid client cert.
 - The relaxed handshake pins ALPN to `acme-tls/1` and cannot fall back to a
-  different protocol and TLS session resumption is disabled for the relaxed
-  handshake. A ticket issued during a renewal probe cannot be reused later
+  different protocol. TLS session resumption is also disabled for the relaxed
+  handshake, so a ticket issued during a renewal probe cannot be reused later
   by a real client to skip mTLS.
 - After the handshake finishes, Ghostunnel checks which ALPN was
   negotiated. Any connection on `acme-tls/1` is closed without dialing the

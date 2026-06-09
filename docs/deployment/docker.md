@@ -15,7 +15,9 @@ variants are available:
 | Debian | `ghostunnel/ghostunnel:latest-debian`, `ghostunnel/ghostunnel:v1.x.x-debian` | Debian Slim |
 | Distroless | `ghostunnel/ghostunnel:latest-distroless`, `ghostunnel/ghostunnel:v1.x.x-distroless` | Distroless (`gcr.io/distroless/base-nossl:nonroot`) |
 
-The `latest` tags always point to the most recent release.
+The `latest` tags always point to the most recent release. The bare
+`ghostunnel/ghostunnel:latest` and `ghostunnel/ghostunnel:v1.x.x` tags are
+aliases for the Alpine variant.
 
 ## Pulling an Image
 
@@ -24,7 +26,7 @@ The `latest` tags always point to the most recent release.
 docker pull ghostunnel/ghostunnel:latest-distroless
 
 # Alpine (includes shell, good for debugging)
-docker pull ghostunnel/ghostunnel:latest
+docker pull ghostunnel/ghostunnel:latest-alpine
 
 # Debian (includes shell and package manager)
 docker pull ghostunnel/ghostunnel:latest-debian

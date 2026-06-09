@@ -2,7 +2,7 @@
 // authentication for securing non-TLS services. Ghostunnel in server mode
 // runs in front of a backend server and accepts TLS-secured connections, which
 // are then proxied to the (insecure) backend. A backend can be a TCP
-// domain/port or a UNIX domain socket. Ghostunnel in client mode accepts
+// host/port or a UNIX domain socket. Ghostunnel in client mode accepts
 // (insecure) connections through a TCP or UNIX domain socket and proxies them
 // to a TLS-secured service.
 package main
@@ -53,7 +53,7 @@ var manPageTemplate = `{{define "FormatFlags"}}\
 Ghostunnel supports two modes, client mode and server mode. Ghostunnel in
 server mode runs in front of a backend server and accepts TLS-secured
 connections, which are then proxied to the (insecure) backend. A backend can be
-a TCP domain/port or a UNIX domain socket. Ghostunnel in client mode accepts
+a TCP host/port or a UNIX domain socket. Ghostunnel in client mode accepts
 (insecure) connections through a TCP or UNIX domain socket and proxies them to
 a TLS-secured service.
 .SH "CERTIFICATES & PRIVATE KEYS"
@@ -118,8 +118,9 @@ with CN=client:
 .fi
 
 To set allowed clients, you must specify at least one of \fB--allow-all\fR,
-\fB--allow-cn\fR, \fB--allow-ou\fR, \fB--allow-dns\fR, \fB--allow-uri\fR, or
-\fB--allow-policy\fR. All checks are made against the certificate of the client.
+\fB--allow-cn\fR, \fB--allow-ou\fR, \fB--allow-dns\fR, \fB--allow-ip\fR,
+\fB--allow-uri\fR, or \fB--allow-policy\fR. All checks are made against the
+certificate of the client.
 Multiple flags are treated as a logical disjunction (OR), meaning clients can
 connect as long as any of the flags match. To disable requiring client
 certificates, use \fB--disable-authentication\fR.
@@ -142,7 +143,7 @@ Use \fB--override-server-name\fR to override the server name used for hostname
 verification. Various access control flags exist to perform additional
 verification (on top of the regular hostname verification) of server
 certificates, such as \fB--verify-cn\fR, \fB--verify-ou\fR, \fB--verify-dns\fR,
-\fB--verify-uri\fR, or \fB--verify-policy\fR. Multiple flags are treated as a
+\fB--verify-ip\fR, \fB--verify-uri\fR, or \fB--verify-policy\fR. Multiple flags are treated as a
 logical disjunction (OR), meaning clients will connect to the server as long as
 any of the flags match, assuming that hostname verification was also successful.
 To disable sending client certificates, use \fB--disable-authentication\fR.

@@ -1,6 +1,6 @@
 ---
 title: Access Control Flags
-description: Control which clients or servers are allowed to connect based on certificate fields (CN, OU, DNS/URI SAN) or OPA policies.
+description: Control which clients or servers are allowed to connect based on certificate fields (CN, OU, DNS/IP/URI SAN) or OPA policies.
 weight: 20
 aliases:
   - /docs/access-flags/
@@ -37,6 +37,12 @@ Performs an exact string match.
 Allow clients with the given DNS subject alternative name (DNS SAN). Can be
 repeated. Matches the DNS SAN value on the certificate, no DNS lookups are
 performed.
+
+* `--allow-ip`
+
+Allow clients with the given IP subject alternative name (IP SAN). Can be
+repeated. Matches the IP SAN value on the certificate, not the address the
+connection originates from.
 
 * `--allow-uri`
 
@@ -96,6 +102,11 @@ hostname verification. Can be repeated. Performs an exact string match.
 * `--verify-dns`
 
 Verify that a DNS subject alternative name (DNS SAN) is present on the server
+certificate, in addition to hostname verification. Can be repeated.
+
+* `--verify-ip`
+
+Verify that an IP subject alternative name (IP SAN) is present on the server
 certificate, in addition to hostname verification. Can be repeated.
 
 * `--verify-uri`

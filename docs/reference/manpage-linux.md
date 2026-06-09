@@ -24,7 +24,7 @@ services.
 Ghostunnel supports two modes, client mode and server mode. Ghostunnel
 in server mode runs in front of a backend server and accepts TLS-secured
 connections, which are then proxied to the (insecure) backend. A backend
-can be a TCP domain/port or a UNIX domain socket. Ghostunnel in client
+can be a TCP host/port or a UNIX domain socket. Ghostunnel in client
 mode accepts (insecure) connections through a TCP or UNIX domain socket
 and proxies them to a TLS-secured service.
 
@@ -92,10 +92,10 @@ client certificates with CN=client:
 
 To set allowed clients, you must specify at least one of
 **--allow-all**, **--allow-cn**, **--allow-ou**, **--allow-dns**,
-**--allow-uri**, or **--allow-policy**. All checks are made against the
-certificate of the client. Multiple flags are treated as a logical
-disjunction (OR), meaning clients can connect as long as any of the
-flags match. To disable requiring client certificates, use
+**--allow-ip**, **--allow-uri**, or **--allow-policy**. All checks are
+made against the certificate of the client. Multiple flags are treated
+as a logical disjunction (OR), meaning clients can connect as long as
+any of the flags match. To disable requiring client certificates, use
 **--disable-authentication**.
 
 # EXAMPLE: CLIENT MODE
@@ -115,11 +115,11 @@ Use **--override-server-name** to override the server name used for
 hostname verification. Various access control flags exist to perform
 additional verification (on top of the regular hostname verification) of
 server certificates, such as **--verify-cn**, **--verify-ou**,
-**--verify-dns**, **--verify-uri**, or **--verify-policy**. Multiple
-flags are treated as a logical disjunction (OR), meaning clients will
-connect to the server as long as any of the flags match, assuming that
-hostname verification was also successful. To disable sending client
-certificates, use **--disable-authentication**.
+**--verify-dns**, **--verify-ip**, **--verify-uri**, or
+**--verify-policy**. Multiple flags are treated as a logical disjunction
+(OR), meaning clients will connect to the server as long as any of the
+flags match, assuming that hostname verification was also successful. To
+disable sending client certificates, use **--disable-authentication**.
 
 # EXAMPLE: UNIX SOCKETS
 
@@ -203,8 +203,8 @@ PKCS12 keystore).
 
 **--key=PATH** Path to certificate private key (PEM with private key).
 
-**--storepass=PASS** Password for keystore (if using PKCS12 keystore,
-optional).
+**--storepass=PASS** Password for keystore (PKCS#12 or JCEKS; optional
+for PKCS#12).
 
 **--cacert=CACERT** Path to CA bundle file (PEM/X509). Uses system trust
 store by default.
@@ -314,6 +314,9 @@ be repeated).
 **--allow-dns=DNS** Allow clients with given DNS subject alternative
 name (can be repeated).
 
+**--allow-ip=IP** Allow clients with given IP subject alternative name
+(can be repeated).
+
 **--allow-uri=URI** Allow clients with given URI subject alternative
 name (can be repeated).
 
@@ -366,6 +369,9 @@ repeated).
 
 **--verify-dns=DNS** Allow servers with given DNS subject alternative
 name (can be repeated).
+
+**--verify-ip=IP** Allow servers with given IP subject alternative name
+(can be repeated).
 
 **--verify-uri=URI** Allow servers with given URI subject alternative
 name (can be repeated).

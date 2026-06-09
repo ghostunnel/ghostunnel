@@ -13,7 +13,7 @@ force-exits.
 
 ## Shutdown Triggers
 
-There are three ways to initiate a graceful shutdown:
+A graceful shutdown can be initiated with a signal or via an HTTP endpoint:
 
 ### Signals (Unix)
 

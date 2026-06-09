@@ -15,7 +15,7 @@ service.
 There are several processes involved in the demo:
 
 * Frontend client that sends TCP data
-* Frontend Ghostunnel that receives TCP data forwards it to the backend
+* Frontend Ghostunnel that receives TCP data and forwards it to the backend
   Ghostunnel over SPIFFE-authenticated mutual TLS
 * Backend Ghostunnel that receives TCP data over SPIFFE-authenticated mutual
   TLS and forwards it to the backend server

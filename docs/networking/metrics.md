@@ -173,8 +173,10 @@ scrape_configs:
       - targets: ['localhost:6060']
 ```
 
-If the status port uses HTTP (see below), set `scheme: http` and drop the
-`tls_config` block.
+The `cert_file` and `key_file` lines are optional: the status port does not
+require client certificates, so they can be dropped unless you want Prometheus
+to present a client certificate anyway. If the status port uses HTTP (see
+below), set `scheme: http` and drop the `tls_config` block entirely.
 
 ## Metrics Export
 

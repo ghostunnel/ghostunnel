@@ -1,6 +1,6 @@
 ---
 title: Security & Access Control
-description: Protocol configuration and AuthZ to decide who is allowed to connect.
+description: Protocol configuration and authorization rules to decide who is allowed to connect.
 weight: 30
 ---
 

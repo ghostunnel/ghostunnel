@@ -15,7 +15,7 @@ non-TLS services. It runs in one of two modes:
 
 * **Authentication & Authorization**: Enforces mutual TLS authentication by
   requiring valid client certificates. Supports fine-grained access control
-  checks on certificate fields (CN, OU, DNS/URI SAN), and declarative
+  checks on certificate fields (CN, OU, DNS/IP/URI SAN), and declarative
   authorization policies via Open Policy Agent (OPA).
 * **Certificate Hotswapping**: Reload certificates without restarting via
   SIGHUP/SIGUSR1 or timed reload intervals, enabling use of short-lived
@@ -41,10 +41,6 @@ available under [Docs](/docs/).
 
 ## Supported Platforms
 
-Ghostunnel is developed & tested on Linux, Apple macOS, and Windows but also
+Ghostunnel is developed & tested on Linux, macOS, and Windows but also
 runs on most other UNIX systems that are supported by Go such as FreeBSD,
-OpenBSD and NetBSD.
-
-## License
-
-Ghostunnel is licensed under the [Apache License 2.0](https://github.com/ghostunnel/ghostunnel/blob/master/LICENSE).
+OpenBSD, and NetBSD.

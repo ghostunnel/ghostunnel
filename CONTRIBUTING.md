@@ -12,10 +12,11 @@ all tests pass by running `go tool mage test:all`, and format your code with `go
 This project requires the Go version specified in `go.mod`. If the default `go`
 on PATH is older, builds will fail with a version mismatch error.
 
-**Claude Code (cloud environment):** Multiple Go versions are installed
-side-by-side under `/usr/local/`. The default `/usr/local/go/` may be older
-than what this project requires. Check for a matching version (e.g.
-`/usr/local/go<VERSION>/bin/go`) and prepend it to your PATH:
+**Cloud development environments:** Some environments (such as Claude Code on
+the web) install multiple Go versions side-by-side under `/usr/local/`. The
+default `/usr/local/go/` may be older than what this project requires. Check
+for a matching version (e.g. `/usr/local/go<VERSION>/bin/go`) and prepend it
+to your PATH:
 
 ```bash
 # Find available Go versions

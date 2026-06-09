@@ -134,6 +134,7 @@ func (Go) Man(ctx context.Context) error {
 	fmt.Fprintf(&buf, "---\n\n")
 	fmt.Fprintf(&buf, "> This man page was generated from the %s binary. Some flags may differ on other platforms.\n\n", meta.title[len("Man Page ("):len(meta.title)-1])
 	buf.WriteString(pandocOutput)
+	buf.WriteString("\n")
 
 	if err := os.WriteFile(manpageMD, buf.Bytes(), 0644); err != nil {
 		return fmt.Errorf("failed to write %s: %w", manpageMD, err)
