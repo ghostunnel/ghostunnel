@@ -17,7 +17,7 @@ Ghostunnel can also load TLS identities from the system keychain via
 A launchd plist to run Ghostunnel in server mode, listening on `:8081`,
 with a status port on `:8082`, forwarding connections to `:8083`:
 
-```xml
+```xml {file="ghostunnel.plist"}
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -89,7 +89,7 @@ To restrict access to a specific local user (see
 have launchd create a UNIX domain socket with the desired ownership and mode
 instead of binding to TCP:
 
-```xml
+```xml {file="ghostunnel.plist"}
 <key>Sockets</key>
 <dict>
   <key>Listener</key>
@@ -155,7 +155,7 @@ Ghostunnel's `--shutdown-timeout` (default `5m`) exceeds that window, in-flight
 connections will be cut off. To allow the full drain window, raise
 `ExitTimeOut` in the plist:
 
-```xml
+```xml {file="ghostunnel.plist"}
 <key>ExitTimeOut</key>
 <integer>360</integer>
 ```

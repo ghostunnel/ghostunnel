@@ -1,13 +1,49 @@
 {{ define "main" }}
-<div class="hero">
+<div class="home-hero">
   <div class="hero-mist"></div>
   <div class="hero-mist hero-mist--alt"></div>
-  <div class="ghost-hero">👻</div>
-  <h1>Ghostunnel</h1>
-  <p class="tagline">{{ .Site.Params.description }}</p>
-  <div class="frost-line"></div>
+  <div class="hero-inner">
+    <div class="ghost-hero">{{ partial "ghost-logo.html" }}</div>
+    <h1>Ghostunnel</h1>
+    <p class="tagline">{{ .Site.Params.description }}</p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="{{ "docs/quickstart/" | relURL }}">Get Started</a>
+      <a class="btn btn-secondary" href="{{ .Site.Params.github }}" target="_blank" rel="noopener">{{ partial "icon-github.html" }} View on GitHub</a>
+    </div>
+  </div>
 </div>
-<article class="content">
+
+<section class="home-section">
+  <h2>How It Works</h2>
+  <p class="home-intro">{{ .Params.intro }}</p>
+  <div class="modes">
+    {{ range .Params.modes }}
+    <div class="mode-card">
+      <h3>{{ .name }}</h3>
+      <div class="mode-flow">
+        {{ range $i, $step := .flow }}{{ if $i }}<span class="mode-arrow">&rarr;</span>{{ end }}<span class="mode-step{{ if eq $step "ghostunnel" }} mode-step--ghost{{ end }}">{{ $step }}</span>{{ end }}
+      </div>
+      <p>{{ .text }}</p>
+    </div>
+    {{ end }}
+  </div>
+</section>
+
+<section class="home-section">
+  <h2>Key Features</h2>
+  <div class="features">
+    {{ range .Params.features }}
+    <a class="feature-card" href="{{ .url | relURL }}">
+      <div class="feature-icon">{{ partial "icon-feature.html" .icon }}</div>
+      <h3>{{ .title }}</h3>
+      <p>{{ .text }}</p>
+    </a>
+    {{ end }}
+  </div>
+  <p class="features-outro">{{ .Params.outro | markdownify }}</p>
+</section>
+
+<article class="content home-content">
   {{ .Content }}
 </article>
 {{ end }}

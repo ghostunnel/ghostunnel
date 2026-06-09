@@ -15,7 +15,7 @@ timer.
 
 The simplest way to run Ghostunnel under systemd is a `Type=simple` service:
 
-```ini
+```ini {file="ghostunnel.service"}
 [Unit]
 Description=Ghostunnel
 After=network.target
@@ -57,7 +57,7 @@ When running as a [`Type=notify-reload`][systemd-service] service:
 
 ### Example Unit File
 
-```ini
+```ini {file="ghostunnel.service"}
 [Unit]
 Description=Ghostunnel
 After=network.target
@@ -100,7 +100,7 @@ matches the `FileDescriptorName` in the socket unit.
 
 A `ghostunnel.socket` unit for listening on `*:8443`:
 
-```ini
+```ini {file="ghostunnel.socket"}
 [Unit]
 Description=Ghostunnel Socket
 PartOf=ghostunnel.service
@@ -117,7 +117,7 @@ WantedBy=sockets.target
 
 A `ghostunnel.service` that forwards to `localhost:8080`:
 
-```ini
+```ini {file="ghostunnel.service"}
 [Unit]
 Description=Ghostunnel
 After=network.target ghostunnel.socket
@@ -147,7 +147,7 @@ To restrict access to a specific local user (see
 have systemd create a UNIX domain socket with the desired ownership and mode
 instead of binding to TCP:
 
-```ini
+```ini {file="ghostunnel.socket"}
 [Socket]
 FileDescriptorName=ghostunnel
 ListenStream=/run/ghostunnel.sock
@@ -181,7 +181,7 @@ systemd provides [sandboxing options][systemd-exec] that complement
 Ghostunnel's built-in Landlock support. These settings restrict the service to
 the privileges it needs:
 
-```ini
+```ini {file="ghostunnel.service"}
 [Service]
 # Dedicated unprivileged user. Use User=ghostunnel if you need persistent
 # state or specific file ownership instead.

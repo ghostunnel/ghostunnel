@@ -97,8 +97,8 @@ hardware-backed keys.
 
 **Using certutil** (recommended for automation):
 
-```bash
-certutil -f -p <password> -user -importpfx MY server.p12
+```powershell
+certutil -f -user -p "<password>" -importpfx MY server.p12
 ```
 
 This imports the certificate and private key into the current user's "MY"
@@ -179,11 +179,11 @@ On Windows, `--keychain-identity` and `--keychain-issuer` work the same way
 but search the Windows Certificate Store (MY, CURRENT_SERVICE, and
 LOCAL_MACHINE stores, as described [above](#importing-into-the-certificate-store)):
 
-```bash
-ghostunnel client \
-    --keychain-identity <common-name-or-serial> \
-    --listen localhost:8080 \
-    --target example.com:443 \
+```powershell
+ghostunnel client `
+    --keychain-identity <common-name-or-serial> `
+    --listen localhost:8080 `
+    --target example.com:443 `
     --cacert cacert.pem
 ```
 

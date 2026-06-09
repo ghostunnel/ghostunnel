@@ -34,16 +34,24 @@ ghostunnel server \
     --allow-cn client
 ```
 
-The certificate file must contain the **leaf certificate first**, followed by
-any intermediate CA certificates:
+**Order matters.** List your server's certificate first (the *leaf*), then
+each intermediate CA in chain order, working up toward the root. Ghostunnel
+sends the chain to clients in this exact order during the TLS handshake, so
+the client can verify a path back to a root it already trusts. The root
+itself is not included — the client must already have it.
 
-```
+```pem {file="server-chain.pem"}
+# 1. Your server's certificate (the leaf / end-entity cert).
 -----BEGIN CERTIFICATE-----
-(leaf / end-entity certificate)
+... your server's certificate ...
 -----END CERTIFICATE-----
+
+# 2. Intermediate CA that signed the leaf.
 -----BEGIN CERTIFICATE-----
-(intermediate CA certificate)
+... intermediate CA certificate ...
 -----END CERTIFICATE-----
+
+# 3. (Optional) any further intermediates, each signed by the next one up.
 ```
 
 The key file must contain a single PEM-encoded private key (RSA, ECDSA,

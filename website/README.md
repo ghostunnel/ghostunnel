@@ -41,8 +41,8 @@ This generates the contributors page and builds the site into `website/public/`.
 
 ```bash
 go tool mage website:contrib   # Generate contributors page from git history
-go tool mage website:build           # Generate contributors + build Hugo site
-go tool mage website:serve           # Generate contributors + start dev server
+go tool mage website:build     # Generate contributors + build Hugo site
+go tool mage website:serve     # Generate contributors + start dev server
 ```
 
 ## Content

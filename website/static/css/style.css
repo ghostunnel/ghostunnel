@@ -1,8 +1,8 @@
 /* ==============================================
-   Ghostunnel — Frost on Glass
-   Light, airy, icy. Pale blue-white backgrounds,
-   strong contrast, frosted glass surfaces,
-   teal-cyan accents.
+   Ghostunnel, Spectral Frost
+   Professional, security-focused, ghostly.
+   Deep ink-navy header & hero, light frosted
+   content surfaces, teal-cyan spectral accents.
    ============================================== */
 
 /* Reset & Base */
@@ -15,10 +15,9 @@
 }
 
 :root {
+  /* Light surfaces (content) */
   --bg: #f0f5f9;
-  --bg-warm: #f6f9fc;
   --bg-card: rgba(255, 255, 255, 0.72);
-  --bg-glass: rgba(255, 255, 255, 0.5);
   --text: #172a3a;
   --text-muted: #54717e;
   --text-heading: #0f2030;
@@ -28,22 +27,52 @@
   --border-hover: rgba(14, 138, 158, 0.25);
   --code-bg: rgba(14, 138, 158, 0.05);
   --code-border: rgba(14, 138, 158, 0.12);
-  --nav-bg: #102838;
-  --nav-text: #d0e0ea;
-  --badge-bg: rgba(14, 138, 158, 0.08);
-  --badge-text: #0e8a9e;
+
+  /* Dark ink surfaces (nav, hero, terminal) */
+  --ink: #0b1d2a;
+  --ink-deep: #081621;
+  --ink-raised: #0e2433;
+  --ink-text: #d0e0ea;
+  --ink-text-bright: #f2f8fb;
+  --ink-text-faint: rgba(208, 224, 234, 0.62);
+  --ink-border: rgba(120, 200, 215, 0.14);
+
+  /* Accent */
   --accent: #0e8a9e;
   --accent-light: #12a5bc;
+  --accent-bright: #3fc6da;
   --accent-faint: rgba(14, 138, 158, 0.06);
+  --badge-bg: rgba(14, 138, 158, 0.08);
+  --badge-text: #0e8a9e;
   --frost: rgba(14, 138, 158, 0.04);
-  --ghost-glow: rgba(14, 138, 158, 0.3);
+  --ghost-glow: rgba(63, 198, 218, 0.35);
+
+  --nav-bg: var(--ink);
+  --nav-text: var(--ink-text);
+
   --shadow-sm: 0 1px 3px rgba(15, 40, 60, 0.06);
   --shadow-md: 0 4px 16px rgba(15, 40, 60, 0.08);
   --shadow-lg: 0 8px 30px rgba(15, 40, 60, 0.1);
+
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+html {
+  /* Full-bleed hero uses 100vw; clip the scrollbar-width overflow.
+     `clip` is preferred (doesn't create a scroll container) but is
+     unsupported before ~2022; fall back to `hidden` for older browsers. */
+  overflow-x: hidden;
+}
+
+@supports (overflow-x: clip) {
+  html {
+    overflow-x: clip;
+  }
 }
 
 body {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--font-sans);
   font-weight: 400;
   font-size: 16px;
   line-height: 1.7;
@@ -83,7 +112,7 @@ body::after {
 h1, h2, h3, h4, h5, h6,
 .nav-title,
 .sidebar h3 {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--font-sans);
   font-weight: 600;
   color: var(--text-heading);
 }
@@ -99,37 +128,21 @@ a:hover {
   text-decoration: underline;
 }
 
+:focus-visible {
+  outline: 2px solid var(--accent-light);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
 /* =============================================
-   Ghost Emoji Art
+   Ghost Mark (inline SVG logo)
    ============================================= */
-
-.ghost-hero {
-  margin: 0 auto 1.25rem;
-  font-size: 5rem;
-  line-height: 1;
-  text-align: center;
-  opacity: 0.8;
-  filter: drop-shadow(0 0 20px var(--ghost-glow));
-  animation: ghost-drift 5s ease-in-out infinite;
-  position: relative;
-  z-index: 2;
-}
-
-@keyframes ghost-drift {
-  0%, 100% {
-    transform: translateY(0);
-    filter: drop-shadow(0 0 20px var(--ghost-glow));
-  }
-  50% {
-    transform: translateY(-10px);
-    filter: drop-shadow(0 0 28px var(--ghost-glow));
-  }
-}
-
-.ghost-nav {
-  margin-right: 0.3rem;
-  font-size: 1.2rem;
-  vertical-align: middle;
+.ghost-mark {
+  display: inline-block;
+  width: 1.25em;
+  height: auto;
+  flex-shrink: 0;
+  vertical-align: -0.2em;
 }
 
 /* =============================================
@@ -157,6 +170,7 @@ a:hover {
     var(--accent-light) 70%,
     transparent 95%);
   opacity: 0.5;
+  z-index: 3;
 }
 
 .nav-inner {
@@ -169,18 +183,24 @@ a:hover {
 }
 
 .nav-title {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--font-sans);
   color: #fff;
   font-size: 1.2rem;
   font-weight: 600;
   display: flex;
   align-items: center;
+  gap: 0.5rem;
   letter-spacing: 0.02em;
+}
+
+.nav-title .ghost-mark {
+  width: 1.3rem;
+  color: var(--accent-bright);
 }
 
 .nav-title:hover {
   text-decoration: none;
-  color: var(--accent-light);
+  color: var(--accent-bright);
 }
 
 .nav-links {
@@ -283,24 +303,51 @@ a:hover {
 }
 
 /* =============================================
-   Hero
+   Home Hero (full-bleed dark panel)
    ============================================= */
-.hero {
-  text-align: center;
-  padding: 4rem 0 1.5rem;
+.home-hero {
   position: relative;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-top: -2rem;
   overflow: hidden;
+  background:
+    radial-gradient(ellipse 70% 90% at 50% -20%, rgba(18, 165, 188, 0.14) 0%, transparent 65%),
+    radial-gradient(ellipse 50% 60% at 85% 100%, rgba(14, 138, 158, 0.08) 0%, transparent 60%),
+    linear-gradient(180deg, var(--ink) 0%, var(--ink-raised) 100%);
+  color: var(--ink-text);
+  text-align: center;
 }
 
-/* Soft mist layers */
+/* Soft fade where the hero meets the page */
+.home-hero::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0.3;
+}
+
+.hero-inner {
+  position: relative;
+  z-index: 2;
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 4.5rem 1rem 4rem;
+}
+
+/* Drifting spectral mist layers */
 .hero-mist {
   position: absolute;
   inset: 0;
   z-index: 1;
   pointer-events: none;
   background:
-    radial-gradient(ellipse 50% 40% at 20% 60%, rgba(14, 138, 158, 0.05) 0%, transparent 70%),
-    radial-gradient(ellipse 40% 30% at 80% 40%, rgba(14, 138, 158, 0.04) 0%, transparent 60%);
+    radial-gradient(ellipse 50% 40% at 20% 60%, rgba(63, 198, 218, 0.06) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 30% at 80% 40%, rgba(63, 198, 218, 0.05) 0%, transparent 60%);
   animation: mist-drift 14s ease-in-out infinite;
 }
 
@@ -308,8 +355,8 @@ a:hover {
   animation: mist-drift-alt 18s ease-in-out infinite;
   opacity: 0.6;
   background:
-    radial-gradient(ellipse 45% 35% at 65% 55%, rgba(14, 138, 158, 0.04) 0%, transparent 65%),
-    radial-gradient(ellipse 35% 25% at 35% 35%, rgba(14, 138, 158, 0.03) 0%, transparent 55%);
+    radial-gradient(ellipse 45% 35% at 65% 55%, rgba(63, 198, 218, 0.05) 0%, transparent 65%),
+    radial-gradient(ellipse 35% 25% at 35% 35%, rgba(63, 198, 218, 0.04) 0%, transparent 55%);
 }
 
 @keyframes mist-drift {
@@ -322,34 +369,490 @@ a:hover {
   50% { transform: translateX(-12px) scale(1.05); opacity: 0.3; }
 }
 
-.frost-line {
-  margin: 2rem auto 0;
-  width: 100px;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent);
-  opacity: 0.35;
-  position: relative;
-  z-index: 2;
-  border-radius: 1px;
+.ghost-hero {
+  margin: 0 auto 1.25rem;
+  line-height: 1;
 }
 
-.hero h1 {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: 2.75rem;
+.ghost-hero .ghost-mark {
+  width: 4.25rem;
+  color: var(--ink-text-bright);
+  filter: drop-shadow(0 0 18px var(--ghost-glow));
+  animation: ghost-drift 5s ease-in-out infinite;
+}
+
+@keyframes ghost-drift {
+  0%, 100% {
+    transform: translateY(0);
+    filter: drop-shadow(0 0 18px var(--ghost-glow));
+  }
+  50% {
+    transform: translateY(-9px);
+    filter: drop-shadow(0 0 26px var(--ghost-glow));
+  }
+}
+
+.home-hero h1 {
+  font-size: 2.9rem;
   font-weight: 700;
-  margin-bottom: 0.5rem;
-  color: var(--text-heading);
+  margin-bottom: 0.4rem;
+  color: var(--ink-text-bright);
   letter-spacing: 0.02em;
-  position: relative;
-  z-index: 2;
 }
 
 .tagline {
-  font-size: 1.15rem;
-  color: var(--text-muted);
+  font-size: 1.18rem;
+  color: var(--ink-text-faint);
   font-weight: 400;
-  position: relative;
-  z-index: 2;
+  max-width: 36rem;
+  margin: 0 auto;
+}
+
+.hero-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.85rem;
+  margin-top: 1.9rem;
+  flex-wrap: wrap;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.6rem 1.4rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  transition: background 0.15s ease, border-color 0.15s ease,
+    color 0.15s ease, box-shadow 0.2s ease, transform 0.15s ease;
+}
+
+.btn:hover {
+  text-decoration: none;
+  transform: translateY(-1px);
+}
+
+.btn-primary {
+  background: linear-gradient(180deg, var(--accent-light), var(--accent));
+  color: #fff;
+  border: 1px solid var(--accent-light);
+  box-shadow: 0 2px 12px rgba(18, 165, 188, 0.3);
+}
+
+.btn-primary:hover {
+  color: #fff;
+  background: linear-gradient(180deg, var(--accent-bright), var(--accent-light));
+  box-shadow: 0 4px 18px rgba(18, 165, 188, 0.42);
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ink-text);
+  border: 1px solid rgba(208, 224, 234, 0.3);
+}
+
+.btn-secondary:hover {
+  color: var(--ink-text-bright);
+  border-color: var(--accent-bright);
+  background: rgba(63, 198, 218, 0.08);
+}
+
+.btn-secondary .icon {
+  width: 1.1em;
+  height: 1.1em;
+}
+
+/* Meta chips under the hero actions */
+.hero-meta {
+  list-style: none;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 2rem;
+  margin-top: 1.75rem;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  color: var(--ink-text-faint);
+}
+
+@media (max-width: 600px) {
+  .home-hero h1 {
+    font-size: 2.3rem;
+  }
+
+  .hero-inner {
+    padding: 3rem 1rem 2.75rem;
+  }
+}
+
+/* =============================================
+   Home sections
+   ============================================= */
+.home-section {
+  max-width: 48rem;
+  margin: 3.5rem auto 0;
+}
+
+/* Section headings match .content h2 (same size, weight,
+   and color as headings on docs/release pages). */
+.home-section h2 {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+/* Keep heading spacing identical across all homepage sections,
+   including the markdown-rendered ones (.content sets its own
+   h2 margins for docs pages). */
+.home-content h2 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
+.home-intro {
+  margin-bottom: 1.5rem;
+}
+
+/* Mode cards */
+.modes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 1.25rem;
+}
+
+.mode-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.5rem;
+  background: var(--bg-card);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.mode-card:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.mode-card h3 {
+  font-size: 1.1rem;
+  margin-bottom: 0.65rem;
+}
+
+.mode-card p {
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.mode-flow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.85rem;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+}
+
+.mode-step {
+  padding: 0.18em 0.6em;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--frost);
+  color: var(--text-muted);
+}
+
+.mode-step--ghost {
+  border-color: var(--border-hover);
+  background: var(--badge-bg);
+  color: var(--badge-text);
+  font-weight: 600;
+}
+
+.mode-arrow {
+  color: var(--accent);
+  opacity: 0.6;
+}
+
+/* Feature cards */
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1.25rem;
+}
+
+.feature-card {
+  display: block;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.5rem;
+  background: var(--bg-card);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.feature-card:hover {
+  color: var(--text);
+  text-decoration: none;
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.feature-card:hover h3 {
+  color: var(--link);
+}
+
+.feature-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 8px;
+  background: var(--badge-bg);
+  border: 1px solid var(--border);
+  color: var(--accent);
+  margin-bottom: 0.9rem;
+}
+
+.feature-icon svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.feature-card h3 {
+  font-size: 1.02rem;
+  margin-bottom: 0.35rem;
+}
+
+.feature-card p {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.features-outro {
+  margin-top: 1.5rem;
+  font-size: 0.95rem;
+  color: var(--text-muted);
+}
+
+/* Trailing markdown content on the homepage */
+.home-content {
+  margin-top: 3.5rem;
+}
+
+/* =============================================
+   Terminal (mock terminal window for commands)
+   ============================================= */
+.terminal {
+  background: var(--ink-deep);
+  border: 1px solid var(--ink-border);
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 1.25rem 0;
+  box-shadow: var(--shadow-md);
+}
+
+.terminal-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.9rem;
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid var(--ink-border);
+}
+
+.terminal-dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+}
+
+.terminal-dot:first-child { background: rgba(255, 105, 97, 0.55); }
+.terminal-dot:nth-child(2) { background: rgba(255, 189, 46, 0.5); }
+.terminal-dot:nth-child(3) { background: rgba(60, 200, 110, 0.5); }
+
+.terminal-title {
+  margin-left: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--ink-text-faint);
+  letter-spacing: 0.04em;
+}
+
+/* Doubled-up selectors so these win over the .content pre styles
+   when the terminal appears inside markdown content. */
+.terminal pre.terminal-body {
+  margin: 0;
+  padding: 1rem 1.2rem;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  font-family: var(--font-mono);
+  font-size: 0.84rem;
+  line-height: 1.65;
+  color: var(--ink-text);
+  overflow-x: auto;
+}
+
+.terminal pre.terminal-body code {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.t-comment { color: rgba(208, 224, 234, 0.45); }
+.t-prompt { color: var(--accent-bright); }
+.t-flag { color: #8fd8e4; }
+.t-cont { color: rgba(208, 224, 234, 0.4); }
+
+/* Windows Terminal variant — tab strip + window controls */
+.terminal--windows {
+  background: #1f1f1f;
+  border-color: #3a3a3a;
+}
+
+.terminal--windows .terminal-bar {
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  background: #2b2b2b;
+  border-bottom-color: #3a3a3a;
+}
+
+.terminal-tab {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45rem 0.95rem 0.4rem;
+  background: #1f1f1f;
+  color: var(--ink-text);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  border-right: 1px solid #3a3a3a;
+  border-top: 2px solid var(--accent-bright);
+  margin-bottom: -1px;
+}
+
+.terminal-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-left: auto;
+  padding: 0 0.9rem;
+  color: var(--ink-text-faint);
+  font-size: 0.78rem;
+  user-select: none;
+}
+
+.terminal-control {
+  display: inline-block;
+  font-family: var(--font-mono);
+  line-height: 1;
+}
+
+/* =============================================
+   Editor frame (cool light text editor — matches site palette)
+   ============================================= */
+.editor {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 1.25rem 0;
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.editor-bar {
+  display: flex;
+  align-items: stretch;
+  padding: 0;
+  background: rgba(14, 138, 158, 0.06);
+  border-bottom: 1px solid var(--border);
+}
+
+.editor-tab {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.42rem 0.95rem 0.38rem;
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  border-right: 1px solid var(--border);
+  border-top: 2px solid var(--accent);
+  margin-bottom: -1px;
+}
+
+.editor pre.editor-body {
+  margin: 0;
+  padding: 0.9rem 1.1rem;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  line-height: 1.65;
+  color: var(--text);
+  overflow-x: auto;
+}
+
+.editor pre.editor-body code {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  display: block;
+  counter-reset: line;
+}
+
+/* Line-number gutter, generated via CSS counter on each per-line wrapper.
+   `display: block` makes the structure declarative for the PEM hook's bare
+   spans; Chroma's per-line spans set `display: flex` inline (higher
+   specificity), so this is a no-op for them. */
+.editor pre.editor-body code > span {
+  counter-increment: line;
+  display: block;
+}
+
+.editor pre.editor-body code > span::before {
+  content: counter(line);
+  display: inline-block;
+  width: 2em;
+  padding-right: 0.75em;
+  margin-right: 0.85em;
+  border-right: 1px solid var(--border);
+  color: var(--text-muted);
+  opacity: 0.55;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* =============================================
@@ -403,7 +906,7 @@ a:hover {
 }
 
 .content code {
-  font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.85em;
   background: var(--code-bg);
   padding: 0.15em 0.4em;
@@ -469,6 +972,15 @@ a:hover {
   border-bottom: 2px solid rgba(14, 138, 158, 0.2);
 }
 
+.content img {
+  max-width: 100%;
+  height: auto;
+}
+
+.content .figure-center {
+  text-align: center;
+}
+
 .content blockquote {
   border-left: 3px solid var(--accent);
   padding-left: 1rem;
@@ -490,7 +1002,7 @@ a:hover {
 }
 
 .sidebar h3 {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -797,7 +1309,7 @@ a:hover {
    ============================================= */
 .badge {
   display: inline-block;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.7rem;
   font-weight: 600;
   padding: 0.15em 0.55em;
@@ -883,4 +1395,22 @@ a:hover {
 
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(14, 138, 158, 0.28);
+}
+
+/* =============================================
+   Reduced motion
+   ============================================= */
+@media (prefers-reduced-motion: reduce) {
+  .ghost-hero .ghost-mark,
+  .hero-mist,
+  .hero-mist--alt {
+    animation: none;
+  }
+
+  .btn:hover,
+  .docs-card:hover,
+  .feature-card:hover,
+  .mode-card:hover {
+    transform: none;
+  }
 }

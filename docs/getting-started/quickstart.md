@@ -110,7 +110,7 @@ curl speaks plain HTTP.
 
 <br>
 
-![Tunnel diagram](/tunnel-diagram.svg)
+<div class="figure-center"><img src="/tunnel-diagram.svg" alt="Tunnel diagram"></div>
 
 The Ghostunnel client accepted a plaintext connection from curl, wrapped it
 in TLS with the client certificate, and forwarded it to the Ghostunnel

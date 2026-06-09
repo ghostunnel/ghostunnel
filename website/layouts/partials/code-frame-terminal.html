@@ -1,0 +1,27 @@
+{{- /*
+  Terminal frame chrome.
+  Params: variant ("mac" or "windows"), title (string), body (highlighted HTML).
+*/ -}}
+{{- $variant := default "mac" .variant -}}
+{{- $title := .title -}}
+{{- $body := .body -}}
+<div class="terminal terminal--{{ $variant }}">
+  {{- if eq $variant "mac" -}}
+  <div class="terminal-bar">
+    <span class="terminal-dot"></span>
+    <span class="terminal-dot"></span>
+    <span class="terminal-dot"></span>
+    <span class="terminal-title">{{ $title }}</span>
+  </div>
+  {{- else -}}
+  <div class="terminal-bar">
+    <span class="terminal-tab">{{ $title }}</span>
+    <span class="terminal-controls" aria-hidden="true">
+      <span class="terminal-control">&#x2212;</span>
+      <span class="terminal-control">&#x25A1;</span>
+      <span class="terminal-control">&times;</span>
+    </span>
+  </div>
+  {{- end -}}
+  <pre class="terminal-body"><code>{{ $body | safeHTML }}</code></pre>
+</div>

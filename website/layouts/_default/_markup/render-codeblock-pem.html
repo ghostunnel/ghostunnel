@@ -1,0 +1,9 @@
+{{- $filename := or (.Attributes.file) "cert.pem" -}}
+{{- $body := trim .Inner "\n\r" | htmlEscape -}}
+{{- /* Wrap each line in a <span> so the editor's CSS line-number counter fires. */ -}}
+{{- $lines := split $body "\n" -}}
+{{- $wrapped := "" -}}
+{{- range $lines -}}
+  {{- $wrapped = printf "%s<span>%s\n</span>" $wrapped . -}}
+{{- end -}}
+{{- partial "code-frame-editor.html" (dict "filename" $filename "body" $wrapped) -}}
