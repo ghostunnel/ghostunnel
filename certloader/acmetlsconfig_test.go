@@ -332,6 +332,90 @@ func TestACMETLSConfigSourceReloadTrustStore(t *testing.T) {
 		"server config should no longer return the old system trust store")
 }
 
+func TestACMETLSConfigRelaxesClientAuthForACMEChallenge(t *testing.T) {
+	// Regression: with mTLS (RequireAndVerifyClientCert) on the base config,
+	// the TLS-ALPN-01 renewal probe presents no client cert and the handshake
+	// aborts, causing silent renewal failure. GetConfigForClient must return a
+	// per-connection config with ClientAuth=NoClientCert *only* for handshakes
+	// whose ALPN is exactly ["acme-tls/1"] (per RFC 8737), and nil (i.e.
+	// inherit the base mTLS config) for every other connection.
+	source := &acmeTLSConfigSource{
+		magicConfig:  certmagic.NewDefault(),
+		gtACMEConfig: &ACMEConfig{},
+	}
+
+	base := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		ClientAuth: tls.RequireAndVerifyClientCert,
+		NextProtos: []string{"h2", "http/1.1"},
+	}
+
+	serverConfig, err := source.GetServerConfig(base)
+	require.NoError(t, err)
+
+	tlsConfig := serverConfig.GetServerConfig()
+	require.NotNil(t, tlsConfig.GetConfigForClient, "GetConfigForClient must be installed")
+	assert.Equal(t, tls.RequireAndVerifyClientCert, tlsConfig.ClientAuth,
+		"base ClientAuth must still require client cert for real clients")
+
+	// ACME validator handshake: SNI set, ALPN exactly ["acme-tls/1"], no cert.
+	acmeHello := &tls.ClientHelloInfo{
+		ServerName:      "test.example.com",
+		SupportedProtos: []string{acmez.ACMETLS1Protocol},
+	}
+	relaxed, err := tlsConfig.GetConfigForClient(acmeHello)
+	require.NoError(t, err)
+	require.NotNil(t, relaxed, "GetConfigForClient must return a per-conn config for acme-tls/1")
+	assert.Equal(t, tls.NoClientCert, relaxed.ClientAuth,
+		"ClientAuth must be relaxed for acme-tls/1 probes")
+	assert.Nil(t, relaxed.ClientCAs, "ClientCAs must be cleared for acme-tls/1 probes")
+	assert.NotNil(t, relaxed.GetCertificate, "GetCertificate must still be set so certmagic serves the challenge cert")
+	assert.Equal(t, []string{acmez.ACMETLS1Protocol}, relaxed.NextProtos,
+		"NextProtos must be restricted to acme-tls/1 on the relaxed config to prevent ALPN downgrade")
+	assert.True(t, relaxed.SessionTicketsDisabled,
+		"SessionTicketsDisabled must be true on the relaxed config to prevent ticket-based mTLS bypass")
+
+	// Empty-SNI probe: RFC 8737 requires the validator to set SNI; certmagic
+	// refuses to serve a challenge cert without it. Mirror that gate.
+	noSNIHello := &tls.ClientHelloInfo{SupportedProtos: []string{acmez.ACMETLS1Protocol}}
+	noSNI, err := tlsConfig.GetConfigForClient(noSNIHello)
+	require.NoError(t, err)
+	assert.Nil(t, noSNI, "GetConfigForClient must NOT relax for acme-tls/1 with empty SNI")
+
+	// Mixed-ALPN probe: a client offering acme-tls/1 alongside other protocols
+	// is not a conformant ACME validator. It must NOT trigger relaxation, or
+	// an attacker could bypass mTLS by tacking acme-tls/1 onto a normal client.
+	mixedHello := &tls.ClientHelloInfo{
+		ServerName:      "test.example.com",
+		SupportedProtos: []string{acmez.ACMETLS1Protocol, "h2"},
+	}
+	mixed, err := tlsConfig.GetConfigForClient(mixedHello)
+	require.NoError(t, err)
+	assert.Nil(t, mixed, "GetConfigForClient must NOT relax for mixed ALPN containing acme-tls/1 plus other protocols")
+
+	mixedHello2 := &tls.ClientHelloInfo{
+		ServerName:      "test.example.com",
+		SupportedProtos: []string{"h2", acmez.ACMETLS1Protocol},
+	}
+	mixed2, err := tlsConfig.GetConfigForClient(mixedHello2)
+	require.NoError(t, err)
+	assert.Nil(t, mixed2, "GetConfigForClient must NOT relax regardless of acme-tls/1 position in mixed ALPN")
+
+	// Real client handshake: any other ALPN (or none) must inherit the base.
+	realHello := &tls.ClientHelloInfo{
+		ServerName:      "test.example.com",
+		SupportedProtos: []string{"h2", "http/1.1"},
+	}
+	inherit, err := tlsConfig.GetConfigForClient(realHello)
+	require.NoError(t, err)
+	assert.Nil(t, inherit, "GetConfigForClient must return nil for non-ACME handshakes so the base mTLS config applies")
+
+	emptyHello := &tls.ClientHelloInfo{}
+	inherit2, err := tlsConfig.GetConfigForClient(emptyHello)
+	require.NoError(t, err)
+	assert.Nil(t, inherit2, "GetConfigForClient must return nil when no ALPN is advertised")
+}
+
 func TestACMETLSConfigGetServerConfigNilTrustStore(t *testing.T) {
 	// When trust store is nil, ClientCAs should be nil (no client cert verification)
 	source := &acmeTLSConfigSource{

@@ -94,6 +94,13 @@ var (
 	serverAutoACMEAgreedTOS   = serverCommand.Flag("auto-acme-agree-to-tos", "Agree to the Terms of Service of the ACME CA").Default("false").Bool()
 	serverAutoACMEProdCA      = serverCommand.Flag("auto-acme-ca", "Specify the URL to the ACME CA. Defaults to Let's Encrypt if not specified.").PlaceHolder("https://some-acme-ca.example.com/").String()
 	serverAutoACMETestCA      = serverCommand.Flag("auto-acme-testca", "Specify the URL to the ACME CA's Test/Staging environment. If set, all requests will go to this CA and --auto-acme-ca will be ignored.").PlaceHolder("https://testing.some-acme-ca.example.com/").String()
+	// Hidden: override certmagic's background renewal-check interval. Only
+	// used by the ACME integration test to observe renewal within seconds.
+	serverAutoACMERenewCheckInterval = serverCommand.Flag("auto-acme-renew-check-interval", "").Hidden().Duration()
+	// Hidden: override the port certmagic binds for TLS-ALPN-01 during
+	// initial issuance. Production should use 443 so the public ACME CA can
+	// reach it; the integration test sets this so it can run without root.
+	serverAutoACMEAltTLSALPNPort = serverCommand.Flag("auto-acme-alt-tls-alpn-port", "").Hidden().Int()
 
 	// Client flags
 	clientCommand       = app.Command("client", "Client mode (plain TCP/UNIX listener -> TLS target).")
@@ -1014,12 +1021,14 @@ func getTLSConfigSource(disableAuth bool) (certloader.TLSConfigSource, error) {
 	if *serverAutoACMEFQDN != "" {
 		logger.Printf("using ACME server as certificate source")
 		acmeConfig := certloader.ACMEConfig{
-			FQDN:         *serverAutoACMEFQDN,
-			Email:        *serverAutoACMEEmail,
-			TOSAgreed:    *serverAutoACMEAgreedTOS,
-			ProdCAURL:    *serverAutoACMEProdCA,
-			TestCAURL:    *serverAutoACMETestCA,
-			CABundlePath: *caBundlePath,
+			FQDN:               *serverAutoACMEFQDN,
+			Email:              *serverAutoACMEEmail,
+			TOSAgreed:          *serverAutoACMEAgreedTOS,
+			ProdCAURL:          *serverAutoACMEProdCA,
+			TestCAURL:          *serverAutoACMETestCA,
+			CABundlePath:       *caBundlePath,
+			RenewCheckInterval: *serverAutoACMERenewCheckInterval,
+			AltTLSALPNPort:     *serverAutoACMEAltTLSALPNPort,
 		}
 		source, err := certloader.TLSConfigSourceFromACME(&acmeConfig)
 		if err != nil {

@@ -33,6 +33,7 @@ import (
 	"math/big"
 	"net"
 	"os"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -538,6 +539,127 @@ func TestForceHandshakeNonTLSConn(t *testing.T) {
 	ctx := context.Background()
 	err = forceHandshake(ctx, conn)
 	assert.Nil(t, err, "forceHandshake should succeed for non-TLS conn")
+}
+
+func TestIsACMEChallengeConn(t *testing.T) {
+	// Non-TLS conn is never an ACME challenge.
+	a, b := net.Pipe()
+	defer a.Close()
+	defer b.Close()
+	assert.False(t, isACMEChallengeConn(a), "plain net.Conn must not be classified as ACME")
+
+	// TLS conn with no negotiated protocol is not an ACME challenge.
+	tlsConn := tls.Client(a, &tls.Config{InsecureSkipVerify: true})
+	assert.False(t, isACMEChallengeConn(tlsConn), "TLS conn with empty NegotiatedProtocol must not be classified as ACME")
+}
+
+func TestACMEChallengeNotForwardedToBackend(t *testing.T) {
+	// End-to-end: a TLS-ALPN-01 probe (ALPN=acme-tls/1, no client cert)
+	// against a proxy whose listener config requires mTLS but relaxes for
+	// acme-tls/1 must complete the TLS handshake AND must NOT result in a
+	// backend dial. This is what prevents the renewal exemption from
+	// becoming an mTLS bypass into the backend.
+	cert, _ := selfSignedCert(t)
+
+	clientCAs := x509.NewCertPool()
+	// Empty pool — no real client cert would ever satisfy mTLS, which is
+	// what we want: the only way through is the acme-tls/1 exemption.
+
+	baseConfig := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		ClientCAs:    clientCAs,
+		NextProtos:   []string{"acme-tls/1"},
+		MinVersion:   tls.VersionTLS12,
+	}
+	baseConfig.GetConfigForClient = func(chi *tls.ClientHelloInfo) (*tls.Config, error) {
+		if len(chi.SupportedProtos) == 1 && chi.SupportedProtos[0] == "acme-tls/1" {
+			c := baseConfig.Clone()
+			c.ClientAuth = tls.NoClientCert
+			c.ClientCAs = nil
+			c.NextProtos = []string{"acme-tls/1"}
+			c.SessionTicketsDisabled = true
+			c.ClientSessionCache = nil
+			return c, nil
+		}
+		return nil, nil
+	}
+
+	rawIncoming, err := net.Listen("tcp", "127.0.0.1:0")
+	assert.Nil(t, err)
+	incoming := tls.NewListener(rawIncoming, baseConfig)
+	defer incoming.Close()
+
+	// Backend listener: we assert it is NEVER reached during this test.
+	target, err := net.Listen("tcp", "127.0.0.1:0")
+	assert.Nil(t, err)
+	defer target.Close()
+
+	var backendHits int32
+	backendDone := make(chan struct{})
+	go func() {
+		defer close(backendDone)
+		conn, err := target.Accept()
+		if err != nil {
+			return
+		}
+		atomic.AddInt32(&backendHits, 1)
+		conn.Close()
+	}()
+
+	dialer := func(ctx context.Context) (net.Conn, error) {
+		var d net.Dialer
+		return d.DialContext(ctx, "tcp", target.Addr().String())
+	}
+
+	p := proxyForTest(incoming, dialer)
+	go p.Accept()
+	defer p.Shutdown()
+
+	// Drive an ACME validator-shaped handshake: only acme-tls/1 in ALPN,
+	// no client certificate, skip server verification (self-signed).
+	clientConfig := &tls.Config{
+		InsecureSkipVerify: true,
+		NextProtos:         []string{"acme-tls/1"},
+		MinVersion:         tls.VersionTLS12,
+	}
+	tlsClient, err := tls.Dial("tcp", incoming.Addr().String(), clientConfig)
+	assert.Nil(t, err, "TLS-ALPN-01 probe handshake must succeed")
+	if err == nil {
+		assert.Equal(t, "acme-tls/1", tlsClient.ConnectionState().NegotiatedProtocol,
+			"server must negotiate acme-tls/1")
+		tlsClient.Close()
+	}
+
+	// Give the proxy a moment to (incorrectly) dial the backend if it would.
+	select {
+	case <-backendDone:
+		// Backend Accept returned — only legitimate if the listener was
+		// closed below, not because a connection arrived.
+	case <-time.After(500 * time.Millisecond):
+	}
+
+	assert.Equal(t, int32(0), atomic.LoadInt32(&backendHits),
+		"backend MUST NOT receive any connection from an ACME TLS-ALPN-01 probe")
+
+	// Sanity check: a normal (non-ACME) client without a client cert must
+	// still be rejected at the handshake — i.e. mTLS for the real path is
+	// not weakened by the exemption.
+	plainConfig := &tls.Config{
+		InsecureSkipVerify: true,
+		NextProtos:         []string{"h2"},
+		MinVersion:         tls.VersionTLS12,
+	}
+	plain, err := tls.Dial("tcp", incoming.Addr().String(), plainConfig)
+	if err == nil {
+		// Handshake might appear to succeed from client side until first I/O
+		// in some TLS versions; force it.
+		err = plain.Handshake()
+		plain.Close()
+	}
+	assert.Error(t, err, "non-ACME client without cert must fail mTLS handshake")
+	assert.Equal(t, int32(0), atomic.LoadInt32(&backendHits),
+		"backend MUST still not be reached after rejected mTLS handshake")
 }
 
 func TestLogConnectionMessageDisabled(t *testing.T) {

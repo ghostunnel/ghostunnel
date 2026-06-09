@@ -13,7 +13,8 @@ RUN apt-get update && \
     apt-get install -y build-essential python3-minimal netcat-traditional softhsm2 rsyslog git openssl default-jre-headless </dev/null && \
     mkdir -p /etc/softhsm /var/lib/softhsm/tokens /go/src/github.com/ghostunnel/ghostunnel && \
     go install golang.org/x/tools/cmd/cover@latest && \
-    go install github.com/magefile/mage@latest
+    go install github.com/magefile/mage@latest && \
+    go install github.com/letsencrypt/pebble/v2/cmd/pebble@latest
 
 WORKDIR /go/src/github.com/ghostunnel/ghostunnel
 

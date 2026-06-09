@@ -47,6 +47,18 @@ type ACMEConfig struct {
 	// Maximum number of attempts to obtain the initial ACME certificate.
 	// Defaults to 5 if zero.
 	MaxAttempts int
+
+	// Override certmagic's background renewal-check interval. Zero means use
+	// certmagic's default (10 minutes). Intended for the integration test
+	// that needs to observe a renewal moment within a few seconds; not
+	// useful as a production tuning knob.
+	RenewCheckInterval time.Duration
+
+	// Override the port certmagic binds for TLS-ALPN-01 during initial
+	// issuance. Zero means use 443 (the RFC 8737 port). Intended for the
+	// integration test so it can run without privileged-port binding;
+	// production deployments should leave this unset.
+	AltTLSALPNPort int
 }
 
 // TLSConfigSourceFromACME creates a TLSConfigSource that obtains certificates via ACME.
@@ -54,6 +66,7 @@ func TLSConfigSourceFromACME(acme *ACMEConfig) (TLSConfigSource, error) {
 	certmagic.DefaultACME.DisableHTTPChallenge = true
 	certmagic.DefaultACME.Agreed = acme.TOSAgreed
 	certmagic.DefaultACME.Email = acme.Email
+	certmagic.DefaultACME.AltTLSALPNPort = acme.AltTLSALPNPort
 
 	// certmagic uses its ACMEManager.CA value as the CA to use for obtaining
 	// certs. If the desired goal is for ghostunnel to use the ACME CAs test
@@ -84,7 +97,7 @@ func TLSConfigSourceFromACME(acme *ACMEConfig) (TLSConfigSource, error) {
 		}
 	}
 
-	magicConfig := certmagic.NewDefault()
+	magicConfig := newCertmagicConfig(acme.RenewCheckInterval)
 
 	// Force an initial synchronous load of the certificate on startup,
 	// but retry with backoff instead of exiting the whole process. If no certificate
@@ -125,6 +138,24 @@ func TLSConfigSourceFromACME(acme *ACMEConfig) (TLSConfigSource, error) {
 	}
 
 	return newACMETLSConfigSource(magicConfig, acme)
+}
+
+// newCertmagicConfig builds a certmagic.Config. If renewCheckInterval > 0,
+// it creates a fresh Cache with that interval; otherwise it uses
+// certmagic.NewDefault() and the package singleton cache (production path).
+func newCertmagicConfig(renewCheckInterval time.Duration) *certmagic.Config {
+	if renewCheckInterval <= 0 {
+		return certmagic.NewDefault()
+	}
+	var cache *certmagic.Cache
+	cache = certmagic.NewCache(certmagic.CacheOptions{
+		GetConfigForCert: func(certmagic.Certificate) (*certmagic.Config, error) {
+			return certmagic.New(cache, certmagic.Default), nil
+		},
+		RenewCheckInterval: renewCheckInterval,
+		Logger:             certmagic.Default.Logger,
+	})
+	return certmagic.New(cache, certmagic.Default)
 }
 
 func newACMETLSConfigSource(magicConfig *certmagic.Config, acme *ACMEConfig) (*acmeTLSConfigSource, error) {
@@ -207,5 +238,40 @@ func (a *acmeTLSConfig) GetServerConfig() *tls.Config {
 	config.GetCertificate = a.magicConfig.GetCertificate
 	config.ClientCAs = a.source.getTrustStore()
 	config.NextProtos = append(config.NextProtos, acmez.ACMETLS1Protocol)
+
+	// The ACME CA's TLS-ALPN-01 validator opens a probe handshake with
+	// SupportedProtos=["acme-tls/1"] (per RFC 8737) and no client certificate.
+	// If the base config requires a client cert (ghostunnel's mTLS default),
+	// that probe fails and renewal silently breaks. Relax ClientAuth for that
+	// exact ALPN only — every real client still gets the base mTLS enforcement.
+	//
+	// Tightening to prevent mTLS bypass — mirror certmagic's own gate at
+	// vendor/github.com/caddyserver/certmagic/handshake.go: relax only when
+	// the ClientHello matches the shape RFC 8737 mandates for a validator.
+	//   - SNI is set. RFC 8737 §3 requires the validator to send the SNI of
+	//     the domain being validated, and certmagic refuses to serve the
+	//     challenge cert without it.
+	//   - SupportedProtos is *exactly* ["acme-tls/1"]. A client sending
+	//     ["acme-tls/1", "h2"] is not a validator and must not relax.
+	//   - Force NextProtos=["acme-tls/1"] in the relaxed config so ALPN
+	//     cannot negotiate to a different protocol on the relaxed handshake.
+	//   - Disable session tickets so a ticket issued during a probe cannot
+	//     be resumed by a real client to skip mTLS. (tls.Config has no
+	//     server-side session cache field; SessionTicketsDisabled is the
+	//     full server-side disable.)
+	config.GetConfigForClient = func(chi *tls.ClientHelloInfo) (*tls.Config, error) {
+		if chi.ServerName == "" ||
+			len(chi.SupportedProtos) != 1 ||
+			chi.SupportedProtos[0] != acmez.ACMETLS1Protocol {
+			return nil, nil
+		}
+		c := config.Clone()
+		c.ClientAuth = tls.NoClientCert
+		c.ClientCAs = nil
+		c.NextProtos = []string{acmez.ACMETLS1Protocol}
+		c.SessionTicketsDisabled = true
+		return c, nil
+	}
+
 	return config
 }
