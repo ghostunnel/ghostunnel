@@ -24,7 +24,7 @@ Key Features
 
 **[Authentication & Authorization](#access-control-flags)**: Enforces mutual
 TLS authentication by requiring valid client certificates. Supports
-fine-grained access control checks on certificate fields (CN, OU, DNS/IP/URI
+fine-grained access control checks on certificate fields (CN, OU, DNS/URI
 SAN), and declarative authorization policies via [Open Policy
 Agent](https://www.openpolicyagent.org) (OPA).
 
@@ -143,7 +143,7 @@ example, both the listen and target flags can also accept paths to UNIX domain
 sockets as their argument.
 
 To set allowed clients, you must specify at least one of `--allow-all`,
-`--allow-cn`, `--allow-ou`, `--allow-dns`, `--allow-ip`, `--allow-uri`, or `--allow-policy`. All
+`--allow-cn`, `--allow-ou`, `--allow-dns`, `--allow-uri`, or `--allow-policy`. All
 checks are made against the certificate of the client. Multiple flags are
 treated as a logical disjunction (OR), meaning clients can connect as long as
 any of the flags matches. See [ACCESS-FLAGS](docs/security/access-flags.md) for more

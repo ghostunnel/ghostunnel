@@ -121,7 +121,7 @@ forwarded the plaintext request to the backend.
 
 - [Command-Line Flags]({{< ref "flags.md" >}}): full flag reference
 - [Certificate Formats]({{< ref "formats.md" >}}): PEM, PKCS#12, JCEKS, and chain ordering
-- [Access Control Flags]({{< ref "access-flags.md" >}}): control who can connect (CN, OU, DNS/IP/URI SAN, OPA)
+- [Access Control Flags]({{< ref "access-flags.md" >}}): control who can connect (CN, OU, DNS/URI SAN, OPA)
 - [ACME Support]({{< ref "acme.md" >}}): automatic certificates from Let's Encrypt
 - [Metrics & Profiling]({{< ref "metrics.md" >}}): status port, Prometheus metrics, pprof
 - [PROXY Protocol]({{< ref "proxy-protocol.md" >}}): pass client connection metadata to backends
