@@ -486,6 +486,10 @@ def start_pebble(work_dir, directory_port, mgmt_port, tls_alpn_port,
     env['PEBBLE_VA_ALWAYS_VALID'] = '0'
     # Skip CAA checks; we have no DNS in tests.
     env['PEBBLE_VA_NOCAACHECK'] = '1'
+    # Force a fresh TLS-ALPN-01 challenge on every renewal. Pebble's
+    # default re-uses a still-valid authz 50% of the time, which would
+    # let a renewal succeed without actually dialing the listener.
+    env['PEBBLE_AUTHZREUSE'] = '0'
 
     handle = Popen(
         ['pebble', '-config', config_path, '-strict'],

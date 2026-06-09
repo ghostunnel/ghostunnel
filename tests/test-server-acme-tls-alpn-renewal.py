@@ -7,12 +7,23 @@ on the main listener. The TLS-ALPN-01 renewal probe sends no client cert,
 so before the fix the renewal handshake aborted and the cert silently
 expired.
 
+The failure is only visible at the validator under TLS 1.2. In TLS 1.3
+the server validates the client cert *after* the client's Finished, so
+Go's tls.Conn.Handshake() returns success and Pebble (and Boulder)
+extract the challenge cert from ConnectionState before the server's
+"certificate required" alert arrives. To make the bug observable we pin
+the listener to --max-tls-version=TLS1.2 below, matching the worst-case
+peer.
+
 To make the renewal path observable in a test we force the timing:
 
   * Pebble issues certs with a 30-second validity period.
   * Ghostunnel runs with --auto-acme-renew-check-interval=1s (hidden flag,
     test-only), so certmagic's background maintenance loop wakes up every
     second instead of every 10 minutes.
+  * PEBBLE_AUTHZREUSE=0 (set in common.start_pebble) forces Pebble to
+    run a fresh TLS-ALPN-01 challenge on every renewal; the default 50%
+    reuse would silently skip the probe.
 
 certmagic computes "needs renewal" against RenewalWindowRatio (default
 1/3), so for a 30-second cert it tries to renew once roughly 10 seconds
@@ -286,6 +297,12 @@ try:
         '--auto-acme-renew-check-interval={0}'.format(RENEW_CHECK_INTERVAL),
         '--cacert={0}.crt'.format(client_root.name),
         '--allow-cn=client',
+        # Pin TLS 1.2: under TLS 1.3 Go's client Handshake() returns
+        # success before the server's client-cert rejection arrives, so
+        # Pebble would extract the challenge cert and the bug would be
+        # invisible. TLS 1.2 fails the handshake before ConnectionState
+        # is populated, exposing the bug.
+        '--max-tls-version=TLS1.2',
     ])
 
     # Wait for ghostunnel's main listener to come up. We probe with a real
