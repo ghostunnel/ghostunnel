@@ -97,6 +97,10 @@ var (
 	// Hidden: override certmagic's background renewal-check interval. Only
 	// used by the ACME integration test to observe renewal within seconds.
 	serverAutoACMERenewCheckInterval = serverCommand.Flag("auto-acme-renew-check-interval", "").Hidden().Duration()
+	// Hidden: override the port certmagic binds for TLS-ALPN-01 during
+	// initial issuance. Production should use 443 so the public ACME CA can
+	// reach it; the integration test sets this so it can run without root.
+	serverAutoACMEAltTLSALPNPort = serverCommand.Flag("auto-acme-alt-tls-alpn-port", "").Hidden().Int()
 
 	// Client flags
 	clientCommand       = app.Command("client", "Client mode (plain TCP/UNIX listener -> TLS target).")
@@ -1024,6 +1028,7 @@ func getTLSConfigSource(disableAuth bool) (certloader.TLSConfigSource, error) {
 			TestCAURL:          *serverAutoACMETestCA,
 			CABundlePath:       *caBundlePath,
 			RenewCheckInterval: *serverAutoACMERenewCheckInterval,
+			AltTLSALPNPort:     *serverAutoACMEAltTLSALPNPort,
 		}
 		source, err := certloader.TLSConfigSourceFromACME(&acmeConfig)
 		if err != nil {

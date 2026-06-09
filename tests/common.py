@@ -563,33 +563,6 @@ def require_admin():
         sys.exit(2)
 
 
-def require_can_bind_privileged_port():
-    """Skip unless ghostunnel can bind a privileged (<1024) TCP port.
-
-    Either the test process must be root, or the ghostunnel coverage binary
-    must carry CAP_NET_BIND_SERVICE (Linux file capabilities). The capability
-    is not granted automatically; an operator or CI image can apply it via
-    `setcap cap_net_bind_service=+ep ghostunnel.cover` so the test runs
-    without root.
-    """
-    if IS_WINDOWS:
-        # Windows uses the admin token model; defer to require_admin.
-        require_admin()
-        return
-    if os.geteuid() == 0:
-        return
-    if platform.system() == 'Linux' and shutil.which('getcap'):
-        try:
-            out = check_output(['getcap', _GHOSTUNNEL_BINARY],
-                               stderr=DEVNULL).decode()
-            if 'cap_net_bind_service' in out.lower():
-                return
-        except subprocess.CalledProcessError:
-            pass
-    print("requires root or CAP_NET_BIND_SERVICE on the ghostunnel binary, "
-          "skipping", file=sys.stderr)
-    sys.exit(2)
-
 def reload_args():
     """Extra args to enable certificate reload on Windows via --timed-reload."""
     return ['--timed-reload=1s'] if IS_WINDOWS else []

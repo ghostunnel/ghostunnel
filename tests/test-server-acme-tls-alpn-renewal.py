@@ -43,8 +43,7 @@ The test asserts:
   3. A real mTLS client (no acme-tls/1 ALPN, valid client cert) is still
      proxied normally throughout.
 
-Skips if pebble is not on PATH or if the test process can't bind port 443
-(needs root or CAP_NET_BIND_SERVICE on the ghostunnel binary).
+Skips if not on Linux, or if pebble is not on PATH.
 """
 
 import hashlib
@@ -61,7 +60,6 @@ from common import (
     RootCert,
     get_free_port,
     print_ok,
-    require_can_bind_privileged_port,
     require_platform,
     require_pebble,
     run_ghostunnel,
@@ -104,13 +102,17 @@ def wait_for_ghostunnel_listener(port, client_cert, timeout=60):
 FQDN = 'localhost'  # Pebble validates against the SNI/identifier; localhost
                     # resolves on every test platform.
 
-# certmagic's internal TLS-ALPN-01 listener defaults to port 443
-# (ACMEIssuer.AltTLSALPNPort=0). For initial issuance to succeed, Pebble must
-# dial 443 *and* certmagic must be allowed to bind it. After issuance,
-# ghostunnel itself binds 443 for the main listener, where the renewal probe
-# shape is exercised. The bind requires either root or CAP_NET_BIND_SERVICE
-# on the ghostunnel binary; require_can_bind_privileged_port gates on that.
-ACME_PORT = 443
+# Production deployments use port 443 because that's where the public ACME CA
+# (Let's Encrypt) dials. For testing we steer Pebble, ghostunnel, and
+# certmagic's initial-issuance listener all at the same high port so the test
+# doesn't need root or CAP_NET_BIND_SERVICE. The override on the certmagic
+# side comes from the hidden --auto-acme-alt-tls-alpn-port flag below.
+#
+# release=True closes the SO_REUSEPORT reservation socket: certmagic's
+# initial-issuance listener (Go default, no SO_REUSEPORT) cannot co-bind a
+# held port on macOS. The brief race window before the real binder claims
+# the port is acceptable for this single-instance test.
+ACME_PORT = get_free_port(release=True)
 
 # Force a fast renewal cycle. Pebble issues 30-second certs; certmagic's
 # renewal threshold (RenewalWindowRatio=1/3) fires when ~10s remain, i.e.
@@ -130,6 +132,11 @@ class BackendListener:
     def __init__(self, port):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # Co-bind with common.get_free_port's reservation socket (which has
+        # SO_REUSEPORT) — macOS requires every member of the pool to opt in.
+        reuseport = getattr(socket, 'SO_REUSEPORT', None)
+        if reuseport is not None:
+            self.sock.setsockopt(socket.SOL_SOCKET, reuseport, 1)
         self.sock.bind((LOCALHOST, port))
         self.sock.listen(8)
         self.accepted = 0
@@ -248,17 +255,16 @@ backend = None
 work_dir = tempfile.mkdtemp(prefix='ghostunnel-acme-test-')
 
 try:
-    # This test relies on a long-running TLS listener for Pebble to dial
-    # into for TLS-ALPN-01 validation. The mechanics work on Linux/macOS;
-    # skip Windows because Pebble's Windows story is poorly tested.
-    require_platform('Linux', 'Darwin')
+    # Linux only: macOS would need Pebble's self-signed directory cert
+    # added to the system keychain (Go's cgo-enabled x509 doesn't consult
+    # SSL_CERT_FILE on darwin); Windows lacks a tested Pebble path.
+    require_platform('Linux')
     require_pebble()
-    # Port 443 is privileged: either we're root, or the ghostunnel binary has
-    # CAP_NET_BIND_SERVICE.
-    require_can_bind_privileged_port()
 
-    pebble_directory_port = get_free_port()
-    pebble_mgmt_port = get_free_port()
+    # release=True drops the SO_REUSEPORT reservation socket: Pebble (Go
+    # default, no SO_REUSEPORT) cannot co-bind a held port on macOS.
+    pebble_directory_port = get_free_port(release=True)
+    pebble_mgmt_port = get_free_port(release=True)
 
     # Issue the test client cert from a separate root — this verifies that
     # the ACME-issued server cert and the mTLS client cert come from
@@ -266,7 +272,7 @@ try:
     client_root = RootCert('client-root')
     client_root.create_signed_cert('client')
 
-    # Start Pebble; it will dial back to ACME_PORT (443) to run TLS-ALPN-01
+    # Start Pebble; it will dial back to ACME_PORT to run TLS-ALPN-01
     # validation. Issue short-lived certs so certmagic decides to renew
     # within seconds.
     pebble, directory_url, pebble_ca = start_pebble(
@@ -295,6 +301,10 @@ try:
         '--auto-acme-agree-to-tos',
         '--auto-acme-ca={0}'.format(directory_url),
         '--auto-acme-renew-check-interval={0}'.format(RENEW_CHECK_INTERVAL),
+        # Tell certmagic to bind ACME_PORT (a free high port) for its
+        # TLS-ALPN-01 listener during initial issuance, matching where Pebble
+        # dials. Without this, certmagic would try to bind 443.
+        '--auto-acme-alt-tls-alpn-port={0}'.format(ACME_PORT),
         '--cacert={0}.crt'.format(client_root.name),
         '--allow-cn=client',
         # Pin TLS 1.2: under TLS 1.3 Go's client Handshake() returns

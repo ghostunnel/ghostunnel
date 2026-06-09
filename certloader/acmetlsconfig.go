@@ -53,6 +53,12 @@ type ACMEConfig struct {
 	// that needs to observe a renewal moment within a few seconds; not
 	// useful as a production tuning knob.
 	RenewCheckInterval time.Duration
+
+	// Override the port certmagic binds for TLS-ALPN-01 during initial
+	// issuance. Zero means use 443 (the RFC 8737 port). Intended for the
+	// integration test so it can run without privileged-port binding;
+	// production deployments should leave this unset.
+	AltTLSALPNPort int
 }
 
 // TLSConfigSourceFromACME creates a TLSConfigSource that obtains certificates via ACME.
@@ -60,6 +66,7 @@ func TLSConfigSourceFromACME(acme *ACMEConfig) (TLSConfigSource, error) {
 	certmagic.DefaultACME.DisableHTTPChallenge = true
 	certmagic.DefaultACME.Agreed = acme.TOSAgreed
 	certmagic.DefaultACME.Email = acme.Email
+	certmagic.DefaultACME.AltTLSALPNPort = acme.AltTLSALPNPort
 
 	// certmagic uses its ACMEManager.CA value as the CA to use for obtaining
 	// certs. If the desired goal is for ghostunnel to use the ACME CAs test
