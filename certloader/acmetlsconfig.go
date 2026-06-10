@@ -14,6 +14,15 @@ import (
 
 const defaultMaxAttempts = 5
 
+// acmeInitialBackoff and acmeMaxBackoff control the exponential backoff used
+// for the initial ACME certificate load. They are package-private vars so
+// tests can shorten the schedule without otherwise altering the production
+// code path.
+var (
+	acmeInitialBackoff = 5 * time.Second
+	acmeMaxBackoff     = 2 * time.Minute
+)
+
 // ACMEConfig stores the properties used for operating as an ACME client
 type ACMEConfig struct {
 	// Must be explicitly set to true by the user to indicate
@@ -103,8 +112,8 @@ func TLSConfigSourceFromACME(acme *ACMEConfig) (TLSConfigSource, error) {
 	// but retry with backoff instead of exiting the whole process. If no certificate
 	// yet exists, certmagic will attempt to obtain one from the ACME provider. If a valid
 	// cert has already been obtained, it will be loaded from local cache.
-	backoff := 5 * time.Second
-	maxBackoff := 2 * time.Minute
+	backoff := acmeInitialBackoff
+	maxBackoff := acmeMaxBackoff
 	maxAttempts := acme.MaxAttempts
 	if maxAttempts == 0 {
 		maxAttempts = defaultMaxAttempts

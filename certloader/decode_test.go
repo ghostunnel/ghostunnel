@@ -527,6 +527,50 @@ func TestReadJCEKSBlocksCorruptCipher(t *testing.T) {
 	assert.Contains(t, err.Error(), "unable to recover private key 'corruptkey'")
 }
 
+// TestReadJCEKSBlocksIterationErrorMidStore builds a JCEKS keystore containing two private-key
+// entries: the first one is valid and decrypts cleanly, the second has a garbage encrypted-key
+// blob. readJCEKSBlocks iterates ListPrivateKeys() in alphabetical order, so we name the entries
+// "a-good" and "z-bad" to guarantee the bad one is processed second. The test asserts that the
+// error returned by readJCEKSBlocks references the SECOND alias, proving the loop propagates
+// errors from later iterations rather than silently truncating after the first success.
+func TestReadJCEKSBlocksIterationErrorMidStore(t *testing.T) {
+	// Build a valid encrypted private key (PKCS#8-wrapped RSA) for the first entry.
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	pkcs8DER, err := x509.MarshalPKCS8PrivateKey(rsaKey)
+	require.NoError(t, err)
+
+	leafTemplate := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "iter-test"},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+	}
+	certDER, err := x509.CreateCertificate(rand.Reader, leafTemplate, leafTemplate, &rsaKey.PublicKey, rsaKey)
+	require.NoError(t, err)
+
+	password := "changeit"
+	goodEncrypted := jcekstest.EncryptPBEWithMD5AndDES3CBC(t, pkcs8DER, password)
+
+	// Garbage encrypted-key payload for the corrupt second entry. asn1.Unmarshal will fail
+	// inside Recover(), propagating up through GetPrivateKeyAndCerts.
+	badEncrypted := []byte{0x01, 0x02, 0x03, 0x04}
+
+	jceksData := jcekstest.BuildJCEKSWithMultiplePrivateKeys(t, []jcekstest.PrivateKeyEntry{
+		{Alias: "a-good", EncryptedKeyDER: goodEncrypted, CertDER: certDER},
+		{Alias: "z-bad", EncryptedKeyDER: badEncrypted, CertDER: certDER},
+	}, password)
+
+	_, err = readJCEKSBlocks(bytes.NewReader(jceksData), password)
+	require.Error(t, err, "should error on corrupt second entry")
+	assert.Contains(t, err.Error(), "unable to recover private key 'z-bad'",
+		"error should reference the second alias, proving iteration reached the corrupt entry")
+	assert.NotContains(t, err.Error(), "'a-good'",
+		"error should not reference the first (valid) alias")
+}
+
 func TestReadJCEKSBlocksGetPrivateKeyError(t *testing.T) {
 	// Build a JCEKS with a private key entry whose protectedKey is invalid ASN.1.
 	// This causes Recover to fail, which readJCEKSBlocks should propagate.
