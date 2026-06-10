@@ -31,11 +31,15 @@
 // pattern.
 //
 // (2) A double '**' wildcard will match anything, including the separator
-// rune. It may only occur at the end of a pattern, after a separator.
+// rune. It may only occur at the end of a pattern, either after a separator
+// or as the entire pattern (in which case it matches any input).
 //
 // Furthermore, the matcher will consider the separator optional if it occurs
 // at the end of a string. This means that, for example, the strings
-// "test://foo/bar" and "test://foo/bar/" are treated as equivalent.
+// "test://foo/bar" and "test://foo/bar/" are treated as equivalent. The same
+// holds for patterns: a single trailing separator is stripped before
+// compilation, so the patterns "foo" and "foo/" are equivalent and accept the
+// same set of inputs.
 package wildcard
 
 import (
@@ -104,6 +108,29 @@ func CompileWithSeparator(pattern string, separator rune) (Matcher, error) {
 
 	if pattern == "" {
 		return nil, errEmptyPattern
+	}
+
+	// Normalize: strip a single trailing separator so that "foo" and "foo/"
+	// compile to the same regex. This keeps the documented input-side
+	// equivalence ("test://foo/bar" ~ "test://foo/bar/") symmetric on the
+	// pattern side. We don't strip if the pattern is just the separator
+	// itself, as that would leave us with an empty pattern.
+	sepStr := string(separator)
+	if len(pattern) > len(sepStr) && strings.HasSuffix(pattern, sepStr) {
+		pattern = pattern[:len(pattern)-len(sepStr)]
+	}
+
+	// Special case: a bare "**" matches anything. The documented grammar
+	// requires "**" to follow a separator, but historically a bare "**" has
+	// been accepted (and matched everything by accident of regex parsing).
+	// Compile it explicitly so the behavior is intentional rather than
+	// emergent.
+	if pattern == "**" {
+		compiled, err := regexp.Compile("^.*$")
+		if err != nil {
+			return nil, errRegexpCompile
+		}
+		return regexpMatcher{pattern: compiled}, nil
 	}
 
 	segments := strings.Split(pattern, string(separator))

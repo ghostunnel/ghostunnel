@@ -352,6 +352,140 @@ func TestCompileWithSeparator(t *testing.T) {
 	}
 }
 
+// TestTrailingSeparatorNormalization verifies that a single trailing
+// separator on the pattern is stripped before compilation, so that
+// "foo" and "foo/" accept the same set of inputs.
+func TestTrailingSeparatorNormalization(t *testing.T) {
+	cases := []struct {
+		name    string
+		pattern string
+		matches []string
+		nope    []string
+	}{
+		{
+			name:    "trailing separator on literal",
+			pattern: "test://foo/bar/",
+			matches: []string{
+				"test://foo/bar",
+				"test://foo/bar/",
+			},
+			nope: []string{
+				"test://foo/bar//",
+				"test://foo/baz",
+				"test://foo",
+				"",
+			},
+		},
+		{
+			name:    "no trailing separator on literal",
+			pattern: "test://foo/bar",
+			matches: []string{
+				"test://foo/bar",
+				"test://foo/bar/",
+			},
+			nope: []string{
+				"test://foo/bar//",
+				"test://foo/baz",
+				"test://foo",
+				"",
+			},
+		},
+		{
+			name:    "trailing separator with wildcard",
+			pattern: "test://foo/*/",
+			matches: []string{
+				"test://foo/baz",
+				"test://foo/baz/",
+				"test://foo/spam",
+				"test://foo/spam/",
+			},
+			nope: []string{
+				"test://foo/baz//",
+				"test://foo",
+				"test://foo/",
+				"test://foo/baz/bar",
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			testMatches(t, tc.pattern, tc.matches, tc.nope)
+		})
+	}
+}
+
+// TestTrailingSeparatorEquivalence verifies that "foo" and "foo/"
+// compile to equivalent patterns: each accepts exactly the same set
+// of inputs (in both directions).
+func TestTrailingSeparatorEquivalence(t *testing.T) {
+	pairs := []struct {
+		a, b string
+	}{
+		{"foo", "foo/"},
+		{"test://foo/bar", "test://foo/bar/"},
+		{"test://foo/*/bar", "test://foo/*/bar/"},
+		{"test://foo/**", "test://foo/**/"},
+	}
+	probes := []string{
+		"foo",
+		"foo/",
+		"foo/x",
+		"test://foo/bar",
+		"test://foo/bar/",
+		"test://foo/bar//",
+		"test://foo/bar/baz",
+		"test://foo/baz/bar",
+		"test://foo/baz/bar/",
+		"test://foo/x/bar/y",
+		"",
+	}
+	for _, p := range pairs {
+		p := p
+		t.Run(p.a+"_vs_"+p.b, func(t *testing.T) {
+			ma, err := Compile(p.a)
+			if err != nil {
+				t.Fatalf("compile %q: %s", p.a, err)
+			}
+			mb, err := Compile(p.b)
+			if err != nil {
+				t.Fatalf("compile %q: %s", p.b, err)
+			}
+			for _, probe := range probes {
+				if ma.Matches(probe) != mb.Matches(probe) {
+					t.Errorf("patterns %q and %q disagree on input %q (%t vs %t)",
+						p.a, p.b, probe, ma.Matches(probe), mb.Matches(probe))
+				}
+			}
+		})
+	}
+}
+
+// TestBareDoubleWildcard verifies that the bare "**" pattern is
+// accepted and matches any input, including the empty string and
+// strings containing separators. This behaviour is documented as a
+// special case rather than emerging from the regex compiler's parse.
+func TestBareDoubleWildcard(t *testing.T) {
+	matcher, err := Compile("**")
+	if err != nil {
+		t.Fatalf("bare ** should compile, got error: %s", err)
+	}
+	inputs := []string{
+		"",
+		"foo",
+		"foo/bar",
+		"foo/bar/baz",
+		"/",
+		"//",
+		"a/b/c/d",
+		"test://foo/bar",
+	}
+	for _, in := range inputs {
+		if !matcher.Matches(in) {
+			t.Errorf("bare ** should match %q but did not", in)
+		}
+	}
+}
+
 func TestCompileList(t *testing.T) {
 	// Compile with valid patterns
 	ms, err := CompileList([]string{
