@@ -20,10 +20,13 @@ import (
 	"crypto/tls"
 	"errors"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -1367,5 +1370,102 @@ func TestValidateServerOPA(t *testing.T) {
 				assert.Contains(t, err.Error(), c.wantErrSubstr)
 			}
 		})
+	}
+}
+
+// TestShutdownHandlerRejectsNonPost verifies that requests other than POST
+// return 405 Method Not Allowed and do not signal the shutdown channel.
+func TestShutdownHandlerRejectsNonPost(t *testing.T) {
+	env := &Environment{
+		shutdownChannel: make(chan bool, 1),
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/_shutdown", nil)
+	rec := httptest.NewRecorder()
+	env.shutdownHandler(rec, req)
+
+	assert.Equal(t, http.StatusMethodNotAllowed, rec.Code, "GET should not be allowed")
+
+	select {
+	case <-env.shutdownChannel:
+		t.Fatal("non-POST request should not signal shutdown")
+	default:
+	}
+}
+
+// TestShutdownHandlerSignalsOnce verifies that a POST signals the shutdown
+// channel exactly once and returns 200 OK.
+func TestShutdownHandlerSignalsOnce(t *testing.T) {
+	env := &Environment{
+		shutdownChannel: make(chan bool, 1),
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/_shutdown", nil)
+	rec := httptest.NewRecorder()
+	env.shutdownHandler(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	select {
+	case <-env.shutdownChannel:
+		// expected
+	default:
+		t.Fatal("POST should have signalled shutdown channel")
+	}
+}
+
+// TestShutdownHandlerConcurrentPosts ensures that concurrent POSTs to the
+// shutdown handler all return promptly even though the channel buffer can
+// only absorb one value and there is no reader. Without the non-blocking
+// send, surplus handler goroutines would block forever on the channel,
+// stalling graceful shutdown of the status HTTP server.
+func TestShutdownHandlerConcurrentPosts(t *testing.T) {
+	env := &Environment{
+		// Capacity 1 mirrors the production setup. No goroutine reads from
+		// it, so after the first send the buffer is full and a blocking
+		// send would deadlock.
+		shutdownChannel: make(chan bool, 1),
+	}
+
+	const concurrent = 16
+
+	var wg sync.WaitGroup
+	wg.Add(concurrent)
+
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	for i := 0; i < concurrent; i++ {
+		go func() {
+			defer wg.Done()
+			req := httptest.NewRequest(http.MethodPost, "/_shutdown", nil)
+			rec := httptest.NewRecorder()
+			env.shutdownHandler(rec, req)
+			assert.Equal(t, http.StatusOK, rec.Code)
+		}()
+	}
+
+	select {
+	case <-done:
+		// All handler goroutines returned promptly.
+	case <-time.After(5 * time.Second):
+		t.Fatal("shutdown handler blocked on channel send: at least one of the concurrent POSTs did not return promptly")
+	}
+
+	// The channel must contain exactly one value: the first POST that won
+	// the race; all subsequent sends should have been dropped by the
+	// non-blocking select.
+	select {
+	case <-env.shutdownChannel:
+	default:
+		t.Fatal("expected exactly one buffered shutdown signal")
+	}
+	select {
+	case <-env.shutdownChannel:
+		t.Fatal("expected at most one buffered shutdown signal, got more")
+	default:
 	}
 }

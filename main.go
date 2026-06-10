@@ -817,6 +817,29 @@ func clientListen(env *Environment) error {
 	return nil
 }
 
+// shutdownHandler serves POST /_shutdown by signalling the shutdown channel.
+// The send is non-blocking so repeated requests after shutdown has already
+// been requested do not block the handler goroutine (which would stall
+// graceful shutdown of the status HTTP server and leak goroutines until the
+// shutdown timeout fires).
+func (env *Environment) shutdownHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	logger.Printf("shutdown was requested via status endpoint")
+	w.WriteHeader(http.StatusOK)
+
+	// Non-blocking send: if a shutdown has already been requested (the
+	// buffer is full or no reader is left), we drop this request rather
+	// than block forever.
+	select {
+	case env.shutdownChannel <- true:
+	default:
+	}
+}
+
 // Serve /_status (if configured)
 func (env *Environment) serveStatus() error {
 	promHandler := promhttp.Handler()
@@ -840,17 +863,7 @@ func (env *Environment) serveStatus() error {
 	})
 
 	if *enableShutdown {
-		mux.HandleFunc("/_shutdown", func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodPost {
-				w.WriteHeader(http.StatusMethodNotAllowed)
-				return
-			}
-
-			logger.Printf("shutdown was requested via status endpoint")
-			w.WriteHeader(http.StatusOK)
-
-			env.shutdownChannel <- true
-		})
+		mux.HandleFunc("/_shutdown", env.shutdownHandler)
 	}
 
 	if *enableProf {
