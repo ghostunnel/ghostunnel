@@ -4,11 +4,11 @@
 Server-mode TLS termination on a unix-domain listener (--listen=unix:PATH).
 Two phases:
   1. Plain TLS-over-unix: handshake + bidirectional payload to a TCP backend.
-  2. With --proxy-protocol: pins down current behavior. The non-TCP fallback
-     in proxy.go transportProtocol claims TCPv4 while SourceAddr is a
-     UnixAddr, so proxyproto fails to format the header and the backend
-     sees EOF before any bytes. A future fix that emits a proper header
-     (AF_UNIX/AF_UNSPEC) or rejects at startup will flip the assertion.
+  2. With --proxy-protocol: the backend receives a PROXY protocol v2
+     header with the AF_UNIX/STREAM family byte, followed by the
+     forwarded payload. (Previously, transportProtocol claimed TCPv4
+     while SourceAddr was a UnixAddr, so proxyproto failed to format
+     the header and the backend saw EOF before any bytes.)
 """
 
 from common import LOCALHOST, RootCert, STATUS_PORT, TcpClient, \
@@ -128,8 +128,8 @@ def _run_plain_phase():
 
 
 def _run_proxy_protocol_phase():
-    """TLS-over-unix listener with --proxy-protocol. Backend should see EOF
-    before any PROXY header (current behavior: header-format failure)."""
+    """TLS-over-unix listener with --proxy-protocol. Backend should see a
+    PROXY v2 header (AF_UNIX/STREAM) followed by the forwarded payload."""
     print_ok("=== phase: unix listener + --proxy-protocol ===")
 
     tmpdir = mkdtemp(prefix='ghostunnel-unix-listener-')
@@ -168,44 +168,50 @@ def _run_proxy_protocol_phase():
         conn.settimeout(TIMEOUT)
         print_ok("backend accepted forwarded connection")
 
-        # Read up to 16 bytes (a complete v2 header needs 16+). Expect EOF first.
-        # A timeout here means ghostunnel did NOT close the backend — that's the
-        # regression we want to catch, so raise rather than silently breaking.
-        preamble = b''
-        while len(preamble) < 16:
-            try:
-                chunk = conn.recv(16 - len(preamble))
-            except (socket.timeout, TimeoutError) as e:
-                raise Exception(
-                    "backend read timed out before EOF; ghostunnel did not "
-                    "close the connection (regression): {0}".format(e))
-            if not chunk:
-                break
-            preamble += chunk
+        def recv_exact(n, what):
+            buf = b''
+            while len(buf) < n:
+                chunk = conn.recv(n - len(buf))
+                if not chunk:
+                    raise Exception(
+                        "backend saw EOF after {0} bytes while reading "
+                        "{1} (expected {2} bytes)".format(len(buf), what, n))
+                buf += chunk
+            return buf
 
-        # If a future change emits a real PROXY v2 header for unix peers,
-        # this fires and forces an explicit update to code and test.
-        if preamble[:12] == PP2_SIGNATURE:
-            fam = preamble[13] if len(preamble) > 13 else None
+        # Fixed 16-byte PROXY v2 preamble: 12-byte signature, then
+        # version/command, family/protocol, and address block length.
+        preamble = recv_exact(16, "PROXY v2 preamble")
+        if preamble[:12] != PP2_SIGNATURE:
             raise Exception(
-                "PROXY-protocol-over-unix now emits a v2 signature "
-                "(family/proto byte = {0!r}); update this test and "
-                "decide whether the new contract is correct.".format(fam))
-
-        if len(preamble) != 0:
+                "expected PROXY v2 signature, got {0!r}".format(
+                    preamble[:12]))
+        if preamble[12] != 0x21:
             raise Exception(
-                "expected backend to see EOF before any bytes when "
-                "--proxy-protocol is combined with a unix listener "
-                "(header-format failure), got {0} bytes: {1!r}".format(
-                    len(preamble), preamble))
-        print_ok("backend saw EOF (current --proxy-protocol+unix "
-                 "fallback closes the backend connection)")
+                "expected version 2 / PROXY command (0x21), got "
+                "{0:#x}".format(preamble[12]))
+        if preamble[13] != 0x31:
+            raise Exception(
+                "expected AF_UNIX/STREAM family byte (0x31), got "
+                "{0:#x}".format(preamble[13]))
+        addr_len = int.from_bytes(preamble[14:16], 'big')
+        # AF_UNIX address block is two 108-byte sun_path fields.
+        if addr_len != 216:
+            raise Exception(
+                "expected 216-byte AF_UNIX address block, got "
+                "{0}".format(addr_len))
+        recv_exact(addr_len, "AF_UNIX address block")
+        print_ok("backend received PROXY v2 header (AF_UNIX/STREAM)")
 
-        try:
-            tls.close()
-        except Exception:
-            # best-effort cleanup: tls may already be torn down by ghostunnel
-            pass
+        # Payload must flow after the header.
+        tls.send(b'hello unix')
+        data = recv_exact(len(b'hello unix'), "forwarded payload")
+        if data != b'hello unix':
+            raise Exception(
+                "client->server payload mismatch: {0!r}".format(data))
+        print_ok("payload forwarded after PROXY header")
+
+        tls.close()
         conn.close()
     finally:
         terminate(handle)

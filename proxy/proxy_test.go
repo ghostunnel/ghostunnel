@@ -33,6 +33,7 @@ import (
 	"math/big"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1010,9 +1011,45 @@ func TestTransportProtocol(t *testing.T) {
 		assert.Equal(t, proxyproto.TCPv6, transportProtocol(conn))
 	})
 
-	t.Run("non-TCP fallback", func(t *testing.T) {
-		conn := &mockConn{} // RemoteAddr returns *net.IPAddr, not *net.TCPAddr
-		assert.Equal(t, proxyproto.TCPv4, transportProtocol(conn))
+	t.Run("Unix", func(t *testing.T) {
+		dir := t.TempDir()
+		sockPath := filepath.Join(dir, "s.sock")
+		ln, err := net.Listen("unix", sockPath)
+		assert.Nil(t, err)
+		defer ln.Close()
+
+		go func() {
+			c, _ := ln.Accept()
+			if c != nil {
+				c.Close()
+			}
+		}()
+
+		conn, err := net.Dial("unix", sockPath)
+		assert.Nil(t, err)
+		defer conn.Close()
+
+		assert.Equal(t, proxyproto.UnixStream, transportProtocol(conn))
+
+		// Regression check: when the listener is unix,
+		// proxyProtoHeader(...).WriteTo previously failed with
+		// proxyproto.ErrInvalidAddress because TransportProtocol was
+		// TCPv4 but SourceAddr/DestinationAddr were *net.UnixAddr, causing
+		// every proxied connection to be dropped before any bytes were
+		// written to the backend.
+		h := proxyProtoHeader(conn, nil, ProxyProtocolConn, &testLogger{})
+		var buf bytes.Buffer
+		n, err := h.WriteTo(&buf)
+		assert.Nil(t, err, "WriteTo must not return ErrInvalidAddress for unix listener")
+		assert.True(t, n > 0, "WriteTo must write the PROXY header bytes")
+	})
+
+	t.Run("unknown address fallback", func(t *testing.T) {
+		// RemoteAddr returns *net.IPAddr, which is neither *net.TCPAddr
+		// nor *net.UnixAddr; we fall back to UNSPEC rather than misreporting
+		// the transport protocol.
+		conn := &mockConn{}
+		assert.Equal(t, proxyproto.UNSPEC, transportProtocol(conn))
 	})
 }
 
