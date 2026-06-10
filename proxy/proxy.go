@@ -296,10 +296,22 @@ func (p *Proxy) Wait() {
 	p.handlers.Wait()
 }
 
+// Backoff bounds for transient Accept errors, mirroring net/http.Server.Serve.
+const (
+	acceptBackoffMin = 5 * time.Millisecond
+	acceptBackoffMax = 1 * time.Second
+)
+
 // Accept incoming connections and spawn Go routines to handle them and forward
 // the data to the backend. Will stop accepting connections if Shutdown() is called.
 // Run this in a Goroutine, call Wait() to block on proxy shutdown/connection drain.
 func (p *Proxy) Accept() {
+	// acceptBackoff is the current sleep delay after a transient Accept error.
+	// It starts at zero, jumps to acceptBackoffMin on first error, doubles up
+	// to acceptBackoffMax, and resets to zero after a successful Accept. This
+	// prevents a hot loop on persistent errors like fd exhaustion (EMFILE).
+	var acceptBackoff time.Duration
+
 	for {
 		// Acquire semaphore, to limit max concurrent connections
 		err := p.connSemaphore.Acquire(p.context, 1)
@@ -318,8 +330,27 @@ func (p *Proxy) Accept() {
 
 			errorCounter.Inc(1)
 			p.connSemaphore.Release(1)
+			p.logConditional(LogConnectionErrors, "error accepting connection: %s", err)
+
+			// Back off before retrying so we don't spin at 100% CPU on
+			// persistent accept errors (e.g. fd exhaustion).
+			if acceptBackoff == 0 {
+				acceptBackoff = acceptBackoffMin
+			} else {
+				acceptBackoff *= 2
+			}
+			if acceptBackoff > acceptBackoffMax {
+				acceptBackoff = acceptBackoffMax
+			}
+			select {
+			case <-time.After(acceptBackoff):
+			case <-p.context.Done():
+				return
+			}
 			continue
 		}
+		// Successful accept: reset backoff.
+		acceptBackoff = 0
 
 		p.handlers.Add(1)
 		go connTimer.Time(func() {

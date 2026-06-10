@@ -81,6 +81,184 @@ func TestAbortedConnection(t *testing.T) {
 	t.Error("expected proxy to report errors, but got none")
 }
 
+// countingFailingListener returns errors on Accept and tracks how many times
+// Accept was called, enabling assertions about the rate at which the accept
+// loop retries under persistent errors.
+type countingFailingListener struct {
+	mu       sync.Mutex
+	calls    int
+	callTime []time.Time
+	closed   chan struct{}
+	once     sync.Once
+}
+
+func newCountingFailingListener() *countingFailingListener {
+	return &countingFailingListener{closed: make(chan struct{})}
+}
+
+func (l *countingFailingListener) Accept() (net.Conn, error) {
+	l.mu.Lock()
+	l.calls++
+	l.callTime = append(l.callTime, time.Now())
+	l.mu.Unlock()
+	// If closed, unblock callers — but we still return an error so the
+	// accept loop sees the error path. The proxy's Shutdown cancels the
+	// context, which is what stops the loop.
+	select {
+	case <-l.closed:
+		return nil, errors.New("listener closed")
+	default:
+	}
+	return nil, errors.New("failure for test")
+}
+
+func (l *countingFailingListener) Close() error {
+	l.once.Do(func() { close(l.closed) })
+	return nil
+}
+
+func (l *countingFailingListener) Addr() net.Addr { return nil }
+
+func (l *countingFailingListener) count() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.calls
+}
+
+// TestAcceptErrorBackoff verifies that the accept loop applies an
+// exponential backoff on persistent Accept errors instead of spinning
+// at 100% CPU. Mirrors net/http.Server.Serve behavior: starts at ~5ms,
+// doubles up to ~1s.
+func TestAcceptErrorBackoff(t *testing.T) {
+	ln := newCountingFailingListener()
+	p := proxyForTest(ln, nil)
+
+	go p.Accept()
+	defer func() {
+		p.Shutdown()
+		p.Wait()
+	}()
+
+	// Without backoff, the loop would call Accept many thousands of times in
+	// 200ms. With backoff starting at 5ms and doubling to 1s, the number of
+	// calls is bounded: roughly 5 + 5 + 10 + 20 + 40 + 80 ms = ~160ms after
+	// 6 errors, so within 200ms we should see at most ~7 calls.
+	time.Sleep(200 * time.Millisecond)
+
+	calls := ln.count()
+	if calls < 2 {
+		t.Errorf("expected accept loop to retry at least twice in 200ms, got %d", calls)
+	}
+	if calls > 25 {
+		t.Errorf("expected accept loop to be rate-limited by backoff, got %d calls in 200ms", calls)
+	}
+}
+
+// TestAcceptErrorBackoffShutdownInterrupts verifies that Shutdown promptly
+// interrupts the backoff sleep rather than waiting for it to elapse.
+func TestAcceptErrorBackoffShutdownInterrupts(t *testing.T) {
+	ln := newCountingFailingListener()
+	p := proxyForTest(ln, nil)
+
+	go p.Accept()
+
+	// Let the loop accumulate enough errors to reach the max backoff (1s).
+	// 5+10+20+40+80+160+320+640+1000 = ~2.3s, so 1500ms is plenty to ensure
+	// we're sleeping in a long backoff window.
+	time.Sleep(1500 * time.Millisecond)
+
+	start := time.Now()
+	p.Shutdown()
+	p.Wait()
+	elapsed := time.Since(start)
+
+	// Shutdown should not have to wait for the full 1s backoff sleep to
+	// elapse. Allow some slack for scheduler jitter, but it must be well
+	// under the max backoff.
+	if elapsed > 500*time.Millisecond {
+		t.Errorf("Shutdown took %v, expected backoff sleep to be interrupted promptly", elapsed)
+	}
+}
+
+// TestAcceptErrorLoggedConditionally verifies that persistent Accept errors
+// are surfaced via logConditional with the LogConnectionErrors flag.
+func TestAcceptErrorLogged(t *testing.T) {
+	var mu sync.Mutex
+	var logged []string
+	logger := &callbackLogger{callback: func(format string, v ...any) {
+		mu.Lock()
+		defer mu.Unlock()
+		logged = append(logged, fmt.Sprintf(format, v...))
+	}}
+
+	ln := newCountingFailingListener()
+	p := New(ln, 5*time.Second, 5*time.Second, 5*time.Second, 1, nil, logger, LogConnectionErrors, ProxyProtocolOff)
+
+	go p.Accept()
+	defer func() {
+		p.Shutdown()
+		p.Wait()
+	}()
+
+	// Wait for at least one accept error to be logged.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		mu.Lock()
+		n := len(logged)
+		mu.Unlock()
+		if n > 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(logged) == 0 {
+		t.Fatal("expected accept error to be logged via LogConnectionErrors")
+	}
+	if !strings.Contains(logged[0], "error accepting connection") {
+		t.Errorf("expected log message to mention accept error, got: %q", logged[0])
+	}
+}
+
+// TestAcceptErrorNotLoggedWhenFlagDisabled verifies that with the
+// LogConnectionErrors flag disabled, accept errors are not logged.
+func TestAcceptErrorNotLoggedWhenFlagDisabled(t *testing.T) {
+	var mu sync.Mutex
+	var logged []string
+	logger := &callbackLogger{callback: func(format string, v ...any) {
+		mu.Lock()
+		defer mu.Unlock()
+		logged = append(logged, fmt.Sprintf(format, v...))
+	}}
+
+	ln := newCountingFailingListener()
+	// loggerFlags = 0 (no flags set) -- accept errors must not be logged.
+	p := New(ln, 5*time.Second, 5*time.Second, 5*time.Second, 1, nil, logger, 0, ProxyProtocolOff)
+
+	go p.Accept()
+	defer func() {
+		p.Shutdown()
+		p.Wait()
+	}()
+
+	// Wait for several accept errors to occur.
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		if ln.count() >= 3 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(logged) > 0 {
+		t.Errorf("expected no logs when LogConnectionErrors flag is disabled, got %d: %v", len(logged), logged)
+	}
+}
+
 func TestMaxConcurrentConns(t *testing.T) {
 	// Incoming listener
 	incoming, err := net.Listen("tcp", "127.0.0.1:0")
