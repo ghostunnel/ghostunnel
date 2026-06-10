@@ -1,0 +1,8 @@
+---
+name: "Ghostunnel CodeQL config"
+
+# paths-ignore is only honored for Go with build-mode: none (see codeql.yml).
+paths-ignore:
+  - tests
+  - '**/*_test.go'
+  - certloader/jceks/jcekstest
