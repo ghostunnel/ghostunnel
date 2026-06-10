@@ -1,0 +1,10 @@
+{{- $title := or (.Attributes.title) "PowerShell" -}}
+{{- $body := trim .Inner "\n\r" | htmlEscape -}}
+{{- /* Prompts: `PS C:\>`, `PS>`, or a bare `>` at start of line. */ -}}
+{{- $body = replaceRE `(?m)^(PS [A-Z]:\\[^&]*&gt;|PS&gt;|&gt;)` `<span class="t-prompt">$0</span>` $body -}}
+{{- $body = replaceRE `(?m)^#.*$` `<span class="t-comment">$0</span>` $body -}}
+{{- /* Flags: single or double dash at a word boundary, captured separately so the leading space stays out of the span. */ -}}
+{{- $body = replaceRE `(^|\s)(--?[A-Za-z][A-Za-z0-9-]*)` `${1}<span class="t-flag">${2}</span>` $body -}}
+{{- /* PowerShell continuation char is a backtick at end of line. */ -}}
+{{- $body = replaceRE "(?m)`$" `<span class="t-cont">$0</span>` $body -}}
+{{- partial "code-frame-terminal.html" (dict "variant" "windows" "title" $title "body" $body) -}}

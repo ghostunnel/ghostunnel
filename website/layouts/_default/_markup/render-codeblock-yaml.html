@@ -1,0 +1,6 @@
+{{- $filename := or (.Attributes.file) "config.yaml" -}}
+{{- $highlighted := transform.Highlight .Inner "yaml" "linenos=false" -}}
+{{- $body := $highlighted -}}
+{{- $body = replaceRE `(?s)^.*?<code[^>]*>` "" $body -}}
+{{- $body = replaceRE `</code></pre></div>\s*$` "" $body -}}
+{{- partial "code-frame-editor.html" (dict "filename" $filename "body" $body) -}}

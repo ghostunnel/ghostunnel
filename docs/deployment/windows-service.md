@@ -16,13 +16,13 @@ commands require **Administrator** privileges.
 Use `ghostunnel service install` to register Ghostunnel with the SCM. Proxy
 arguments (server or client mode flags) are passed after a `--` separator:
 
-```bat
-ghostunnel service install -- server ^
-    --listen localhost:8443 ^
-    --target localhost:8080 ^
-    --cert C:\certs\server-cert.pem ^
-    --key C:\certs\server-key.pem ^
-    --cacert C:\certs\cacert.pem ^
+```powershell
+ghostunnel service install -- server `
+    --listen localhost:8443 `
+    --target localhost:8080 `
+    --cert C:\certs\server-cert.pem `
+    --key C:\certs\server-key.pem `
+    --cacert C:\certs\cacert.pem `
     --allow-cn client
 ```
 
@@ -35,11 +35,11 @@ immediately starts it. The service appears in the SCM with the display name
 By default the service is named `ghostunnel`. Use `--service-name` to run
 multiple instances with different configurations:
 
-```bat
-ghostunnel service install --service-name ghostunnel-api -- server ^
+```powershell
+ghostunnel service install --service-name ghostunnel-api -- server `
     --listen localhost:8443 --target localhost:8080 ...
 
-ghostunnel service install --service-name ghostunnel-admin -- server ^
+ghostunnel service install --service-name ghostunnel-admin -- server `
     --listen localhost:9443 --target localhost:9080 ...
 ```
 
@@ -48,7 +48,7 @@ Service names may contain letters, digits, hyphens, underscores, and spaces
 
 ## Managing a Service
 
-```bat
+```powershell
 # Check service status
 ghostunnel service status [--service-name NAME]
 
@@ -75,8 +75,8 @@ When running as a service, you typically want logs written to the
 [Windows Event Log][eventlog] rather than stdout. Pass `--eventlog` in the
 proxy arguments:
 
-```bat
-ghostunnel service install -- server --eventlog ^
+```powershell
+ghostunnel service install -- server --eventlog `
     --listen localhost:8443 --target localhost:8080 ...
 ```
 

@@ -160,7 +160,7 @@ statistical gauges, and a summary histogram:
 To scrape Ghostunnel metrics with Prometheus, add a job to your
 `prometheus.yml`:
 
-```yaml
+```yaml {file="prometheus.yml"}
 scrape_configs:
   - job_name: ghostunnel
     scheme: https

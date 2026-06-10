@@ -1,0 +1,12 @@
+{{- /*
+  Editor frame chrome — paper / light text editor.
+  Params: filename (string), body (highlighted HTML, no <pre>/<code> wrapper).
+*/ -}}
+{{- $filename := .filename -}}
+{{- $body := .body -}}
+<div class="editor">
+  <div class="editor-bar">
+    <span class="editor-tab">{{ $filename }}</span>
+  </div>
+  <pre class="editor-body"><code>{{ $body | safeHTML }}</code></pre>
+</div>

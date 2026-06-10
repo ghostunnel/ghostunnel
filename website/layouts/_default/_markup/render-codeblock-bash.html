@@ -1,0 +1,7 @@
+{{- $title := or (.Attributes.title) "shell" -}}
+{{- $body := trim .Inner "\n\r" | htmlEscape -}}
+{{- $body = replaceRE `(?m)^\$` `<span class="t-prompt">$0</span>` $body -}}
+{{- $body = replaceRE `(?m)^#.*$` `<span class="t-comment">$0</span>` $body -}}
+{{- $body = replaceRE `--[a-zA-Z0-9-]+` `<span class="t-flag">$0</span>` $body -}}
+{{- $body = replaceRE `(?m)\\$` `<span class="t-cont">$0</span>` $body -}}
+{{- partial "code-frame-terminal.html" (dict "variant" "mac" "title" $title "body" $body) -}}

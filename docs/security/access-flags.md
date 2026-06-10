@@ -167,7 +167,7 @@ develop policies. See the documentation for [x509.Certificate](https://pkg.go.de
 for the structure of the `input.certificate` variable.
 
 Example ([Playground](https://play.openpolicyagent.org/p/uMcOcUkQPE)):
-```rego
+```rego {file="policy.rego"}
 package policy
 
 import input
