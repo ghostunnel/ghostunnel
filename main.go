@@ -924,6 +924,14 @@ func serverBackendDialer() (proxy.DialFunc, error) {
 		return nil, err
 	}
 
+	// Socket-activation networks ("systemd"/"launchd") only make sense for
+	// listening, not dialing. net.Dialer cannot dial them, so reject these
+	// targets at startup with a clear error rather than failing on every
+	// connection with "dial systemd: unknown network systemd".
+	if backendNet != "tcp" && backendNet != "unix" {
+		return nil, fmt.Errorf("invalid --target network %q: only tcp and unix targets are supported (systemd:/launchd: cannot be dialed)", backendNet)
+	}
+
 	return func(ctx context.Context) (net.Conn, error) {
 		d := net.Dialer{Timeout: *connectTimeout}
 		return d.DialContext(ctx, backendNet, backendAddr)
