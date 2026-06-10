@@ -122,6 +122,7 @@ def _run_plain_phase():
             try:
                 os.remove(sock_path)
             except OSError:
+                # best-effort teardown: socket file may already be gone
                 pass
         shutil.rmtree(tmpdir, ignore_errors=True)
 
@@ -168,12 +169,16 @@ def _run_proxy_protocol_phase():
         print_ok("backend accepted forwarded connection")
 
         # Read up to 16 bytes (a complete v2 header needs 16+). Expect EOF first.
+        # A timeout here means ghostunnel did NOT close the backend — that's the
+        # regression we want to catch, so raise rather than silently breaking.
         preamble = b''
         while len(preamble) < 16:
             try:
                 chunk = conn.recv(16 - len(preamble))
-            except (socket.timeout, TimeoutError):
-                chunk = b''
+            except (socket.timeout, TimeoutError) as e:
+                raise Exception(
+                    "backend read timed out before EOF; ghostunnel did not "
+                    "close the connection (regression): {0}".format(e))
             if not chunk:
                 break
             preamble += chunk
@@ -199,6 +204,7 @@ def _run_proxy_protocol_phase():
         try:
             tls.close()
         except Exception:
+            # best-effort cleanup: tls may already be torn down by ghostunnel
             pass
         conn.close()
     finally:
@@ -208,6 +214,7 @@ def _run_proxy_protocol_phase():
             try:
                 os.remove(sock_path)
             except OSError:
+                # best-effort teardown: socket file may already be gone
                 pass
         shutil.rmtree(tmpdir, ignore_errors=True)
 

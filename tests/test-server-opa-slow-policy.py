@@ -103,6 +103,7 @@ try:
         try:
             tls_sock.close()
         except Exception:
+            # best-effort cleanup: socket may already be torn down by ghostunnel
             pass
     rejection_elapsed = time.time() - rejection_start
     if rejected_via is None:

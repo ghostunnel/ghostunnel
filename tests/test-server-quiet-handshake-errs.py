@@ -54,6 +54,7 @@ try:
     try:
         plain.sendall(b'not a TLS ClientHello\n')
     except Exception:
+        # expected: ghostunnel may RST the connection during the handshake
         pass
     plain.close()
 

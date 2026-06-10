@@ -149,12 +149,15 @@ finally:
         try:
             notify_sock.close()
         except OSError:
+            # best-effort teardown
             pass
     try:
         os.remove(notify_path)
     except OSError:
+        # best-effort teardown: socket file may already be gone
         pass
     try:
         os.rmdir(notify_dir)
     except OSError:
+        # best-effort teardown: directory may already be gone
         pass

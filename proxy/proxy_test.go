@@ -260,12 +260,13 @@ func TestProxyProtocolSuccessIPv6(t *testing.T) {
 	if err != nil {
 		t.Skip("IPv6 not available")
 	}
+	defer incoming.Close()
 
 	target, err := net.Listen("tcp6", "[::1]:0")
 	if err != nil {
-		_ = incoming.Close()
 		t.Skip("IPv6 not available for backend")
 	}
+	defer target.Close()
 
 	dialer := func(ctx context.Context) (net.Conn, error) {
 		var d net.Dialer

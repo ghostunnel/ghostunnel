@@ -70,11 +70,11 @@ class FakeConnectProxyHandler(http.server.BaseHTTPRequestHandler):
         finally:
             print_ok("connect proxy is done")
             try:
-                socket.get_socket().shutdown()
                 socket.cleanup()
                 self.connection.close()
             except Exception:
-                pass  # best-effort cleanup of proxy sockets
+                # best-effort cleanup: ignore errors if sockets already gone
+                pass
 
 
 def run_server_variant(root):

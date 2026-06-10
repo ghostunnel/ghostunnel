@@ -31,6 +31,18 @@ connect_log = []
 connect_log_lock = threading.Lock()
 
 
+def _recv_exact(sock, n):
+    """Read exactly n bytes from sock, looping over partial reads."""
+    buf = b''
+    while len(buf) < n:
+        chunk = sock.recv(n - len(buf))
+        if not chunk:
+            raise Exception(
+                "connection closed after {0}/{1} bytes".format(len(buf), n))
+        buf += chunk
+    return buf
+
+
 def _splice(a, b):
     """Bidirectional byte splice between two connected sockets."""
     try:
@@ -76,28 +88,26 @@ def _serve_socks5_once(listener):
 
     try:
         # Method negotiation: VER=5, NMETHODS=1, METHODS=[0x00 (no auth)].
-        greeting = client.recv(3)
-        if len(greeting) < 3 or greeting[0] != 0x05:
+        greeting = _recv_exact(client, 3)
+        if greeting[0] != 0x05:
             raise Exception("bad SOCKS5 greeting: {0!r}".format(greeting))
         client.sendall(b"\x05\x00")  # VER=5, METHOD=no auth
 
         # Request: VER CMD RSV ATYP DST.ADDR DST.PORT
-        header = client.recv(4)
-        if len(header) < 4 or header[0] != 0x05 or header[1] != 0x01:
+        header = _recv_exact(client, 4)
+        if header[0] != 0x05 or header[1] != 0x01:
             raise Exception("bad SOCKS5 request header: {0!r}".format(header))
         atyp = header[3]
         if atyp == 0x01:  # IPv4
-            addr_bytes = client.recv(4)
-            host = '.'.join(str(b) for b in addr_bytes)
+            host = '.'.join(str(b) for b in _recv_exact(client, 4))
         elif atyp == 0x03:  # FQDN
-            ln = client.recv(1)[0]
-            host = client.recv(ln).decode('ascii')
+            ln = _recv_exact(client, 1)[0]
+            host = _recv_exact(client, ln).decode('ascii')
         elif atyp == 0x04:  # IPv6
-            addr_bytes = client.recv(16)
-            host = socket.inet_ntop(socket.AF_INET6, addr_bytes)
+            host = socket.inet_ntop(socket.AF_INET6, _recv_exact(client, 16))
         else:
             raise Exception("unsupported ATYP {0}".format(atyp))
-        port = struct.unpack('!H', client.recv(2))[0]
+        port = struct.unpack('!H', _recv_exact(client, 2))[0]
 
         with connect_log_lock:
             connect_log.append((host, port))

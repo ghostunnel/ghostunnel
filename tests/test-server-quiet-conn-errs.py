@@ -55,6 +55,7 @@ try:
                 client.get_socket().send(b'ping')
                 client.get_socket().recv(1)
             except Exception:
+                # expected: ghostunnel closes after backend dial fails
                 pass
         except Exception as e:
             print('TLS connect path: {0}'.format(e))
@@ -69,6 +70,7 @@ try:
     try:
         plain.sendall(b'not a TLS ClientHello\n')
     except Exception:
+        # expected: ghostunnel may RST the connection during the handshake
         pass
     plain.close()
 
