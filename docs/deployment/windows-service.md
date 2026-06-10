@@ -4,7 +4,7 @@ description: Install and manage Ghostunnel as a native Windows service via the S
 weight: 25
 ---
 
-*This feature will be available in the next major release, v1.11.0*
+*Unreleased: this feature ships in the next release, v1.11.0.*
 
 Ghostunnel can run as a native Windows service managed by the
 [Service Control Manager][scm] (SCM). The `ghostunnel service` subcommands
@@ -84,7 +84,7 @@ Events are written under the source name matching the service name (default
 `ghostunnel`). View them with Event Viewer or PowerShell:
 
 ```powershell
-Get-EventLog -LogName Application -Source ghostunnel -Newest 20
+Get-WinEvent -FilterHashtable @{LogName='Application'; ProviderName='ghostunnel'} -MaxEvents 20
 ```
 
 The `--eventlog` flag also works when running Ghostunnel interactively

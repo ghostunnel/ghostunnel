@@ -23,7 +23,8 @@ Pre-built binaries are also available on the
 [GitHub releases](https://github.com/ghostunnel/ghostunnel/releases) page.
 See [Docker Images]({{< ref "docker.md" >}}) for all available image variants.
 
-To build from source (requires [Go](https://go.dev/doc/install)):
+To build from source (requires [Go](https://go.dev/doc/install)), clone the
+[repository](https://github.com/ghostunnel/ghostunnel) and run:
 
 ```bash
 go tool mage go:build
@@ -47,19 +48,6 @@ go tool mage test:keys
 
 This creates a `test-keys/` directory with everything you need: CA cert,
 server cert+key, client cert+key, and PKCS#12 keystores.
-
-**Using [mkcert](https://github.com/FiloSottile/mkcert)**:
-
-```bash
-mkcert -install
-mkcert -cert-file test-keys/server-cert.pem -key-file test-keys/server-key.pem localhost 127.0.0.1
-mkcert -client -cert-file test-keys/client-cert.pem -key-file test-keys/client-key.pem localhost
-```
-
-Note: mkcert sets SANs, not CNs, so use `--allow-dns localhost` instead of
-`--allow-cn client` when authorizing clients. The CA cert is at
-`$(mkcert -CAROOT)/rootCA.pem`, copy it to `test-keys/cacert.pem` to match
-the paths below.
 
 **Using [cfssl](https://github.com/cloudflare/cfssl)**: cfssl is a full-featured
 PKI toolkit that can generate CAs and sign certificates. See the

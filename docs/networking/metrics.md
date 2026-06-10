@@ -166,15 +166,12 @@ scrape_configs:
     scheme: https
     tls_config:
       ca_file: /path/to/cacert.pem
-      cert_file: /path/to/client-cert.pem
-      key_file: /path/to/client-key.pem
     metrics_path: /_metrics/prometheus
     static_configs:
       - targets: ['localhost:6060']
 ```
-
-If the status port uses HTTP (see below), set `scheme: http` and drop the
-`tls_config` block.
+If the status port uses HTTP (see below), set `scheme: http` and drop the 
+`tls_config` block entirely.
 
 ## Metrics Export
 

@@ -41,10 +41,6 @@ available under [Docs](/docs/).
 
 ## Supported Platforms
 
-Ghostunnel is developed & tested on Linux, Apple macOS, and Windows but also
+Ghostunnel is developed & tested on Linux, macOS, and Windows but also
 runs on most other UNIX systems that are supported by Go such as FreeBSD,
-OpenBSD and NetBSD.
-
-## License
-
-Ghostunnel is licensed under the [Apache License 2.0](https://github.com/ghostunnel/ghostunnel/blob/master/LICENSE).
+OpenBSD, and NetBSD.

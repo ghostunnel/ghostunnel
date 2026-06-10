@@ -11,13 +11,13 @@ securing non-TLS backend applications.
 Ghostunnel supports two modes, client mode and server mode. Ghostunnel in
 server mode runs in front of a backend server and accepts TLS-secured
 connections, which are then proxied to the (insecure) backend. A backend can be
-a TCP domain/port or a UNIX domain socket. Ghostunnel in client mode accepts
+a TCP host/port or a UNIX domain socket. Ghostunnel in client mode accepts
 (insecure) connections through a TCP or UNIX domain socket and proxies them to
 a TLS-secured service.
 
-**Supported platforms**: Ghostunnel is developed & tested on Linux, Apple
-macOS, and Windows but also runs on most other UNIX systems that are supported
-by Go such as FreeBSD, OpenBSD and NetBSD.
+**Supported platforms**: Ghostunnel is developed & tested on Linux, macOS,
+and Windows but also runs on most other UNIX systems that are supported
+by Go such as FreeBSD, OpenBSD, and NetBSD.
 
 Key Features
 ============
@@ -70,8 +70,8 @@ for testing. **Note: These are test certificates only and should NOT be used in 
 
 Ghostunnel is available through [GitHub releases][rel] and through [Docker Hub][hub].
 
-Please note that the official release binaries are best effort, and are usually
-built directly via Github Actions on the latest available images. If you need
+Please note that the official release binaries are best-effort, and are usually
+built directly via GitHub Actions on the latest available images. If you need
 compatibility for specific OS versions we recommend building yourself.
 
 Ghostunnel uses the [mage][mage] build system, a make/rake-like build tool using
@@ -143,7 +143,7 @@ example, both the listen and target flags can also accept paths to UNIX domain
 sockets as their argument.
 
 To set allowed clients, you must specify at least one of `--allow-all`,
-`--allow-cn`, `--allow-ou`, `--allow-dns`, `--allow-uri` or `--allow-policy`. All
+`--allow-cn`, `--allow-ou`, `--allow-dns`, `--allow-uri`, or `--allow-policy`. All
 checks are made against the certificate of the client. Multiple flags are
 treated as a logical disjunction (OR), meaning clients can connect as long as
 any of the flags matches. See [ACCESS-FLAGS](docs/security/access-flags.md) for more
@@ -208,8 +208,8 @@ Verify that we can connect to `8080`:
 
     nc -v localhost 8080
 
-Now we have a TLS proxy running for our client. We take the insecure local
-connection, wrap them in TLS, and forward them to the secure backend.
+Now we have a TLS proxy running for our client. We take insecure local
+connections, wrap them in TLS, and forward them to the secure backend.
 
 ### Full tunnel (client plus server)
 
@@ -253,11 +253,13 @@ variants are available:
 
 | Image | Tag |
 |-------|-----|
-| Alpine | `ghostunnel/ghostunnel:latest`, `ghostunnel/ghostunnel:v1.x.x` |
+| Alpine | `ghostunnel/ghostunnel:latest-alpine`, `ghostunnel/ghostunnel:v1.x.x-alpine` |
 | Debian | `ghostunnel/ghostunnel:latest-debian`, `ghostunnel/ghostunnel:v1.x.x-debian` |
 | Distroless | `ghostunnel/ghostunnel:latest-distroless`, `ghostunnel/ghostunnel:v1.x.x-distroless` |
 
-The `latest` tags always point to the most recent release.
+The `latest` tags always point to the most recent release. The bare
+`ghostunnel/ghostunnel:latest` and `ghostunnel/ghostunnel:v1.x.x` tags are
+aliases for the Alpine variant.
 
 Advanced Features
 =================
@@ -303,7 +305,7 @@ successful, the reloaded certificate will be used for new connections going
 forward.
 
 Additionally, Ghostunnel uses `SO_REUSEPORT` to bind the listening socket on
-platforms where it is supported (Linux, Apple macOS, FreeBSD, NetBSD and
+platforms where it is supported (Linux, macOS, FreeBSD, NetBSD, and
 OpenBSD). This means a new Ghostunnel can be started on the same host/port
 before the old one is terminated, to minimize dropped connections (or avoid
 them entirely depending on how the OS implements the `SO_REUSEPORT` feature).
@@ -364,7 +366,8 @@ flags, and can be used by passing an address of the form `systemd:<name>` or
 `launchd:<name>`, where `<name>` should be the name of the socket as defined in
 your systemd/launchd configuration.
 
-See [SOCKET-ACTIVATION](docs/networking/socket-activation.md) for examples.
+See [SYSTEMD](docs/deployment/systemd.md) and [LAUNCHD](docs/deployment/launchd.md)
+for examples.
 
 ### PROXY Protocol Support
 

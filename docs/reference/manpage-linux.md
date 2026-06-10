@@ -24,7 +24,7 @@ services.
 Ghostunnel supports two modes, client mode and server mode. Ghostunnel
 in server mode runs in front of a backend server and accepts TLS-secured
 connections, which are then proxied to the (insecure) backend. A backend
-can be a TCP domain/port or a UNIX domain socket. Ghostunnel in client
+can be a TCP host/port or a UNIX domain socket. Ghostunnel in client
 mode accepts (insecure) connections through a TCP or UNIX domain socket
 and proxies them to a TLS-secured service.
 
@@ -203,8 +203,8 @@ PKCS12 keystore).
 
 **--key=PATH** Path to certificate private key (PEM with private key).
 
-**--storepass=PASS** Password for keystore (if using PKCS12 keystore,
-optional).
+**--storepass=PASS** Password for keystore (PKCS#12 or JCEKS; optional
+for PKCS#12).
 
 **--cacert=CACERT** Path to CA bundle file (PEM/X509). Uses system trust
 store by default.
