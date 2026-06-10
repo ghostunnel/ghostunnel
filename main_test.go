@@ -1185,14 +1185,15 @@ func TestUseWorkloadAPIAddrImpliesUseWorkloadAPI(t *testing.T) {
 // TestSignalHandlerReloadAndShutdown lives in unix_test.go because it relies
 // on POSIX signal delivery (SIGHUP) which is unavailable on Windows.
 
-// TestServerListenEarlyErrors covers three early-return failure paths in
+// TestServerListenEarlyErrors covers two early-return failure paths in
 // serverListen that occur before any listener is opened:
 //  1. buildServerConfig fails on a bad cipher suite.
 //  2. wildcard.CompileList fails on an invalid URI pattern.
-//  3. policy.LoadFromPath fails on a missing rego file.
 //
-// All three return before serverListen dereferences env, so a zero-value
-// *Environment is sufficient.
+// Both return before serverListen dereferences env, so a zero-value
+// *Environment is sufficient. The previously-tested policy.LoadFromPath
+// failure path now lives in run() (loaded before serverListen is called),
+// so it is no longer exercised here.
 func TestServerListenEarlyErrors(t *testing.T) {
 	origPolicy := *serverAllowPolicy
 	origQuery := *serverAllowQuery
@@ -1238,25 +1239,13 @@ func TestServerListenEarlyErrors(t *testing.T) {
 			},
 			wantSubstr: "",
 		},
-		{
-			name: "policy load fails",
-			setup: func() {
-				*enabledCipherSuites = "AES,CHACHA"
-				*maxTLSVersion = ""
-				*serverAllowedURIs = nil
-				*serverAllowPolicy = "/nonexistent.rego"
-				*serverAllowQuery = "data.policy.allow"
-				*serverAllowAll = false
-			},
-			wantSubstr: "",
-		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			c.setup()
 			env := &Environment{}
-			err := serverListen(env)
+			err := serverListen(env, nil)
 			assert.NotNil(t, err, "expected non-nil error from serverListen")
 			if c.wantSubstr != "" && err != nil {
 				assert.Contains(t, strings.ToLower(err.Error()), c.wantSubstr)

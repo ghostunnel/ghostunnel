@@ -601,6 +601,18 @@ func run(args []string) error {
 		}
 		logger.Printf("using target address %s", *serverForwardAddress)
 
+		// Compile the rego policy before constructing the Environment so the
+		// reload goroutine (started below) does not race with a later
+		// assignment to env.regoPolicy.
+		var regoPolicy policy.Policy
+		if len(*serverAllowPolicy) > 0 && len(*serverAllowQuery) > 0 {
+			regoPolicy, err = policy.LoadFromPath(*serverAllowPolicy, *serverAllowQuery)
+			if err != nil {
+				logger.Printf("Invalid rego policy or query: %s", err)
+				return err
+			}
+		}
+
 		status := newStatusHandler(dial, command, *serverListenAddress, *serverForwardAddress, *serverStatusTargetAddress)
 		env := &Environment{
 			status:          status,
@@ -609,11 +621,12 @@ func run(args []string) error {
 			dial:            dial,
 			metrics:         metrics,
 			tlsConfigSource: tlsConfigSource,
+			regoPolicy:      regoPolicy,
 		}
 		go env.reloadHandler(*timedReload)
 
 		// Start listening
-		err = serverListen(env)
+		err = serverListen(env, regoPolicy)
 		if err != nil {
 			logger.Printf("error from server listen: %s\n", err)
 		}
@@ -681,7 +694,7 @@ func run(args []string) error {
 // allows us to have multiple sockets listening on the same port and accept
 // connections. This is useful for the purpose of replacing certificates
 // in-place without having to take downtime, e.g. if a certificate is expiring.
-func serverListen(env *Environment) error {
+func serverListen(env *Environment, regoPolicy policy.Policy) error {
 	config, err := buildServerConfig(*enabledCipherSuites, *maxTLSVersion, *allowUnsafeCipherSuites)
 	if err != nil {
 		logger.Printf("error trying to read CA bundle: %s", err)
@@ -692,18 +705,6 @@ func serverListen(env *Environment) error {
 	if err != nil {
 		logger.Printf("invalid URI pattern in --allow-uri flag (%s)", err)
 		return err
-	}
-
-	// Compile the rego policy
-	var regoPolicy policy.Policy
-	if len(*serverAllowPolicy) > 0 && len(*serverAllowQuery) > 0 {
-		regoPolicy, err = policy.LoadFromPath(*serverAllowPolicy, *serverAllowQuery)
-		if err != nil {
-			logger.Printf("Invalid rego policy or query: %s", err)
-			return err
-		}
-
-		env.regoPolicy = regoPolicy
 	}
 
 	serverACL := auth.ACL{
