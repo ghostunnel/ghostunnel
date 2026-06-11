@@ -111,11 +111,10 @@ func CompileWithSeparator(pattern string, separator rune) (Matcher, error) {
 
 	// Quote the separator so it can be safely emitted into the generated
 	// regular expression. Outside a character class, regexp.QuoteMeta is
-	// sufficient. Inside a [^...] character class, QuoteMeta is not safe
-	// (it does not escape ']', '\\', or '^'), and a simple "\\" + sep is
-	// also not safe (e.g. '\d', '\w', '\s' are character classes; '\b' is
-	// not a valid escape at all). Use an explicit Unicode hex escape, which
-	// is supported by RE2 inside character classes for any rune.
+	// sufficient. Inside a [^...] character class, escaping rules differ
+	// (e.g. '-' is special and '\\d', '\\w', '\\s' are parsed as character classes),
+	// so use an explicit Unicode code-point escape, which is safe in RE2
+	// character classes for any rune.
 	sepOutside := regexp.QuoteMeta(string(separator))
 	sepInsideClass := fmt.Sprintf(`\x{%X}`, separator)
 
