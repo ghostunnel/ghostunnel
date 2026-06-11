@@ -47,6 +47,36 @@ jobs:
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       
+  test-freebsd:
+    name: Tests (FreeBSD)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Run tests in FreeBSD VM
+        uses: vmactions/freebsd-vm@a6de9343ef5747433d9c25784c90e84998b9d69a # v1.4.6
+        with:
+          release: '14.3'
+          usesh: true
+          prepare: |
+            pkg install -y go python3
+          run: |
+            go version
+            python3 --version
+            go tool mage -v test:all
+      - name: Codecov upload
+        if: ${{ github.actor != 'dependabot[bot]' }}
+        uses: codecov/codecov-action@v6
+        with:
+          files: ./coverage/all.profile
+          flags: freebsd
+          fail_ci_if_error: true
+          verbose: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
   test-docker:
     name: Tests (PKCS#11/SoftHSM)
     strategy:
