@@ -115,13 +115,20 @@ const (
 )
 
 func transportProtocol(c net.Conn) proxyproto.AddressFamilyAndProtocol {
-	if addr, ok := c.RemoteAddr().(*net.TCPAddr); ok {
+	switch addr := c.RemoteAddr().(type) {
+	case *net.TCPAddr:
 		if addr.IP.To4() != nil {
 			return proxyproto.TCPv4
 		}
 		return proxyproto.TCPv6
+	case *net.UnixAddr:
+		// Unix-domain listeners are valid PROXY protocol carriers; without
+		// this case, go-proxyproto's formatVersion2 rejects the *net.UnixAddr
+		// SourceAddr/DestinationAddr as ErrInvalidAddress and every connection
+		// fails per-connection at WriteTo time.
+		return proxyproto.UnixStream
 	}
-	return proxyproto.TCPv4
+	return proxyproto.UNSPEC
 }
 
 func proxyProtoHeader(c net.Conn, tlsState *tls.ConnectionState, mode ProxyProtocolMode, logger Logger) *proxyproto.Header {
