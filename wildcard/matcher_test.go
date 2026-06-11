@@ -256,6 +256,229 @@ func TestMatchingWithMetaChars(t *testing.T) {
 		})
 }
 
+func TestCompileWithSeparatorMetaChars(t *testing.T) {
+	// Each case uses a regex metacharacter as the separator. The pattern
+	// is interpreted with that separator, not '/'. A '*' segment must match
+	// any literal that does not contain the separator, and literal segments
+	// must match exactly.
+	tests := []struct {
+		name      string
+		separator rune
+		pattern   string
+		matches   []string
+		nomatches []string
+	}{
+		{
+			name:      "dot separator",
+			separator: '.',
+			pattern:   "a.*.b",
+			matches: []string{
+				"a.foo.b",
+				"a.foo.b.",
+			},
+			nomatches: []string{
+				// '.' should NOT act as a regex wildcard.
+				"aXfooXb",
+				"aXb",
+				// '*' segment must not span the separator.
+				"a.foo.bar.b",
+				// No literal match for empty/missing wildcard segment.
+				"a..b",
+				// Outright non-matches.
+				"a.b",
+				"",
+			},
+		},
+		{
+			name:      "literal dot separator (no wildcard)",
+			separator: '.',
+			pattern:   "a.b",
+			matches: []string{
+				"a.b",
+				"a.b.",
+			},
+			nomatches: []string{
+				// '.' should NOT act as a regex wildcard.
+				"aXb",
+				"a-b",
+				"ab",
+			},
+		},
+		{
+			name:      "pipe separator",
+			separator: '|',
+			pattern:   "a|*|b",
+			matches: []string{
+				"a|foo|b",
+				"a|foo|b|",
+			},
+			nomatches: []string{
+				// '|' should NOT act as a regex alternation.
+				"a",
+				"b",
+				"ab",
+				"a|b",
+				"a|foo|bar|b",
+			},
+		},
+		{
+			name:      "plus separator",
+			separator: '+',
+			pattern:   "a+*+b",
+			matches: []string{
+				"a+foo+b",
+				"a+foo+b+",
+			},
+			nomatches: []string{
+				// '+' should NOT quantify the preceding char.
+				"aaab",
+				"a+b",
+				"a+foo+bar+b",
+			},
+		},
+		{
+			name:      "question mark separator",
+			separator: '?',
+			pattern:   "a?*?b",
+			matches: []string{
+				"a?foo?b",
+				"a?foo?b?",
+			},
+			nomatches: []string{
+				// '?' should NOT make preceding char optional.
+				"ab",
+				"a?b",
+				"a?foo?bar?b",
+			},
+		},
+		{
+			name:      "star separator (literal segment only)",
+			separator: '*',
+			// We cannot use '*' as a wildcard segment when '*' is also the
+			// separator (it would just be a separator); test literal segments.
+			pattern: "a*b",
+			matches: []string{
+				"a*b",
+				"a*b*",
+			},
+			nomatches: []string{
+				// '*' should NOT quantify the preceding char.
+				"aaab",
+				"ab",
+				"a*b*c",
+			},
+		},
+		{
+			name:      "closing bracket separator",
+			separator: ']',
+			pattern:   "a]*]b",
+			matches: []string{
+				"a]foo]b",
+				"a]foo]b]",
+			},
+			nomatches: []string{
+				// ']' must not break the character class in [^]]+.
+				"a]b",
+				"a]foo]bar]b",
+				"ab",
+			},
+		},
+		{
+			name:      "backslash separator",
+			separator: '\\',
+			pattern:   "a\\*\\b",
+			matches: []string{
+				"a\\foo\\b",
+				"a\\foo\\b\\",
+			},
+			nomatches: []string{
+				// '\' must not introduce an escape sequence.
+				"a\\b",
+				"a\\foo\\bar\\b",
+				"ab",
+			},
+		},
+		{
+			name:      "caret separator",
+			separator: '^',
+			pattern:   "a^*^b",
+			matches: []string{
+				"a^foo^b",
+				"a^foo^b^",
+			},
+			nomatches: []string{
+				// '^' must not negate inside the character class or anchor
+				// inappropriately.
+				"a^b",
+				"a^foo^bar^b",
+				"ab",
+			},
+		},
+		{
+			// Letter separators must not be interpreted as character-class
+			// escapes inside [^...]. In particular, '\d' (digit), '\w' (word),
+			// '\s' (space), and their uppercase variants are RE2 escapes; '\b'
+			// is not a valid escape at all (would fail to compile).
+			name:      "letter separator d (regex \\d escape)",
+			separator: 'd',
+			pattern:   "xdyd*dxdy",
+			matches: []string{
+				// wildcard should match any non-'d' string, including digits.
+				"xdyd9dxdy",
+				"xdydXdxdy",
+				"xdyd1234dxdy",
+				"xdyd9dxdyd",
+			},
+			nomatches: []string{
+				// wildcard must not span the separator.
+				"xdydadbdxdy",
+				"xdydXdYdxdy",
+				// '*' must match at least one character.
+				"xdyddxdy",
+				"xdyXdxdy",
+			},
+		},
+		{
+			// 'b' as a separator is the worst case: "\b" is not a valid RE2
+			// escape, so naively writing "[^\b]+" fails to compile.
+			name:      "letter separator b (invalid \\b escape)",
+			separator: 'b',
+			pattern:   "ab*ba",
+			matches: []string{
+				"abXba",
+				"abXYZba",
+				"abXbab",
+			},
+			nomatches: []string{
+				"abba",
+				"abbXba",
+				"aXa",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			matcher, err := CompileWithSeparator(tc.pattern, tc.separator)
+			if err != nil {
+				t.Fatalf("CompileWithSeparator(%q, %q) failed: %s", tc.pattern, tc.separator, err)
+			}
+			t.Logf("pattern=%q sep=%q => regex=%q", tc.pattern, tc.separator, matcher.(regexpMatcher).pattern.String())
+			for _, in := range tc.matches {
+				if !matcher.Matches(in) {
+					t.Errorf("pattern %q (sep %q) did not match %q, but should have", tc.pattern, tc.separator, in)
+				}
+			}
+			for _, in := range tc.nomatches {
+				if matcher.Matches(in) {
+					t.Errorf("pattern %q (sep %q) matched %q, but should not have", tc.pattern, tc.separator, in)
+				}
+			}
+		})
+	}
+}
+
 func TestInvalidPatterns(t *testing.T) {
 	for _, pattern := range []string{
 		"",

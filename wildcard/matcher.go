@@ -41,6 +41,7 @@ package wildcard
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 )
@@ -108,6 +109,15 @@ func CompileWithSeparator(pattern string, separator rune) (Matcher, error) {
 
 	segments := strings.Split(pattern, string(separator))
 
+	// Quote the separator so it can be safely emitted into the generated
+	// regular expression. Outside a character class, regexp.QuoteMeta is
+	// sufficient. Inside a [^...] character class, escaping rules differ
+	// (e.g. '-' is special and '\\d', '\\w', '\\s' are parsed as character classes),
+	// so use an explicit Unicode code-point escape, which is safe in RE2
+	// character classes for any rune.
+	sepOutside := regexp.QuoteMeta(string(separator))
+	sepInsideClass := fmt.Sprintf(`\x{%X}`, separator)
+
 	var regex bytes.Buffer
 	regex.WriteString("^")
 
@@ -117,7 +127,7 @@ loop:
 		case "*":
 			// Segment with wildcard
 			regex.WriteString("[^")
-			regex.WriteRune(separator)
+			regex.WriteString(sepInsideClass)
 			regex.WriteString("]+")
 		case "**":
 			// Segment with double wildcard
@@ -126,7 +136,7 @@ loop:
 				return nil, errInvalidDoubleWildcard
 			}
 			regex.WriteString("?(|")
-			regex.WriteRune(separator)
+			regex.WriteString(sepOutside)
 			regex.WriteString(".*)$")
 			break loop
 		default:
@@ -138,7 +148,7 @@ loop:
 		}
 
 		// Separate this segment from next one
-		regex.WriteRune(separator)
+		regex.WriteString(sepOutside)
 
 		if i == len(segments)-1 {
 			// Final slash should be optional
