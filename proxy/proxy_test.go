@@ -33,6 +33,8 @@ import (
 	"math/big"
 	"net"
 	"os"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -245,6 +247,56 @@ func TestProxyProtocolSuccess(t *testing.T) {
 	if !bytes.Equal([]byte("A"), received) {
 		t.Error("got wrong data from connection on target")
 	}
+
+	p.Shutdown()
+	dst.Close()
+	src.Close()
+	p.Wait()
+}
+
+func TestProxyProtocolSuccessIPv6(t *testing.T) {
+	// PROXY v2 header for an IPv6 client must report TransportProtocol=TCPv6.
+	incoming, err := net.Listen("tcp6", "[::1]:0")
+	if err != nil {
+		t.Skip("IPv6 not available")
+	}
+	defer incoming.Close()
+
+	target, err := net.Listen("tcp6", "[::1]:0")
+	if err != nil {
+		t.Skip("IPv6 not available for backend")
+	}
+	defer target.Close()
+
+	dialer := func(ctx context.Context) (net.Conn, error) {
+		var d net.Dialer
+		return d.DialContext(ctx, "tcp6", target.Addr().String())
+	}
+
+	p := proxyForTestWithProxyProtocol(incoming, dialer)
+	go p.Accept()
+	defer p.Shutdown()
+
+	src, err := net.Dial("tcp6", incoming.Addr().String())
+	assert.Nil(t, err, "should be able to dial into proxy over IPv6")
+
+	dst, err := target.Accept()
+	assert.Nil(t, err, "should be able to receive connection on target")
+
+	header, err := proxyproto.Read(bufio.NewReaderSize(dst, 512))
+	assert.Nil(t, err, "should be able to read header")
+	assert.Equal(t, uint8(2), header.Version)
+	assert.Equal(t, proxyproto.ProtocolVersionAndCommand(proxyproto.PROXY), header.Command)
+	// Core assertion: transport protocol byte reports TCPv6.
+	assert.Equal(t, proxyproto.AddressFamilyAndProtocol(proxyproto.TCPv6), header.TransportProtocol,
+		"PROXY header must report TCPv6 for an IPv6 client")
+	// Source/dest addresses should be IPv6 loopback.
+	assert.True(t, header.SourceAddr.(*net.TCPAddr).IP.Equal(net.IPv6loopback),
+		"source address must be ::1")
+	assert.True(t, header.DestinationAddr.(*net.TCPAddr).IP.Equal(net.IPv6loopback),
+		"destination address must be ::1")
+	assert.Equal(t, src.LocalAddr().(*net.TCPAddr).Port, header.SourceAddr.(*net.TCPAddr).Port)
+	assert.Equal(t, incoming.Addr().(*net.TCPAddr).Port, header.DestinationAddr.(*net.TCPAddr).Port)
 
 	p.Shutdown()
 	dst.Close()
@@ -518,6 +570,223 @@ func TestCloseWriteTCPConnection(t *testing.T) {
 	closeWrite(conn)
 }
 
+// unixSocketPair sets up a connected pair of *net.UnixConn endpoints over a
+// stream socket in a temp dir. It returns the client (dial) side and the
+// server (accept) side, plus a cleanup func.
+func unixSocketPair(t *testing.T) (*net.UnixConn, *net.UnixConn, func()) {
+	t.Helper()
+	dir := t.TempDir()
+	addr := &net.UnixAddr{Name: dir + "/sock", Net: "unix"}
+
+	ln, err := net.ListenUnix("unix", addr)
+	assert.Nil(t, err, "should be able to listen on unix socket")
+
+	type acceptResult struct {
+		conn *net.UnixConn
+		err  error
+	}
+	acceptC := make(chan acceptResult, 1)
+	go func() {
+		c, err := ln.AcceptUnix()
+		acceptC <- acceptResult{c, err}
+	}()
+
+	client, err := net.DialUnix("unix", nil, addr)
+	assert.Nil(t, err, "should be able to dial unix socket")
+
+	res := <-acceptC
+	assert.Nil(t, res.err, "should accept unix connection")
+
+	cleanup := func() {
+		_ = client.Close()
+		if res.conn != nil {
+			_ = res.conn.Close()
+		}
+		_ = ln.Close()
+	}
+	return client, res.conn, cleanup
+}
+
+func TestCloseReadUnixConnection(t *testing.T) {
+	client, server, cleanup := unixSocketPair(t)
+	defer cleanup()
+
+	// closeRead on *net.UnixConn must call CloseRead, not Close: writes still work.
+	closeRead(client)
+
+	_ = client.SetDeadline(time.Now().Add(2 * time.Second))
+	_ = server.SetDeadline(time.Now().Add(2 * time.Second))
+
+	n, err := client.Write([]byte("hi"))
+	assert.Nil(t, err, "client must still be able to write after closeRead")
+	assert.Equal(t, 2, n)
+
+	buf := make([]byte, 2)
+	got, err := io.ReadFull(server, buf)
+	assert.Nil(t, err)
+	assert.Equal(t, 2, got)
+	assert.Equal(t, []byte("hi"), buf)
+}
+
+func TestCloseWriteUnixConnection(t *testing.T) {
+	client, server, cleanup := unixSocketPair(t)
+	defer cleanup()
+
+	// closeWrite on *net.UnixConn must call CloseWrite, not Close: reads still
+	// work on the client side. (A plain Close would tear down both halves, so
+	// we verify the read half still functions to confirm we hit the right branch.)
+	closeWrite(client)
+
+	go func() {
+		_, _ = server.Write([]byte("hello"))
+		_ = server.CloseWrite()
+	}()
+
+	_ = server.SetDeadline(time.Now().Add(2 * time.Second))
+	_ = client.SetDeadline(time.Now().Add(2 * time.Second))
+
+	buf := make([]byte, 5)
+	n, err := io.ReadFull(client, buf)
+	assert.Nil(t, err, "client must still be able to read after closeWrite")
+	assert.Equal(t, 5, n)
+	assert.Equal(t, []byte("hello"), buf)
+
+	one := make([]byte, 1)
+	_, err = server.Read(one)
+	assert.Equal(t, io.EOF, err, "server must observe EOF after client closeWrite")
+}
+
+// discardConn accepts writes silently, blocks on Read until Close releases it.
+type discardConn struct {
+	mockConn
+	closed chan struct{}
+	once   sync.Once
+}
+
+func newDiscardConn() *discardConn {
+	return &discardConn{closed: make(chan struct{})}
+}
+
+func (d *discardConn) Read(_ []byte) (int, error) {
+	<-d.closed
+	return 0, io.EOF
+}
+func (d *discardConn) Write(b []byte) (int, error) { return len(b), nil }
+func (d *discardConn) Close() error {
+	d.once.Do(func() { close(d.closed) })
+	return nil
+}
+
+// readErrConn returns any optional payload bytes first, then err on every Read.
+type readErrConn struct {
+	mockConn
+	payload []byte
+	err     error
+	pos     int
+}
+
+func (r *readErrConn) Read(p []byte) (int, error) {
+	if r.pos < len(r.payload) {
+		n := copy(p, r.payload[r.pos:])
+		r.pos += n
+		return n, nil
+	}
+	return 0, r.err
+}
+
+// fakeTimeoutErr is a net.Error with Timeout()==true; not a closed-conn error.
+type fakeTimeoutErr struct{}
+
+func (fakeTimeoutErr) Error() string   { return "i/o timeout (simulated)" }
+func (fakeTimeoutErr) Timeout() bool   { return true }
+func (fakeTimeoutErr) Temporary() bool { return false }
+
+func TestCopyDataErrorClassification(t *testing.T) {
+	type logEntry struct {
+		format string
+		args   []any
+	}
+
+	newCapturingProxy := func(flags int) (*Proxy, *[]logEntry) {
+		var logs []logEntry
+		lg := &callbackLogger{callback: func(format string, v ...any) {
+			logs = append(logs, logEntry{format: format, args: v})
+		}}
+		p := New(nil, 5*time.Second, 5*time.Second, 0, 0, nil, lg, flags, ProxyProtocolOff)
+		return p, &logs
+	}
+
+	countCopyErrorLogs := func(logs []logEntry) int {
+		n := 0
+		for _, e := range logs {
+			if strings.HasPrefix(e.format, "error during copy:") {
+				n++
+			}
+		}
+		return n
+	}
+
+	t.Run("real I/O error logged when LogConnectionErrors set", func(t *testing.T) {
+		src := &readErrConn{
+			payload: []byte("hello"),
+			err:     errors.New("synthetic disk gone bad"),
+		}
+		dst := newDiscardConn()
+		defer dst.Close()
+
+		p, logs := newCapturingProxy(LogConnectionErrors)
+		before := connTimeoutCounter.Count()
+		written := p.copyData(dst, src)
+		after := connTimeoutCounter.Count()
+
+		assert.Equal(t, int64(5), written, "payload should be copied before the error")
+		assert.Equal(t, 1, countCopyErrorLogs(*logs), "real I/O error must be logged once")
+		assert.Equal(t, before, after, "non-timeout error must not bump connTimeoutCounter")
+	})
+
+	t.Run("real I/O error suppressed when LogConnectionErrors cleared", func(t *testing.T) {
+		src := &readErrConn{err: errors.New("synthetic disk gone bad")}
+		dst := newDiscardConn()
+		defer dst.Close()
+
+		p, logs := newCapturingProxy(LogConnections)
+		_ = p.copyData(dst, src)
+
+		assert.Equal(t, 0, countCopyErrorLogs(*logs),
+			"copy errors must be silent without LogConnectionErrors")
+	})
+
+	t.Run("timeout error increments timeout counter and logs", func(t *testing.T) {
+		src := &readErrConn{err: fakeTimeoutErr{}}
+		dst := newDiscardConn()
+		defer dst.Close()
+
+		p, logs := newCapturingProxy(LogConnectionErrors)
+		before := connTimeoutCounter.Count()
+		_ = p.copyData(dst, src)
+		after := connTimeoutCounter.Count()
+
+		assert.Equal(t, int64(1), after-before, "timeout must bump connTimeoutCounter")
+		assert.Equal(t, 1, countCopyErrorLogs(*logs), "timeout must still be logged")
+	})
+
+	t.Run("closed-connection error is silently suppressed", func(t *testing.T) {
+		src := &readErrConn{err: errors.New("io: read/write on closed pipe")}
+		dst := newDiscardConn()
+		defer dst.Close()
+
+		p, logs := newCapturingProxy(LogConnectionErrors)
+		before := connTimeoutCounter.Count()
+		_ = p.copyData(dst, src)
+		after := connTimeoutCounter.Count()
+
+		assert.Equal(t, 0, countCopyErrorLogs(*logs),
+			"closed-connection errors must be silently suppressed by copyData")
+		assert.Equal(t, before, after,
+			"closed-connection errors must not affect connTimeoutCounter")
+	})
+}
+
 func TestForceHandshakeNonTLSConn(t *testing.T) {
 	// Create a regular TCP connection (non-TLS)
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -780,6 +1049,35 @@ func selfSignedCert(t *testing.T) (tls.Certificate, *x509.Certificate) {
 	}, parsedCert
 }
 
+// emptyCNCert creates a self-signed certificate with an empty CommonName.
+func emptyCNCert(t *testing.T) *x509.Certificate {
+	t.Helper()
+
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	assert.Nil(t, err)
+
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(2),
+		Subject: pkix.Name{
+			OrganizationalUnit: []string{"test-ou-no-cn"},
+		},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(time.Hour),
+		KeyUsage:              x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		BasicConstraintsValid: true,
+	}
+
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	assert.Nil(t, err)
+
+	parsedCert, err := x509.ParseCertificate(certDER)
+	assert.Nil(t, err)
+	assert.Equal(t, "", parsedCert.Subject.CommonName, "test setup: parsed cert must have empty CN")
+
+	return parsedCert
+}
+
 func TestBuildSSLTLV(t *testing.T) {
 	t.Run("without client cert", func(t *testing.T) {
 		state := &tls.ConnectionState{
@@ -874,6 +1172,43 @@ func TestBuildSSLTLV(t *testing.T) {
 		assert.NotContains(t, typeSet, proxyproto.PP2_SUBTYPE_SSL_CN)
 		assert.NotContains(t, typeSet, proxyproto.PP2_SUBTYPE_SSL_CLIENT_CERT)
 	})
+
+	t.Run("with client cert empty CN", func(t *testing.T) {
+		// Empty CN: omit CN sub-TLV entirely (not as an empty-value TLV).
+		// DER cert sub-TLV and PP2_CLIENT_CERT_* flags must still be set.
+		parsedCert := emptyCNCert(t)
+
+		state := &tls.ConnectionState{
+			Version:          tls.VersionTLS13,
+			CipherSuite:      tls.TLS_AES_128_GCM_SHA256,
+			PeerCertificates: []*x509.Certificate{parsedCert},
+		}
+
+		tlv, err := buildSSLTLV(state, ProxyProtocolTLSFull)
+		assert.Nil(t, err)
+
+		// Cert flags must still be set: a cert WAS presented.
+		flags := tlv.Value[0]
+		assert.Equal(t, byte(pp2ClientSSL|pp2ClientCertConn|pp2ClientCertSess), flags,
+			"cert flags must be set even when CN is empty")
+
+		subTLVs, err := proxyproto.SplitTLVs(tlv.Value[5:])
+		assert.Nil(t, err)
+
+		typeSet := make(map[proxyproto.PP2Type][]byte)
+		for _, st := range subTLVs {
+			typeSet[st.Type] = st.Value
+		}
+
+		// CN sub-TLV must be omitted (not present as empty bytes).
+		assert.NotContains(t, typeSet, proxyproto.PP2_SUBTYPE_SSL_CN,
+			"CN sub-TLV must be omitted when client cert has empty CommonName")
+		// DER cert sub-TLV must still be present and match raw bytes.
+		assert.Equal(t, parsedCert.Raw, typeSet[proxyproto.PP2_SUBTYPE_SSL_CLIENT_CERT],
+			"DER cert sub-TLV must still be emitted when CN is empty")
+		// Version sub-TLV always present.
+		assert.Contains(t, typeSet, proxyproto.PP2_SUBTYPE_SSL_VERSION)
+	})
 }
 
 func TestBuildTLVs(t *testing.T) {
@@ -914,6 +1249,52 @@ func TestBuildTLVs(t *testing.T) {
 
 		assert.NotContains(t, typeSet, proxyproto.PP2_TYPE_ALPN)
 		assert.NotContains(t, typeSet, proxyproto.PP2_TYPE_AUTHORITY)
+		assert.Contains(t, typeSet, proxyproto.PP2_TYPE_SSL)
+	})
+
+	t.Run("ALPN only", func(t *testing.T) {
+		// NegotiatedProtocol set, SNI empty: Authority TLV must be omitted entirely.
+		state := &tls.ConnectionState{
+			Version:            tls.VersionTLS13,
+			CipherSuite:        tls.TLS_AES_128_GCM_SHA256,
+			NegotiatedProtocol: "h2",
+		}
+
+		tlvs, err := buildTLVs(state, ProxyProtocolTLSFull)
+		assert.Nil(t, err)
+
+		typeSet := make(map[proxyproto.PP2Type][]byte)
+		for _, tlv := range tlvs {
+			typeSet[tlv.Type] = tlv.Value
+		}
+
+		assert.Equal(t, "h2", string(typeSet[proxyproto.PP2_TYPE_ALPN]),
+			"ALPN TLV must carry the negotiated protocol")
+		assert.NotContains(t, typeSet, proxyproto.PP2_TYPE_AUTHORITY,
+			"Authority TLV must be omitted when SNI is empty")
+		assert.Contains(t, typeSet, proxyproto.PP2_TYPE_SSL)
+	})
+
+	t.Run("SNI only", func(t *testing.T) {
+		// ServerName set, NegotiatedProtocol empty: ALPN TLV must be omitted entirely.
+		state := &tls.ConnectionState{
+			Version:     tls.VersionTLS13,
+			CipherSuite: tls.TLS_AES_128_GCM_SHA256,
+			ServerName:  "example.com",
+		}
+
+		tlvs, err := buildTLVs(state, ProxyProtocolTLSFull)
+		assert.Nil(t, err)
+
+		typeSet := make(map[proxyproto.PP2Type][]byte)
+		for _, tlv := range tlvs {
+			typeSet[tlv.Type] = tlv.Value
+		}
+
+		assert.NotContains(t, typeSet, proxyproto.PP2_TYPE_ALPN,
+			"ALPN TLV must be omitted when NegotiatedProtocol is empty")
+		assert.Equal(t, "example.com", string(typeSet[proxyproto.PP2_TYPE_AUTHORITY]),
+			"Authority TLV must carry the SNI")
 		assert.Contains(t, typeSet, proxyproto.PP2_TYPE_SSL)
 	})
 

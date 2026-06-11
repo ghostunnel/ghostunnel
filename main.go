@@ -503,6 +503,14 @@ func main() {
 	exitFunc(0)
 }
 
+// applyFlagImplications applies implicit flag relationships after parsing.
+// Setting --use-workload-api-addr implies --use-workload-api.
+func applyFlagImplications() {
+	if *useWorkloadAPIAddr != "" {
+		*useWorkloadAPI = true
+	}
+}
+
 func run(args []string) error {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
@@ -517,10 +525,7 @@ func run(args []string) error {
 		return err
 	}
 
-	// use-workload-api-addr implies use-workload-api
-	if *useWorkloadAPIAddr != "" {
-		*useWorkloadAPI = true
-	}
+	applyFlagImplications()
 
 	// Logger
 	err := initLogger(useSystemLog(), *quiet)

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -294,4 +295,93 @@ func TestSpiffeTLSConfigSourceCanServe(t *testing.T) {
 
 	// CanServe should always return true for SPIFFE source
 	require.True(t, source.CanServe(), "CanServe should return true")
+}
+
+// TestWorkloadAPISVIDRotation: when the Workload API streams a new X.509-SVID,
+// subsequent TLS handshakes present the rotated certificate.
+func TestWorkloadAPISVIDRotation(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := spiffetest.NewCA(t, td)
+
+	id := spiffeid.RequireFromPath(td, "/foo")
+	svid1 := ca.CreateX509SVID(id)
+
+	workloadAPI := spiffetest.New(t)
+	workloadAPI.SetX509SVIDResponse(&spiffetest.X509SVIDResponse{
+		Bundle: ca.X509Bundle(),
+		SVIDs:  []*x509svid.SVID{svid1},
+	})
+	defer workloadAPI.Stop()
+
+	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), false, log.Default())
+	require.NoError(t, err)
+	defer func() { _ = source.(*spiffeTLSConfigSource).Close() }()
+
+	serverConfig, err := source.GetServerConfig(&tls.Config{})
+	require.NoError(t, err)
+
+	listener, err := tls.Listen("tcp", "localhost:0", serverConfig.GetServerConfig())
+	require.NoError(t, err)
+	defer listener.Close()
+
+	// Background accept loop, echoes "OK" so each handshake completes.
+	// Exits when listener.Close() (deferred above) makes Accept return an error.
+	go func() {
+		for {
+			conn, acceptErr := listener.Accept()
+			if acceptErr != nil {
+				return
+			}
+			go func(c net.Conn) {
+				defer c.Close()
+				_, _ = fmt.Fprintln(c, "OK")
+			}(conn)
+		}
+	}()
+
+	clientTLSConfig := &tls.Config{InsecureSkipVerify: true}
+
+	dialAndGetServerCert := func() *x509.Certificate {
+		t.Helper()
+		conn, dialErr := tls.Dial(listener.Addr().Network(), listener.Addr().String(), clientTLSConfig)
+		require.NoError(t, dialErr)
+		defer conn.Close()
+		require.NoError(t, conn.Handshake())
+		_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+		buf := new(bytes.Buffer)
+		_, _ = buf.ReadFrom(conn)
+		state := conn.ConnectionState()
+		require.NotEmpty(t, state.PeerCertificates, "server should present a certificate")
+		return state.PeerCertificates[0]
+	}
+
+	cert1 := dialAndGetServerCert()
+	require.Equal(t, svid1.Certificates[0].SerialNumber.String(), cert1.SerialNumber.String(),
+		"server should present the initial SVID before rotation")
+
+	svid2 := ca.CreateX509SVID(id)
+	require.NotEqual(t, svid1.Certificates[0].SerialNumber.String(), svid2.Certificates[0].SerialNumber.String(),
+		"sanity: rotated SVID must have a different serial")
+
+	workloadAPI.SetX509SVIDResponse(&spiffetest.X509SVIDResponse{
+		Bundle: ca.X509Bundle(),
+		SVIDs:  []*x509svid.SVID{svid2},
+	})
+
+	// X509Source receives the new SVID asynchronously; poll until rotated.
+	var cert2 *x509.Certificate
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		c := dialAndGetServerCert()
+		if c.SerialNumber.String() == svid2.Certificates[0].SerialNumber.String() {
+			cert2 = c
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	require.NotNil(t, cert2, "server did not rotate to the new SVID within deadline")
+	require.NotEqual(t, cert1.SerialNumber.String(), cert2.SerialNumber.String(),
+		"server certificate serial should change after SVID rotation")
+	require.Equal(t, svid2.Certificates[0].SerialNumber.String(), cert2.SerialNumber.String(),
+		"server should present the rotated SVID")
 }

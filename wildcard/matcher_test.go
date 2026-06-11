@@ -288,6 +288,70 @@ func TestMustCompile(t *testing.T) {
 	MustCompile("**/test")
 }
 
+// TestCompileWithSeparator exercises CompileWithSeparator with a non-default '.' separator,
+// which is the natural choice for DNS-style hostname matching. The Compile / MustCompile /
+// CompileList entry points all hard-code '/', so this is the only path that exercises
+// arbitrary separators.
+func TestCompileWithSeparator(t *testing.T) {
+	// Single-wildcard pattern: matches "anything.example.com" but not multi-segment hosts.
+	m, err := CompileWithSeparator("*.example.com", '.')
+	if err != nil {
+		t.Fatalf("CompileWithSeparator returned error: %s", err)
+	}
+
+	matches := []string{
+		"foo.example.com",
+		"bar.example.com",
+		"x.example.com",
+	}
+	for _, candidate := range matches {
+		if !m.Matches(candidate) {
+			t.Errorf("expected '%s' to match '*.example.com'", candidate)
+		}
+	}
+
+	rejects := []string{
+		"example.com",
+		"foo.bar.example.com", // '*' should NOT cross the '.' separator
+		"foo.example.org",
+		"",
+	}
+	for _, candidate := range rejects {
+		if m.Matches(candidate) {
+			t.Errorf("expected '%s' to NOT match '*.example.com'", candidate)
+		}
+	}
+
+	// Double-wildcard pattern: '**' at end matches any tail across separators.
+	mm, err := CompileWithSeparator("api.example.com.**", '.')
+	if err != nil {
+		t.Fatalf("CompileWithSeparator returned error: %s", err)
+	}
+	doubleMatches := []string{
+		"api.example.com",
+		"api.example.com.v1",
+		"api.example.com.v1.users",
+	}
+	for _, candidate := range doubleMatches {
+		if !mm.Matches(candidate) {
+			t.Errorf("expected '%s' to match 'api.example.com.**'", candidate)
+		}
+	}
+	if mm.Matches("other.example.com") {
+		t.Error("'other.example.com' should not match 'api.example.com.**'")
+	}
+
+	// Invalid pattern (wildcard inside a literal segment) should error.
+	if _, err := CompileWithSeparator("foo*bar.example.com", '.'); err == nil {
+		t.Error("expected error for wildcard inside literal segment")
+	}
+
+	// Empty pattern should error.
+	if _, err := CompileWithSeparator("", '.'); err == nil {
+		t.Error("expected error for empty pattern")
+	}
+}
+
 func TestCompileList(t *testing.T) {
 	// Compile with valid patterns
 	ms, err := CompileList([]string{

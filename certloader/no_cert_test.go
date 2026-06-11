@@ -17,6 +17,7 @@
 package certloader
 
 import (
+	"crypto/x509"
 	"os"
 	"testing"
 
@@ -44,6 +45,35 @@ func TestNoCertificate(t *testing.T) {
 	c, err = cert.GetClientCertificate(nil)
 	assert.Nil(t, err, "should not error on GetClientCertificate")
 	assert.NotNil(t, c, "should have non-nil client cert")
+}
+
+func TestNoCertificateGetTrustStore(t *testing.T) {
+	cabundle, err := os.CreateTemp("", "ghostunnel-test")
+	assert.Nil(t, err, "temp file error")
+	defer os.Remove(cabundle.Name())
+
+	_, err = cabundle.Write([]byte(testCertificate))
+	assert.Nil(t, err, "temp file error")
+
+	cert, err := NoCertificate(cabundle.Name())
+	assert.Nil(t, err, "should read valid bundle")
+
+	// GetTrustStore should return a pool populated from the CA bundle file.
+	pool := cert.GetTrustStore()
+	assert.NotNil(t, pool, "GetTrustStore should return non-nil pool after NoCertificate")
+
+	// Sanity-check: the cert in the bundle should be present in the returned pool.
+	// We verify this by parsing the bundle's leaf cert and confirming it can be
+	// validated against the pool (the cert is self-signed in the test fixture).
+	parsed, err := readX509(cabundle.Name())
+	assert.Nil(t, err, "should parse test bundle")
+	assert.Len(t, parsed, 1, "test bundle should contain one cert")
+
+	_, err = parsed[0].Verify(x509.VerifyOptions{
+		Roots:       pool,
+		CurrentTime: parsed[0].NotBefore.Add(1),
+	})
+	assert.Nil(t, err, "cert from bundle should verify against the pool returned by GetTrustStore")
 }
 
 func TestNoCertificateInvalid(t *testing.T) {

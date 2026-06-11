@@ -138,6 +138,46 @@ func TestCertificateFromPEMFilesTrustStore(t *testing.T) {
 	assert.NotNil(t, err, "should read PEM file with invalid trust bundle")
 }
 
+// TestKeystoreReloadErrorKeepsOldCertificate verifies that when Reload() fails
+// (e.g. the file is overwritten with garbage on disk), the previously-loaded
+// certificate is still served instead of being cleared. This protects callers
+// from accidental loss of identity when reloads fail at runtime.
+func TestKeystoreReloadErrorKeepsOldCertificate(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// Reloading is not supported on Windows.
+		t.Skip("reload not supported on windows")
+	}
+
+	file, err := os.CreateTemp("", "ghostunnel-test")
+	assert.Nil(t, err, "temp file error")
+	defer os.Remove(file.Name())
+
+	_, err = file.Write([]byte(testCombinedCertificateAndKey))
+	assert.Nil(t, err, "temp file error")
+	assert.Nil(t, file.Close(), "close temp file")
+
+	cert, err := CertificateFromPEMFiles(file.Name(), file.Name(), file.Name())
+	assert.Nil(t, err, "should read valid PEM bundle")
+
+	before, err := cert.GetCertificate(nil)
+	assert.Nil(t, err, "should have valid cert before reload")
+	assert.NotNil(t, before, "cert should not be nil before reload")
+	assert.Equal(t, "server", before.Leaf.Subject.CommonName, "should have server CN before reload")
+
+	// Overwrite the file with garbage and try reloading.
+	assert.Nil(t, os.WriteFile(file.Name(), []byte("not a valid PEM file"), 0600), "rewrite file")
+
+	err = cert.Reload()
+	assert.NotNil(t, err, "Reload() should return error on garbage file")
+
+	// After failed reload, the old cert should still be served from cache.
+	after, err := cert.GetCertificate(nil)
+	assert.Nil(t, err, "should still serve cached cert after failed reload")
+	assert.NotNil(t, after, "cached cert should not be cleared by failed reload")
+	assert.Equal(t, "server", after.Leaf.Subject.CommonName, "should still serve original cert after failed reload")
+	assert.Equal(t, before.Leaf.Raw, after.Leaf.Raw, "cached leaf bytes should be unchanged")
+}
+
 func TestGetCachedCertificateKeystore(t *testing.T) {
 	tlscert := &tls.Certificate{}
 	kscert := &keystoreCertificate{}

@@ -1122,6 +1122,23 @@ func TestGetTLSConfigSourceSpiffeError(t *testing.T) {
 	assert.Nil(t, source)
 }
 
+// TestUseWorkloadAPIAddrImpliesUseWorkloadAPI: --use-workload-api-addr alone
+// must enable --use-workload-api. Otherwise users have to set both flags.
+func TestUseWorkloadAPIAddrImpliesUseWorkloadAPI(t *testing.T) {
+	origUse := *useWorkloadAPI
+	origAddr := *useWorkloadAPIAddr
+	defer func() {
+		*useWorkloadAPI = origUse
+		*useWorkloadAPIAddr = origAddr
+	}()
+
+	*useWorkloadAPI = false
+	*useWorkloadAPIAddr = "tcp://127.0.0.1:1"
+
+	applyFlagImplications()
+	assert.True(t, *useWorkloadAPI, "setting --use-workload-api-addr must imply --use-workload-api")
+}
+
 // TestCheckBackendStatusInvalidURLNonStatus is intentionally absent — the
 // equivalent test is in status_test.go (TestCheckBackendStatusInvalidURL).
 //
