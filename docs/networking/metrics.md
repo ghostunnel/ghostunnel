@@ -28,7 +28,10 @@ ghostunnel client \
 
 Here the status port is set to `localhost:6060`. Ghostunnel starts an internal
 HTTPS server on that address. You can also specify a UNIX socket instead of a
-TCP port.
+TCP port, in which case the status endpoints are served over plain HTTP (UNIX
+socket status listeners never use TLS). On TCP, Ghostunnel also falls back to
+plain HTTP if the configured certificate source cannot act as a server (for
+example, in client mode with `--disable-authentication`).
 
 How to check status and read connection metrics:
 
@@ -42,6 +45,10 @@ curl --cacert test-keys/cacert.pem 'https://localhost:6060/_metrics/json'
 # Metrics information (Prometheus)
 curl --cacert test-keys/cacert.pem 'https://localhost:6060/_metrics/prometheus'
 ```
+
+The bare `/_metrics` endpoint serves JSON by default and Prometheus output
+when called with the `format=prometheus` query parameter (e.g.
+`/_metrics?format=prometheus`).
 
 How to use profiling endpoints, if `--enable-pprof` is set:
 
@@ -77,11 +84,13 @@ flag, see
 
 ## Backend Healthchecks
 
-The `/_status` endpoint includes a backend healthcheck (server mode only). By
-default, Ghostunnel performs a TCP connection check against the `--target`
-address. You can override this with `--target-status=URL` (must use `http://`
-or `https://` scheme) to perform an HTTP GET against the given URL instead.
-Ghostunnel expects an HTTP 200 response.
+The `/_status` endpoint includes a backend healthcheck. In server mode,
+Ghostunnel performs a plain TCP connection check against the `--target`
+address by default; in client mode, the check is a full TLS connection to the
+target. In server mode you can override the default check with
+`--target-status=URL` (must use `http://` or `https://` scheme) to perform an
+HTTP GET against the given URL instead. Ghostunnel expects an HTTP 200
+response. The `--target-status` flag is only available in server mode.
 
 The `/_status` JSON response includes:
 
@@ -97,7 +106,7 @@ Ghostunnel exports the following base metrics:
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `conn.open` | Gauge | Number of currently open connections |
+| `conn.open` | Counter (gauge-like) | Number of currently open connections |
 | `conn.timeout` | Counter | Connections that timed out during data transfer |
 | `accept.total` | Counter | Total connection attempts accepted |
 | `accept.success` | Counter | Connections successfully established |
@@ -105,6 +114,10 @@ Ghostunnel exports the following base metrics:
 | `accept.timeout` | Counter | TLS handshake timeouts |
 | `conn.handshake` | Timer | TLS handshake duration |
 | `conn.lifetime` | Timer | Total connection lifetime |
+
+Note that `conn.open` is registered as a counter that is incremented and
+decremented as connections open and close, so it behaves like a gauge of
+currently open connections.
 
 The `--metrics-prefix` flag (default: `ghostunnel`) is prepended to all metric
 names. How the prefix and metric names are formatted depends on the output
@@ -136,7 +149,7 @@ and `hostname` fields.
 Prometheus output replaces dots, dashes, and other special characters with
 underscores to comply with Prometheus naming conventions. All metrics are
 exposed as Prometheus gauges. Timers additionally include rate gauges,
-statistical gauges, and a summary histogram:
+statistical gauges, and a histogram:
 
 | Prometheus metric name | Description |
 |------------------------|-------------|

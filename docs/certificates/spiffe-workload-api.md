@@ -46,7 +46,13 @@ ghostunnel server \
 The identity of the peer, i.e. the
 [SPIFFE ID](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE-ID.md),
 is embedded as a URI SAN on the X509-SVID. Accordingly, the existing `--verify-uri` and `--allow-uri`
-flags can be used to authorize the peer:
+flags can be used to authorize the peer.
+
+Note that in client mode, SPIFFE authentication replaces the standard
+hostname verification that applies with other certificate sources: the
+server is verified as presenting a valid X509-SVID chaining to the trust
+bundle, not as matching the target hostname. Use `--verify-uri` to pin the
+expected SPIFFE ID:
 
 As a server:
 

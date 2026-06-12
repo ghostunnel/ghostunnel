@@ -120,13 +120,16 @@ Get-ChildItem Cert:\CurrentUser\My | Format-Table Subject, Thumbprint, NotAfter
 ```
 
 **Which stores does Ghostunnel search?** When `--keychain-identity` is used
-on Windows, Ghostunnel searches three stores in this order:
+on Windows, Ghostunnel searches the "MY" (Personal) certificate store at
+three locations, in this order:
 
-1. **MY** (Current User), the personal certificate store
+1. **CURRENT_USER**, the current user's certificates
 2. **CURRENT_SERVICE**, the current service account's certificates (if accessible, *since v1.8.1*)
 3. **LOCAL_MACHINE**, machine-wide certificates (if accessible; may require elevation, *since v1.8.1*)
 
-Stores that fail to open are skipped rather than causing an error.
+The CURRENT_USER store must be accessible — failure to open it is an error.
+The CURRENT_SERVICE and LOCAL_MACHINE stores are skipped if they fail to
+open (e.g. due to insufficient permissions).
 
 See Microsoft's [certutil reference][ms-certutil],
 [System Store Locations][ms-store-locations], and the
@@ -176,8 +179,9 @@ ghostunnel client \
 ### Windows
 
 On Windows, `--keychain-identity` and `--keychain-issuer` work the same way
-but search the Windows Certificate Store (MY, CURRENT_SERVICE, and
-LOCAL_MACHINE stores, as described [above](#importing-into-the-certificate-store)):
+but search the Windows Certificate Store (the "MY" store at the
+CURRENT_USER, CURRENT_SERVICE, and LOCAL_MACHINE locations, as described
+[above](#importing-into-the-certificate-store)):
 
 ```powershell
 ghostunnel client `
