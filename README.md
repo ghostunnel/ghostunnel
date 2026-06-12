@@ -300,13 +300,13 @@ check.
 
 To trigger a reload, simply send `SIGHUP` (or `SIGUSR1`) to the process or set a time-based
 reloading interval with the `--timed-reload` flag. This will cause Ghostunnel
-to reload the certificate and private key from the files on disk. Once
-successful, the reloaded certificate will be used for new connections going
-forward.
+to reload the certificate, private key, and CA bundle from the files on disk
+(as well as OPA policy bundles, if configured). Once successful, the reloaded
+certificate will be used for new connections going forward.
 
 Additionally, Ghostunnel uses `SO_REUSEPORT` to bind the listening socket on
-platforms where it is supported (Linux, macOS, FreeBSD, NetBSD, and
-OpenBSD). This means a new Ghostunnel can be started on the same host/port
+platforms where it is supported (Linux, macOS, FreeBSD, NetBSD, OpenBSD, and
+DragonFly BSD). This means a new Ghostunnel can be started on the same host/port
 before the old one is terminated, to minimize dropped connections (or avoid
 them entirely depending on how the OS implements the `SO_REUSEPORT` feature).
 
@@ -314,6 +314,8 @@ Note that if you are using an HSM/PKCS#11 module, only the certificate will
 be reloaded. It is assumed that the private key in the HSM remains the same.
 This means the updated/reissued certificate must match the private key that
 was loaded from the HSM previously, everything else works the same.
+
+See [RELOADING](docs/certificates/reloading.md) for details.
 
 ### ACME Support
 

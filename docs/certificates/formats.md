@@ -138,12 +138,18 @@ cat root-ca.pem intermediate-ca.pem > cacert.pem
 
 ## Format Auto-Detection
 
-Ghostunnel detects the format in this order:
+Ghostunnel detects the format of `--keystore` files in this order:
 
-1. **File extension**: `.pem`/`.crt` → PEM, `.p12`/`.pfx` → PKCS#12,
-   `.jceks`/`.jks` → JCEKS.
-2. **Magic bytes**: if the extension is ambiguous, the first bytes of the file
-   are inspected (e.g. `-----BEGIN` → PEM, ASN.1 sequence → PKCS#12).
+1. **File extension**: `.pem`/`.crt`/`.p7b`/`.p7c` → PEM, `.p12`/`.pfx` →
+   PKCS#12, `.jceks`/`.jks` → JCEKS, `.der` → DER.
+2. **Magic bytes**: if the extension is unrecognized, the first bytes of the
+   file are inspected (e.g. `-----BEGIN` → PEM, JCEKS/JKS magic → JCEKS,
+   ASN.1 sequence → PKCS#12 or DER).
+
+PKCS#7 bundles (`.p7b`/`.p7c`, PEM-encoded) and DER input (`.der`, raw
+DER-encoded X.509 or PKCS#7 data) can only carry certificates, not private
+keys, so they cannot serve as a keystore on their own. Files passed via
+`--cert`/`--key` skip auto-detection and are always parsed as PEM.
 
 In practice, just use the right file extension and Ghostunnel will do the
 right thing.

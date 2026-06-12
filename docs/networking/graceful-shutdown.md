@@ -31,9 +31,11 @@ kill -INT <pid>    # also sent by Ctrl+C
 
 ### Signals (Windows)
 
-On Windows, only the `Interrupt` signal (Ctrl+C) triggers shutdown. There are
-no reload signals on Windows, but `--timed-reload` can be used to periodically
-reload certificates and OPA policies on a fixed interval.
+On Windows, the `Interrupt` signal (Ctrl+C) triggers shutdown. When running
+as a [Windows service]({{< ref "windows-service.md" >}}), a service stop
+request from the Service Control Manager triggers the same graceful shutdown.
+There are no reload signals on Windows, but `--timed-reload` can be used to
+periodically reload certificates and OPA policies on a fixed interval.
 
 ### HTTP endpoint (`/_shutdown`)
 
@@ -59,8 +61,10 @@ When a shutdown is triggered, the following happens in order:
 3. **Force-exit timer starts**: a timer begins counting down from the
    `--shutdown-timeout` value (default: 5 minutes).
 4. **Listener closes**: Ghostunnel stops accepting new connections.
-5. **In-flight connections continue**: existing connections are not
+5. **In-flight connections continue**: established connections are not
    interrupted. Data continues to flow until both sides close normally.
+   Connections that are still mid-handshake (or mid-dial to the backend)
+   when shutdown starts are cancelled rather than drained.
 6. **Process exits** when either:
    - All in-flight connections have drained (exit code 0), or
    - The shutdown timeout fires (exit code 1).

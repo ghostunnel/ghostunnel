@@ -80,11 +80,17 @@ ghostunnel service install -- server --eventlog `
     --listen localhost:8443 --target localhost:8080 ...
 ```
 
-Events are written under the source name matching the service name (default
-`ghostunnel`). View them with Event Viewer or PowerShell:
+Proxy log output written via `--eventlog` always uses the source name
+`ghostunnel`, regardless of `--service-name`. Service lifecycle events
+(install, start, stop) are written under the service name instead. View
+them with Event Viewer or PowerShell:
 
 ```powershell
+# Proxy logs (always under the 'ghostunnel' source)
 Get-WinEvent -FilterHashtable @{LogName='Application'; ProviderName='ghostunnel'} -MaxEvents 20
+
+# Lifecycle events for a custom-named service
+Get-WinEvent -FilterHashtable @{LogName='Application'; ProviderName='ghostunnel-api'} -MaxEvents 20
 ```
 
 The `--eventlog` flag also works when running Ghostunnel interactively
