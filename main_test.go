@@ -414,6 +414,9 @@ func TestDisallowsFooDotCom(t *testing.T) {
 }
 
 func TestServerBackendDialerError(t *testing.T) {
+	original := *serverForwardAddress
+	defer func() { *serverForwardAddress = original }()
+
 	*serverForwardAddress = "invalid"
 	_, err := serverBackendDialer()
 	assert.NotNil(t, err, "invalid forward address should not have dialer")
