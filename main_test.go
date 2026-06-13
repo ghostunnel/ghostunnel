@@ -414,9 +414,46 @@ func TestDisallowsFooDotCom(t *testing.T) {
 }
 
 func TestServerBackendDialerError(t *testing.T) {
+	original := *serverForwardAddress
+	defer func() { *serverForwardAddress = original }()
+
 	*serverForwardAddress = "invalid"
 	_, err := serverBackendDialer()
 	assert.NotNil(t, err, "invalid forward address should not have dialer")
+}
+
+func TestServerBackendDialerRejectsSystemd(t *testing.T) {
+	original := *serverForwardAddress
+	defer func() { *serverForwardAddress = original }()
+
+	*serverForwardAddress = "systemd:foo"
+	_, err := serverBackendDialer()
+	assert.NotNil(t, err, "systemd: target should be rejected at startup")
+	if err != nil {
+		assert.Contains(t, err.Error(), "systemd", "error message should mention the offending network")
+	}
+}
+
+func TestServerBackendDialerRejectsLaunchd(t *testing.T) {
+	original := *serverForwardAddress
+	defer func() { *serverForwardAddress = original }()
+
+	*serverForwardAddress = "launchd:foo"
+	_, err := serverBackendDialer()
+	assert.NotNil(t, err, "launchd: target should be rejected at startup")
+	if err != nil {
+		assert.Contains(t, err.Error(), "launchd", "error message should mention the offending network")
+	}
+}
+
+func TestServerBackendDialerAcceptsUnix(t *testing.T) {
+	original := *serverForwardAddress
+	defer func() { *serverForwardAddress = original }()
+
+	*serverForwardAddress = "unix:/tmp/ghostunnel-target-test.sock"
+	dial, err := serverBackendDialer()
+	assert.Nil(t, err, "unix: target should be accepted")
+	assert.NotNil(t, dial, "unix: target should produce a dialer")
 }
 
 func TestInvalidCABundle(t *testing.T) {
