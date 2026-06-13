@@ -882,7 +882,6 @@ func (env *Environment) serveStatus() error {
 		ErrorLog:          logger,
 		ReadHeaderTimeout: *connectTimeout,
 		ReadTimeout:       30 * time.Second,
-		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
 
