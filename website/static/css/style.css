@@ -1304,6 +1304,12 @@ a:hover {
   gap: 0.75rem;
 }
 
+.release-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+}
+
 /* =============================================
    Badge
    ============================================= */
