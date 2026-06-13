@@ -296,15 +296,8 @@ func validateCredentials(creds []bool) int {
 }
 
 func validateCipherSuites() error {
-	for suite := range strings.SplitSeq(*enabledCipherSuites, ",") {
-		name := strings.TrimSpace(suite)
-		_, ok := cipherSuites[name]
-		if !ok && *allowUnsafeCipherSuites {
-			_, ok = unsafeCipherSuites[name]
-		}
-		if !ok {
-			return fmt.Errorf("invalid cipher suite option: %s", suite)
-		}
+	if _, err := resolveCipherSuites(*enabledCipherSuites, *allowUnsafeCipherSuites); err != nil {
+		return err
 	}
 	return nil
 }
@@ -689,7 +682,7 @@ func run(args []string) error {
 // connections. This is useful for the purpose of replacing certificates
 // in-place without having to take downtime, e.g. if a certificate is expiring.
 func serverListen(env *Environment) error {
-	config, err := buildServerConfig(*enabledCipherSuites, *maxTLSVersion)
+	config, err := buildServerConfig(*enabledCipherSuites, *maxTLSVersion, *allowUnsafeCipherSuites)
 	if err != nil {
 		logger.Printf("error trying to read CA bundle: %s", err)
 		return err
@@ -888,7 +881,7 @@ func (env *Environment) serveStatus() error {
 	}
 
 	if network != "unix" && https && env.tlsConfigSource.CanServe() {
-		config, err := buildServerConfig(*enabledCipherSuites, *maxTLSVersion)
+		config, err := buildServerConfig(*enabledCipherSuites, *maxTLSVersion, *allowUnsafeCipherSuites)
 		if err != nil {
 			return err
 		}
@@ -944,7 +937,7 @@ func clientBackendDialer(
 	network, address, host string,
 ) (proxy.DialFunc, policy.Policy, error) {
 
-	config, err := buildClientConfig(*enabledCipherSuites, *maxTLSVersion)
+	config, err := buildClientConfig(*enabledCipherSuites, *maxTLSVersion, *allowUnsafeCipherSuites)
 	if err != nil {
 		return nil, nil, err
 	}

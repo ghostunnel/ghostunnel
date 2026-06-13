@@ -102,17 +102,21 @@ func parseTLSVersion(version string) (uint16, error) {
 	}
 }
 
-// buildConfig builds a generic tls.Config
-func buildConfig(enabledCipherSuites string, maxTLSVersion string) (*tls.Config, error) {
-	// List of cipher suite preferences:
-	// * We list ECDSA ahead of RSA to prefer ECDSA for multi-cert setups.
-	// * We list AES-128 ahead of AES-256 for performance reasons.
-
+// resolveCipherSuites parses a comma-separated list of cipher-suite group
+// names (e.g. "AES,CHACHA") and returns the concatenated list of underlying
+// tls cipher-suite IDs. If allowUnsafe is true, names from unsafeCipherSuites
+// are also accepted as a fallback.
+//
+// This helper is the single source of truth shared by validateCipherSuites
+// (early validation at flag-parse time) and buildConfig (used to construct
+// the runtime tls.Config). Keeping the lookup in one place ensures the two
+// call sites cannot drift apart.
+func resolveCipherSuites(spec string, allowUnsafe bool) ([]uint16, error) {
 	suites := []uint16{}
-	for suite := range strings.SplitSeq(enabledCipherSuites, ",") {
+	for suite := range strings.SplitSeq(spec, ",") {
 		name := strings.TrimSpace(suite)
 		ciphers, ok := cipherSuites[name]
-		if !ok && *allowUnsafeCipherSuites {
+		if !ok && allowUnsafe {
 			ciphers, ok = unsafeCipherSuites[name]
 		}
 		if !ok {
@@ -120,6 +124,19 @@ func buildConfig(enabledCipherSuites string, maxTLSVersion string) (*tls.Config,
 		}
 
 		suites = append(suites, ciphers...)
+	}
+	return suites, nil
+}
+
+// buildConfig builds a generic tls.Config
+func buildConfig(enabledCipherSuites string, maxTLSVersion string, allowUnsafe bool) (*tls.Config, error) {
+	// List of cipher suite preferences:
+	// * We list ECDSA ahead of RSA to prefer ECDSA for multi-cert setups.
+	// * We list AES-128 ahead of AES-256 for performance reasons.
+
+	suites, err := resolveCipherSuites(enabledCipherSuites, allowUnsafe)
+	if err != nil {
+		return nil, err
 	}
 
 	config := &tls.Config{
@@ -140,15 +157,15 @@ func buildConfig(enabledCipherSuites string, maxTLSVersion string) (*tls.Config,
 }
 
 // buildClientConfig builds a tls.Config for clients
-func buildClientConfig(enabledCipherSuites string, maxTLSVersion string) (*tls.Config, error) {
+func buildClientConfig(enabledCipherSuites string, maxTLSVersion string, allowUnsafe bool) (*tls.Config, error) {
 	// At the moment, we don't apply any extra settings on top of the generic
 	// config for client contexts
-	return buildConfig(enabledCipherSuites, maxTLSVersion)
+	return buildConfig(enabledCipherSuites, maxTLSVersion, allowUnsafe)
 }
 
 // buildServerConfig builds a tls.Config for servers
-func buildServerConfig(enabledCipherSuites string, maxTLSVersion string) (*tls.Config, error) {
-	config, err := buildConfig(enabledCipherSuites, maxTLSVersion)
+func buildServerConfig(enabledCipherSuites string, maxTLSVersion string, allowUnsafe bool) (*tls.Config, error) {
+	config, err := buildConfig(enabledCipherSuites, maxTLSVersion, allowUnsafe)
 	if err != nil {
 		return nil, err
 	}
