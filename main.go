@@ -604,13 +604,9 @@ func run(args []string) error {
 		// Compile the rego policy before constructing the Environment so the
 		// reload goroutine (started below) does not race with a later
 		// assignment to env.regoPolicy.
-		var regoPolicy policy.Policy
-		if len(*serverAllowPolicy) > 0 && len(*serverAllowQuery) > 0 {
-			regoPolicy, err = policy.LoadFromPath(*serverAllowPolicy, *serverAllowQuery)
-			if err != nil {
-				logger.Printf("Invalid rego policy or query: %s", err)
-				return err
-			}
+		regoPolicy, err := loadOPAPolicy(*serverAllowPolicy, *serverAllowQuery)
+		if err != nil {
+			return err
 		}
 
 		status := newStatusHandler(dial, command, *serverListenAddress, *serverForwardAddress, *serverStatusTargetAddress)
@@ -687,6 +683,21 @@ func run(args []string) error {
 	}
 
 	return errors.New("unknown command")
+}
+
+// loadOPAPolicy compiles a rego policy from the given path+query. Returns
+// (nil, nil) when either flag is empty (OPA disabled); otherwise loads the
+// policy and returns it, or an error if compilation fails.
+func loadOPAPolicy(allowPolicy, allowQuery string) (policy.Policy, error) {
+	if len(allowPolicy) == 0 || len(allowQuery) == 0 {
+		return nil, nil
+	}
+	p, err := policy.LoadFromPath(allowPolicy, allowQuery)
+	if err != nil {
+		logger.Printf("Invalid rego policy or query: %s", err)
+		return nil, err
+	}
+	return p, nil
 }
 
 // Open listening socket in server mode. Take note that we create a
@@ -955,14 +966,9 @@ func clientBackendDialer(
 		return nil, nil, err
 	}
 
-	// Compile the rego policy
-	var regoPolicy policy.Policy
-	if len(*clientAllowPolicy) > 0 && len(*clientAllowQuery) > 0 {
-		regoPolicy, err = policy.LoadFromPath(*clientAllowPolicy, *clientAllowQuery)
-		if err != nil {
-			logger.Printf("Invalid rego policy or query: %s", err)
-			return nil, nil, err
-		}
+	regoPolicy, err := loadOPAPolicy(*clientAllowPolicy, *clientAllowQuery)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	clientACL := auth.ACL{

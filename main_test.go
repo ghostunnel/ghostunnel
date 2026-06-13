@@ -24,6 +24,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -1493,5 +1494,65 @@ func TestShutdownHandlerConcurrentPosts(t *testing.T) {
 	case <-env.shutdownChannel:
 		t.Fatal("expected at most one buffered shutdown signal, got more")
 	default:
+	}
+}
+
+// TestLoadOPAPolicy covers the helper that compiles a rego policy from a
+// (path, query) flag pair. The helper is the single point used by both
+// server (run()) and client (clientBackendDialer()) code paths, so its
+// failure modes are not otherwise exercised by serverListen tests.
+//
+// OPA's file loader supports a "prefix:path" syntax, which means Windows
+// absolute paths (C:\...) get mis-parsed (the drive letter is treated as
+// the prefix). To keep this test cross-platform we chdir into the temp
+// dir and pass relative paths, which contain no ':'.
+func TestLoadOPAPolicy(t *testing.T) {
+	tempDir := t.TempDir()
+
+	const validName = "valid.rego"
+	const garbageName = "garbage.rego"
+
+	if err := os.WriteFile(filepath.Join(tempDir, validName), []byte(`package policy
+import input
+default allow := true
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tempDir, garbageName), []byte(`this is not valid rego`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Chdir(tempDir)
+
+	cases := []struct {
+		name       string
+		path       string
+		query      string
+		wantPolicy bool
+		wantErr    bool
+	}{
+		{"both empty disables OPA", "", "", false, false},
+		{"only path empty disables OPA", "", "data.policy.allow", false, false},
+		{"only query empty disables OPA", validName, "", false, false},
+		{"missing file returns error", "nonexistent.rego", "data.policy.allow", false, true},
+		{"invalid rego returns error", garbageName, "data.policy.allow", false, true},
+		{"valid policy returns non-nil", validName, "data.policy.allow", true, false},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			p, err := loadOPAPolicy(c.path, c.query)
+			if c.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, p, "policy must be nil when an error is returned")
+				return
+			}
+			assert.NoError(t, err)
+			if c.wantPolicy {
+				assert.NotNil(t, p, "expected a compiled policy")
+			} else {
+				assert.Nil(t, p, "expected nil policy (OPA disabled)")
+			}
+		})
 	}
 }
