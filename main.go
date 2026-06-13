@@ -297,7 +297,7 @@ func validateCredentials(creds []bool) int {
 
 func validateCipherSuites() error {
 	if _, err := resolveCipherSuites(*enabledCipherSuites, *allowUnsafeCipherSuites); err != nil {
-		return fmt.Errorf("invalid cipher suite option: %w", err)
+		return err
 	}
 	return nil
 }
