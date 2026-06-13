@@ -296,7 +296,7 @@ func (p *Proxy) Wait() {
 	p.handlers.Wait()
 }
 
-// Backoff bounds for transient Accept errors, mirroring net/http.Server.Serve.
+// Backoff bounds for Accept errors. Bounds mirror net/http.Server.Serve.
 const (
 	acceptBackoffMin = 5 * time.Millisecond
 	acceptBackoffMax = 1 * time.Second
@@ -306,8 +306,8 @@ const (
 // the data to the backend. Will stop accepting connections if Shutdown() is called.
 // Run this in a Goroutine, call Wait() to block on proxy shutdown/connection drain.
 func (p *Proxy) Accept() {
-	// acceptBackoff is the current sleep delay after a transient Accept error.
-	// It starts at zero, jumps to acceptBackoffMin on first error, doubles up
+	// acceptBackoff is the current sleep delay after an Accept error. It
+	// starts at zero, jumps to acceptBackoffMin on first error, doubles up
 	// to acceptBackoffMax, and resets to zero after a successful Accept. This
 	// prevents a hot loop on persistent errors like fd exhaustion (EMFILE).
 	var acceptBackoff time.Duration
@@ -337,10 +337,7 @@ func (p *Proxy) Accept() {
 			if acceptBackoff == 0 {
 				acceptBackoff = acceptBackoffMin
 			} else {
-				acceptBackoff *= 2
-			}
-			if acceptBackoff > acceptBackoffMax {
-				acceptBackoff = acceptBackoffMax
+				acceptBackoff = min(acceptBackoff*2, acceptBackoffMax)
 			}
 			select {
 			case <-time.After(acceptBackoff):

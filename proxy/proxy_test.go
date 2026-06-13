@@ -85,11 +85,10 @@ func TestAbortedConnection(t *testing.T) {
 // Accept was called, enabling assertions about the rate at which the accept
 // loop retries under persistent errors.
 type countingFailingListener struct {
-	mu       sync.Mutex
-	calls    int
-	callTime []time.Time
-	closed   chan struct{}
-	once     sync.Once
+	mu     sync.Mutex
+	calls  int
+	closed chan struct{}
+	once   sync.Once
 }
 
 func newCountingFailingListener() *countingFailingListener {
@@ -99,7 +98,6 @@ func newCountingFailingListener() *countingFailingListener {
 func (l *countingFailingListener) Accept() (net.Conn, error) {
 	l.mu.Lock()
 	l.calls++
-	l.callTime = append(l.callTime, time.Now())
 	l.mu.Unlock()
 	// If closed, unblock callers — but we still return an error so the
 	// accept loop sees the error path. The proxy's Shutdown cancels the
