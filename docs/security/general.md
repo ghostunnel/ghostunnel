@@ -19,6 +19,16 @@ and cannot be configured by the application. For TLS 1.2, the configured cipher
 suites all use authenticated encryption (AEAD). Older CBC-mode ciphers are not
 enabled.
 
+### Post-Quantum Key Exchange
+
+Since Go 1.24 and Ghostunnel v1.11.0, TLS handshakes negotiate the hybrid
+post-quantum key exchange X25519MLKEM768 when both peers support it.
+Ghostunnel inherits this behavior from Go's [`crypto/tls`][crypto-tls]
+defaults; no configuration is required to enable it. To disable hybrid PQ key
+exchange, set the environment variable `GODEBUG=tlsmlkem=0`. See Go's
+[`CurvePreferences`][curve-prefs] documentation for the authoritative list of
+currently-supported key exchanges and the `GODEBUG` knobs that control them.
+
 ### Client Authentication
 
 In server mode, Ghostunnel requires and verifies client certificates by
@@ -126,5 +136,6 @@ disabled when PKCS#11 is in use, since PKCS#11 modules are opaque shared
 libraries that may require access to arbitrary files and sockets.
 
 [crypto-tls]: https://pkg.go.dev/crypto/tls
+[curve-prefs]: https://pkg.go.dev/crypto/tls#Config.CurvePreferences
 [landlock]: https://docs.kernel.org/userspace-api/landlock.html
 [tn3165]: https://developer.apple.com/documentation/technotes/tn3165-packet-filter-is-not-api

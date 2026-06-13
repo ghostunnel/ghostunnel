@@ -155,16 +155,5 @@ func buildServerConfig(enabledCipherSuites string, maxTLSVersion string) (*tls.C
 	// Require client cert by default
 	config.ClientAuth = tls.RequireAndVerifyClientCert
 
-	// Enable hybrid PQ (X25519+ML-KEM-768) alongside classical curves with
-	// assembly implementations on common platforms. Go picks the actual key
-	// exchange via an internal preference order (CurvePreferences ordering is
-	// ignored); we list curves explicitly to avoid silently inheriting any new
-	// defaults a future Go release might add without us evaluating them.
-	config.CurvePreferences = []tls.CurveID{
-		tls.X25519MLKEM768,
-		tls.X25519,
-		tls.CurveP256,
-	}
-
 	return config, nil
 }
