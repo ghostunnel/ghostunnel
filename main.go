@@ -344,6 +344,13 @@ func validateServerTarget() error {
 	if !*serverUnsafeTarget && !consideredSafe(*serverForwardAddress) {
 		return errors.New("--target must be unix:PATH or localhost:PORT (unless --unsafe-target is set)")
 	}
+	network, _, _, err := socket.ParseAddress(*serverForwardAddress, true)
+	if err != nil {
+		return fmt.Errorf("invalid --target address: %w", err)
+	}
+	if !socket.IsDialableNetwork(network) {
+		return fmt.Errorf("invalid --target network %q: only tcp and unix targets are supported (systemd:/launchd: cannot be dialed)", network)
+	}
 	return nil
 }
 
@@ -439,6 +446,17 @@ func validateClientListen() error {
 	return nil
 }
 
+func validateClientTarget() error {
+	network, _, _, err := socket.ParseAddress(*clientForwardAddress, true)
+	if err != nil {
+		return fmt.Errorf("invalid --target address: %w", err)
+	}
+	if network != "tcp" {
+		return fmt.Errorf("invalid --target network %q: client mode requires a HOST:PORT TCP target", network)
+	}
+	return nil
+}
+
 func validateClientOPA() error {
 	hasOPAFlags := len(*clientAllowPolicy) > 0 || len(*clientAllowQuery) > 0
 	if !hasOPAFlags {
@@ -456,6 +474,9 @@ func clientValidateFlags() error {
 		return err
 	}
 	if err := validateClientListen(); err != nil {
+		return err
+	}
+	if err := validateClientTarget(); err != nil {
 		return err
 	}
 	if err := validateClientOPA(); err != nil {
@@ -929,14 +950,6 @@ func serverBackendDialer() (proxy.DialFunc, error) {
 	backendNet, backendAddr, _, err := socket.ParseAddress(*serverForwardAddress, *skipResolve)
 	if err != nil {
 		return nil, err
-	}
-
-	// Socket-activation networks ("systemd"/"launchd") only make sense for
-	// listening, not dialing. net.Dialer cannot dial them, so reject these
-	// targets at startup with a clear error rather than failing on every
-	// connection with "dial systemd: unknown network systemd".
-	if backendNet != "tcp" && backendNet != "unix" {
-		return nil, fmt.Errorf("invalid --target network %q: only tcp and unix targets are supported (systemd:/launchd: cannot be dialed)", backendNet)
 	}
 
 	return func(ctx context.Context) (net.Conn, error) {

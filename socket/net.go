@@ -61,6 +61,13 @@ func ParseAddress(input string, skipResolve bool) (network, address, host string
 	return
 }
 
+// IsDialableNetwork reports whether the network returned by ParseAddress
+// can be opened by net.Dialer. The "systemd" and "launchd" networks are
+// listen-only schemes for socket activation and cannot be dialed.
+func IsDialableNetwork(network string) bool {
+	return network == "tcp" || network == "unix"
+}
+
 // ParseHTTPAddress parses a string representing a TCP address or HTTP/HTTPS address
 // If the input is HTTP/HTTPS, return address will strip away the prefix
 // Otherwise, return address will be same as input

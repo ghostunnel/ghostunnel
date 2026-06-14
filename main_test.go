@@ -373,6 +373,7 @@ func TestClientFlagValidation(t *testing.T) {
 	// Test: OPA flags must be used together
 	*keystorePath = "file"
 	*clientListenAddress = "127.0.0.1:8080"
+	*clientForwardAddress = "localhost:8443"
 	*enabledCipherSuites = "AES,CHACHA"
 
 	*clientAllowPolicy = "policy"
@@ -423,28 +424,36 @@ func TestServerBackendDialerError(t *testing.T) {
 	assert.NotNil(t, err, "invalid forward address should not have dialer")
 }
 
-func TestServerBackendDialerRejectsSystemd(t *testing.T) {
+func TestValidateServerTargetRejectsSystemd(t *testing.T) {
 	original := *serverForwardAddress
 	defer func() { *serverForwardAddress = original }()
 
 	*serverForwardAddress = "systemd:foo"
-	_, err := serverBackendDialer()
-	assert.NotNil(t, err, "systemd: target should be rejected at startup")
+	err := validateServerTarget()
+	assert.NotNil(t, err, "systemd: target should be rejected")
 	if err != nil {
 		assert.Contains(t, err.Error(), "systemd", "error message should mention the offending network")
 	}
 }
 
-func TestServerBackendDialerRejectsLaunchd(t *testing.T) {
+func TestValidateServerTargetRejectsLaunchd(t *testing.T) {
 	original := *serverForwardAddress
 	defer func() { *serverForwardAddress = original }()
 
 	*serverForwardAddress = "launchd:foo"
-	_, err := serverBackendDialer()
-	assert.NotNil(t, err, "launchd: target should be rejected at startup")
+	err := validateServerTarget()
+	assert.NotNil(t, err, "launchd: target should be rejected")
 	if err != nil {
 		assert.Contains(t, err.Error(), "launchd", "error message should mention the offending network")
 	}
+}
+
+func TestValidateServerTargetAcceptsUnix(t *testing.T) {
+	original := *serverForwardAddress
+	defer func() { *serverForwardAddress = original }()
+
+	*serverForwardAddress = "unix:/tmp/ghostunnel-target-test.sock"
+	assert.Nil(t, validateServerTarget(), "unix: target should be accepted")
 }
 
 func TestServerBackendDialerAcceptsUnix(t *testing.T) {
@@ -456,6 +465,82 @@ func TestServerBackendDialerAcceptsUnix(t *testing.T) {
 	assert.Nil(t, err, "unix: target should be accepted")
 	assert.NotNil(t, dial, "unix: target should produce a dialer")
 }
+
+func TestValidateClientTargetRejectsUnix(t *testing.T) {
+	original := *clientForwardAddress
+	defer func() { *clientForwardAddress = original }()
+
+	*clientForwardAddress = "unix:/tmp/foo"
+	err := validateClientTarget()
+	assert.NotNil(t, err, "unix: target should be rejected for client mode")
+	if err != nil {
+		assert.Contains(t, err.Error(), "unix", "error message should mention the offending network")
+	}
+}
+
+func TestValidateClientTargetRejectsSystemd(t *testing.T) {
+	original := *clientForwardAddress
+	defer func() { *clientForwardAddress = original }()
+
+	*clientForwardAddress = "systemd:foo"
+	err := validateClientTarget()
+	assert.NotNil(t, err, "systemd: target should be rejected for client mode")
+	if err != nil {
+		assert.Contains(t, err.Error(), "systemd", "error message should mention the offending network")
+	}
+}
+
+func TestValidateClientTargetRejectsLaunchd(t *testing.T) {
+	original := *clientForwardAddress
+	defer func() { *clientForwardAddress = original }()
+
+	*clientForwardAddress = "launchd:foo"
+	err := validateClientTarget()
+	assert.NotNil(t, err, "launchd: target should be rejected for client mode")
+	if err != nil {
+		assert.Contains(t, err.Error(), "launchd", "error message should mention the offending network")
+	}
+}
+
+func TestValidateClientTargetAcceptsTCP(t *testing.T) {
+	original := *clientForwardAddress
+	defer func() { *clientForwardAddress = original }()
+
+	*clientForwardAddress = "localhost:8443"
+	assert.Nil(t, validateClientTarget(), "localhost:PORT target should be accepted for client mode")
+}
+
+func TestValidateClientTargetRejectsMalformed(t *testing.T) {
+	original := *clientForwardAddress
+	defer func() { *clientForwardAddress = original }()
+
+	*clientForwardAddress = "no-port-here"
+	err := validateClientTarget()
+	assert.NotNil(t, err, "malformed target should be rejected")
+	if err != nil {
+		assert.Contains(t, err.Error(), "invalid --target address", "error should identify the bad flag")
+	}
+}
+
+func TestValidateServerTargetRejectsMalformed(t *testing.T) {
+	originalAddr := *serverForwardAddress
+	originalUnsafe := *serverUnsafeTarget
+	defer func() {
+		*serverForwardAddress = originalAddr
+		*serverUnsafeTarget = originalUnsafe
+	}()
+
+	// --unsafe-target bypasses the consideredSafe gate so the parse path
+	// runs on a malformed input.
+	*serverUnsafeTarget = true
+	*serverForwardAddress = "no-port-here"
+	err := validateServerTarget()
+	assert.NotNil(t, err, "malformed target should be rejected even with --unsafe-target")
+	if err != nil {
+		assert.Contains(t, err.Error(), "invalid --target address", "error should identify the bad flag")
+	}
+}
+
 
 func TestInvalidCABundle(t *testing.T) {
 	cmd := []string{
