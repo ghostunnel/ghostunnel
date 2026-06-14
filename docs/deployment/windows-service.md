@@ -88,7 +88,10 @@ Get-WinEvent -FilterHashtable @{LogName='Application'; ProviderName='ghostunnel'
 ```
 
 The `--eventlog` flag also works when running Ghostunnel interactively
-(outside of a service), though this is less common.
+(outside of a service), though this is less common. In that mode the source
+defaults to `ghostunnel`, which must already be registered with the Event Log
+(for example, by a prior `ghostunnel service install`) or Event Viewer will
+display "*The description for Event ID … cannot be found.*" for each entry.
 
 ## Subcommand Reference
 
