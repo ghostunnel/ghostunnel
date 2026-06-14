@@ -541,6 +541,44 @@ func TestValidateServerTargetRejectsMalformed(t *testing.T) {
 	}
 }
 
+func TestValidateStatusAddress(t *testing.T) {
+	original := *statusAddress
+	defer func() { *statusAddress = original }()
+
+	cases := []struct {
+		input     string
+		wantErr   bool
+		errSubstr string
+	}{
+		{input: "", wantErr: false},
+		{input: "localhost:8080", wantErr: false},
+		{input: "http://localhost:8080", wantErr: false},
+		{input: "https://localhost:8080", wantErr: false},
+		{input: "unix:/tmp/foo", wantErr: false},
+		{input: "systemd:status", wantErr: false},
+		{input: "launchd:status", wantErr: false},
+		{input: "http://unix:/tmp/foo", wantErr: true, errSubstr: "unix"},
+		{input: "http://systemd:status", wantErr: true, errSubstr: "systemd"},
+		{input: "http://launchd:status", wantErr: true, errSubstr: "launchd"},
+		{input: "https://unix:/tmp/foo", wantErr: true, errSubstr: "unix"},
+		{input: "https://systemd:status", wantErr: true, errSubstr: "systemd"},
+		{input: "https://launchd:status", wantErr: true, errSubstr: "launchd"},
+		{input: "garbage", wantErr: true},
+	}
+	for _, c := range cases {
+		*statusAddress = c.input
+		err := validateStatusAddress()
+		if c.wantErr {
+			assert.NotNil(t, err, "input %q should be rejected", c.input)
+			if err != nil && c.errSubstr != "" {
+				assert.Contains(t, err.Error(), c.errSubstr, "error for %q should mention %q", c.input, c.errSubstr)
+			}
+		} else {
+			assert.Nil(t, err, "input %q should be accepted", c.input)
+		}
+	}
+}
+
 
 func TestInvalidCABundle(t *testing.T) {
 	cmd := []string{

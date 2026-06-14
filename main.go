@@ -148,7 +148,7 @@ var (
 	metricsInterval = app.Flag("metrics-interval", "Collect (and post/send) metrics every specified interval.").Default("30s").Duration()
 
 	// Status, logging & other
-	statusAddress  = app.Flag("status", "Enable serving /_status and /_metrics on given HOST:PORT (or unix:SOCKET).").PlaceHolder("ADDR").String()
+	statusAddress  = app.Flag("status", "Enable serving /_status and /_metrics on given [http(s)://]HOST:PORT, unix:PATH, systemd:NAME or launchd:NAME.").PlaceHolder("ADDR").String()
 	enableProf     = app.Flag("enable-pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
 	enableShutdown = app.Flag("enable-shutdown", "Enable serving a /_shutdown endpoint alongside /_status to allow terminating via HTTP POST request.").Default("false").Bool()
 	quiet          = app.Flag("quiet", "Silence log messages (can be all, conns, conn-errs, handshake-errs; repeat flag for more than one)").Default("").Enums("", "all", "conns", "handshake-errs", "conn-errs")
@@ -261,8 +261,30 @@ func validateFlags(app *kingpin.Application) error {
 	if *serverStatusTargetAddress != "" && !strings.HasPrefix(*serverStatusTargetAddress, "http://") && !strings.HasPrefix(*serverStatusTargetAddress, "https://") {
 		return fmt.Errorf("--target-status should start with http:// or https://")
 	}
+	if err := validateStatusAddress(); err != nil {
+		return err
+	}
 	if *connectTimeout == 0 {
 		return fmt.Errorf("--connect-timeout duration must not be zero")
+	}
+	return nil
+}
+
+// validateStatusAddress enforces the supported shapes of --status: TLS may
+// only be served on TCP, so the http:// and https:// scheme prefixes are
+// rejected for unix/systemd/launchd listeners (which always serve plain HTTP).
+func validateStatusAddress() error {
+	if *statusAddress == "" {
+		return nil
+	}
+	_, addr := socket.ParseHTTPAddress(*statusAddress)
+	network, _, _, err := socket.ParseAddress(addr, true)
+	if err != nil {
+		return fmt.Errorf("invalid --status address: %w", err)
+	}
+	hasScheme := strings.HasPrefix(*statusAddress, "http://") || strings.HasPrefix(*statusAddress, "https://")
+	if hasScheme && network != "tcp" {
+		return fmt.Errorf("invalid --status network %q: http(s):// scheme requires a HOST:PORT target", network)
 	}
 	return nil
 }
@@ -913,7 +935,7 @@ func (env *Environment) serveStatus() error {
 		return err
 	}
 
-	if network != "unix" && https && env.tlsConfigSource.CanServe() {
+	if network == "tcp" && https && env.tlsConfigSource.CanServe() {
 		config, err := buildServerConfig(*enabledCipherSuites, *maxTLSVersion, *allowUnsafeCipherSuites)
 		if err != nil {
 			return err
