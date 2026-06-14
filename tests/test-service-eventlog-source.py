@@ -23,6 +23,10 @@ require_admin()
 
 SERVICE_NAME = 'ghostunnel-pytest-eventlog'
 
+# Anchor on a unique-to-this-run message so the assertion can't latch onto
+# stale events from a prior install/uninstall with the same source name.
+LISTEN_MSG_FRAGMENT = '{0}:{1}'.format(LOCALHOST, LISTEN_PORT)
+
 root = None
 
 
@@ -42,20 +46,41 @@ def uninstall_quietly():
         pass
 
 
-def query_eventlog_messages():
+def query_eventlog(source):
     """Return concatenated messages from up to 10 most recent entries under
-    SERVICE_NAME in the Application log, or '' if none. Uses Get-EventLog
-    (classic API) which filters by Source property directly without depending
-    on the provider-discovery cache that Get-WinEvent -FilterHashtable uses."""
+    `source` in the Application log, or '' if none. Uses Get-EventLog (classic
+    API) which filters by Source property directly without depending on the
+    provider-discovery cache that Get-WinEvent -FilterHashtable uses."""
     ps_cmd = (
         "$ErrorActionPreference='SilentlyContinue'; "
         "Get-EventLog -LogName Application -Source '{0}' -Newest 10 | "
         "Select-Object -ExpandProperty Message"
-    ).format(SERVICE_NAME)
+    ).format(source)
     ps = subprocess.run(
         ['powershell.exe', '-NoProfile', '-Command', ps_cmd],
         capture_output=True, text=True, timeout=30)
     return (ps.stdout or '').strip()
+
+
+def diagnostic_dump():
+    """On failure, dump the most recent Application events whose source
+    contains 'ghostunnel'. Helps diagnose whether events landed under a
+    different source name."""
+    # The {0}/{1} below are PowerShell -f placeholders, not Python format
+    # placeholders; the string is passed through to powershell.exe verbatim.
+    ps_cmd = (
+        "$ErrorActionPreference='SilentlyContinue'; "
+        "Get-EventLog -LogName Application -Newest 50 | "
+        "Where-Object { $_.Source -like '*ghostunnel*' } | "
+        "ForEach-Object { '[Source={0}] {1}' -f $_.Source, $_.Message } "
+    )
+    ps = subprocess.run(
+        ['powershell.exe', '-NoProfile', '-Command', ps_cmd],
+        capture_output=True, text=True, timeout=30)
+    print("--- diagnostic: recent Application events with 'ghostunnel' in source ---",
+          file=sys.stderr)
+    print(ps.stdout or '(none)', file=sys.stderr)
+    print("--- end diagnostic ---", file=sys.stderr)
 
 
 try:
@@ -63,7 +88,6 @@ try:
     keystore = os.path.abspath('server.p12')
     cacert = os.path.abspath('root.crt')
 
-    # Clean slate.
     uninstall_quietly()
 
     rc, stdout, stderr = run_service_cmd([
@@ -81,26 +105,33 @@ try:
         raise Exception("service install failed (rc={0})".format(rc))
     print_ok("install: OK")
 
-    # Poll for events. Newly-registered sources can take a few seconds before
-    # the Event Log service reflects them in queries.
+    # Poll for events containing our unique listen-address fragment. Newly-
+    # registered sources can take a few seconds before the Event Log service
+    # reflects them in queries; anchoring on the listen address ignores stale
+    # entries from prior runs of the same source.
     messages = ''
+    found_listen = False
     for _ in range(30):
-        messages = query_eventlog_messages()
-        if messages:
+        messages = query_eventlog(SERVICE_NAME)
+        if LISTEN_MSG_FRAGMENT in messages:
+            found_listen = True
             break
         time.sleep(1)
 
-    if not messages:
+    if not found_listen:
+        diagnostic_dump()
+        if not messages:
+            raise Exception(
+                "no Event Log entries under Source={0} after 30s".format(
+                    SERVICE_NAME))
         raise Exception(
-            "no Event Log entries under Source={0} after 30s; runtime logger "
-            "is writing to a different source".format(SERVICE_NAME))
-    print_ok("event log entries present under Source={0}".format(SERVICE_NAME))
+            "no entry containing {0!r} under Source={1} after 30s; got:\n{2}".format(
+                LISTEN_MSG_FRAGMENT, SERVICE_NAME, messages[:500]))
+    print_ok("event log entry for this run found under Source={0}".format(
+        SERVICE_NAME))
 
-    # The "description not found" placeholder indicates the source was not
-    # registered with a message file at install time. With B1 fixed AND the
-    # install code actually calling InstallAsEventCreate, entries should
-    # render normally.
     if 'description for Event ID' in messages:
+        diagnostic_dump()
         raise Exception(
             "entries under Source={0} show 'description not found':\n{1}".format(
                 SERVICE_NAME, messages[:500]))
