@@ -7,7 +7,7 @@ rather than a hardcoded fallback. Requires Windows and Administrator privileges.
 
 Regression test for the case where 'service install --service-name foo' would
 register source 'foo' but the running service would write to source 'ghostunnel',
-producing "description not found" entries in Event Viewer.
+producing "description not found" entries in Event Viewer under the wrong source.
 """
 
 import os
@@ -42,6 +42,22 @@ def uninstall_quietly():
         pass
 
 
+def query_eventlog_messages():
+    """Return concatenated messages from up to 10 most recent entries under
+    SERVICE_NAME in the Application log, or '' if none. Uses Get-EventLog
+    (classic API) which filters by Source property directly without depending
+    on the provider-discovery cache that Get-WinEvent -FilterHashtable uses."""
+    ps_cmd = (
+        "$ErrorActionPreference='SilentlyContinue'; "
+        "Get-EventLog -LogName Application -Source '{0}' -Newest 10 | "
+        "Select-Object -ExpandProperty Message"
+    ).format(SERVICE_NAME)
+    ps = subprocess.run(
+        ['powershell.exe', '-NoProfile', '-Command', ps_cmd],
+        capture_output=True, text=True, timeout=30)
+    return (ps.stdout or '').strip()
+
+
 try:
     root = create_default_certs()
     keystore = os.path.abspath('server.p12')
@@ -65,41 +81,31 @@ try:
         raise Exception("service install failed (rc={0})".format(rc))
     print_ok("install: OK")
 
-    # Give the service a moment to emit its startup log lines via --eventlog.
-    time.sleep(2)
+    # Poll for events. Newly-registered sources can take a few seconds before
+    # the Event Log service reflects them in queries.
+    messages = ''
+    for _ in range(30):
+        messages = query_eventlog_messages()
+        if messages:
+            break
+        time.sleep(1)
 
-    # Query the Event Log for entries on the source matching our service name.
-    # -ErrorAction SilentlyContinue keeps an empty result from blowing up the
-    # cmdlet; we check the count explicitly.
-    ps_script = (
-        "$events = Get-WinEvent -FilterHashtable @{{LogName='Application'; "
-        "ProviderName='{0}'}} -MaxEvents 20 -ErrorAction SilentlyContinue; "
-        "if (-not $events) {{ exit 10 }}; "
-        "$bad = $events | Where-Object {{ $_.Message -match "
-        "'description for Event ID' }}; "
-        "if ($bad) {{ $bad | ForEach-Object {{ Write-Output $_.Message }}; "
-        "exit 11 }}; "
-        "$events | Select-Object -First 1 -ExpandProperty Message"
-    ).format(SERVICE_NAME)
-
-    ps = subprocess.run(
-        ['powershell.exe', '-NoProfile', '-Command', ps_script],
-        capture_output=True, text=True, timeout=30)
-
-    if ps.returncode == 10:
+    if not messages:
         raise Exception(
-            "no Event Log entries for ProviderName={0}; runtime logger is "
-            "writing to a different source".format(SERVICE_NAME))
-    if ps.returncode == 11:
-        raise Exception(
-            "Event Log entries for ProviderName={0} show \"description not "
-            "found\":\n{1}".format(SERVICE_NAME, ps.stdout))
-    if ps.returncode != 0:
-        raise Exception("powershell failed (rc={0}):\nstdout: {1}\nstderr: {2}".format(
-            ps.returncode, ps.stdout, ps.stderr))
+            "no Event Log entries under Source={0} after 30s; runtime logger "
+            "is writing to a different source".format(SERVICE_NAME))
+    print_ok("event log entries present under Source={0}".format(SERVICE_NAME))
 
-    print_ok("event log entries render correctly under ProviderName={0}".format(
-        SERVICE_NAME))
+    # The "description not found" placeholder indicates the source was not
+    # registered with a message file at install time. With B1 fixed AND the
+    # install code actually calling InstallAsEventCreate, entries should
+    # render normally.
+    if 'description for Event ID' in messages:
+        raise Exception(
+            "entries under Source={0} show 'description not found':\n{1}".format(
+                SERVICE_NAME, messages[:500]))
+    print_ok("entries render without 'description not found'")
+
     print_ok("OK")
 finally:
     uninstall_quietly()

@@ -244,13 +244,20 @@ func checkGhostunnelMarker(name string) error {
 }
 
 // eventLogSourceExists reports whether an event log source with the given
-// name is registered. Used to make event source registration idempotent.
+// name is registered for the Application log. Used to make event source
+// registration idempotent across reinstalls. Checks the registry directly:
+// eventlog.Open / RegisterEventSource succeed for any valid name even when
+// the source has no registry entry (events then land in Application under a
+// fallback provider with "description not found"), so it can't be used to
+// distinguish registered from unregistered sources.
 func eventLogSourceExists(name string) bool {
-	elog, err := eventlog.Open(name)
+	key, err := registry.OpenKey(registry.LOCAL_MACHINE,
+		`SYSTEM\CurrentControlSet\Services\EventLog\Application\`+name,
+		registry.QUERY_VALUE)
 	if err != nil {
 		return false
 	}
-	elog.Close()
+	key.Close()
 	return true
 }
 
