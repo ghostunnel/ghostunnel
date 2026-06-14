@@ -140,9 +140,8 @@ func buildConfig(enabledCipherSuites string, maxTLSVersion string, allowUnsafe b
 	}
 
 	config := &tls.Config{
-		PreferServerCipherSuites: true,
-		MinVersion:               tls.VersionTLS12,
-		CipherSuites:             suites,
+		MinVersion:   tls.VersionTLS12,
+		CipherSuites: suites,
 	}
 
 	if maxTLSVersion != "" {
@@ -172,12 +171,6 @@ func buildServerConfig(enabledCipherSuites string, maxTLSVersion string, allowUn
 
 	// Require client cert by default
 	config.ClientAuth = tls.RequireAndVerifyClientCert
-
-	// P-256/X25519 have an ASM implementation, others do not (at least on x86-64).
-	config.CurvePreferences = []tls.CurveID{
-		tls.X25519,
-		tls.CurveP256,
-	}
 
 	return config, nil
 }
