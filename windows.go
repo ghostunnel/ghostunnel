@@ -108,9 +108,9 @@ func isRunningAsService() bool {
 // svcRun is the SCM dispatcher entry point. A package-level indirection so
 // tests can simulate dispatcher failures without invoking the real
 // StartServiceCtrlDispatcher (which only succeeds when the process was
-// launched by the SCM). currentServiceName, called from runAsService just
-// above this, still issues a best-effort mgr.Connect and gracefully falls
-// back to defaultServiceName when the SCM is unavailable.
+// launched by the SCM). The currentServiceName call in runAsService below
+// still issues a best-effort mgr.Connect and gracefully falls back to
+// defaultServiceName when the SCM is unavailable.
 var svcRun = svc.Run
 
 // runAsService hands control to the Windows Service Control Manager and
