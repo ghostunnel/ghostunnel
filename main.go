@@ -204,8 +204,10 @@ var exitFunc = os.Exit
 
 // extraRWPaths collects additional filesystem paths that should be
 // read-writable under landlock. Populated by init() hooks (e.g. the
-// coverage build tag registers GOCOVERDIR here).
-var extraRWPaths []string
+// coverage build tag registers GOCOVERDIR here) and consumed by the
+// linux landlock setup. Read/written only behind build tags, hence the
+// nolint directive.
+var extraRWPaths []string //nolint:unused
 
 // Environment groups listening context data together.
 type Environment struct {
