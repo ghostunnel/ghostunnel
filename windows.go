@@ -39,11 +39,11 @@ var (
 	// serviceLogSource is the Event Log source name used by --eventlog. It
 	// defaults to defaultServiceName so interactive invocations log to the
 	// same source the default service install registers. runAsService
-	// overrides it with the SCM-discovered name before svc.Run dispatches, so
+	// overrides it with the SCM-discovered name before calling svc.Run, so
 	// runtime entries land on the source that doInstallService registered at
-	// install time. The send/receive inside svc.Run establishes the
-	// happens-before for the run() goroutine that later reads it from
-	// initSystemLogger.
+	// install time. svc.Run starts the service handler goroutine after this
+	// assignment, so initSystemLogger (called from run()) observes the updated
+	// value.
 	serviceLogSource = defaultServiceName
 )
 
