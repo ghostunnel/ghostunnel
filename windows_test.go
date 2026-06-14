@@ -3,9 +3,11 @@
 package main
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/sys/windows/svc"
 )
 
 func TestUseSystemLog(t *testing.T) {
@@ -34,6 +36,53 @@ func TestInitSystemLogger(t *testing.T) {
 	}
 	assert.NotEqual(t, originalLogger, logger, "logger should be updated")
 	assert.NotNil(t, logger)
+}
+
+// TestRunAsServiceSurfacesDispatcherError verifies that a non-nil error from
+// the SCM dispatcher results in a non-zero exit via exitFunc, rather than
+// being silently swallowed. The svcRun seam avoids invoking the real
+// StartServiceCtrlDispatcher; currentServiceName still runs but falls back
+// gracefully when the SCM cannot be reached.
+func TestRunAsServiceSurfacesDispatcherError(t *testing.T) {
+	origRun := svcRun
+	origExit := exitFunc
+	origSource := serviceLogSource
+	t.Cleanup(func() {
+		svcRun = origRun
+		exitFunc = origExit
+		serviceLogSource = origSource
+	})
+
+	exitCode := -1
+	exitFunc = func(c int) { exitCode = c }
+	svcRun = func(string, svc.Handler) error {
+		return errors.New("scripted dispatch failure")
+	}
+
+	runAsService()
+
+	assert.Equal(t, 1, exitCode, "exitFunc should be called with 1 on dispatcher failure")
+}
+
+// TestRunAsServiceSilentOnSuccess verifies the success path leaves exitFunc
+// uncalled, so main() returns 0 the normal way.
+func TestRunAsServiceSilentOnSuccess(t *testing.T) {
+	origRun := svcRun
+	origExit := exitFunc
+	origSource := serviceLogSource
+	t.Cleanup(func() {
+		svcRun = origRun
+		exitFunc = origExit
+		serviceLogSource = origSource
+	})
+
+	exitCalled := false
+	exitFunc = func(int) { exitCalled = true }
+	svcRun = func(string, svc.Handler) error { return nil }
+
+	runAsService()
+
+	assert.False(t, exitCalled, "exitFunc must not be called when svcRun succeeds")
 }
 
 // TestInitSystemLoggerUsesServiceLogSource verifies that initSystemLogger opens

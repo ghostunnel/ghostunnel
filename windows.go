@@ -20,6 +20,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"log"
 	"os"
 
@@ -103,8 +104,28 @@ func isRunningAsService() bool {
 	return err == nil && ok
 }
 
-// runAsService hands control to the Windows Service Control Manager.
+// svcRun is the SCM dispatcher entry point. A package-level indirection so
+// tests can simulate dispatcher failures without invoking the real
+// StartServiceCtrlDispatcher (which only succeeds when the process was
+// launched by the SCM). currentServiceName, called from runAsService just
+// above this, still issues a best-effort mgr.Connect and gracefully falls
+// back to defaultServiceName when the SCM is unavailable.
+var svcRun = svc.Run
+
+// runAsService hands control to the Windows Service Control Manager and
+// returns when the dispatcher exits. A non-nil error from svcRun means
+// StartServiceCtrlDispatcher itself failed (rare; e.g. SCM transient or
+// malformed name pointer) — never an error reported by Execute, which the
+// dispatcher conveys to SCM via the SERVICE_STATUS struct. We surface the
+// failure to the Event Log (best-effort), stderr (null under SCM but useful
+// for manual repro), and process exit code so the services console shows a
+// non-zero ExitCode instead of a silent 0.
 func runAsService() {
 	serviceLogSource = currentServiceName()
-	_ = svc.Run(serviceLogSource, &ghostunnelService{name: serviceLogSource})
+	if err := svcRun(serviceLogSource, &ghostunnelService{name: serviceLogSource}); err != nil {
+		msg := fmt.Sprintf("ghostunnel SCM dispatcher failed: %v", err)
+		writeEventLogError(serviceLogSource, msg)
+		fmt.Fprintln(os.Stderr, "error: "+msg)
+		exitFunc(1)
+	}
 }
