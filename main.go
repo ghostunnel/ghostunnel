@@ -148,7 +148,7 @@ var (
 	metricsInterval = app.Flag("metrics-interval", "Collect (and post/send) metrics every specified interval.").Default("30s").Duration()
 
 	// Status, logging & other
-	statusAddress  = app.Flag("status", "Enable serving /_status and /_metrics on given HOST:PORT (or unix:SOCKET).").PlaceHolder("ADDR").String()
+	statusAddress  = app.Flag("status", "Enable serving /_status and /_metrics on given [http(s)://]HOST:PORT, unix:PATH, systemd:NAME or launchd:NAME.").PlaceHolder("ADDR").String()
 	enableProf     = app.Flag("enable-pprof", "Enable serving /debug/pprof endpoints alongside /_status (for profiling).").Bool()
 	enableShutdown = app.Flag("enable-shutdown", "Enable serving a /_shutdown endpoint alongside /_status to allow terminating via HTTP POST request.").Default("false").Bool()
 	quiet          = app.Flag("quiet", "Silence log messages (can be all, conns, conn-errs, handshake-errs; repeat flag for more than one)").Default("").Enums("", "all", "conns", "handshake-errs", "conn-errs")
@@ -204,8 +204,10 @@ var exitFunc = os.Exit
 
 // extraRWPaths collects additional filesystem paths that should be
 // read-writable under landlock. Populated by init() hooks (e.g. the
-// coverage build tag registers GOCOVERDIR here).
-var extraRWPaths []string
+// coverage build tag registers GOCOVERDIR here) and consumed by the
+// linux landlock setup. Read/written only behind build tags, hence the
+// nolint directive.
+var extraRWPaths []string //nolint:unused
 
 // Environment groups listening context data together.
 type Environment struct {
@@ -261,8 +263,30 @@ func validateFlags(app *kingpin.Application) error {
 	if *serverStatusTargetAddress != "" && !strings.HasPrefix(*serverStatusTargetAddress, "http://") && !strings.HasPrefix(*serverStatusTargetAddress, "https://") {
 		return fmt.Errorf("--target-status should start with http:// or https://")
 	}
+	if err := validateStatusAddress(); err != nil {
+		return err
+	}
 	if *connectTimeout == 0 {
 		return fmt.Errorf("--connect-timeout duration must not be zero")
+	}
+	return nil
+}
+
+// validateStatusAddress enforces the supported shapes of --status: TLS may
+// only be served on TCP, so the http:// and https:// scheme prefixes are
+// rejected for unix/systemd/launchd listeners (which always serve plain HTTP).
+func validateStatusAddress() error {
+	if *statusAddress == "" {
+		return nil
+	}
+	_, addr := socket.ParseHTTPAddress(*statusAddress)
+	network, _, _, err := socket.ParseAddress(addr, true)
+	if err != nil {
+		return fmt.Errorf("invalid --status address: %w", err)
+	}
+	hasScheme := strings.HasPrefix(*statusAddress, "http://") || strings.HasPrefix(*statusAddress, "https://")
+	if hasScheme && network != "tcp" {
+		return fmt.Errorf("invalid --status network %q: http(s):// scheme requires a HOST:PORT target", network)
 	}
 	return nil
 }
@@ -343,6 +367,13 @@ func validateServerAccessControl(hasAccessFlags, hasOPAFlags bool) error {
 func validateServerTarget() error {
 	if !*serverUnsafeTarget && !consideredSafe(*serverForwardAddress) {
 		return errors.New("--target must be unix:PATH or localhost:PORT (unless --unsafe-target is set)")
+	}
+	network, _, _, err := socket.ParseAddress(*serverForwardAddress, true)
+	if err != nil {
+		return fmt.Errorf("invalid --target address: %w", err)
+	}
+	if !socket.IsDialableNetwork(network) {
+		return fmt.Errorf("invalid --target network %q: only tcp and unix targets are supported (systemd:/launchd: cannot be dialed)", network)
 	}
 	return nil
 }
@@ -439,6 +470,17 @@ func validateClientListen() error {
 	return nil
 }
 
+func validateClientTarget() error {
+	network, _, _, err := socket.ParseAddress(*clientForwardAddress, true)
+	if err != nil {
+		return fmt.Errorf("invalid --target address: %w", err)
+	}
+	if network != "tcp" {
+		return fmt.Errorf("invalid --target network %q: client mode requires a HOST:PORT TCP target", network)
+	}
+	return nil
+}
+
 func validateClientOPA() error {
 	hasOPAFlags := len(*clientAllowPolicy) > 0 || len(*clientAllowQuery) > 0
 	if !hasOPAFlags {
@@ -456,6 +498,9 @@ func clientValidateFlags() error {
 		return err
 	}
 	if err := validateClientListen(); err != nil {
+		return err
+	}
+	if err := validateClientTarget(); err != nil {
 		return err
 	}
 	if err := validateClientOPA(); err != nil {
@@ -892,7 +937,7 @@ func (env *Environment) serveStatus() error {
 		return err
 	}
 
-	if network != "unix" && https && env.tlsConfigSource.CanServe() {
+	if network == "tcp" && https && env.tlsConfigSource.CanServe() {
 		config, err := buildServerConfig(*enabledCipherSuites, *maxTLSVersion, *allowUnsafeCipherSuites)
 		if err != nil {
 			return err
@@ -929,14 +974,6 @@ func serverBackendDialer() (proxy.DialFunc, error) {
 	backendNet, backendAddr, _, err := socket.ParseAddress(*serverForwardAddress, *skipResolve)
 	if err != nil {
 		return nil, err
-	}
-
-	// Socket-activation networks ("systemd"/"launchd") only make sense for
-	// listening, not dialing. net.Dialer cannot dial them, so reject these
-	// targets at startup with a clear error rather than failing on every
-	// connection with "dial systemd: unknown network systemd".
-	if backendNet != "tcp" && backendNet != "unix" {
-		return nil, fmt.Errorf("invalid --target network %q: only tcp and unix targets are supported (systemd:/launchd: cannot be dialed)", backendNet)
 	}
 
 	return func(ctx context.Context) (net.Conn, error) {

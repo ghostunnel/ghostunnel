@@ -82,6 +82,14 @@ func TestParseAddress(t *testing.T) {
 	assert.NotNil(t, err, "was able to parse invalid host/port")
 }
 
+func TestIsDialableNetwork(t *testing.T) {
+	assert.True(t, IsDialableNetwork("tcp"), "tcp must be dialable")
+	assert.True(t, IsDialableNetwork("unix"), "unix must be dialable")
+	assert.False(t, IsDialableNetwork("systemd"), "systemd is listen-only")
+	assert.False(t, IsDialableNetwork("launchd"), "launchd is listen-only")
+	assert.False(t, IsDialableNetwork(""), "empty network must not be dialable")
+}
+
 func TestParseHTTPAddress(t *testing.T) {
 	https, address := ParseHTTPAddress("http://localhost")
 	if https != false {
