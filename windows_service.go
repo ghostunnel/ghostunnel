@@ -53,21 +53,14 @@ const (
 )
 
 var (
-	serviceCmd          = app.Command("service", "Manage ghostunnel as a Windows service (requires Administrator).")
+	serviceCmd  = app.Command("service", "Manage ghostunnel as a Windows service (requires Administrator).")
+	serviceName = serviceCmd.Flag(serviceNameFlagName, "Name to use for the Windows service.").Default(defaultServiceName).String()
+
 	serviceInstallCmd   = serviceCmd.Command("install", "Install and start ghostunnel as a Windows service.")
 	serviceUninstallCmd = serviceCmd.Command("uninstall", "Stop and remove the ghostunnel Windows service.")
 	serviceStartCmd     = serviceCmd.Command("start", "Start the ghostunnel Windows service.")
 	serviceStopCmd      = serviceCmd.Command("stop", "Stop the ghostunnel Windows service.")
 	serviceStatusCmd    = serviceCmd.Command("status", "Show the status of the ghostunnel Windows service.")
-
-	// Each subcommand carries its own --service-name flag so the flag can
-	// appear after the subcommand name on the command line, e.g.:
-	//   ghostunnel service install --service-name mysvc -- server ...
-	serviceInstallName   = serviceInstallCmd.Flag(serviceNameFlagName, "Name to use for the Windows service.").Default(defaultServiceName).String()
-	serviceUninstallName = serviceUninstallCmd.Flag(serviceNameFlagName, "Name to use for the Windows service.").Default(defaultServiceName).String()
-	serviceStartName     = serviceStartCmd.Flag(serviceNameFlagName, "Name to use for the Windows service.").Default(defaultServiceName).String()
-	serviceStopName      = serviceStopCmd.Flag(serviceNameFlagName, "Name to use for the Windows service.").Default(defaultServiceName).String()
-	serviceStatusName    = serviceStatusCmd.Flag(serviceNameFlagName, "Name to use for the Windows service.").Default(defaultServiceName).String()
 
 	// Proxy arguments stored in the service registration; everything after '--'.
 	serviceInstallArgs = serviceInstallCmd.Arg("args", "Proxy arguments to pass to the service, separated from service flags by '--' (e.g. -- server --listen :8443 --target localhost:8080).").Strings()
@@ -141,7 +134,26 @@ type ghostunnelService struct {
 	name string
 }
 
-func (s *ghostunnelService) Execute(_ []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (bool, uint32) {
+// applyDispatchedServiceName updates s.name and the package-level
+// serviceLogSource from args[0], the authoritative service name SCM passes to
+// ServiceMain. No-op when args is empty or args[0] is the empty string, in
+// which case callers fall back to whatever runAsService seeded.
+func (s *ghostunnelService) applyDispatchedServiceName(args []string) {
+	if len(args) > 0 && args[0] != "" {
+		s.name = args[0]
+		serviceLogSource = args[0]
+	}
+}
+
+func (s *ghostunnelService) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (bool, uint32) {
+	// Trust args[0] over the PID enumeration in currentServiceName, which has
+	// a race window during service startup where the SCM may not yet have
+	// recorded our PID in the SERVICE_STATUS_PROCESS struct (currentServiceName
+	// then returns defaultServiceName). Apply before spawning the proxy
+	// goroutine so eventlog.Open below and initSystemLogger (from inside run())
+	// both observe the authoritative name.
+	s.applyDispatchedServiceName(args)
+
 	elog, _ := eventlog.Open(s.name) // best-effort; non-critical if event source not registered
 	if elog != nil {
 		defer elog.Close()
@@ -244,13 +256,20 @@ func checkGhostunnelMarker(name string) error {
 }
 
 // eventLogSourceExists reports whether an event log source with the given
-// name is registered. Used to make event source registration idempotent.
+// name is registered for the Application log. Used to make event source
+// registration idempotent across reinstalls. Checks the registry directly:
+// eventlog.Open / RegisterEventSource succeed for any valid name even when
+// the source has no registry entry (events then land in Application under a
+// fallback provider with "description not found"), so it can't be used to
+// distinguish registered from unregistered sources.
 func eventLogSourceExists(name string) bool {
-	elog, err := eventlog.Open(name)
+	key, err := registry.OpenKey(registry.LOCAL_MACHINE,
+		`SYSTEM\CurrentControlSet\Services\EventLog\Application\`+name,
+		registry.QUERY_VALUE)
 	if err != nil {
 		return false
 	}
-	elog.Close()
+	key.Close()
 	return true
 }
 
@@ -565,15 +584,15 @@ func doStatusService(name string) error {
 func runServiceCommand(command string) (bool, error) {
 	switch command {
 	case serviceInstallCmd.FullCommand():
-		return true, doInstallService(*serviceInstallName, *serviceInstallArgs)
+		return true, doInstallService(*serviceName, *serviceInstallArgs)
 	case serviceUninstallCmd.FullCommand():
-		return true, doUninstallService(*serviceUninstallName)
+		return true, doUninstallService(*serviceName)
 	case serviceStartCmd.FullCommand():
-		return true, doStartService(*serviceStartName)
+		return true, doStartService(*serviceName)
 	case serviceStopCmd.FullCommand():
-		return true, doStopService(*serviceStopName)
+		return true, doStopService(*serviceName)
 	case serviceStatusCmd.FullCommand():
-		return true, doStatusService(*serviceStatusName)
+		return true, doStatusService(*serviceName)
 	}
 	return false, nil
 }

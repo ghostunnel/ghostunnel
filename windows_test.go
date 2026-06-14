@@ -86,8 +86,9 @@ func TestRunAsServiceSilentOnSuccess(t *testing.T) {
 }
 
 // TestInitSystemLoggerUsesServiceLogSource verifies that initSystemLogger opens
-// the Event Log source named by serviceLogSource — the variable runAsService
-// seeds with the SCM-registered service name — rather than a hardcoded source.
+// the Event Log source named by serviceLogSource — the variable Execute updates
+// from the SCM-supplied args[0] before spawning the proxy goroutine — rather
+// than a hardcoded source.
 func TestInitSystemLoggerUsesServiceLogSource(t *testing.T) {
 	originalLogger := logger
 	originalSource := serviceLogSource

@@ -39,12 +39,13 @@ var (
 
 	// serviceLogSource is the Event Log source name used by --eventlog. It
 	// defaults to defaultServiceName so interactive invocations log to the
-	// same source the default service install registers. runAsService
-	// overrides it with the SCM-discovered name before calling svc.Run, so
-	// runtime entries land on the source that doInstallService registered at
-	// install time. svc.Run starts the service handler goroutine after this
-	// assignment, so initSystemLogger (called from run()) observes the updated
-	// value.
+	// same source the default service install registers. Under SCM, the
+	// authoritative override happens at the start of ghostunnelService.Execute
+	// from args[0] (the name SCM passes to ServiceMain) before the proxy
+	// goroutine is spawned, so initSystemLogger reads the right source.
+	// runAsService also seeds it from currentServiceName as a pre-dispatch
+	// best-effort, used only for the dispatcher-failure Event Log entry when
+	// svcRun itself returns an error before Execute runs.
 	serviceLogSource = defaultServiceName
 )
 
@@ -107,9 +108,9 @@ func isRunningAsService() bool {
 // svcRun is the SCM dispatcher entry point. A package-level indirection so
 // tests can simulate dispatcher failures without invoking the real
 // StartServiceCtrlDispatcher (which only succeeds when the process was
-// launched by the SCM). currentServiceName, called from runAsService just
-// above this, still issues a best-effort mgr.Connect and gracefully falls
-// back to defaultServiceName when the SCM is unavailable.
+// launched by the SCM). The currentServiceName call in runAsService below
+// still issues a best-effort mgr.Connect and gracefully falls back to
+// defaultServiceName when the SCM is unavailable.
 var svcRun = svc.Run
 
 // runAsService hands control to the Windows Service Control Manager and

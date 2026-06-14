@@ -226,6 +226,61 @@ func TestWaitForServiceRunningPollTimeout(t *testing.T) {
 	}
 }
 
+// TestApplyDispatchedServiceName verifies that the args[0] override updates
+// both s.name and serviceLogSource, and that empty/missing args leave the
+// pre-seeded values intact.
+func TestApplyDispatchedServiceName(t *testing.T) {
+	origSource := serviceLogSource
+	t.Cleanup(func() { serviceLogSource = origSource })
+
+	tests := []struct {
+		name           string
+		seedSourceName string
+		seedSName      string
+		args           []string
+		wantSource     string
+		wantSName      string
+	}{
+		{
+			name:           "args[0] overrides both",
+			seedSourceName: "ghostunnel",
+			seedSName:      "ghostunnel",
+			args:           []string{"ghostunnel-actual", "extra"},
+			wantSource:     "ghostunnel-actual",
+			wantSName:      "ghostunnel-actual",
+		},
+		{
+			name:           "empty args leaves seed",
+			seedSourceName: "ghostunnel-seed",
+			seedSName:      "ghostunnel-seed",
+			args:           nil,
+			wantSource:     "ghostunnel-seed",
+			wantSName:      "ghostunnel-seed",
+		},
+		{
+			name:           "empty args[0] leaves seed",
+			seedSourceName: "ghostunnel-seed",
+			seedSName:      "ghostunnel-seed",
+			args:           []string{""},
+			wantSource:     "ghostunnel-seed",
+			wantSName:      "ghostunnel-seed",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			serviceLogSource = tt.seedSourceName
+			s := &ghostunnelService{name: tt.seedSName}
+			s.applyDispatchedServiceName(tt.args)
+			if s.name != tt.wantSName {
+				t.Errorf("s.name = %q, want %q", s.name, tt.wantSName)
+			}
+			if serviceLogSource != tt.wantSource {
+				t.Errorf("serviceLogSource = %q, want %q", serviceLogSource, tt.wantSource)
+			}
+		})
+	}
+}
+
 func TestNotifyServiceReadySignalsChannel(t *testing.T) {
 	// Drain any prior signal so the test is independent of run order.
 	select {
