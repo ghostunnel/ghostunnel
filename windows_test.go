@@ -35,3 +35,23 @@ func TestInitSystemLogger(t *testing.T) {
 	assert.NotEqual(t, originalLogger, logger, "logger should be updated")
 	assert.NotNil(t, logger)
 }
+
+// TestInitSystemLoggerUsesServiceLogSource verifies that initSystemLogger opens
+// the Event Log source named by serviceLogSource — the variable runAsService
+// seeds with the SCM-registered service name — rather than a hardcoded source.
+func TestInitSystemLoggerUsesServiceLogSource(t *testing.T) {
+	originalLogger := logger
+	originalSource := serviceLogSource
+	t.Cleanup(func() {
+		logger = originalLogger
+		serviceLogSource = originalSource
+	})
+
+	// "Application" is a built-in Event Log that is always registerable as an
+	// event source, so the test doesn't depend on prior service installation.
+	serviceLogSource = "Application"
+	if err := initSystemLogger(); err != nil {
+		t.Fatalf("initSystemLogger with serviceLogSource=%q failed: %s", serviceLogSource, err)
+	}
+	assert.NotEqual(t, originalLogger, logger, "logger should be updated")
+}

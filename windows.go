@@ -35,6 +35,16 @@ var (
 	// serviceStopCh is written to by the Windows Service Control Manager stop
 	// handler to trigger a graceful shutdown of the running proxy.
 	serviceStopCh = make(chan bool, 1)
+
+	// serviceLogSource is the Event Log source name used by --eventlog. It
+	// defaults to defaultServiceName so interactive invocations log to the
+	// same source the default service install registers. runAsService
+	// overrides it with the SCM-discovered name before calling svc.Run, so
+	// runtime entries land on the source that doInstallService registered at
+	// install time. svc.Run starts the service handler goroutine after this
+	// assignment, so initSystemLogger (called from run()) observes the updated
+	// value.
+	serviceLogSource = defaultServiceName
 )
 
 func useSystemLog() bool {
@@ -72,7 +82,7 @@ func (w *eventLogWriter) Close() error {
 }
 
 func initSystemLogger() error {
-	w, err := newEventLogWriter("ghostunnel")
+	w, err := newEventLogWriter(serviceLogSource)
 	if err != nil {
 		return err
 	}
@@ -95,6 +105,6 @@ func isRunningAsService() bool {
 
 // runAsService hands control to the Windows Service Control Manager.
 func runAsService() {
-	name := currentServiceName()
-	_ = svc.Run(name, &ghostunnelService{name: name})
+	serviceLogSource = currentServiceName()
+	_ = svc.Run(serviceLogSource, &ghostunnelService{name: serviceLogSource})
 }
