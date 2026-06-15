@@ -29,7 +29,7 @@ import sys
 import threading
 import time
 
-from common import (LOCALHOST, LISTEN_PORT, TARGET_PORT,
+from common import (LOCALHOST, LISTEN_PORT, STATUS_PORT, TARGET_PORT,
                     SocketPair, TcpServer, TlsClient,
                     create_default_certs, print_ok, require_admin,
                     require_platform, run_ghostunnel)
@@ -92,6 +92,7 @@ try:
         '--', 'server',
         '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
         '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
+        '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT),
         '--keystore={0}'.format(keystore),
         '--cacert={0}'.format(cacert),
         '--allow-ou=client',
