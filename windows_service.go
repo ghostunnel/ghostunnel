@@ -54,9 +54,11 @@ const (
 	progressTickInterval = 5 * time.Second
 	// progressWaitHintMs is the WaitHint (in milliseconds) sent with each
 	// progress update: SCM treats this as how long to wait before considering
-	// the service unresponsive. Set to 3x progressTickInterval so a tick can
-	// arrive late without SCM declaring the service hung.
-	progressWaitHintMs = uint32(15_000)
+	// the service unresponsive. Derived as 3x progressTickInterval so a tick
+	// can arrive late without SCM declaring the service hung; keeping the
+	// expression rather than a hardcoded literal avoids drift if the tick
+	// interval is ever retuned.
+	progressWaitHintMs = uint32(3 * progressTickInterval / time.Millisecond)
 
 	// failedToStartMsg is the format string used whenever a service does not
 	// reach Running, regardless of which terminal state was observed. The
@@ -215,6 +217,16 @@ startupWait:
 		case <-startTicker.C:
 			startCheckpoint++
 			changes <- svc.Status{State: svc.StartPending, CheckPoint: startCheckpoint, WaitHint: progressWaitHintMs}
+		case c := <-r:
+			// Drain r so svc.serviceMain (unbuffered cmdsToHandler) doesn't
+			// block the SCM callback path during startup. Stop/Shutdown can't
+			// arrive here because the Running status (which advertises
+			// Accepts: Stop|Shutdown) hasn't been sent yet, but Interrogate
+			// has no Accepts gate and may fire from services.msc or SCM
+			// monitoring.
+			if c.Cmd == svc.Interrogate {
+				changes <- svc.Status{State: svc.StartPending, CheckPoint: startCheckpoint, WaitHint: progressWaitHintMs}
+			}
 		}
 	}
 
@@ -258,6 +270,15 @@ startupWait:
 					case <-stopTicker.C:
 						stopCheckpoint++
 						changes <- svc.Status{State: svc.StopPending, CheckPoint: stopCheckpoint, WaitHint: progressWaitHintMs}
+					case c := <-r:
+						// Drain r so svc.serviceMain (unbuffered
+						// cmdsToHandler) doesn't block the SCM callback path
+						// during a long drain. Interrogate re-emits the
+						// current StopPending status; redundant Stop/Shutdown
+						// commands are no-ops because we're already stopping.
+						if c.Cmd == svc.Interrogate {
+							changes <- svc.Status{State: svc.StopPending, CheckPoint: stopCheckpoint, WaitHint: progressWaitHintMs}
+						}
 					}
 				}
 			}

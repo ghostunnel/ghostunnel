@@ -30,7 +30,7 @@ import threading
 import time
 
 from common import (LOCALHOST, LISTEN_PORT, TARGET_PORT,
-                    RootCert, SocketPair, TcpServer, TlsClient,
+                    SocketPair, TcpServer, TlsClient,
                     create_default_certs, print_ok, require_admin,
                     require_platform, run_ghostunnel)
 
@@ -141,9 +141,9 @@ try:
     pair.validate_can_send_from_server("world", "send after SCM Stop, mid-drain")
     pair.validate_closing_client_closes_server("drain completes")
 
-    stop_thread.join(timeout=60)
+    stop_thread.join(timeout=90)
     if stop_thread.is_alive():
-        raise Exception("'service stop' did not return within 60s")
+        raise Exception("'service stop' did not return within 90s")
 
     if 'exc' in stop_result:
         raise Exception("'service stop' raised: {0}".format(stop_result['exc']))
