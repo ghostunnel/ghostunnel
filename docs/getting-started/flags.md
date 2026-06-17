@@ -82,7 +82,7 @@ metrics endpoints, and profiling.
 | `--enable-pprof` | Enable `/debug/pprof` endpoints alongside `/_status` (for profiling). Requires `--status`. | All platforms |
 | `--enable-shutdown` | Enable `/_shutdown` endpoint alongside `/_status` to allow terminating via HTTP POST. Requires `--status`. | All platforms |
 | `--quiet` | Silence log messages. Values: `all`, `conns`, `conn-errs`, `handshake-errs`. Can be repeated. | All platforms |
-| `--syslog` | Send logs to syslog instead of stdout. | Linux, macOS |
+| `--syslog` | Send logs to syslog instead of stdout. | Unix (Linux, macOS, BSDs) |
 | `--eventlog` | Send logs to Windows Event Log instead of stdout. | Windows |
 | `--skip-resolve` | Skip resolving target host on startup (useful to start before network is up). | All platforms |
 

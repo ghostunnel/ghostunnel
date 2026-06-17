@@ -36,7 +36,7 @@ features:
       write declarative authorization policies with Open Policy Agent.
   - icon: refresh
     title: Certificate Hotswapping
-    url: /docs/networking/graceful-shutdown/
+    url: /docs/certificates/reloading/
     text: >
       Reload certificates without restarting via SIGHUP or timed
       reload intervals, enabling the use of short-lived certificates.

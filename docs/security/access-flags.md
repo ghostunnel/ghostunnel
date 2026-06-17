@@ -71,7 +71,14 @@ extensions.
 
 In client mode, additional flags can verify properties of the server
 certificate. Standard hostname verification always runs regardless of which
-flags are set.
+flags are set; by default it checks the hostname from `--target` against the
+server certificate's DNS/IP SANs, but `--override-server-name` (see below) can
+redirect verification at a different name (e.g. when dialing by IP, or when
+the cert's SAN doesn't match the dialled host). The one exception is the
+[SPIFFE Workload API]({{< ref "spiffe-workload-api.md" >}}): when
+`--use-workload-api` is set, hostname verification is replaced by SPIFFE
+authentication (peers are verified as presenting a valid X509-SVID), so use
+`--verify-uri` to pin the expected SPIFFE ID.
 
 When multiple verification flags are specified, they are OR'd together: a
 connection is allowed if at least one flag matches (and hostname verification
@@ -80,8 +87,10 @@ passes).
 * `--override-server-name`
 
 Override the server name used for hostname verification and SNI, instead of
-using the hostname from `--target`. See the `ServerName` field on
-[`tls.Config`][tls].
+using the hostname from `--target`. Useful when dialling by IP, when the
+backend's certificate SAN does not match the dial address, or to pin SNI to a
+specific virtual host. Ignored when `--use-workload-api` is in effect. See the
+`ServerName` field on [`tls.Config`][tls].
 
 * `--verify-cn`
 
@@ -229,7 +238,8 @@ for the policy language reference.
   Using a bundle is recommended so you can set the Rego language version in
   the bundle manifest.
 * By OPA convention, a policy is considered "allowed" if the query produces
-  exactly one result with a single element whose value is `true`.
+  exactly one result with a single expression whose value is `true`, and no
+  variable bindings.
 * Policy evaluation timeout is the same as the connection timeout. If a policy
   takes more time to execute than the specified connection timeout, the connection
   will fail.

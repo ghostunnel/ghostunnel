@@ -138,15 +138,9 @@ cat root-ca.pem intermediate-ca.pem > cacert.pem
 
 ## Format Auto-Detection
 
-Ghostunnel detects the format in this order:
-
-1. **File extension**: `.pem`/`.crt` → PEM, `.p12`/`.pfx` → PKCS#12,
-   `.jceks`/`.jks` → JCEKS.
-2. **Magic bytes**: if the extension is ambiguous, the first bytes of the file
-   are inspected (e.g. `-----BEGIN` → PEM, ASN.1 sequence → PKCS#12).
-
-In practice, just use the right file extension and Ghostunnel will do the
-right thing.
+Ghostunnel detects the format of `--keystore` based on file extension,
+supporting PEM, JCEKS and PKCS#12 formats. Files passed to `--cert`/`--key`
+skip auto-detection and are always parsed as PEM.
 
 ## Common Operations
 

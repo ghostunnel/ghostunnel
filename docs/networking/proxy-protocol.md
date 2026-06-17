@@ -56,15 +56,20 @@ connection, followed by the normal application data stream.
 ## What Ghostunnel Sends
 
 Ghostunnel sends a **version 2** (binary format) header with the `PROXY`
-command. The address family (IPv4 or IPv6) is detected from the incoming
-connection.
+command. The address family is detected from the incoming connection: IPv4 or
+IPv6 for TCP listeners, and `UNIX_STREAM` (with socket paths instead of
+IP/port pairs) when listening on a UNIX domain socket.
 
 ### Address Fields (All Modes)
 
 | Field | Value |
 |-------|-------|
 | Source address/port | Original client IP and port |
-| Destination address/port | Ghostunnel's listen IP and port |
+| Destination address/port | Local address of the accepted connection (the listener IP and port the client connected to) |
+
+Note that with a wildcard listen address (e.g. `--listen :8443`), the
+destination IP is the specific interface address the client connected to,
+not the wildcard.
 
 ### TLV Extensions (`tls` and `tls-full` Modes)
 
@@ -90,6 +95,14 @@ sub-TLVs:
 | Client flags | 1 byte | Bitfield: `0x01` = SSL used, `0x02` = client cert on connection, `0x04` = client cert on session |
 | Verify result | 4 bytes | `0` = certificate verified successfully |
 
+Ghostunnel always sets the `0x01` (SSL used) flag. In `tls-full` mode, if the
+client presented a certificate, the `0x02` and `0x04` flags are both set
+(Ghostunnel does not distinguish between certificates presented on the
+connection vs. the session). In `tls` mode the certificate flags are never
+set, even if a client certificate was presented. The verify result is always
+`0`, since Ghostunnel only forwards connections whose certificates passed
+verification.
+
 **Nested sub-TLVs (always present in `tls` and `tls-full` modes):**
 
 | Sub-TLV | Type | Example value |
@@ -100,7 +113,7 @@ sub-TLVs:
 
 | Sub-TLV | Type | Description |
 |---------|------|-------------|
-| `PP2_SUBTYPE_SSL_CN` | `0x22` | Client certificate Common Name |
+| `PP2_SUBTYPE_SSL_CN` | `0x22` | Client certificate Common Name (omitted if the certificate has no CN) |
 | `PP2_SUBTYPE_SSL_CLIENT_CERT` | `0x28` | Full client certificate in DER (ASN.1) encoding |
 
 The `tls-full` mode is useful when backends need to perform their own access

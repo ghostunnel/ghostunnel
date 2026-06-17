@@ -75,6 +75,9 @@ Several rules keep this exemption from turning into a way around mTLS:
 - The ClientHello must offer exactly `["acme-tls/1"]` as its ALPN list. A
   client that offers `acme-tls/1` alongside another protocol such as `h2`
   is treated as a normal client and must present a valid client cert.
+- The ClientHello must include a (non-empty) SNI server name, since the
+  TLS-ALPN-01 challenge certificate is selected by SNI. A client offering
+  `acme-tls/1` without SNI is treated as a normal client.
 - The relaxed handshake pins ALPN to `acme-tls/1` and cannot fall back to a
   different protocol. TLS session resumption is also disabled for the relaxed
   handshake, so a ticket issued during a renewal probe cannot be reused later

@@ -84,7 +84,11 @@ Events are written under the source name matching the service name (default
 `ghostunnel`). View them with Event Viewer or PowerShell:
 
 ```powershell
+# Proxy logs (default is 'ghostunnel' source)
 Get-WinEvent -FilterHashtable @{LogName='Application'; ProviderName='ghostunnel'} -MaxEvents 20
+
+# Lifecycle events for a custom-named service
+Get-WinEvent -FilterHashtable @{LogName='Application'; ProviderName='some-custom-name'} -MaxEvents 20
 ```
 
 The `--eventlog` flag also works when running Ghostunnel interactively
