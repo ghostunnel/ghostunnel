@@ -53,7 +53,7 @@ depends on your OS:
 | OS | Default path |
 |----|-------------|
 | Linux / macOS | `~/.local/share/certmagic` (or `$XDG_DATA_HOME/certmagic`) |
-| Windows | `%HOME%\.local\share\certmagic` |
+| Windows | `%USERPROFILE%\.local\share\certmagic` |
 
 Certmagic automatically renews certificates before they expire, so no manual
 intervention or `--timed-reload` is needed for ACME certificates.
