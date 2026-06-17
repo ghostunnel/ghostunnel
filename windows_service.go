@@ -46,6 +46,20 @@ const (
 	// waiting for a state transition.
 	serviceStatePollInterval = 300 * time.Millisecond
 
+	// progressTickInterval is how often Execute pushes a CheckPoint update to
+	// SCM during StartPending and StopPending transitions, so SCM treats the
+	// service as making progress rather than hanging. The Windows SCM kills
+	// services that don't transition to a terminal state or report progress
+	// within ServicesPipeTimeout (~30s by default).
+	progressTickInterval = 5 * time.Second
+	// progressWaitHintMs is the WaitHint (in milliseconds) sent with each
+	// progress update: SCM treats this as how long to wait before considering
+	// the service unresponsive. Derived as 3x progressTickInterval so a tick
+	// can arrive late without SCM declaring the service hung; keeping the
+	// expression rather than a hardcoded literal avoids drift if the tick
+	// interval is ever retuned.
+	progressWaitHintMs = uint32(3 * progressTickInterval / time.Millisecond)
+
 	// failedToStartMsg is the format string used whenever a service does not
 	// reach Running, regardless of which terminal state was observed. The
 	// Event Log is the source of truth for the underlying cause.
@@ -159,7 +173,7 @@ func (s *ghostunnelService) Execute(args []string, r <-chan svc.ChangeRequest, c
 		defer elog.Close()
 	}
 
-	changes <- svc.Status{State: svc.StartPending}
+	changes <- svc.Status{State: svc.StartPending, CheckPoint: 1, WaitHint: progressWaitHintMs}
 
 	done := make(chan error, 1)
 	go func() {
@@ -168,27 +182,52 @@ func (s *ghostunnelService) Execute(args []string, r <-chan svc.ChangeRequest, c
 
 	// Defer the Running transition until the proxy actually starts listening
 	// (signaled via notifyServiceReady, called from statusHandler.Listening).
-	// If run() exits early or never reaches ready, fail the start.
-	select {
-	case <-serviceReadyCh:
-		changes <- svc.Status{State: svc.Running, Accepts: svc.AcceptStop | svc.AcceptShutdown}
-		if elog != nil {
-			_ = elog.Info(1, "ghostunnel service started")
-		}
-	case err := <-done:
-		if elog != nil {
-			msg := "ghostunnel exited before reaching ready"
-			if err != nil {
-				msg = fmt.Sprintf("%s: %v", msg, err)
+	// If run() exits early or never reaches ready, fail the start. Tick a
+	// periodic CheckPoint update so the SCM doesn't conclude we're hung
+	// during legitimately slow startup (e.g. PKCS#11/HSM probing).
+	startDeadline := time.After(serviceStateChangeTimeout)
+	startTicker := time.NewTicker(progressTickInterval)
+	startCheckpoint := uint32(1)
+startupWait:
+	for {
+		select {
+		case <-serviceReadyCh:
+			startTicker.Stop()
+			changes <- svc.Status{State: svc.Running, Accepts: svc.AcceptStop | svc.AcceptShutdown}
+			if elog != nil {
+				_ = elog.Info(1, "ghostunnel service started")
 			}
-			_ = elog.Error(1, msg)
+			break startupWait
+		case err := <-done:
+			startTicker.Stop()
+			if elog != nil {
+				msg := "ghostunnel exited before reaching ready"
+				if err != nil {
+					msg = fmt.Sprintf("%s: %v", msg, err)
+				}
+				_ = elog.Error(1, msg)
+			}
+			return false, 1
+		case <-startDeadline:
+			startTicker.Stop()
+			if elog != nil {
+				_ = elog.Error(1, "ghostunnel did not reach ready state within timeout")
+			}
+			return false, 1
+		case <-startTicker.C:
+			startCheckpoint++
+			changes <- svc.Status{State: svc.StartPending, CheckPoint: startCheckpoint, WaitHint: progressWaitHintMs}
+		case c := <-r:
+			// Drain r so svc.serviceMain (unbuffered cmdsToHandler) doesn't
+			// block the SCM callback path during startup. Stop/Shutdown can't
+			// arrive here because the Running status (which advertises
+			// Accepts: Stop|Shutdown) hasn't been sent yet, but Interrogate
+			// has no Accepts gate and may fire from services.msc or SCM
+			// monitoring.
+			if c.Cmd == svc.Interrogate {
+				changes <- svc.Status{State: svc.StartPending, CheckPoint: startCheckpoint, WaitHint: progressWaitHintMs}
+			}
 		}
-		return false, 1
-	case <-time.After(serviceStateChangeTimeout):
-		if elog != nil {
-			_ = elog.Error(1, "ghostunnel did not reach ready state within timeout")
-		}
-		return false, 1
 	}
 
 	for {
@@ -208,7 +247,7 @@ func (s *ghostunnelService) Execute(args []string, r <-chan svc.ChangeRequest, c
 			case svc.Interrogate:
 				changes <- c.CurrentStatus
 			case svc.Stop, svc.Shutdown:
-				changes <- svc.Status{State: svc.StopPending}
+				changes <- svc.Status{State: svc.StopPending, CheckPoint: 1, WaitHint: progressWaitHintMs}
 				if elog != nil {
 					_ = elog.Info(1, "ghostunnel service stopping")
 				}
@@ -216,8 +255,32 @@ func (s *ghostunnelService) Execute(args []string, r <-chan svc.ChangeRequest, c
 				case serviceStopCh <- true:
 				default:
 				}
-				<-done // wait for graceful drain to complete
-				return false, 0
+				// Tick periodic CheckPoint updates so the SCM doesn't conclude
+				// the service is hung during a long drain. shutdownTimeout
+				// defaults to 5m; without these updates SCM may forcibly
+				// terminate the service after ServicesPipeTimeout (~30s),
+				// defeating the documented graceful-drain behavior.
+				stopTicker := time.NewTicker(progressTickInterval)
+				stopCheckpoint := uint32(1)
+				for {
+					select {
+					case <-done:
+						stopTicker.Stop()
+						return false, 0
+					case <-stopTicker.C:
+						stopCheckpoint++
+						changes <- svc.Status{State: svc.StopPending, CheckPoint: stopCheckpoint, WaitHint: progressWaitHintMs}
+					case c := <-r:
+						// Drain r so svc.serviceMain (unbuffered
+						// cmdsToHandler) doesn't block the SCM callback path
+						// during a long drain. Interrogate re-emits the
+						// current StopPending status; redundant Stop/Shutdown
+						// commands are no-ops because we're already stopping.
+						if c.Cmd == svc.Interrogate {
+							changes <- svc.Status{State: svc.StopPending, CheckPoint: stopCheckpoint, WaitHint: progressWaitHintMs}
+						}
+					}
+				}
 			}
 		}
 	}
