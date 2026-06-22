@@ -200,7 +200,10 @@ func init() {
 	netproxy.RegisterDialerType("http", connectproxy.ConnectProxy)
 }
 
-var exitFunc = os.Exit
+// exitFunc is the single sanctioned reference to os.Exit; all process exits go
+// through it so exit hooks can wrap it to flush coverage counters and so exits
+// stay testable.
+var exitFunc = os.Exit //nolint:forbidigo // the one allowed os.Exit indirection
 
 // extraRWPaths collects additional filesystem paths that should be
 // read-writable under landlock. Populated by init() hooks (e.g. the
