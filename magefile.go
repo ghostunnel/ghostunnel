@@ -491,6 +491,18 @@ func (Test) All(ctx context.Context) error {
 	return nil
 }
 
+// Bench runs the Go microbenchmarks (no unit tests) with allocation stats.
+// Use it to capture before/after numbers for performance work; redirect the
+// output to a file and compare runs with benchstat. Run with higher -count and
+// -cpu via `go test` directly when you need statistically stable comparisons,
+// e.g.:
+//
+//	go test -run '^$' -bench . -benchmem -count=10 -cpu=1,4,8 ./proxy/... ./certloader/...
+func (Test) Bench(ctx context.Context) error {
+	printf("Running benchmarks...\n")
+	return sh.RunV("go", "test", "-run", "^$", "-bench", ".", "-benchmem", "-count", "6", "./...")
+}
+
 // Unit runs the unit tests.
 func (Test) Unit(ctx context.Context) error {
 	mg.Deps(cleanCoverage)
