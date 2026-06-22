@@ -551,8 +551,6 @@ func applyFlagImplications() {
 }
 
 func run(args []string) error {
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
 	app.Version(fmt.Sprintf("rev %s built with %s (pkcs11: %v, keychain: %v)", version, runtime.Version(), certloader.SupportsPKCS11(), certloader.SupportsKeychain()))
 	app.Validate(validateFlags)
 	app.UsageTemplate(kingpin.LongHelpTemplate)
