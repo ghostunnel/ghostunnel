@@ -129,6 +129,7 @@ func TestSignalHandlerReloadAndShutdown(t *testing.T) {
 		logger,
 		proxy.LogEverything,
 		proxy.ProxyProtocolOff,
+		nil,
 	)
 
 	done := make(chan struct{})

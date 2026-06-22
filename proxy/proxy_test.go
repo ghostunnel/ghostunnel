@@ -57,11 +57,11 @@ func (m *failingListener) Close() error              { return nil }
 func (m *failingListener) Addr() net.Addr            { return nil }
 
 func proxyForTest(listener net.Listener, dialer DialFunc) *Proxy {
-	return New(listener, 5*time.Second, 5*time.Second, 5*time.Second, 1, dialer, &testLogger{}, LogEverything, ProxyProtocolOff)
+	return New(listener, 5*time.Second, 5*time.Second, 5*time.Second, 1, dialer, &testLogger{}, LogEverything, ProxyProtocolOff, nil)
 }
 
 func proxyForTestWithProxyProtocol(listener net.Listener, dialer DialFunc) *Proxy {
-	return New(listener, 5*time.Second, 5*time.Second, 5*time.Second, 1, dialer, &testLogger{}, LogEverything, ProxyProtocolConn)
+	return New(listener, 5*time.Second, 5*time.Second, 5*time.Second, 1, dialer, &testLogger{}, LogEverything, ProxyProtocolConn, nil)
 }
 
 func TestAbortedConnection(t *testing.T) {
@@ -191,7 +191,7 @@ func TestAcceptErrorLogged(t *testing.T) {
 	}}
 
 	ln := newCountingFailingListener()
-	p := New(ln, 5*time.Second, 5*time.Second, 5*time.Second, 1, nil, logger, LogConnectionErrors, ProxyProtocolOff)
+	p := New(ln, 5*time.Second, 5*time.Second, 5*time.Second, 1, nil, logger, LogConnectionErrors, ProxyProtocolOff, nil)
 
 	go p.Accept()
 	defer func() {
@@ -234,7 +234,7 @@ func TestAcceptErrorNotLoggedWhenFlagDisabled(t *testing.T) {
 
 	ln := newCountingFailingListener()
 	// loggerFlags = 0 (no flags set) -- accept errors must not be logged.
-	p := New(ln, 5*time.Second, 5*time.Second, 5*time.Second, 1, nil, logger, 0, ProxyProtocolOff)
+	p := New(ln, 5*time.Second, 5*time.Second, 5*time.Second, 1, nil, logger, 0, ProxyProtocolOff, nil)
 
 	go p.Accept()
 	defer func() {
@@ -889,7 +889,7 @@ func TestCopyDataErrorClassification(t *testing.T) {
 		lg := &callbackLogger{callback: func(format string, v ...any) {
 			logs = append(logs, logEntry{format: format, args: v})
 		}}
-		p := New(nil, 5*time.Second, 5*time.Second, 0, 0, nil, lg, flags, ProxyProtocolOff)
+		p := New(nil, 5*time.Second, 5*time.Second, 0, 0, nil, lg, flags, ProxyProtocolOff, nil)
 		return p, &logs
 	}
 
@@ -983,7 +983,7 @@ func TestForceHandshakeNonTLSConn(t *testing.T) {
 
 	// forceHandshake should be a no-op for non-TLS connections
 	ctx := context.Background()
-	err = forceHandshake(ctx, conn)
+	err = forceHandshake(ctx, conn, defaultMetrics)
 	assert.Nil(t, err, "forceHandshake should succeed for non-TLS conn")
 }
 
@@ -1110,7 +1110,7 @@ func TestACMEChallengeNotForwardedToBackend(t *testing.T) {
 
 func TestLogConnectionMessageDisabled(t *testing.T) {
 	// Test with LogConnections disabled
-	p := New(nil, 5*time.Second, 5*time.Second, 0, 0, nil, &testLogger{}, 0, ProxyProtocolOff)
+	p := New(nil, 5*time.Second, 5*time.Second, 0, 0, nil, &testLogger{}, 0, ProxyProtocolOff, nil)
 
 	// Create pipe connections
 	src, dst := net.Pipe()
@@ -1128,7 +1128,7 @@ func TestLogConditional(t *testing.T) {
 	}}
 
 	// Test with flag enabled
-	p := New(nil, 5*time.Second, 5*time.Second, 0, 0, nil, logger, LogConnectionErrors, ProxyProtocolOff)
+	p := New(nil, 5*time.Second, 5*time.Second, 0, 0, nil, logger, LogConnectionErrors, ProxyProtocolOff, nil)
 	p.logConditional(LogConnectionErrors, "test message")
 	assert.True(t, logged, "should log when flag is enabled")
 
@@ -1638,7 +1638,7 @@ func TestProxyProtocolTLSModeSuccess(t *testing.T) {
 		return d.DialContext(ctx, "tcp", target.Addr().String())
 	}
 
-	p := New(incoming, 5*time.Second, 5*time.Second, 5*time.Second, 1, dialer, &testLogger{}, LogEverything, ProxyProtocolTLS)
+	p := New(incoming, 5*time.Second, 5*time.Second, 5*time.Second, 1, dialer, &testLogger{}, LogEverything, ProxyProtocolTLS, nil)
 	go p.Accept()
 	defer p.Shutdown()
 

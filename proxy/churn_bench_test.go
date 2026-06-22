@@ -29,6 +29,8 @@ import (
 	"net"
 	"testing"
 	"time"
+
+	metrics "github.com/rcrowley/go-metrics"
 )
 
 // benchSelfSignedCert generates a self-signed ECDSA P-256 certificate usable as
@@ -85,7 +87,70 @@ func benchSelfSignedCert(tb testing.TB) (tls.Certificate, *x509.Certificate) {
 // incoming listener uses plain tls.NewListener; the certloader per-connection
 // tls.Config clone is measured separately by BenchmarkGetServerConfig in the
 // certloader package.
+//
+// This variant uses live metrics (nil handles fall back to the default registry
+// in proxy.New), i.e. the path taken when a metrics sink is configured. It is
+// the figure for the metrics-enabled (sink-configured) accept path.
 func BenchmarkConnectionChurn(b *testing.B) {
+	benchmarkConnectionChurn(b, nil)
+}
+
+// BenchmarkConnectionChurnNoSink runs the identical churn workload but with
+// no-op metric handles (proxy.NilMetrics) — the path Ghostunnel takes when
+// started with no metrics sink (--status, --metrics-graphite and --metrics-url
+// all unset, the default). Comparing it against BenchmarkConnectionChurn
+// isolates the per-connection metric-bookkeeping cost removed by skipping metric
+// collection in the default configuration.
+//
+// Note: each iteration performs a full ECDSA handshake, which dominates
+// per-connection CPU, so the metric delta is small relative to total time and
+// is clearest under contention (-cpu=4,8), where the two shared go-metrics
+// timers' mutex is hottest. A mutex/block profile remains the most direct way
+// to see the timer contention.
+func BenchmarkConnectionChurnNoSink(b *testing.B) {
+	benchmarkConnectionChurn(b, NilMetrics())
+}
+
+// BenchmarkConnMetricsBookkeeping isolates the per-connection metric updates the
+// accept path performs (the two timers plus the open/total/success counters),
+// with no handshake or network in the loop. This is the measurement that
+// isolates that cost directly: the metrics=live column records to real
+// go-metrics handles, metrics=nosink uses proxy.NilMetrics, and the gap is the
+// CPU — and, under -cpu=4,8, the lock contention — removed when no metrics sink
+// is configured. The end-to-end BenchmarkConnectionChurn cannot show this
+// because the ~1ms ECDSA handshake dwarfs this sub-microsecond bookkeeping.
+//
+// Compare the two columns directly with:
+//
+//	go test -run '^$' -bench BenchmarkConnMetricsBookkeeping -count=10 -cpu=1,4,8 ./proxy/ > m.txt
+//	benchstat -col /metrics m.txt
+func BenchmarkConnMetricsBookkeeping(b *testing.B) {
+	// A fresh registry for the live case so it never touches the package
+	// default registry (and so repeated runs don't accumulate state).
+	run := func(b *testing.B, m *Metrics) {
+		b.ReportAllocs()
+		b.ResetTimer()
+		b.RunParallel(func(pb *testing.PB) {
+			start := time.Now()
+			for pb.Next() {
+				// Mirrors the per-connection sequence in Accept/forceHandshake.
+				m.OpenCounter.Inc(1)
+				m.TotalCounter.Inc(1)
+				m.HandshakeTimer.UpdateSince(start)
+				m.SuccessCounter.Inc(1)
+				m.OpenCounter.Dec(1)
+				m.ConnTimer.UpdateSince(start)
+			}
+		})
+	}
+	b.Run("metrics=live", func(b *testing.B) { run(b, LiveMetrics(metrics.NewRegistry())) })
+	b.Run("metrics=nosink", func(b *testing.B) { run(b, NilMetrics()) })
+}
+
+// benchmarkConnectionChurn is the shared body for the live and no-sink churn
+// benchmarks; connMetrics selects which metric handles the proxy records to
+// (nil → default registry, NilMetrics → no-op).
+func benchmarkConnectionChurn(b *testing.B, connMetrics *Metrics) {
 	serverCert, leaf := benchSelfSignedCert(b)
 
 	pool := x509.NewCertPool()
@@ -148,7 +213,7 @@ func BenchmarkConnectionChurn(b *testing.B) {
 
 	// Unlimited semaphore (0) so concurrency isn't capped — proxyForTest pins
 	// it at 1, which would serialize the churn we want to measure. No logging.
-	p := New(incoming, 5*time.Second, 5*time.Second, 0, 0, dialer, &testLogger{}, 0, ProxyProtocolOff)
+	p := New(incoming, 5*time.Second, 5*time.Second, 0, 0, dialer, &testLogger{}, 0, ProxyProtocolOff, connMetrics)
 	go p.Accept()
 	defer func() {
 		p.Shutdown()

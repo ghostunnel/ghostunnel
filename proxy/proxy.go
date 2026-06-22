@@ -56,7 +56,71 @@ var (
 	handshakeTimeoutCounter = metrics.GetOrRegisterCounter("accept.timeout", metrics.DefaultRegistry)
 	handshakeTimer          = metrics.GetOrRegisterTimer("conn.handshake", metrics.DefaultRegistry)
 	connTimer               = metrics.GetOrRegisterTimer("conn.lifetime", metrics.DefaultRegistry)
+
+	// defaultMetrics wraps the package-level handles registered above on the
+	// default registry. New uses it when a caller passes nil, preserving the
+	// historical behavior of reporting to metrics.DefaultRegistry.
+	defaultMetrics = &Metrics{
+		OpenCounter:             openCounter,
+		ConnTimeoutCounter:      connTimeoutCounter,
+		TotalCounter:            totalCounter,
+		SuccessCounter:          successCounter,
+		ErrorCounter:            errorCounter,
+		HandshakeTimeoutCounter: handshakeTimeoutCounter,
+		HandshakeTimer:          handshakeTimer,
+		ConnTimer:               connTimer,
+	}
 )
+
+// Metrics holds the go-metrics handles updated on the connection hot path.
+// Injecting the handles (instead of reading package globals) lets the caller
+// decide, once at startup, whether to collect at all: pass LiveMetrics to
+// record against a registry, or NilMetrics to make every update a no-op when no
+// metrics sink is configured. The metric names are part of Ghostunnel's
+// exported surface and must not change.
+type Metrics struct {
+	OpenCounter             metrics.Counter // conn.open
+	ConnTimeoutCounter      metrics.Counter // conn.timeout
+	TotalCounter            metrics.Counter // accept.total
+	SuccessCounter          metrics.Counter // accept.success
+	ErrorCounter            metrics.Counter // accept.error
+	HandshakeTimeoutCounter metrics.Counter // accept.timeout
+	HandshakeTimer          metrics.Timer   // conn.handshake
+	ConnTimer               metrics.Timer   // conn.lifetime
+}
+
+// LiveMetrics registers the connection metrics under their canonical names on
+// the given registry and returns handles that record to it. Registration is
+// idempotent (GetOrRegister), so repeated calls with the same registry return
+// the same underlying handles.
+func LiveMetrics(registry metrics.Registry) *Metrics {
+	return &Metrics{
+		OpenCounter:             metrics.GetOrRegisterCounter("conn.open", registry),
+		ConnTimeoutCounter:      metrics.GetOrRegisterCounter("conn.timeout", registry),
+		TotalCounter:            metrics.GetOrRegisterCounter("accept.total", registry),
+		SuccessCounter:          metrics.GetOrRegisterCounter("accept.success", registry),
+		ErrorCounter:            metrics.GetOrRegisterCounter("accept.error", registry),
+		HandshakeTimeoutCounter: metrics.GetOrRegisterCounter("accept.timeout", registry),
+		HandshakeTimer:          metrics.GetOrRegisterTimer("conn.handshake", registry),
+		ConnTimer:               metrics.GetOrRegisterTimer("conn.lifetime", registry),
+	}
+}
+
+// NilMetrics returns metrics handles whose updates are all no-ops. Use it when
+// no metrics sink is configured so the connection hot path spends nothing
+// updating contended timers; nothing observes the registry in that case anyway.
+func NilMetrics() *Metrics {
+	return &Metrics{
+		OpenCounter:             metrics.NilCounter{},
+		ConnTimeoutCounter:      metrics.NilCounter{},
+		TotalCounter:            metrics.NilCounter{},
+		SuccessCounter:          metrics.NilCounter{},
+		ErrorCounter:            metrics.NilCounter{},
+		HandshakeTimeoutCounter: metrics.NilCounter{},
+		HandshakeTimer:          metrics.NilTimer{},
+		ConnTimer:               metrics.NilTimer{},
+	}
+}
 
 const (
 	// LogConnections will log messages about open/closed connections.
@@ -105,6 +169,9 @@ type Proxy struct {
 	cancel  context.CancelFunc
 	// Pool for buffers
 	pool sync.Pool
+	// Metrics handles for the connection hot path. Either live (recording to a
+	// registry) or no-op (NilMetrics) when no metrics sink is configured.
+	metrics *Metrics
 }
 
 // PROXY protocol v2 client flag constants (from spec section 2.2.5).
@@ -246,7 +313,14 @@ func New(
 	dial DialFunc,
 	logger Logger,
 	loggerFlags int,
-	proxyProtocol ProxyProtocolMode) *Proxy {
+	proxyProtocol ProxyProtocolMode,
+	connMetrics *Metrics) *Proxy {
+
+	// A nil handle means "use the default registry" (the historical behavior);
+	// callers that want to skip collection pass NilMetrics explicitly.
+	if connMetrics == nil {
+		connMetrics = defaultMetrics
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -262,6 +336,7 @@ func New(
 		handlers:        &sync.WaitGroup{},
 		context:         ctx,
 		cancel:          cancel,
+		metrics:         connMetrics,
 		pool: sync.Pool{
 			New: func() any {
 				b := make([]byte, 1<<15 /* 32 KiB */)
@@ -335,7 +410,7 @@ func (p *Proxy) Accept() {
 				return
 			}
 
-			errorCounter.Inc(1)
+			p.metrics.ErrorCounter.Inc(1)
 			p.connSemaphore.Release(1)
 			p.logConditional(LogConnectionErrors, "error accepting connection: %s", err)
 
@@ -357,13 +432,21 @@ func (p *Proxy) Accept() {
 		acceptBackoff = 0
 
 		p.handlers.Add(1)
-		go connTimer.Time(func() {
-			openCounter.Inc(1)
-			totalCounter.Inc(1)
+		go func() {
+			// Record the connection lifetime explicitly rather than via
+			// Timer.Time: a no-op timer's Time() would not run the closure at
+			// all, which would skip connection handling when metrics are off.
+			// UpdateSince is deferred first so it fires last (after the close
+			// defer below), matching Timer.Time's "measure the whole handler".
+			startTime := time.Now()
+			defer p.metrics.ConnTimer.UpdateSince(startTime)
+
+			p.metrics.OpenCounter.Inc(1)
+			p.metrics.TotalCounter.Inc(1)
 
 			defer func() {
 				conn.Close()
-				openCounter.Dec(1)
+				p.metrics.OpenCounter.Dec(1)
 				p.handlers.Done()
 				p.connSemaphore.Release(1)
 			}()
@@ -371,9 +454,9 @@ func (p *Proxy) Accept() {
 			ctx, cancel := context.WithTimeout(p.context, p.ConnectTimeout)
 			defer cancel()
 
-			err := forceHandshake(ctx, conn)
+			err := forceHandshake(ctx, conn, p.metrics)
 			if err != nil {
-				errorCounter.Inc(1)
+				p.metrics.ErrorCounter.Inc(1)
 				p.logConditional(LogHandshakeErrors, "error on TLS handshake from %s: %s", conn.RemoteAddr(), err)
 				return
 			}
@@ -409,9 +492,9 @@ func (p *Proxy) Accept() {
 				}
 			}
 
-			successCounter.Inc(1)
+			p.metrics.SuccessCounter.Inc(1)
 			p.fuse(conn, backend)
-		})
+		}()
 	}
 }
 
@@ -433,15 +516,15 @@ func isACMEChallengeConn(conn net.Conn) bool {
 // unauthenticated clients would be able to open connections and leave them
 // hanging forever. Going through the handshake verifies that clients have a
 // valid client cert and are allowed to talk to us.
-func forceHandshake(ctx context.Context, conn net.Conn) error {
+func forceHandshake(ctx context.Context, conn net.Conn, m *Metrics) error {
 	if tlsConn, ok := conn.(*tls.Conn); ok {
 		startTime := time.Now()
-		defer handshakeTimer.UpdateSince(startTime)
+		defer m.HandshakeTimer.UpdateSince(startTime)
 
 		err := tlsConn.HandshakeContext(ctx)
 		if isTimeoutError(err) {
 			// If we timed out, increment timeout metric
-			handshakeTimeoutCounter.Inc(1)
+			m.HandshakeTimeoutCounter.Inc(1)
 		}
 		if err != nil {
 			return err
@@ -539,7 +622,7 @@ func (p *Proxy) copyData(dst net.Conn, src net.Conn) (written int64) {
 		// We don't log individual "read from closed connection" errors, because
 		// we already have a log statement showing that a pipe has been closed.
 		if isTimeoutError(err) {
-			connTimeoutCounter.Inc(1)
+			p.metrics.ConnTimeoutCounter.Inc(1)
 		}
 		p.logConditional(LogConnectionErrors, "error during copy: %s", err)
 	}
