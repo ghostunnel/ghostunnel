@@ -217,6 +217,7 @@ type Environment struct {
 	shutdownTimeout time.Duration
 	dial            proxy.DialFunc
 	metrics         *sqmetrics.SquareMetrics
+	proxyMetrics    *proxy.Metrics
 	tlsConfigSource certloader.TLSConfigSource
 	regoPolicy      policy.Policy
 }
@@ -595,35 +596,64 @@ func run(args []string) error {
 	}
 
 	// Metrics
-	if *metricsGraphite != nil {
-		logger.Printf("metrics enabled; reporting metrics via TCP to %s", *metricsGraphite)
-		go graphite.Graphite(metrics.DefaultRegistry, 1*time.Second, *metricsPrefix, *metricsGraphite)
-	}
-	if *metricsURL != "" {
-		logger.Printf("metrics enabled; reporting metrics via POST to %s", *metricsURL)
+	//
+	// Metrics leave the process through exactly three sinks: the pull surface
+	// (/_metrics*, served only when --status is set) and the two push reporters
+	// (--metrics-graphite, --metrics-url). When none is configured, nothing can
+	// observe the registry, so we skip metrics collection entirely: the proxy
+	// gets no-op handles (see proxy.NilMetrics) and neither metrics background
+	// goroutine is started.
+	//
+	// NOTE: these flags are start-time-only; nothing reconfigures them at
+	// runtime (cert hot-reload does not touch them), so this predicate is
+	// decided once here and stays valid for the process lifetime. If that ever
+	// changes, this gate must be re-evaluated.
+	metricsConsumed := *statusAddress != "" || *metricsGraphite != nil || *metricsURL != ""
+
+	// proxyMetrics drives the connection hot path: live handles on the default
+	// registry when metrics are consumed, no-op handles otherwise.
+	var proxyMetrics *proxy.Metrics
+	if metricsConsumed {
+		proxyMetrics = proxy.LiveMetrics(metrics.DefaultRegistry)
+	} else {
+		proxyMetrics = proxy.NilMetrics()
 	}
 
-	// Always enable prometheus registry. The overhead should be quite minimal as an in-mem map is updated
-	// with the values.
-	pClient := prometheusmetrics.NewPrometheusProvider(metrics.DefaultRegistry, *metricsPrefix, "", prometheus.DefaultRegisterer, 1*time.Second)
-	go pClient.UpdatePrometheusMetrics()
+	// metricsSink is the sq-metrics collector; left nil when metrics are not
+	// consumed (its only readers live in serveStatus, which is not registered
+	// unless --status is set, in which case metrics are consumed).
+	var metricsSink *sqmetrics.SquareMetrics
+	if metricsConsumed {
+		if *metricsGraphite != nil {
+			logger.Printf("metrics enabled; reporting metrics via TCP to %s", *metricsGraphite)
+			go graphite.Graphite(metrics.DefaultRegistry, 1*time.Second, *metricsPrefix, *metricsGraphite)
+		}
+		if *metricsURL != "" {
+			logger.Printf("metrics enabled; reporting metrics via POST to %s", *metricsURL)
+		}
 
-	// Read CA bundle for passing to metrics library
-	ca, err := certloader.LoadTrustStore(*caBundlePath)
-	if err != nil {
-		logger.Printf("error: unable to build TLS config: %s\n", err)
-		return err
-	}
+		// Bridge go-metrics into the prometheus registry for /_metrics/prometheus.
+		// The overhead is minimal (an in-mem map is updated with the values).
+		pClient := prometheusmetrics.NewPrometheusProvider(metrics.DefaultRegistry, *metricsPrefix, "", prometheus.DefaultRegisterer, 1*time.Second)
+		go pClient.UpdatePrometheusMetrics()
 
-	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				MinVersion: tls.VersionTLS12,
-				RootCAs:    ca,
+		// Read CA bundle for passing to metrics library
+		ca, err := certloader.LoadTrustStore(*caBundlePath)
+		if err != nil {
+			logger.Printf("error: unable to build TLS config: %s\n", err)
+			return err
+		}
+
+		client := &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					MinVersion: tls.VersionTLS12,
+					RootCAs:    ca,
+				},
 			},
-		},
+		}
+		metricsSink = sqmetrics.NewMetrics(*metricsURL, *metricsPrefix, client, *metricsInterval, metrics.DefaultRegistry, logger)
 	}
-	metrics := sqmetrics.NewMetrics(*metricsURL, *metricsPrefix, client, *metricsInterval, metrics.DefaultRegistry, logger)
 
 	switch command {
 	case serverCommand.FullCommand():
@@ -660,7 +690,8 @@ func run(args []string) error {
 			shutdownChannel: make(chan bool, 1),
 			shutdownTimeout: *processShutdownTimeout,
 			dial:            dial,
-			metrics:         metrics,
+			metrics:         metricsSink,
+			proxyMetrics:    proxyMetrics,
 			tlsConfigSource: tlsConfigSource,
 			regoPolicy:      regoPolicy,
 		}
@@ -713,7 +744,8 @@ func run(args []string) error {
 			shutdownChannel: make(chan bool, 1),
 			shutdownTimeout: *processShutdownTimeout,
 			dial:            dial,
-			metrics:         metrics,
+			metrics:         metricsSink,
+			proxyMetrics:    proxyMetrics,
 			tlsConfigSource: tlsConfigSource,
 			regoPolicy:      policy,
 		}
@@ -803,6 +835,7 @@ func serverListen(env *Environment, regoPolicy policy.Policy) error {
 		logger,
 		proxyLoggerFlags(*quiet),
 		serverProxyProtoMode(),
+		env.proxyMetrics,
 	)
 
 	if *statusAddress != "" {
@@ -844,6 +877,7 @@ func clientListen(env *Environment) error {
 		logger,
 		proxyLoggerFlags(*quiet),
 		proxy.ProxyProtocolOff,
+		env.proxyMetrics,
 	)
 
 	if *statusAddress != "" {
