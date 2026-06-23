@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"log"
+	"sync/atomic"
 
 	spiffeConfig "github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	spiffeApi "github.com/spiffe/go-spiffe/v2/workloadapi"
@@ -86,9 +87,24 @@ type spiffeTLSConfig struct {
 	base              *tls.Config
 	source            *spiffeApi.X509Source
 	clientDisableAuth bool
+
+	// Cached configs. SPIFFE has no reloadable trust store (the X509Source
+	// maintains itself via the Workload API and certificates are served through
+	// a callback), so the built config never changes: build once, cache forever.
+	cachedClient atomic.Pointer[tls.Config]
+	cachedServer atomic.Pointer[tls.Config]
 }
 
 func (c *spiffeTLSConfig) GetClientConfig() *tls.Config {
+	if cached := c.cachedClient.Load(); cached != nil {
+		return cached
+	}
+	config := c.buildClientConfig()
+	c.cachedClient.Store(config)
+	return config
+}
+
+func (c *spiffeTLSConfig) buildClientConfig() *tls.Config {
 	config := c.base.Clone()
 	// Go TLS stack will do hostname validation which is not a part of SPIFFE
 	// authentication. Unfortunately there is no way to just skip hostname
@@ -110,6 +126,15 @@ func (c *spiffeTLSConfig) GetClientConfig() *tls.Config {
 }
 
 func (c *spiffeTLSConfig) GetServerConfig() *tls.Config {
+	if cached := c.cachedServer.Load(); cached != nil {
+		return cached
+	}
+	config := c.buildServerConfig()
+	c.cachedServer.Store(config)
+	return config
+}
+
+func (c *spiffeTLSConfig) buildServerConfig() *tls.Config {
 	config := c.base.Clone()
 
 	if !c.clientDisableAuth {
