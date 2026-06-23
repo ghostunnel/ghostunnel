@@ -147,26 +147,44 @@ and `hostname` fields.
 ## Prometheus format (`/_metrics/prometheus`)
 
 Prometheus output replaces dots, dashes, and other special characters with
-underscores to comply with Prometheus naming conventions. All metrics are
-exposed as Prometheus gauges. Timers additionally include rate gauges,
-statistical gauges, and a histogram:
+underscores to comply with Prometheus naming conventions. Counters are exposed
+as Prometheus counters, `conn.open` as a gauge, and timers as native Prometheus
+[summaries](https://prometheus.io/docs/concepts/metric_types/#summary) (with
+`{quantile="0.5"|"0.75"|"0.95"|"0.99"}` series plus `_sum`/`_count`):
 
 | Prometheus metric name | Description |
 |------------------------|-------------|
-| `ghostunnel_conn_open` | Current open connections |
+| `ghostunnel_conn_open` | Current open connections (gauge) |
+| `ghostunnel_accept_total` | Total connection attempts accepted (counter) |
+| `ghostunnel_conn_handshake{quantile="0.5"}` | 50th percentile of handshake duration |
+| `ghostunnel_conn_handshake{quantile="0.75"}` | 75th percentile |
+| `ghostunnel_conn_handshake{quantile="0.95"}` | 95th percentile |
+| `ghostunnel_conn_handshake{quantile="0.99"}` | 99th percentile |
+| `ghostunnel_conn_handshake_sum` | Sum of observed handshake durations |
 | `ghostunnel_conn_handshake_count` | Number of observations |
-| `ghostunnel_conn_handshake_sum` | Sum of observed values |
-| `ghostunnel_conn_handshake_min` | Minimum value |
-| `ghostunnel_conn_handshake_max` | Maximum value |
-| `ghostunnel_conn_handshake_mean` | Mean value |
-| `ghostunnel_conn_handshake_std_dev` | Standard deviation |
-| `ghostunnel_conn_handshake_variance` | Variance |
-| `ghostunnel_conn_handshake_rate1` | 1-minute rate |
-| `ghostunnel_conn_handshake_rate5` | 5-minute rate |
-| `ghostunnel_conn_handshake_rate15` | 15-minute rate |
-| `ghostunnel_conn_handshake_rate_mean` | Mean rate |
-| `ghostunnel_conn_handshake_timer_bucket{le="..."}` | Histogram buckets (0.50, 0.95, 0.99, 0.999) |
-| `ghostunnel_conn_handshake_timer_count` | Histogram observation count |
+
+The standard `go_*` and `process_*` collectors from
+[`client_golang`](https://github.com/prometheus/client_golang) are also
+exported.
+
+> **Migration note (Prometheus and Graphite consumers):** Ghostunnel's metrics
+> backend moved from `rcrowley/go-metrics` to `prometheus/client_golang`. The
+> metric *names* are unchanged, but the timer representation changed:
+>
+> * **Prometheus:** timers are now native summaries
+>   (`ghostunnel_conn_handshake{quantile="..."}`, `_sum`, `_count`) instead of
+>   the previous flat gauges. The derived `_std_dev`, `_variance`,
+>   `_rate1/_rate5/_rate15/_rate_mean` gauges and the `_timer_bucket`/`_timer`
+>   series have been **removed**; query the quantile series instead.
+> * **Graphite:** timers keep `count`, `min`, `max`, `mean`, and the
+>   `{50,75,95,99}-percentile` fields. The `std-dev`, `999-percentile`,
+>   `count_ps`, `one-minute`, `five-minute`, `fifteen-minute`, and `mean-rate`
+>   fields have been **removed**.
+> * **JSON** (`/_metrics/json`, `/_metrics`, `--metrics-url`) is unchanged.
+>
+> Preserved percentile *values* may differ slightly: the previous backend used
+> an exponentially-decaying reservoir, while summaries use a sliding-window
+> quantile estimator. Same fields, statistically equivalent numbers.
 
 ### Prometheus scrape config
 
