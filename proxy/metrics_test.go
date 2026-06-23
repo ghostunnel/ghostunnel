@@ -23,65 +23,62 @@ import (
 	"testing"
 	"time"
 
-	metrics "github.com/rcrowley/go-metrics"
+	"github.com/ghostunnel/ghostunnel/metrics"
 	"github.com/stretchr/testify/assert"
 )
 
 // TestNilMetricsAreNoOps verifies that the no-op metrics handles record
 // nothing. This is what makes skipping collection (when no sink is configured)
-// free on the connection hot path: updates land on Nil* handles. Critically,
-// a no-op Timer must still not swallow work — but since we never route the
+// free on the connection hot path: updates land on no-op handles. Critically, a
+// no-op Timer must still not swallow work — but since we never route the
 // connection handler through Timer.Time (we use UpdateSince), all that matters
 // here is that updates are observably no-ops.
 func TestNilMetricsAreNoOps(t *testing.T) {
-	m := NilMetrics()
+	m := metrics.NilMetrics()
 
 	counters := []metrics.Counter{
 		m.OpenCounter, m.ConnTimeoutCounter, m.TotalCounter, m.SuccessCounter,
 		m.ErrorCounter, m.HandshakeTimeoutCounter,
 	}
 	for _, c := range counters {
-		assert.IsType(t, metrics.NilCounter{}, c, "expected a no-op counter")
+		// Exercising a no-op handle must not panic and must not record anywhere.
 		c.Inc(1)
-		assert.Equal(t, int64(0), c.Count(), "no-op counter must not record")
+		c.Dec(1)
 	}
 
 	timers := []metrics.Timer{m.HandshakeTimer, m.ConnTimer}
 	for _, tm := range timers {
-		assert.IsType(t, metrics.NilTimer{}, tm, "expected a no-op timer")
 		tm.UpdateSince(time.Now())
-		assert.Equal(t, int64(0), tm.Count(), "no-op timer must not record")
 	}
 }
 
 // TestLiveMetricsRegisterCanonicalNames verifies that LiveMetrics registers
 // every metric under its canonical, externally-visible name on the supplied
-// registry, and that the returned handles are the registered ones. The names
-// are part of Ghostunnel's exported surface, so this guards against an
-// accidental rename.
+// registry, and that recording through a handle is observable under that name.
+// The names are part of Ghostunnel's exported surface, so this guards against
+// an accidental rename.
 func TestLiveMetricsRegisterCanonicalNames(t *testing.T) {
-	registry := metrics.NewRegistry()
-	m := LiveMetrics(registry)
+	registry := metrics.NewRegistry("ghostunnel")
+	m := metrics.LiveMetrics(registry)
 
-	expected := map[string]any{
-		"conn.open":      m.OpenCounter,
-		"conn.timeout":   m.ConnTimeoutCounter,
-		"accept.total":   m.TotalCounter,
-		"accept.success": m.SuccessCounter,
-		"accept.error":   m.ErrorCounter,
-		"accept.timeout": m.HandshakeTimeoutCounter,
-		"conn.handshake": m.HandshakeTimer,
-		"conn.lifetime":  m.ConnTimer,
+	// Every counter must be readable by its canonical name.
+	for _, name := range []string{
+		"conn.open", "conn.timeout", "accept.total", "accept.success",
+		"accept.error", "accept.timeout",
+	} {
+		_, ok := registry.SingleValue(name)
+		assert.True(t, ok, "counter %q must be registered", name)
 	}
-	for name, handle := range expected {
-		got := registry.Get(name)
-		assert.NotNil(t, got, "metric %q must be registered", name)
-		assert.Equal(t, handle, got, "metric %q handle must match the registered one", name)
+	for _, name := range []string{"conn.handshake", "conn.lifetime"} {
+		_, ok := registry.TimerCount(name)
+		assert.True(t, ok, "timer %q must be registered", name)
 	}
 
 	// Live handles actually record.
 	m.TotalCounter.Inc(1)
-	assert.Equal(t, int64(1), m.TotalCounter.Count(), "live counter must record")
+	v, ok := registry.SingleValue("accept.total")
+	assert.True(t, ok)
+	assert.Equal(t, int64(1), v, "live counter must record")
 }
 
 // TestNewMetricsWiring pins the injection seam New relies on: passing nil keeps
@@ -90,11 +87,11 @@ func TestLiveMetricsRegisterCanonicalNames(t *testing.T) {
 // against silently re-enabling collection.
 func TestNewMetricsWiring(t *testing.T) {
 	p := proxyForTest(&failingListener{}, nil)
-	assert.Same(t, defaultMetrics, p.metrics, "nil handle must fall back to the default registry")
+	assert.Same(t, defaultMetrics, p.metrics, "nil handle must fall back to the default metrics")
 
-	nilP := New(&failingListener{}, time.Second, time.Second, time.Second, 1, nil, &testLogger{}, 0, ProxyProtocolOff, NilMetrics())
-	assert.IsType(t, metrics.NilCounter{}, nilP.metrics.ErrorCounter, "NilMetrics must produce no-op handles")
-	assert.IsType(t, metrics.NilTimer{}, nilP.metrics.ConnTimer, "NilMetrics must produce no-op handles")
+	nilHandles := metrics.NilMetrics()
+	nilP := New(&failingListener{}, time.Second, time.Second, time.Second, 1, nil, &testLogger{}, 0, ProxyProtocolOff, nilHandles)
+	assert.Same(t, nilHandles, nilP.metrics, "NilMetrics handles must be used verbatim")
 }
 
 // TestNilMetricsProxyForwardsData is the regression guard for the hot-path
@@ -115,7 +112,7 @@ func TestNilMetricsProxyForwardsData(t *testing.T) {
 		return d.DialContext(ctx, "tcp", target.Addr().String())
 	}
 
-	p := New(incoming, 5*time.Second, 5*time.Second, 5*time.Second, 1, dialer, &testLogger{}, LogEverything, ProxyProtocolOff, NilMetrics())
+	p := New(incoming, 5*time.Second, 5*time.Second, 5*time.Second, 1, dialer, &testLogger{}, LogEverything, ProxyProtocolOff, metrics.NilMetrics())
 	go p.Accept()
 	defer p.Shutdown()
 

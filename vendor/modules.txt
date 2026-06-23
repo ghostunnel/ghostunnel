@@ -210,9 +210,6 @@ github.com/coreos/go-systemd/v22/daemon
 ## explicit; go 1.21
 github.com/curioswitch/go-reassign
 github.com/curioswitch/go-reassign/internal/analyzer
-# github.com/cyberdelia/go-metrics-graphite v0.0.0-20161219230853-39f87cc3b432
-## explicit
-github.com/cyberdelia/go-metrics-graphite
 # github.com/daixiang0/gci v0.14.0
 ## explicit; go 1.24.0
 github.com/daixiang0/gci/pkg/config
@@ -235,9 +232,6 @@ github.com/dave/dst/dstutil
 # github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 ## explicit
 github.com/davecgh/go-spew/spew
-# github.com/deathowl/go-metrics-prometheus v0.0.0-20221009205350-f2a1482ba35b
-## explicit; go 1.13
-github.com/deathowl/go-metrics-prometheus
 # github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.1
 ## explicit; go 1.17
 github.com/decred/dcrd/dcrec/secp256k1/v4
@@ -967,6 +961,7 @@ github.com/pmezard/go-difflib/difflib
 github.com/prometheus/client_golang/internal/github.com/golang/gddo/httputil
 github.com/prometheus/client_golang/internal/github.com/golang/gddo/httputil/header
 github.com/prometheus/client_golang/prometheus
+github.com/prometheus/client_golang/prometheus/collectors
 github.com/prometheus/client_golang/prometheus/internal
 github.com/prometheus/client_golang/prometheus/promhttp
 github.com/prometheus/client_golang/prometheus/promhttp/internal
@@ -1130,9 +1125,6 @@ github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig
 github.com/spiffe/go-spiffe/v2/svid/jwtsvid
 github.com/spiffe/go-spiffe/v2/svid/x509svid
 github.com/spiffe/go-spiffe/v2/workloadapi
-# github.com/square/go-sq-metrics v0.0.0-20170531223841-ae72f332d0d9
-## explicit
-github.com/square/go-sq-metrics
 # github.com/ssgreg/nlreturn/v2 v2.2.1
 ## explicit; go 1.13
 github.com/ssgreg/nlreturn/v2/pkg/nlreturn

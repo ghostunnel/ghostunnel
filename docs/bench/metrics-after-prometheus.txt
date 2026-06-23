@@ -1,0 +1,42 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/ghostunnel/ghostunnel/proxy
+cpu: Apple M1
+BenchmarkConnMetricsBookkeeping/metrics=live           	 3501000	       324.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=live           	 3696180	       324.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=live           	 3619231	       325.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=live           	 3642735	       324.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=live           	 3668148	       325.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=live           	 3651631	       323.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=live-4         	 3542001	       326.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=live-4         	 3702585	       329.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=live-4         	 3741098	       332.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=live-4         	 3422877	       321.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=live-4         	 3727737	       316.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=live-4         	 3628810	       328.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=live-8         	 3346765	       358.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=live-8         	 3384228	       358.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=live-8         	 3109162	       364.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=live-8         	 3423133	       355.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=live-8         	 3050014	       369.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=live-8         	 3429529	       357.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=nosink         	158567098	         7.600 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=nosink         	159327310	         7.612 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=nosink         	158973226	         7.565 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=nosink         	158534942	         7.572 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=nosink         	158104693	         7.587 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=nosink         	159131557	         7.601 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=nosink-4       	585218358	         2.084 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=nosink-4       	594218132	         2.118 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=nosink-4       	584216061	         2.082 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=nosink-4       	546362872	         2.088 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=nosink-4       	581878132	         2.094 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=nosink-4       	557538668	         2.083 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=nosink-8       	840712435	         1.423 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=nosink-8       	782209938	         1.474 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=nosink-8       	788259100	         1.438 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=nosink-8       	862265378	         1.450 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=nosink-8       	832034001	         1.444 ns/op	       0 B/op	       0 allocs/op
+BenchmarkConnMetricsBookkeeping/metrics=nosink-8       	836343297	         1.449 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/ghostunnel/ghostunnel/proxy	56.206s
