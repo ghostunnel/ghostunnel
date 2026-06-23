@@ -240,13 +240,30 @@ type acmeTLSConfig struct {
 	magicConfig *certmagic.Config
 	base        *tls.Config
 	source      *acmeTLSConfigSource
+
+	// Cached config, keyed on the trust-store pointer.
+	cachedServer atomic.Pointer[cachedTLSConfig]
 }
 
 func (a *acmeTLSConfig) GetServerConfig() *tls.Config {
+	pool := a.source.getTrustStore()
+	if cached := a.cachedServer.Load(); cached != nil && cached.pool == pool {
+		return cached.config
+	}
+	config := a.buildServerConfig(pool)
+	a.cachedServer.Store(&cachedTLSConfig{pool: pool, config: config})
+	return config
+}
+
+// buildServerConfig constructs the shared server config for the given trust
+// store. The returned config is cached and shared across connections, so it
+// must never be mutated afterward. NextProtos is built on a fresh slice so
+// repeated builds never alias or grow the base config's NextProtos.
+func (a *acmeTLSConfig) buildServerConfig(pool *x509.CertPool) *tls.Config {
 	config := a.base.Clone()
 	config.GetCertificate = a.magicConfig.GetCertificate
-	config.ClientCAs = a.source.getTrustStore()
-	config.NextProtos = append(config.NextProtos, acmez.ACMETLS1Protocol)
+	config.ClientCAs = pool
+	config.NextProtos = append(append([]string(nil), a.base.NextProtos...), acmez.ACMETLS1Protocol)
 
 	// The ACME CA's TLS-ALPN-01 validator opens a probe handshake with
 	// SupportedProtos=["acme-tls/1"] (per RFC 8737) and no client certificate.
