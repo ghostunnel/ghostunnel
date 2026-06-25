@@ -15,8 +15,10 @@ ghostunnel.man
 mage-bin
 ghostunnel.exe
 ghostunnel.cover
+ghostunnel.bench
 ghostunnel.certstore
 ghostunnel-*
+bench/results/
 __pycache__
 dist/
 .idea

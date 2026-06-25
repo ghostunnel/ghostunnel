@@ -701,6 +701,77 @@ var coverageExcludedPatterns = []string{
 	"test_helpers_*.go",
 }
 
+// Bench runs the external-binary benchmark suite (see bench/PLAN.md and
+// bench/README.md). The Python orchestrators in bench/ launch the real
+// ghostunnel binary as a subprocess and drive it with external load tools
+// (iperf3, vegeta, openssl s_time). Each script self-builds a non-coverage
+// release binary (ghostunnel.bench) via bench_common.build_release_binary;
+// tune runs with GHOSTUNNEL_BENCH_{DURATION,RUNS,WARMUP}.
+type Bench mg.Namespace
+
+// benchScripts maps short names to their orchestrator scripts under bench/.
+var benchScripts = map[string]string{
+	"handshake":  "bench-handshake-rate.py",
+	"throughput": "bench-throughput.py",
+	"latency":    "bench-roundtrip-latency.py",
+}
+
+// runBench runs one benchmark orchestrator. Exit code 2 means the script
+// skipped itself (a required external tool is missing), reported as SKIP
+// rather than a failure — mirroring Test.Integration's convention.
+func runBench(ctx context.Context, script string) error {
+	printf("=== BENCH  %s\n", script)
+	cmd := exec.CommandContext(ctx, pythonCmd(), script)
+	cmd.Dir = "bench"
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err := cmd.Run()
+	if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 2 {
+		printf("--- SKIP: %s (missing external tool)\n", script)
+		return nil
+	}
+	return err
+}
+
+// All runs every benchmark (handshake, throughput, latency), skipping any
+// whose external tool is unavailable.
+func (Bench) All(ctx context.Context) error {
+	for _, name := range []string{"handshake", "throughput", "latency"} {
+		if err := runBench(ctx, benchScripts[name]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Handshake benchmarks mTLS connection-churn / handshake rate.
+func (Bench) Handshake(ctx context.Context) error {
+	return runBench(ctx, benchScripts["handshake"])
+}
+
+// Throughput benchmarks bulk throughput through the tunnel (full chain).
+func (Bench) Throughput(ctx context.Context) error {
+	return runBench(ctx, benchScripts["throughput"])
+}
+
+// Latency benchmarks concurrent round-trip latency under load.
+func (Bench) Latency(ctx context.Context) error {
+	return runBench(ctx, benchScripts["latency"])
+}
+
+// Single runs one benchmark by short name (handshake, throughput, latency) or
+// by script filename (with or without the .py suffix).
+func (Bench) Single(ctx context.Context, name string) error {
+	script, ok := benchScripts[name]
+	if !ok {
+		script = strings.TrimSuffix(name, ".py") + ".py"
+		if _, err := os.Stat(filepath.Join("bench", script)); err != nil {
+			return fmt.Errorf("unknown benchmark %q (known: handshake, throughput, latency)", name)
+		}
+	}
+	return runBench(ctx, script)
+}
+
 // isCoverageExcluded reports whether a coverage block key (e.g.
 // "github.com/ghostunnel/ghostunnel/certstore/test_helpers_darwin.go:10.1,12.2")
 // belongs to a file that should be excluded from coverage reports.
