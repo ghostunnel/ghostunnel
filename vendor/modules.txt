@@ -1780,7 +1780,7 @@ mvdan.cc/unparam/check
 # sigs.k8s.io/yaml v1.6.0
 ## explicit; go 1.22
 sigs.k8s.io/yaml
-# software.sslmate.com/src/go-pkcs12 v0.7.1
+# software.sslmate.com/src/go-pkcs12 v0.7.3
 ## explicit; go 1.19
 software.sslmate.com/src/go-pkcs12
 software.sslmate.com/src/go-pkcs12/internal/rc2
