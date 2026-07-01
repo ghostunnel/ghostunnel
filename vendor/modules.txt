@@ -150,10 +150,11 @@ github.com/butuzov/ireturn/analyzer/internal/types
 ## explicit; go 1.19
 github.com/butuzov/mirror
 github.com/butuzov/mirror/internal/checker
-# github.com/caddyserver/certmagic v0.25.3
+# github.com/caddyserver/certmagic v0.25.4
 ## explicit; go 1.25.0
 github.com/caddyserver/certmagic
 github.com/caddyserver/certmagic/internal/atomicfile
+github.com/caddyserver/certmagic/internal/filedescriptor
 # github.com/caddyserver/zerossl v0.1.5
 ## explicit; go 1.21.0
 github.com/caddyserver/zerossl
