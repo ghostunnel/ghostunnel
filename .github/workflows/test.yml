@@ -55,7 +55,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
       - name: Run tests in FreeBSD VM
-        uses: vmactions/freebsd-vm@a6de9343ef5747433d9c25784c90e84998b9d69a # v1.4.6
+        uses: vmactions/freebsd-vm@5a72679103d223925653750faa878a143340fbd0 # v1.5.0
         with:
           release: '14.3'
           usesh: true
