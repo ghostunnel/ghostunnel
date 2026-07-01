@@ -2,7 +2,7 @@ module github.com/ghostunnel/ghostunnel
 
 require (
 	github.com/alecthomas/kingpin/v2 v2.4.0
-	github.com/caddyserver/certmagic v0.25.3
+	github.com/caddyserver/certmagic v0.25.4
 	github.com/coreos/go-systemd/v22 v22.7.0
 	github.com/cyberdelia/go-metrics-graphite v0.0.0-20161219230853-39f87cc3b432
 	github.com/deathowl/go-metrics-prometheus v0.0.0-20221009205350-f2a1482ba35b
