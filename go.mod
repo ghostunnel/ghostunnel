@@ -9,7 +9,7 @@ require (
 	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/hashicorp/go-syslog v1.0.0
 	github.com/kavu/go_reuseport v1.5.0
-	github.com/landlock-lsm/go-landlock v0.8.1
+	github.com/landlock-lsm/go-landlock v0.9.0
 	github.com/letsencrypt/pkcs11key/v4 v4.0.1
 	github.com/magefile/mage v1.17.2
 	github.com/mholt/acmez v1.2.0

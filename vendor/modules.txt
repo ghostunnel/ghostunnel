@@ -660,7 +660,7 @@ github.com/kulti/thelper/pkg/analyzer
 # github.com/kunwardeep/paralleltest v1.0.15
 ## explicit; go 1.23.0
 github.com/kunwardeep/paralleltest/pkg/paralleltest
-# github.com/landlock-lsm/go-landlock v0.8.1
+# github.com/landlock-lsm/go-landlock v0.9.0
 ## explicit; go 1.24.0
 github.com/landlock-lsm/go-landlock/landlock
 github.com/landlock-lsm/go-landlock/landlock/internal
