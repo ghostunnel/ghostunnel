@@ -127,7 +127,9 @@ format (see below).
 
 JSON output uses dot-separated names. Counters and gauges are emitted as a
 single value. Timers are expanded into count, min/max/mean, and percentile
-sub-metrics:
+sub-metrics. This format is **unchanged** across the v1.11.1 metrics-backend
+migration (see the [Prometheus format](#prometheus-format-_metricsprometheus)
+section below):
 
 | JSON metric name | Description |
 |------------------|-------------|
@@ -147,8 +149,20 @@ and `hostname` fields.
 ## Prometheus format (`/_metrics/prometheus`)
 
 Prometheus output replaces dots, dashes, and other special characters with
-underscores to comply with Prometheus naming conventions. Counters are exposed
-as Prometheus counters, `conn.open` as a gauge, and timers as native Prometheus
+underscores to comply with Prometheus naming conventions.
+
+> **Changed in v1.11.1.** Ghostunnel's metrics backend moved from
+> `rcrowley/go-metrics` to `prometheus/client_golang`. The move was driven by
+> the deprecation of the old metrics packages (`rcrowley/go-metrics` and its
+> Graphite/Prometheus bridges are no longer maintained). Metric *names* are
+> unchanged, but the timer representation changed. Both the new (≥ v1.11.1) and
+> old (≤ v1.11.0) formats are documented below; see the
+> [migration note](#migration-note-v1111) for the full field-level diff.
+
+### Ghostunnel ≥ v1.11.1
+
+Counters are exposed as Prometheus counters, `conn.open` as a gauge, and timers
+as native Prometheus
 [summaries](https://prometheus.io/docs/concepts/metric_types/#summary) (with
 `{quantile="0.5"|"0.75"|"0.95"|"0.99"}` series plus `_sum`/`_count`):
 
@@ -167,24 +181,60 @@ The standard `go_*` and `process_*` collectors from
 [`client_golang`](https://github.com/prometheus/client_golang) are also
 exported.
 
-> **Migration note (Prometheus and Graphite consumers):** Ghostunnel's metrics
-> backend moved from `rcrowley/go-metrics` to `prometheus/client_golang`. The
-> metric *names* are unchanged, but the timer representation changed:
->
-> * **Prometheus:** timers are now native summaries
->   (`ghostunnel_conn_handshake{quantile="..."}`, `_sum`, `_count`) instead of
->   the previous flat gauges. The derived `_std_dev`, `_variance`,
->   `_rate1/_rate5/_rate15/_rate_mean` gauges and the `_timer_bucket`/`_timer`
->   series have been **removed**; query the quantile series instead.
-> * **Graphite:** timers keep `count`, `min`, `max`, `mean`, and the
->   `{50,75,95,99}-percentile` fields. The `std-dev`, `999-percentile`,
->   `count_ps`, `one-minute`, `five-minute`, `fifteen-minute`, and `mean-rate`
->   fields have been **removed**.
-> * **JSON** (`/_metrics/json`, `/_metrics`, `--metrics-url`) is unchanged.
->
-> Preserved percentile *values* may differ slightly: the previous backend used
-> an exponentially-decaying reservoir, while summaries use a sliding-window
-> quantile estimator. Same fields, statistically equivalent numbers.
+### Ghostunnel ≤ v1.11.0
+
+Under the previous `rcrowley/go-metrics` backend, all metrics were exposed as
+Prometheus gauges. Timers additionally included statistical gauges, rate
+gauges, and a histogram:
+
+| Prometheus metric name | Description |
+|------------------------|-------------|
+| `ghostunnel_conn_open` | Current open connections |
+| `ghostunnel_conn_handshake_count` | Number of observations |
+| `ghostunnel_conn_handshake_sum` | Sum of observed values |
+| `ghostunnel_conn_handshake_min` | Minimum value |
+| `ghostunnel_conn_handshake_max` | Maximum value |
+| `ghostunnel_conn_handshake_mean` | Mean value |
+| `ghostunnel_conn_handshake_std_dev` | Standard deviation |
+| `ghostunnel_conn_handshake_variance` | Variance |
+| `ghostunnel_conn_handshake_rate1` | 1-minute rate |
+| `ghostunnel_conn_handshake_rate5` | 5-minute rate |
+| `ghostunnel_conn_handshake_rate15` | 15-minute rate |
+| `ghostunnel_conn_handshake_rate_mean` | Mean rate |
+| `ghostunnel_conn_handshake_timer_bucket{le="..."}` | Histogram buckets (0.50, 0.95, 0.99, 0.999) |
+| `ghostunnel_conn_handshake_timer_count` | Histogram observation count |
+
+### Migration note (v1.11.1)
+
+The v1.11.1 backend change affects Prometheus and Graphite consumers. Metric
+*names* are unchanged, and **JSON** output (`/_metrics/json`, `/_metrics`,
+`--metrics-url`) is identical before and after. Only the per-timer sub-fields on
+the Prometheus and Graphite outputs changed, as summarized below (using
+`conn.handshake` as the example timer).
+
+**Prometheus** timers are now native summaries instead of flat gauges:
+
+| Field | Kept in v1.11.1 |
+|-------|:---------------:|
+| `_count`, `_sum` | ✅ |
+| `{quantile="0.5"}` … `{quantile="0.99"}` | ✅ (new) |
+| `_min`, `_max`, `_mean` | ❌ (still on JSON/Graphite) |
+| `_std_dev`, `_variance` | ❌ |
+| `_rate1`, `_rate5`, `_rate15`, `_rate_mean` | ❌ |
+| `_timer_bucket{le="..."}`, `_timer_count` | ❌ |
+
+**Graphite** timers keep the base statistics and percentiles:
+
+| Field | Kept in v1.11.1 |
+|-------|:---------------:|
+| `count`, `min`, `max`, `mean` | ✅ |
+| `50/75/95/99-percentile` | ✅ |
+| `std-dev`, `999-percentile` | ❌ |
+| `count_ps`, `one-minute`, `five-minute`, `fifteen-minute`, `mean-rate` | ❌ |
+
+Preserved percentile *values* may differ slightly: the previous backend used
+an exponentially-decaying reservoir, while summaries use a sliding-window
+quantile estimator. Same fields, statistically equivalent numbers.
 
 ### Prometheus scrape config
 
@@ -211,7 +261,8 @@ Metrics are always available via the status port endpoints (`/_metrics/json`,
 `/_metrics/prometheus`). Additionally, metrics can be pushed to external systems:
 
 * `--metrics-graphite=ADDR`: push to a Graphite instance via raw TCP
-  (dot-separated names, same as JSON format)
+  (dot-separated names, same as JSON format; the set of timer fields changed in
+  v1.11.1 — see the [migration note](#migration-note-v1111))
 * `--metrics-url=URL`: push via HTTP POST (JSON format) at the interval set by
   `--metrics-interval` (default: 30s)
 
