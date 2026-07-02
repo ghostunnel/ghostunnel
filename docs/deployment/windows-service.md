@@ -4,7 +4,7 @@ description: Install and manage Ghostunnel as a native Windows service via the S
 weight: 25
 ---
 
-*Unreleased: this feature ships in the next release, v1.11.0.*
+*Available since v1.11.0.*
 
 Ghostunnel can run as a native Windows service managed by the
 [Service Control Manager][scm] (SCM). The `ghostunnel service` subcommands
