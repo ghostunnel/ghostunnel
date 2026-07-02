@@ -138,9 +138,11 @@ cat root-ca.pem intermediate-ca.pem > cacert.pem
 
 ## Format Auto-Detection
 
-Ghostunnel detects the format of `--keystore` based on file extension,
-supporting PEM, JCEKS and PKCS#12 formats. Files passed to `--cert`/`--key`
-skip auto-detection and are always parsed as PEM.
+Ghostunnel detects the format of `--keystore` first from the file extension
+(`.pem`, `.crt`, `.p12`, `.pfx`, `.jceks`, `.jks`, and similar), and falls back
+to inspecting the first few bytes when the extension is unrecognized. This
+supports PEM, JCEKS and PKCS#12 formats. Files passed to `--cert`/`--key` skip
+auto-detection and are always parsed as PEM.
 
 ## Common Operations
 

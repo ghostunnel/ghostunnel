@@ -56,7 +56,7 @@ How to use profiling endpoints, if `--enable-pprof` is set:
 # Human-readable goroutine dump
 curl --cacert test-keys/cacert.pem 'https://localhost:6060/debug/pprof/goroutine?debug=1'
 
-# Analyze execution trace using pprof tool
+# Analyze CPU profile using pprof tool
 go tool pprof -seconds 5 https+insecure://localhost:6060/debug/pprof/profile
 ```
 
@@ -183,7 +183,8 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:6060']
 ```
-If the status port uses HTTP (see below), set `scheme: http` and drop the 
+
+If the status port uses HTTP (see below), set `scheme: http` and drop the
 `tls_config` block entirely.
 
 ## Metrics Export

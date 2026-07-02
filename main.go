@@ -357,7 +357,7 @@ func validateServerCredentials() error {
 
 func validateServerAccessControl(hasAccessFlags, hasOPAFlags bool) error {
 	if !(*serverDisableAuth) && !(*serverAllowAll) && !hasAccessFlags && !hasOPAFlags {
-		return errors.New("at least one access control flag (--allow-{all,cn,ou,dns-san,ip-san,uri-san}, or OPA flags, or --disable-authentication) is required")
+		return errors.New("at least one access control flag (--allow-{all,cn,ou,dns,uri}, or OPA flags, or --disable-authentication) is required")
 	}
 	if !(*serverDisableAuth) && *serverAllowAll && (hasAccessFlags || hasOPAFlags) {
 		return errors.New("--allow-all is mutually exclusive with other access control flags")

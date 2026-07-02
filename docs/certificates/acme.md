@@ -65,7 +65,7 @@ on startup without contacting the CA.
 
 Renewal works even when client certificate authentication is enabled with
 flags like `--allow-cn`, `--allow-ou`, or `--allow-dns`. To check that
-you control the domain, the ACME CA opens a TLS handshake to port 443 that
+you control the domain, the ACME CA opens a TLS connection to port 443 that
 advertises the `acme-tls/1` ALPN protocol and presents no client cert.
 Ghostunnel lets that one handshake complete without requiring a client cert.
 Every other connection still needs a valid client cert as configured.

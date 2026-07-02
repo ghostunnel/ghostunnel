@@ -64,7 +64,7 @@ When a shutdown is triggered, the following happens in order:
 5. **In-flight connections continue**: established connections are not
    interrupted. Data continues to flow until both sides close normally.
    Connections that are still mid-handshake (or mid-dial to the backend)
-   when shutdown starts are cancelled rather than drained.
+   when shutdown starts are canceled rather than drained.
 6. **Process exits** when either:
    - All in-flight connections have drained (exit code 0), or
    - The shutdown timeout fires (exit code 1).
@@ -75,7 +75,7 @@ When a shutdown is triggered, the following happens in order:
 |------|---------|-------------|
 | `--shutdown-timeout` | `5m` | Maximum time to wait for in-flight connections to drain. If connections are still open after this duration, the process force-exits with code 1. |
 | `--enable-shutdown` | `false` | Enable the `/_shutdown` HTTP endpoint on the status port. Requires `--status`. |
-| `--status` | *(none)* | HOST:PORT (or `unix:SOCKET`) for the status listener. Required for `/_shutdown`. |
+| `--status` | *(none)* | `[http(s)://]HOST:PORT`, `unix:PATH`, `systemd:NAME`, or `launchd:NAME` for the status listener. Required for `/_shutdown`. |
 
 See [Command-Line Flags]({{< ref "flags.md" >}}) for the full flag reference.
 

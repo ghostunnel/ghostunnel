@@ -85,7 +85,8 @@ func formatForFile(file *bufio.Reader, filename, format string) (string, error) 
 	}
 	// Best-effort heuristic for DER vs PKCS12: both start with ASN.1 SEQUENCE
 	// (0x30 0x82 ...). We check the third byte to guess, but this is fragile.
-	// When auto-detection is ambiguous, prefer explicit --format flags.
+	// This guess is only used when the format was not already determined by
+	// the file extension; it may be wrong for ambiguous ASN.1 inputs.
 	if magic&0xFFFF0000 == 0x30820000 {
 		if magic&0x0000FF00 == 0x0300 {
 			return "DER", nil

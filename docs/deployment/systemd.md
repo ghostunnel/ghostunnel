@@ -31,7 +31,7 @@ ExecStart=/usr/bin/ghostunnel server \
 Restart=always
 
 [Install]
-WantedBy=default.target
+WantedBy=multi-user.target
 ```
 
 ## Notify and Watchdog
@@ -74,14 +74,17 @@ WatchdogSec=5
 Restart=always
 
 [Install]
-WantedBy=default.target
+WantedBy=multi-user.target
 ```
 
 ### Notes
 
 * `Type=notify-reload` requires systemd v253 or later. If you are on an older
-  version, use `Type=notify` instead (reload via `systemctl reload` will not
-  work, but you can still send `SIGHUP` manually).
+  version, use `Type=notify` instead and add
+  `ExecReload=/bin/kill -HUP $MAINPID` to the `[Service]` section so that
+  `systemctl reload` still triggers a certificate reload. (Without it,
+  `systemctl reload` has no effect, though you can always send `SIGHUP`
+  manually.)
 * The `WatchdogSec` value should be set based on your tolerance for downtime.
   A value of `5` (5 seconds) is a reasonable default. Very low values (e.g. `1`)
   may cause spurious restarts under heavy load.
@@ -133,7 +136,7 @@ ExecStart=/usr/bin/ghostunnel server \
     --allow-cn=client
 
 [Install]
-WantedBy=default.target
+WantedBy=multi-user.target
 ```
 
 The `FileDescriptorName` in `ghostunnel.socket` must match the name passed to

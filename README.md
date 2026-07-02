@@ -115,7 +115,8 @@ Usage
 
 To see available commands and flags, run `ghostunnel --help`. You can get more
 information about a command by adding `--help` to the command, like `ghostunnel
-server --help` or `ghostunnel client --help`. There's also a [man page](docs/reference/manpage-linux.md).
+server --help` or `ghostunnel client --help`. Man pages are also available for
+[Linux](docs/reference/manpage-linux.md) and [macOS](docs/reference/manpage-darwin.md).
 
 By default, Ghostunnel runs in the foreground and logs to stdout. You can set
 `--syslog` to log to syslog instead of stdout. If you want to run Ghostunnel
@@ -126,9 +127,10 @@ in the background, we recommend using a service manager.
 Ghostunnel accepts certificates in multiple different file formats.
 
 The `--keystore` flag can take a PKCS#12 keystore or a combined PEM file with the
-certificate chain and private key as input (format is auto-detected). The `--cert` /
-`--key` flags can be used to load a certificate chain and key from separate PEM files
-(instead of a combined one).
+certificate chain and private key as input (format is auto-detected). JCEKS/JKS
+keystores are also supported for legacy use cases. The `--cert` / `--key` flags can
+be used to load a certificate chain and key from separate PEM files (instead of a
+combined one).
 
 Ghostunnel also supports loading identities from the macOS keychain or the
 SPIFFE Workload API and having private keys backed by PKCS#11 modules, see the
@@ -261,6 +263,8 @@ The `latest` tags always point to the most recent release. The bare
 `ghostunnel/ghostunnel:latest` and `ghostunnel/ghostunnel:v1.x.x` tags are
 aliases for the Alpine variant.
 
+See [DOCKER](docs/deployment/docker.md) for details.
+
 Advanced Features
 =================
 
@@ -373,7 +377,7 @@ for examples.
 
 ### PROXY Protocol Support
 
-Ghostunnel in server mode supports signalling of transport connection information
+Ghostunnel in server mode supports signaling of transport connection information
 to the backend using the [PROXY protocol](https://www.haproxy.org/download/3.1/doc/proxy-protocol.txt)
 (v2), just pass the `--proxy-protocol` flag on startup. Use `--proxy-protocol-mode`
 to also include TLS metadata and/or client certificate details. Note that the
