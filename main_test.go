@@ -282,12 +282,12 @@ func TestServerFlagValidation(t *testing.T) {
 	*serverAllowedCNs = nil
 	*serverDisableAuth = false
 
-	// Test: OPA flags with --allow-uri
+	// Test: OPA flags may be combined with --allow-uri (OR'd together)
 	*serverAllowPolicy = "policy"
 	*serverAllowQuery = "query"
 	*serverAllowedURIs = []string{"spiffe://example.com/*"}
 	err = serverValidateFlags()
-	assert.NotNil(t, err, "--allow-policy and --allow-uri are mutually exclusive")
+	assert.Nil(t, err, "--allow-policy and --allow-uri can be combined")
 	*serverAllowPolicy = ""
 	*serverAllowQuery = ""
 	*serverAllowedURIs = nil
@@ -1244,11 +1244,8 @@ func TestValidateCipherSuitesUnsafe(t *testing.T) {
 }
 
 func TestValidateServerOPANoFlags(t *testing.T) {
-	err := validateServerOPA(false, false)
+	err := validateServerOPA(false)
 	assert.Nil(t, err, "validateServerOPA must return nil when no OPA flags are set")
-
-	err = validateServerOPA(true, false)
-	assert.Nil(t, err, "validateServerOPA must return nil when OPA disabled even if access flags set")
 }
 
 // TestGetTLSConfigSourceSpiffeError exercises the SPIFFE branch error path
@@ -1491,18 +1488,16 @@ func TestValidateServerOPA(t *testing.T) {
 	})
 
 	cases := []struct {
-		name           string
-		hasAccessFlags bool
-		hasOPAFlags    bool
-		policy, query  string
-		wantErrSubstr  string // "" means expect nil
+		name          string
+		hasOPAFlags   bool
+		policy, query string
+		wantErrSubstr string // "" means expect nil
 	}{
-		{"no flags", false, false, "", "", ""},
-		{"access only", true, false, "", "", ""},
-		{"OPA only - missing query", false, true, "policy", "", "have to be used together"},
-		{"OPA only - missing policy", false, true, "", "query", "have to be used together"},
-		{"both OPA and access", true, true, "policy", "query", "mutually exclusive"},
-		{"OPA only - both set", false, true, "policy", "query", ""},
+		{"no flags", false, "", "", ""},
+		{"OPA only - missing query", true, "policy", "", "have to be used together"},
+		{"OPA only - missing policy", true, "", "query", "have to be used together"},
+		{"OPA combined with access flags", true, "policy", "query", ""},
+		{"OPA only - both set", true, "policy", "query", ""},
 	}
 
 	for _, c := range cases {
@@ -1510,7 +1505,7 @@ func TestValidateServerOPA(t *testing.T) {
 			*serverAllowPolicy = c.policy
 			*serverAllowQuery = c.query
 
-			err := validateServerOPA(c.hasAccessFlags, c.hasOPAFlags)
+			err := validateServerOPA(c.hasOPAFlags)
 			if c.wantErrSubstr == "" {
 				assert.NoError(t, err)
 				return

@@ -395,15 +395,12 @@ func validateServerACME() error {
 	return nil
 }
 
-func validateServerOPA(hasAccessFlags, hasOPAFlags bool) error {
+func validateServerOPA(hasOPAFlags bool) error {
 	if !hasOPAFlags {
 		return nil
 	}
 	if *serverAllowPolicy == "" || *serverAllowQuery == "" {
 		return errors.New("--allow-policy and --allow-query have to be used together")
-	}
-	if hasAccessFlags {
-		return errors.New("--allow-policy and --allow-query are mutually exclusive with other access control flags")
 	}
 	return nil
 }
@@ -430,7 +427,7 @@ func serverValidateFlags() error {
 	if err := validateServerACME(); err != nil {
 		return err
 	}
-	if err := validateServerOPA(hasAccessFlags, hasOPAFlags); err != nil {
+	if err := validateServerOPA(hasOPAFlags); err != nil {
 		return err
 	}
 	if err := validateServerProxyProtocol(); err != nil {

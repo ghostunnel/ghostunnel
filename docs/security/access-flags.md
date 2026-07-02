@@ -16,9 +16,10 @@ client certificate.
 
 When multiple certificate-field flags (`--allow-cn`, `--allow-ou`,
 `--allow-dns`, `--allow-uri`) are specified, they are OR'd together: a client is
-allowed if at least one flag matches. The remaining flags — `--allow-all`,
-`--allow-policy`/`--allow-query`, and `--disable-authentication` — are each
-mutually exclusive with the rest.
+allowed if at least one flag matches. `--allow-policy`/`--allow-query` may also
+be combined with these flags and is OR'd together with them. The remaining flags,
+`--allow-all` and `--disable-authentication`, are each mutually exclusive with
+the rest.
 
 * `--allow-all`
 
@@ -140,12 +141,12 @@ when the backend does not require mutual TLS.
 
 Ghostunnel supports [Open Policy Agent][opa] (OPA) in both server and client
 mode. The policy must be an [OPA bundle][opa-bundles] on disk. In server mode,
-`--allow-policy`/`--allow-query` are mutually exclusive with the other access
-control flags — combining them is an error. In client mode,
-`--verify-policy`/`--verify-query` may be combined with other verification flags
-and are OR'd together with them, though we recommend expressing all access
-control logic in the policy itself. Policy bundles reload at runtime via
-`--timed-reload` or `SIGHUP`, just like certificates.
+`--allow-policy`/`--allow-query` may be combined with the other access control
+flags and are OR'd together with them; likewise in client mode,
+`--verify-policy`/`--verify-query` may be combined with other verification flags.
+In both cases we recommend expressing all access control logic in the policy
+itself. Policy bundles reload at runtime via `--timed-reload` or `SIGHUP`, just
+like certificates.
 
 [opa]: https://www.openpolicyagent.org/
 [opa-bundles]: https://www.openpolicyagent.org/docs/latest/management-bundles/
