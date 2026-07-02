@@ -522,6 +522,63 @@ func serverProxyProtoMode() proxy.ProxyProtocolMode {
 	return proxy.ProxyProtocolOff
 }
 
+// setupMetrics decides whether metrics are collected at all and wires up the
+// configured sinks.
+//
+// Metrics leave the process through exactly three sinks: the pull surface
+// (/_metrics*, served only when --status is set) and the two push reporters
+// (--metrics-graphite, --metrics-url). When none is configured, nothing can
+// observe the registry, so we skip metrics collection entirely: the proxy
+// gets no-op handles (see metrics.NilMetrics) and no metrics background
+// goroutine is started. The returned registry is nil in that case.
+//
+// NOTE: these flags are start-time-only; nothing reconfigures them at
+// runtime (cert hot-reload does not touch them), so this predicate is
+// decided once here and stays valid for the process lifetime. If that ever
+// changes, this gate must be re-evaluated.
+func setupMetrics() (*metrics.Metrics, *metrics.Registry, error) {
+	metricsConsumed := *statusAddress != "" || *metricsGraphite != nil || *metricsURL != ""
+	if !metricsConsumed {
+		return metrics.NilMetrics(), nil, nil
+	}
+
+	// The registry owns the single prometheus-backed registry and the three
+	// export sinks (JSON pull, Graphite push, native Prometheus). The returned
+	// Metrics drive the connection hot path with live handles on the registry.
+	registry := metrics.NewRegistry(*metricsPrefix)
+	proxyMetrics := metrics.LiveMetrics(registry)
+
+	// Background collector for runtime/GC gauges (replaces go-sq-metrics'
+	// collectMetrics). Refreshed at the configured metrics interval.
+	registry.StartRuntimeCollector(*metricsInterval)
+
+	if *metricsGraphite != nil {
+		logger.Printf("metrics enabled; reporting metrics via TCP to %s", *metricsGraphite)
+		registry.StartGraphitePush(*metricsGraphite, 1*time.Second, logger)
+	}
+
+	if *metricsURL != "" {
+		logger.Printf("metrics enabled; reporting metrics via POST to %s", *metricsURL)
+
+		// Read CA bundle for the HTTP client used to POST metrics.
+		ca, err := certloader.LoadTrustStore(*caBundlePath)
+		if err != nil {
+			return nil, nil, fmt.Errorf("unable to build TLS config for metrics POST client: %w", err)
+		}
+
+		client := &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					MinVersion: tls.VersionTLS12,
+					RootCAs:    ca,
+				},
+			},
+		}
+		registry.StartPostLoop(*metricsURL, client, *metricsInterval, logger)
+	}
+	return proxyMetrics, registry, nil
+}
+
 func main() {
 	if isRunningAsService() {
 		runAsService()
@@ -586,62 +643,10 @@ func run(args []string) error {
 		}
 	}
 
-	// Metrics
-	//
-	// Metrics leave the process through exactly three sinks: the pull surface
-	// (/_metrics*, served only when --status is set) and the two push reporters
-	// (--metrics-graphite, --metrics-url). When none is configured, nothing can
-	// observe the registry, so we skip metrics collection entirely: the proxy
-	// gets no-op handles (see proxy.NilMetrics) and neither metrics background
-	// goroutine is started.
-	//
-	// NOTE: these flags are start-time-only; nothing reconfigures them at
-	// runtime (cert hot-reload does not touch them), so this predicate is
-	// decided once here and stays valid for the process lifetime. If that ever
-	// changes, this gate must be re-evaluated.
-	metricsConsumed := *statusAddress != "" || *metricsGraphite != nil || *metricsURL != ""
-
-	// metricsRegistry owns the single prometheus-backed registry and the three
-	// export sinks (JSON pull, Graphite push, native Prometheus). proxyMetrics
-	// drives the connection hot path: live handles on metricsRegistry when
-	// metrics are consumed, no-op handles otherwise.
-	var proxyMetrics *metrics.Metrics
-	var metricsRegistry *metrics.Registry
-	if metricsConsumed {
-		metricsRegistry = metrics.NewRegistry(*metricsPrefix)
-		proxyMetrics = metrics.LiveMetrics(metricsRegistry)
-
-		// Background collector for runtime/GC gauges (replaces go-sq-metrics'
-		// collectMetrics). Refreshed at the configured metrics interval.
-		metricsRegistry.StartRuntimeCollector(*metricsInterval)
-
-		if *metricsGraphite != nil {
-			logger.Printf("metrics enabled; reporting metrics via TCP to %s", *metricsGraphite)
-			metricsRegistry.StartGraphitePush(*metricsGraphite, 1*time.Second, logger)
-		}
-
-		if *metricsURL != "" {
-			logger.Printf("metrics enabled; reporting metrics via POST to %s", *metricsURL)
-
-			// Read CA bundle for the HTTP client used to POST metrics.
-			ca, err := certloader.LoadTrustStore(*caBundlePath)
-			if err != nil {
-				logger.Printf("error: unable to build TLS config: %s\n", err)
-				return err
-			}
-
-			client := &http.Client{
-				Transport: &http.Transport{
-					TLSClientConfig: &tls.Config{
-						MinVersion: tls.VersionTLS12,
-						RootCAs:    ca,
-					},
-				},
-			}
-			metricsRegistry.StartPostLoop(*metricsURL, client, *metricsInterval, logger)
-		}
-	} else {
-		proxyMetrics = metrics.NilMetrics()
+	proxyMetrics, metricsRegistry, err := setupMetrics()
+	if err != nil {
+		logger.Printf("error: unable to set up metrics: %s\n", err)
+		return err
 	}
 
 	switch command {

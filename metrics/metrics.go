@@ -117,8 +117,17 @@ type Registry struct {
 
 	mu          sync.Mutex
 	descriptors []*descriptor
+
+	// runtimeOnce guards runtime's registration: r.mu cannot be held across
+	// registerRuntime (it takes r.mu per instrument), and unguarded racing
+	// calls would panic in MustRegister.
+	runtimeOnce sync.Once
 	runtime     *runtimeCollector
 }
+
+// osHostname is a test seam for os.Hostname, which cannot be made to fail on
+// demand in a test.
+var osHostname = os.Hostname
 
 // NewRegistry creates an empty registry with the default Go and process
 // collectors registered (so go_*/process_* appear on the native Prometheus
@@ -129,11 +138,11 @@ func NewRegistry(prefix string) *Registry {
 	prom.MustRegister(collectors.NewGoCollector())
 	prom.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 
-	hostname, err := os.Hostname()
+	hostname, err := osHostname()
 	if err != nil {
-		// Match go-sq-metrics' historical behavior of refusing to start with
-		// an unknowable hostname rather than emitting an empty one.
-		panic(err)
+		// The hostname only decorates JSON metrics entries; a placeholder
+		// beats refusing to start (go-sq-metrics historically panicked here).
+		hostname = "unknown"
 	}
 
 	return &Registry{

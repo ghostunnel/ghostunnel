@@ -1673,3 +1673,52 @@ default allow := true
 		})
 	}
 }
+
+// TestSetupMetricsGate pins the metrics-collection gate: live handles bound to
+// a registry when at least one sink (--status, --metrics-graphite,
+// --metrics-url) is configured, no-op handles and no registry otherwise.
+func TestSetupMetricsGate(t *testing.T) {
+	// setupMetrics reads package-global flags; save and restore them.
+	origStatus, origGraphite, origURL := *statusAddress, *metricsGraphite, *metricsURL
+	origPrefix, origInterval, origCA := *metricsPrefix, *metricsInterval, *caBundlePath
+	defer func() {
+		*statusAddress, *metricsGraphite, *metricsURL = origStatus, origGraphite, origURL
+		*metricsPrefix, *metricsInterval, *caBundlePath = origPrefix, origInterval, origCA
+	}()
+
+	*metricsPrefix = "ghostunnel"
+	*metricsInterval = time.Hour // keep background loops idle during the test
+	*metricsGraphite = nil
+	*metricsURL = ""
+	*caBundlePath = ""
+
+	// No sink configured: collection is skipped entirely.
+	*statusAddress = ""
+	m, registry, err := setupMetrics()
+	assert.NoError(t, err)
+	assert.Nil(t, registry, "no sink must mean no registry (collection skipped)")
+	assert.NotNil(t, m, "proxy must still get no-op metrics handles")
+	m.TotalCounter.Inc(1) // no-op handles must be callable
+
+	// The pull surface alone enables collection, with live handles.
+	*statusAddress = "localhost:0"
+	m, registry, err = setupMetrics()
+	assert.NoError(t, err)
+	assert.NotNil(t, registry, "--status must enable metrics collection")
+	m.TotalCounter.Inc(1)
+	total, ok := registry.SingleValue("accept.total")
+	assert.True(t, ok, "live handles must be bound to the returned registry")
+	assert.Equal(t, int64(1), total)
+
+	// A push sink alone (no --status) must also enable collection.
+	*statusAddress = ""
+	*metricsURL = "https://metrics.invalid/post"
+	_, registry, err = setupMetrics()
+	assert.NoError(t, err)
+	assert.NotNil(t, registry, "--metrics-url alone must enable metrics collection")
+
+	// An unreadable CA bundle for the POST client is a startup error.
+	*caBundlePath = filepath.Join(t.TempDir(), "missing.pem")
+	_, _, err = setupMetrics()
+	assert.Error(t, err, "a missing CA bundle must fail setup")
+}

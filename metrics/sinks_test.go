@@ -19,6 +19,7 @@ package metrics
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net"
@@ -93,6 +94,48 @@ func TestGraphiteFlushDialError(t *testing.T) {
 	// Port 1 on loopback refuses connections, so the dial fails.
 	err := r.graphiteFlush(&net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1})
 	assert.Error(t, err)
+}
+
+// failingWriter fails every write, standing in for a TCP connection whose peer
+// has gone away mid-report.
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) {
+	return 0, errors.New("connection reset")
+}
+
+// TestGraphiteWriteError verifies a write failure mid-report is surfaced
+// rather than swallowed: a partial push must not be reported as success.
+func TestGraphiteWriteError(t *testing.T) {
+	r, _ := fixture(t)
+	err := r.writeGraphite(failingWriter{}, 1700000000)
+	assert.Error(t, err, "a failed write must surface an error")
+}
+
+// TestPostOnceNon2xx verifies a reachable receiver that rejects the payload is
+// treated as a failed report, not a success.
+func TestPostOnceNon2xx(t *testing.T) {
+	r, _ := fixture(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "nope", http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	err := r.postOnce(srv.URL, srv.Client())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "500", "the receiver's status should be surfaced")
+}
+
+// TestPostOnceSuccess pins the happy path of the status-code check: any 2xx
+// (not just 200) is a successful report.
+func TestPostOnceSuccess(t *testing.T) {
+	r, _ := fixture(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer srv.Close()
+
+	assert.NoError(t, r.postOnce(srv.URL, srv.Client()))
 }
 
 // TestGraphitePush verifies --metrics-graphite writes the line protocol over TCP.

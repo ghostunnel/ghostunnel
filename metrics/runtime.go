@@ -112,19 +112,26 @@ func (rc *runtimeCollector) collectOnce() {
 // StartRuntimeCollector registers the runtime gauges (once) and starts a
 // background goroutine that refreshes them every interval. An initial
 // collection runs synchronously so the gauges are populated before the first
-// scrape or push. It is safe to call at most once per registry.
+// scrape or push. Concurrent and repeated calls are safe: only the first call
+// registers and starts anything (guarded by a sync.Once, since racing
+// registrations would panic in MustRegister). The interval of any later call
+// is ignored.
+//
+// The goroutine runs for the remaining lifetime of the process by design:
+// Ghostunnel starts the collector once at startup and never tears it down
+// before exit, so there is deliberately no stop mechanism.
 func (r *Registry) StartRuntimeCollector(interval time.Duration) {
-	if r.runtime != nil {
-		return
-	}
-	r.runtime = r.registerRuntime()
-	r.runtime.collectOnce()
+	r.runtimeOnce.Do(func() {
+		rc := r.registerRuntime()
+		r.runtime = rc
+		rc.collectOnce()
 
-	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for range ticker.C {
-			r.runtime.collectOnce()
-		}
-	}()
+		go func() {
+			ticker := time.NewTicker(interval)
+			defer ticker.Stop()
+			for range ticker.C {
+				rc.collectOnce()
+			}
+		}()
+	})
 }

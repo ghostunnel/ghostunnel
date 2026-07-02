@@ -19,6 +19,7 @@ package metrics
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -87,26 +88,38 @@ func (r *Registry) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 // StartPostLoop starts a background goroutine that POSTs the JSON metrics
 // representation to url every interval, replacing go-sq-metrics' publishMetrics.
 // It backs --metrics-url.
+//
+// The goroutine runs for the remaining lifetime of the process by design:
+// Ghostunnel starts at most one post loop at startup and never tears it down
+// before exit, so there is deliberately no stop mechanism.
 func (r *Registry) StartPostLoop(url string, client *http.Client, interval time.Duration, logger Logger) {
 	go func() {
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for range ticker.C {
-			if err := r.postOnce(url, client); err != nil && err != io.EOF {
+			if err := r.postOnce(url, client); err != nil {
 				logger.Printf("error reporting metrics: %s", err)
 			}
 		}
 	}()
 }
 
+// postOnce sends one metrics snapshot. A reachable receiver that rejects the
+// payload (non-2xx) is a failed report, not a success, so the status code is
+// checked and surfaced.
 func (r *Registry) postOnce(url string, client *http.Client) error {
 	raw, err := r.jsonBytes()
 	if err != nil {
 		return err
 	}
 	resp, err := client.Post(url, "application/json", bytes.NewReader(raw))
-	if resp != nil {
-		defer resp.Body.Close()
+	if err != nil {
+		return err
 	}
-	return err
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return fmt.Errorf("metrics receiver returned %s", resp.Status)
+	}
+	return nil
 }

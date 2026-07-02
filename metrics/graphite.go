@@ -35,7 +35,11 @@ import (
 // Durations are reported in nanoseconds (DurationUnit was time.Nanosecond).
 // Every value is rendered with gval in its shortest exact decimal form;
 // line order is not significant.
-func (r *Registry) writeGraphite(w io.Writer, now int64) {
+//
+// The returned error is the first write error, if any: bufio.Writer latches
+// the first failure and returns it from Flush, so a partial write can never
+// be reported as success.
+func (r *Registry) writeGraphite(w io.Writer, now int64) error {
 	s := r.snapshot()
 	bw := bufio.NewWriter(w)
 
@@ -61,7 +65,7 @@ func (r *Registry) writeGraphite(w io.Writer, now int64) {
 		line(t.dotted, "95-percentile", t.p95)
 		line(t.dotted, "99-percentile", t.p99)
 	}
-	_ = bw.Flush()
+	return bw.Flush()
 }
 
 // gval renders a metric value in its shortest exact decimal form (e.g. 3, 20,
@@ -73,6 +77,10 @@ func gval(f float64) string {
 // StartGraphitePush starts a background goroutine that connects to a Graphite
 // server at addr and flushes the metrics snapshot every interval over raw TCP,
 // replacing cyberdelia/go-metrics-graphite. It backs --metrics-graphite.
+//
+// The goroutine runs for the remaining lifetime of the process by design:
+// Ghostunnel starts at most one push loop at startup and never tears it down
+// before exit, so there is deliberately no stop mechanism.
 func (r *Registry) StartGraphitePush(addr *net.TCPAddr, interval time.Duration, logger Logger) {
 	go func() {
 		ticker := time.NewTicker(interval)
@@ -91,6 +99,5 @@ func (r *Registry) graphiteFlush(addr *net.TCPAddr) error {
 		return err
 	}
 	defer conn.Close()
-	r.writeGraphite(conn, time.Now().Unix())
-	return nil
+	return r.writeGraphite(conn, time.Now().Unix())
 }
