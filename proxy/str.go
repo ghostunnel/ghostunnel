@@ -41,8 +41,9 @@ func connStatsString(forwarded, returned int64, open time.Duration) string {
 
 func peerCertificatesString(conn net.Conn) string {
 	if tlsConn, ok := conn.(*tls.Conn); ok {
-		if len(tlsConn.ConnectionState().PeerCertificates) > 0 {
-			return tlsConn.ConnectionState().PeerCertificates[0].Subject.String()
+		state := tlsConn.ConnectionState()
+		if len(state.PeerCertificates) > 0 {
+			return state.PeerCertificates[0].Subject.String()
 		}
 
 		return "no cert"

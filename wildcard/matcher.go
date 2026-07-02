@@ -196,5 +196,5 @@ loop:
 
 // Matches checks if the given input matches the compiled pattern.
 func (rm regexpMatcher) Matches(input string) bool {
-	return rm.pattern.Match([]byte(input))
+	return rm.pattern.MatchString(input)
 }
