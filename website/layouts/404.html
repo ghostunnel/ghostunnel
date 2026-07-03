@@ -1,0 +1,16 @@
+{{ define "main" }}
+<div class="home-hero error-hero">
+  <div class="hero-mist"></div>
+  <div class="hero-mist hero-mist--alt"></div>
+  <div class="hero-inner">
+    <div class="ghost-hero">{{ partial "ghost-logo.html" }}</div>
+    <p class="error-code">404</p>
+    <h1>This page has vanished</h1>
+    <p class="tagline">The page you're looking for doesn't exist or may have moved.</p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="{{ "/" | relURL }}">Go home</a>
+      <a class="btn btn-secondary" href="{{ "docs/" | relURL }}">Browse docs</a>
+    </div>
+  </div>
+</div>
+{{ end }}

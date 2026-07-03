@@ -1420,3 +1420,35 @@ a:hover {
     transform: none;
   }
 }
+
+/* === 404 page === */
+
+/* Reuses the .home-hero dark panel (mist, ghost glow, buttons);
+   flex-centers the content within roughly the space left over
+   after the nav, container padding, and footer. */
+.error-hero .hero-inner {
+  min-height: calc(100vh - 16rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+}
+
+.error-code {
+  font-family: var(--font-mono);
+  font-size: clamp(4rem, 12vw, 6rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  color: var(--accent-bright);
+  text-shadow: 0 0 30px var(--ghost-glow);
+  margin-bottom: 0.75rem;
+}
+
+/* Same specificity as the .home-hero h1 rules, but later in the
+   file, so this smaller size wins at all viewport widths. */
+.error-hero h1 {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
