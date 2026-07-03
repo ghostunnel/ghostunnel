@@ -1451,6 +1451,7 @@ a:hover {
 .error-hero h1 {
   font-size: 2rem;
   margin-bottom: 0.5rem;
+}
 
 /* === Copy-to-clipboard buttons === */
 .copy-btn {
@@ -1652,6 +1653,7 @@ a:hover {
   .prev-next-link:hover {
     transform: none;
   }
+}
 
 /* === Edit on GitHub link === */
 .edit-page {
