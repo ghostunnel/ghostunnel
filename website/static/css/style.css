@@ -1451,4 +1451,111 @@ a:hover {
 .error-hero h1 {
   font-size: 2rem;
   margin-bottom: 0.5rem;
+
+/* === Copy-to-clipboard buttons === */
+.copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0.25rem;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  line-height: 0;
+  color: inherit;
+  transition: color 0.15s ease, background 0.15s ease, opacity 0.15s ease;
+}
+
+.copy-btn svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.copy-btn:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 1px;
+}
+
+/* In-bar buttons (terminal / editor frames) */
+.copy-btn--bar {
+  margin-left: auto;
+  align-self: center;
+}
+
+/* Dark terminal bars: subtle faint ink, brightens on hover */
+.terminal .copy-btn--bar {
+  color: var(--ink-text-faint);
+}
+
+.terminal .copy-btn--bar:hover,
+.terminal .copy-btn--bar:focus-visible {
+  color: var(--ink-text-bright);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.terminal .copy-btn--bar.copied,
+.terminal .copy-btn--bar.copied:hover {
+  color: var(--accent-bright);
+}
+
+/* Windows terminal bar: controls already sit at the right edge */
+.terminal--windows .copy-btn--bar {
+  margin-left: 0;
+  margin-right: 0.6rem;
+}
+
+/* Light editor bars */
+.editor .copy-btn--bar {
+  margin-right: 0.5rem;
+  color: var(--text-muted);
+}
+
+.editor .copy-btn--bar:hover,
+.editor .copy-btn--bar:focus-visible {
+  color: var(--accent);
+  background: var(--accent-faint);
+}
+
+.editor .copy-btn--bar.copied,
+.editor .copy-btn--bar.copied:hover {
+  color: var(--accent);
+}
+
+/* Floating buttons on plain <pre><code> blocks */
+.copy-wrap {
+  position: relative;
+}
+
+.copy-btn--floating {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  padding: 0.3rem;
+  background: var(--bg-card);
+  border: 1px solid var(--code-border);
+  color: var(--text-muted);
+  box-shadow: var(--shadow-sm);
+  /* Visible (dimmed) by default so touch users can find it; full
+     opacity on hover/focus for pointer users. */
+  opacity: 0.45;
+}
+
+.copy-wrap:hover .copy-btn--floating,
+.copy-btn--floating:hover,
+.copy-btn--floating:focus-visible,
+.copy-btn--floating.copied {
+  opacity: 1;
+}
+
+.copy-btn--floating:hover,
+.copy-btn--floating:focus-visible {
+  color: var(--accent);
+  border-color: var(--border-hover);
+}
+
+.copy-btn--floating.copied,
+.copy-btn--floating.copied:hover {
+  color: var(--accent);
 }
