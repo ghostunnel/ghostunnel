@@ -8,21 +8,23 @@ on:
       - "website/**"
       - "docs/**"
       - "releases/**"
+  pull_request:
+    paths:
+      - "website/**"
+      - "docs/**"
+      - "releases/**"
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
 concurrency:
-  group: pages
+  group: pages-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -45,6 +47,7 @@ jobs:
       - name: Index site for search
         run: npx --yes pagefind --site website/public
       - name: Upload artifact
+        if: github.event_name == 'push'
         uses: actions/upload-pages-artifact@v5
         with:
           path: website/public
@@ -52,7 +55,12 @@ jobs:
   deploy:
     name: Deploy
     needs: build
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
