@@ -5,6 +5,7 @@
   <article class="content">
     <h1>{{ .Title }}</h1>
     {{ .Content }}
+    {{ partial "prev-next.html" . }}
   </article>
 </div>
 {{ else }}
