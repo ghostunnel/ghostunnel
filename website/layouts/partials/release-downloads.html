@@ -2,7 +2,7 @@
   Renders the static "Downloads" bar for a featured release.
 
   Context: the release page (uses .Title for the release tag and
-  .Site.Data.binaries for the binary matrix).
+  hugo.Data.binaries for the binary matrix).
 
   Entries in data/binaries.yaml are ordered oldest-first, and each entry
   applies from its "from" version onward. Featured releases are always
@@ -11,7 +11,7 @@
   Note: intentionally no data-tag attribute — static/js/release-downloads.js
   only rewrites ".release-downloads[data-tag]" containers.
 */ -}}
-{{- $binaries := .Site.Data.binaries -}}
+{{- $binaries := hugo.Data.binaries -}}
 {{- $latest := index $binaries (sub (len $binaries) 1) -}}
 <div class="release-downloads">
   <div class="download-bar">
