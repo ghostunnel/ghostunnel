@@ -46,8 +46,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Index site for search
         run: npx --yes pagefind --site website/public
+      - name: Check internal links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --offline --root-dir ${{ github.workspace }}/website/public --include-fragments "website/public/**/*.html"
+          fail: true
       - name: Upload artifact
-        if: github.event_name == 'push'
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v5
         with:
           path: website/public
@@ -55,7 +60,7 @@ jobs:
   deploy:
     name: Deploy
     needs: build
-    if: github.event_name == 'push'
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
