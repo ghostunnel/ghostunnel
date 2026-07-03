@@ -1652,4 +1652,27 @@ a:hover {
   .prev-next-link:hover {
     transform: none;
   }
+
+/* === Edit on GitHub link === */
+.edit-page {
+  margin-top: 3rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.edit-page a {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.edit-page a:hover {
+  color: var(--accent);
+}
+
+.edit-page .icon {
+  width: 0.9em;
+  height: 0.9em;
+  vertical-align: middle;
+  margin-right: 0.35em;
 }
