@@ -1,0 +1,25 @@
+{{- /*
+  Renders the static "Downloads" bar for a featured release.
+
+  Context: the release page (uses .Title for the release tag and
+  .Site.Data.binaries for the binary matrix).
+
+  Entries in data/binaries.yaml are ordered oldest-first, and each entry
+  applies from its "from" version onward. Featured releases are always
+  the newest, so the last entry's asset list applies here.
+
+  Note: intentionally no data-tag attribute — static/js/release-downloads.js
+  only rewrites ".release-downloads[data-tag]" containers.
+*/ -}}
+{{- $binaries := .Site.Data.binaries -}}
+{{- $latest := index $binaries (sub (len $binaries) 1) -}}
+<div class="release-downloads">
+  <div class="download-bar">
+    <span class="download-label">Downloads</span>
+    <span class="download-items">
+      {{- range $latest.assets }}
+      <a class="download-link" href="https://github.com/ghostunnel/ghostunnel/releases/download/{{ $.Title }}/{{ .file }}"><span class="download-os">{{ .os }}</span> <span class="download-arch">{{ .arch }}</span></a>
+      {{- end }}
+    </span>
+  </div>
+</div>

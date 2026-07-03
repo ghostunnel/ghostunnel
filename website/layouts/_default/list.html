@@ -70,19 +70,7 @@
     <div class="release-body">
       {{ partial "linkify-prs.html" $p.Content }}
     </div>
-    <div class="release-downloads">
-      <div class="download-bar">
-        <span class="download-label">Downloads</span>
-        <span class="download-items">
-          <a class="download-link" href="https://github.com/ghostunnel/ghostunnel/releases/download/{{ $p.Title }}/ghostunnel-linux-amd64"><span class="download-os">Linux</span> <span class="download-arch">x86_64</span></a>
-          <a class="download-link" href="https://github.com/ghostunnel/ghostunnel/releases/download/{{ $p.Title }}/ghostunnel-linux-arm64"><span class="download-os">Linux</span> <span class="download-arch">ARM64</span></a>
-          <a class="download-link" href="https://github.com/ghostunnel/ghostunnel/releases/download/{{ $p.Title }}/ghostunnel-darwin-amd64"><span class="download-os">macOS</span> <span class="download-arch">x86_64</span></a>
-          <a class="download-link" href="https://github.com/ghostunnel/ghostunnel/releases/download/{{ $p.Title }}/ghostunnel-darwin-arm64"><span class="download-os">macOS</span> <span class="download-arch">ARM64</span></a>
-          <a class="download-link" href="https://github.com/ghostunnel/ghostunnel/releases/download/{{ $p.Title }}/ghostunnel-darwin-universal"><span class="download-os">macOS</span> <span class="download-arch">Universal</span></a>
-          <a class="download-link" href="https://github.com/ghostunnel/ghostunnel/releases/download/{{ $p.Title }}/ghostunnel-windows-amd64.exe"><span class="download-os">Windows</span> <span class="download-arch">x86_64</span></a>
-        </span>
-      </div>
-    </div>
+    {{ partial "release-downloads.html" $p }}
   </div>
   {{ end }}
   {{/* Render latest stable */}}
@@ -102,19 +90,7 @@
     <div class="release-body">
       {{ partial "linkify-prs.html" $p.Content }}
     </div>
-    <div class="release-downloads">
-      <div class="download-bar">
-        <span class="download-label">Downloads</span>
-        <span class="download-items">
-          <a class="download-link" href="https://github.com/ghostunnel/ghostunnel/releases/download/{{ $p.Title }}/ghostunnel-linux-amd64"><span class="download-os">Linux</span> <span class="download-arch">x86_64</span></a>
-          <a class="download-link" href="https://github.com/ghostunnel/ghostunnel/releases/download/{{ $p.Title }}/ghostunnel-linux-arm64"><span class="download-os">Linux</span> <span class="download-arch">ARM64</span></a>
-          <a class="download-link" href="https://github.com/ghostunnel/ghostunnel/releases/download/{{ $p.Title }}/ghostunnel-darwin-amd64"><span class="download-os">macOS</span> <span class="download-arch">x86_64</span></a>
-          <a class="download-link" href="https://github.com/ghostunnel/ghostunnel/releases/download/{{ $p.Title }}/ghostunnel-darwin-arm64"><span class="download-os">macOS</span> <span class="download-arch">ARM64</span></a>
-          <a class="download-link" href="https://github.com/ghostunnel/ghostunnel/releases/download/{{ $p.Title }}/ghostunnel-darwin-universal"><span class="download-os">macOS</span> <span class="download-arch">Universal</span></a>
-          <a class="download-link" href="https://github.com/ghostunnel/ghostunnel/releases/download/{{ $p.Title }}/ghostunnel-windows-amd64.exe"><span class="download-os">Windows</span> <span class="download-arch">x86_64</span></a>
-        </span>
-      </div>
-    </div>
+    {{ partial "release-downloads.html" $p }}
   </div>
   {{/* Render older releases (everything not featured) */}}
   {{ $older := where $allPages ".File.Path" "not in" $featured }}
