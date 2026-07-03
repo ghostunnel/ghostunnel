@@ -2,7 +2,7 @@
 {{ if eq .Section "docs" }}
 <div class="with-sidebar">
   {{ partial "sidebar.html" . }}
-  <article class="content">
+  <article class="content" data-pagefind-body>
     <h1>{{ .Title }}</h1>
     {{ .Content }}
     {{ with .File }}

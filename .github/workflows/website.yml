@@ -42,6 +42,8 @@ jobs:
         run: go tool mage website:build
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Index site for search
+        run: npx --yes pagefind --site website/public
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
         with:

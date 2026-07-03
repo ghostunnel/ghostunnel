@@ -1676,3 +1676,42 @@ a:hover {
   vertical-align: middle;
   margin-right: 0.35em;
 }
+
+/* === Docs search (Pagefind) === */
+#search {
+  --pagefind-ui-scale: 0.7;
+  --pagefind-ui-primary: var(--accent);
+  --pagefind-ui-text: var(--text);
+  --pagefind-ui-background: var(--bg);
+  --pagefind-ui-border: var(--border-hover);
+  --pagefind-ui-tag: var(--accent-faint);
+  --pagefind-ui-border-width: 1px;
+  --pagefind-ui-border-radius: 6px;
+  --pagefind-ui-font: var(--font-sans);
+  margin-bottom: 1rem;
+}
+
+#search .pagefind-ui__search-input {
+  background: var(--bg-card);
+  font-weight: 400;
+}
+
+#search .pagefind-ui__search-input::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+#search .pagefind-ui__result-link {
+  color: var(--link);
+}
+
+#search .pagefind-ui__result-excerpt mark {
+  background: rgba(14, 138, 158, 0.18);
+  color: var(--text-heading);
+  border-radius: 2px;
+}
+
+#search .pagefind-ui__button {
+  background: var(--bg-card);
+  color: var(--accent);
+}
