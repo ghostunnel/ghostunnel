@@ -3,7 +3,7 @@ name: Compile
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, next ]
   pull_request:
     branches: [ master ]
   workflow_dispatch:
