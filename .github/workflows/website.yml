@@ -45,9 +45,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Index site for search
-        run: npx --yes pagefind --site website/public
+        run: npx --yes pagefind@1.5.2 --site website/public
       - name: Check internal links
-        uses: lycheeverse/lychee-action@v2
+        uses: lycheeverse/lychee-action@8646ba30535128ac92d33dfc9133794bfdd9b411 # v2.8.0
         with:
           args: --offline --root-dir ${{ github.workspace }}/website/public --include-fragments "website/public/**/*.html"
           fail: true
