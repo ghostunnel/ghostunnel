@@ -542,6 +542,13 @@ func setupMetrics() (*metrics.Metrics, *metrics.Registry, error) {
 		return metrics.NilMetrics(), nil, nil
 	}
 
+	// The interval drives time.NewTicker in the runtime collector and push
+	// loops, which panics on a non-positive duration. Reject it here with a
+	// clear error rather than crashing at startup.
+	if *metricsInterval <= 0 {
+		return nil, nil, fmt.Errorf("--metrics-interval must be positive, got %s", *metricsInterval)
+	}
+
 	// The registry owns the single prometheus-backed registry and the three
 	// export sinks (JSON pull, Graphite push, native Prometheus). The returned
 	// Metrics drive the connection hot path with live handles on the registry.
@@ -567,6 +574,10 @@ func setupMetrics() (*metrics.Metrics, *metrics.Registry, error) {
 		}
 
 		client := &http.Client{
+			// Bound the POST to a single interval so a hung receiver can't
+			// stall the push loop indefinitely (a request that outlives its
+			// cycle is already stalling).
+			Timeout: *metricsInterval,
 			Transport: &http.Transport{
 				TLSClientConfig: &tls.Config{
 					MinVersion: tls.VersionTLS12,

@@ -93,11 +93,19 @@ func (r *Registry) StartGraphitePush(addr *net.TCPAddr, interval time.Duration, 
 	}()
 }
 
+// graphiteTimeout bounds a single flush (dial + write). A firewalled or dead
+// endpoint would otherwise block the push goroutine for the OS-level SYN or
+// TCP-retransmit timeout (potentially minutes), silently dropping metrics.
+const graphiteTimeout = 10 * time.Second
+
 func (r *Registry) graphiteFlush(addr *net.TCPAddr) error {
-	conn, err := net.DialTCP("tcp", nil, addr)
+	conn, err := net.DialTimeout("tcp", addr.String(), graphiteTimeout)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
+	if err := conn.SetDeadline(time.Now().Add(graphiteTimeout)); err != nil {
+		return err
+	}
 	return r.writeGraphite(conn, time.Now().Unix())
 }

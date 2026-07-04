@@ -64,8 +64,8 @@ type ACL struct {
 	AllowedURIs []wildcard.Matcher
 
 	// AllowOPAQuery defines a rego precompiled query, ready to be verified
-	// against the client certificate. This is exclusive with all other
-	// options.
+	// against the client certificate. It may be combined with the other allow
+	// options; access is granted if any of them matches (logical OR).
 	AllowOPAQuery policy.Policy
 
 	// OPAQueryTimeout sets the timeout for AllowOPAQuery. It has no effect
