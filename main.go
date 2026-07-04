@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -573,21 +574,26 @@ func setupMetrics() (*metrics.Metrics, *metrics.Registry, error) {
 			return nil, nil, fmt.Errorf("unable to build TLS config for metrics POST client: %w", err)
 		}
 
-		client := &http.Client{
-			// Bound the POST to a single interval so a hung receiver can't
-			// stall the push loop indefinitely (a request that outlives its
-			// cycle is already stalling).
-			Timeout: *metricsInterval,
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					MinVersion: tls.VersionTLS12,
-					RootCAs:    ca,
-				},
-			},
-		}
+		client := newMetricsPostClient(ca, *metricsInterval)
 		registry.StartPostLoop(*metricsURL, client, *metricsInterval, logger)
 	}
 	return proxyMetrics, registry, nil
+}
+
+// newMetricsPostClient builds the HTTP client used to POST metrics to
+// --metrics-url. The timeout bounds each POST to a single interval so a hung
+// receiver can't stall the push loop indefinitely (a request that outlives its
+// cycle is already stalling).
+func newMetricsPostClient(ca *x509.CertPool, timeout time.Duration) *http.Client {
+	return &http.Client{
+		Timeout: timeout,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				MinVersion: tls.VersionTLS12,
+				RootCAs:    ca,
+			},
+		},
+	}
 }
 
 func main() {

@@ -104,8 +104,15 @@ func (r *Registry) graphiteFlush(addr *net.TCPAddr) error {
 		return err
 	}
 	defer conn.Close()
-	if err := conn.SetDeadline(time.Now().Add(graphiteTimeout)); err != nil {
+	return r.writeGraphiteConn(conn, graphiteTimeout, time.Now().Unix())
+}
+
+// writeGraphiteConn sets a deadline bounding the whole write, then renders the
+// snapshot to conn. Split out from graphiteFlush so the deadline behavior can
+// be exercised against an unread connection without a live Graphite server.
+func (r *Registry) writeGraphiteConn(conn net.Conn, timeout time.Duration, now int64) error {
+	if err := conn.SetDeadline(time.Now().Add(timeout)); err != nil {
 		return err
 	}
-	return r.writeGraphite(conn, time.Now().Unix())
+	return r.writeGraphite(conn, now)
 }

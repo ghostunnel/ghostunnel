@@ -157,6 +157,9 @@ func TestGraphitePush(t *testing.T) {
 			sb.WriteString(sc.Text())
 			sb.WriteString("\n")
 		}
+		if err := sc.Err(); err != nil {
+			return
+		}
 		select {
 		case lines <- sb.String():
 		default:
@@ -174,5 +177,31 @@ func TestGraphitePush(t *testing.T) {
 		assert.NotContains(t, out, "count_ps")
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for graphite flush")
+	}
+}
+
+// TestGraphiteWriteConnHonorsDeadline verifies writeGraphiteConn bounds the
+// write with a deadline: a peer that accepts the connection but never reads
+// must yield a timeout error rather than blocking forever. net.Pipe is
+// synchronous, so the buffered flush blocks until the deadline fires.
+func TestGraphiteWriteConnHonorsDeadline(t *testing.T) {
+	r, _ := fixture(t)
+
+	client, server := net.Pipe()
+	defer client.Close()
+	defer server.Close()
+	// server is never read from, so the write on client blocks until the
+	// deadline.
+
+	done := make(chan error, 1)
+	start := time.Now()
+	go func() { done <- r.writeGraphiteConn(client, 20*time.Millisecond, 1700000000) }()
+
+	select {
+	case err := <-done:
+		require.Error(t, err, "an unread peer must surface a deadline error")
+		assert.Less(t, time.Since(start), 2*time.Second, "writeGraphiteConn must return promptly, not hang")
+	case <-time.After(5 * time.Second):
+		t.Fatal("writeGraphiteConn did not honor the deadline")
 	}
 }
