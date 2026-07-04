@@ -562,7 +562,7 @@ func setupMetrics() (*metrics.Metrics, *metrics.Registry, error) {
 
 	if *metricsGraphite != nil {
 		logger.Printf("metrics enabled; reporting metrics via TCP to %s", *metricsGraphite)
-		registry.StartGraphitePush(*metricsGraphite, 1*time.Second, logger)
+		registry.StartGraphitePush(*metricsGraphite, *metricsInterval, logger)
 	}
 
 	if *metricsURL != "" {

@@ -104,7 +104,7 @@ func (rc *runtimeCollector) collectOnce() {
 		start = mem.NumGC - 256
 	}
 	for i := start; i < mem.NumGC; i++ {
-		rc.gcDuration.observeNanos(int64(mem.PauseNs[(i+1)%256]))
+		rc.gcDuration.observeNanos(int64(mem.PauseNs[i%256]))
 	}
 	rc.observedPauses = mem.NumGC
 }
