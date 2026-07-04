@@ -210,7 +210,11 @@ func TestPrometheusNative(t *testing.T) {
 		}
 	}
 	assert.True(t, hasGo, "go_* collectors registered")
-	assert.True(t, hasProcess, "process_* collectors registered")
+	// The process_* collector reads from /proc, which FreeBSD does not mount by
+	// default, so those metrics are absent there (the collector no-ops silently).
+	if runtime.GOOS != "freebsd" {
+		assert.True(t, hasProcess, "process_* collectors registered")
+	}
 
 	// The summary carries _sum, _count and the four quantiles; no std_dev/variance/rate.
 	body := renderProm(t, r)
