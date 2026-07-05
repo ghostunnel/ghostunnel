@@ -11,6 +11,24 @@ on:
   workflow_dispatch:
 
 jobs:
+  test-race:
+    # The race detector is incompatible with the -covermode=count
+    # instrumentation the main test jobs use, so it gets its own job. Several
+    # tests (cached TLS configs, timer CAS loops, runtime-collector
+    # registration) only have teeth under -race.
+    name: Tests (race detector)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: false
+      - name: Run tests with race detector
+        run: go tool mage -v test:race
+
   test:
     name: Tests
     strategy:

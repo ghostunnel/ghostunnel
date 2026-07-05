@@ -126,22 +126,24 @@ format (see below).
 ## JSON format (`/_metrics/json`)
 
 JSON output uses dot-separated names. Counters and gauges are emitted as a
-single value. Timers are expanded into count, min/max/mean, and percentile
-sub-metrics. This format is **unchanged** across the v1.11.1 metrics-backend
-migration (see the [Prometheus format](#prometheus-format-_metricsprometheus)
-section below):
+single value. Timers are expanded into count, mean, and percentile sub-metrics.
+
+> **Changed in v1.11.1.** The per-timer `min` and `max` sub-metrics were
+> removed as part of the histogram migration (see the
+> [Prometheus format](#prometheus-format-_metricsprometheus) and
+> [migration note](#migration-note-v1111) below). The percentiles are now
+> computed by interpolating the timer's histogram buckets, so their values are
+> estimates whose precision depends on the bucket layout.
 
 | JSON metric name | Description |
 |------------------|-------------|
 | `ghostunnel.conn.open` | Gauge value |
 | `ghostunnel.conn.handshake.count` | Number of observations |
-| `ghostunnel.conn.handshake.min` | Minimum value |
-| `ghostunnel.conn.handshake.max` | Maximum value |
 | `ghostunnel.conn.handshake.mean` | Mean value |
-| `ghostunnel.conn.handshake.50-percentile` | 50th percentile (median) |
-| `ghostunnel.conn.handshake.75-percentile` | 75th percentile |
-| `ghostunnel.conn.handshake.95-percentile` | 95th percentile |
-| `ghostunnel.conn.handshake.99-percentile` | 99th percentile |
+| `ghostunnel.conn.handshake.50-percentile` | 50th percentile (median), bucket-interpolated |
+| `ghostunnel.conn.handshake.75-percentile` | 75th percentile, bucket-interpolated |
+| `ghostunnel.conn.handshake.95-percentile` | 95th percentile, bucket-interpolated |
+| `ghostunnel.conn.handshake.99-percentile` | 99th percentile, bucket-interpolated |
 
 Each metric is returned as a JSON object with `timestamp`, `metric`, `value`,
 and `hostname` fields.
@@ -163,19 +165,24 @@ underscores to comply with Prometheus naming conventions.
 
 Counters are exposed as Prometheus counters, `conn.open` as a gauge, and timers
 as native Prometheus
-[summaries](https://prometheus.io/docs/concepts/metric_types/#summary) (with
-`{quantile="0.5"|"0.75"|"0.95"|"0.99"}` series plus `_sum`/`_count`):
+[histograms](https://prometheus.io/docs/concepts/metric_types/#histogram) (with
+`_bucket{le="..."}` series plus `_sum`/`_count`):
 
 | Prometheus metric name | Description |
 |------------------------|-------------|
 | `ghostunnel_conn_open` | Current open connections (gauge) |
 | `ghostunnel_accept_total` | Total connection attempts accepted (counter) |
-| `ghostunnel_conn_handshake{quantile="0.5"}` | 50th percentile of handshake duration |
-| `ghostunnel_conn_handshake{quantile="0.75"}` | 75th percentile |
-| `ghostunnel_conn_handshake{quantile="0.95"}` | 95th percentile |
-| `ghostunnel_conn_handshake{quantile="0.99"}` | 99th percentile |
+| `ghostunnel_conn_handshake_bucket{le="..."}` | Cumulative count of handshakes ≤ the bucket boundary (nanoseconds) |
 | `ghostunnel_conn_handshake_sum` | Sum of observed handshake durations |
 | `ghostunnel_conn_handshake_count` | Number of observations |
+
+Compute percentiles from a histogram at query time with
+[`histogram_quantile`](https://prometheus.io/docs/prometheus/latest/querying/functions/#histogram_quantile),
+e.g. `histogram_quantile(0.99, rate(ghostunnel_conn_handshake_bucket[5m]))` for
+a windowed p99. Each timer is also emitted as a
+[native (exponential) histogram](https://prometheus.io/docs/specs/native_histograms/),
+so scrapers that negotiate it get an auto-scaling representation in addition to
+the classic `_bucket` series above.
 
 The standard `go_*` and `process_*` collectors from
 [`client_golang`](https://github.com/prometheus/client_golang) are also
@@ -206,35 +213,41 @@ gauges, and a histogram:
 
 ### Migration note (v1.11.1)
 
-The v1.11.1 backend change affects Prometheus and Graphite consumers. Metric
-*names* are unchanged, and **JSON** output (`/_metrics/json`, `/_metrics`,
-`--metrics-url`) is identical before and after. Only the per-timer sub-fields on
-the Prometheus and Graphite outputs changed, as summarized below (using
-`conn.handshake` as the example timer).
+The v1.11.1 backend change affects Prometheus, Graphite, and JSON consumers.
+Metric *names* are unchanged. Only the per-timer sub-fields changed, as
+summarized below (using `conn.handshake` as the example timer).
 
-**Prometheus** timers are now native summaries instead of flat gauges:
+**Prometheus** timers are now native histograms instead of flat gauges:
 
 | Field | Kept in v1.11.1 |
 |-------|:---------------:|
 | `_count`, `_sum` | ✅ |
-| `{quantile="0.5"}` … `{quantile="0.99"}` | ✅ (new) |
-| `_min`, `_max`, `_mean` | ❌ (still on JSON/Graphite) |
+| `_bucket{le="..."}` | ✅ (new) |
+| native (exponential) histogram | ✅ (new) |
+| `_min`, `_max`, `_mean` | ❌ |
 | `_std_dev`, `_variance` | ❌ |
 | `_rate1`, `_rate5`, `_rate15`, `_rate_mean` | ❌ |
-| `_timer_bucket{le="..."}`, `_timer_count` | ❌ |
+| `_timer_bucket{le="..."}`, `_timer_count` | ❌ (renamed to `_bucket`/`_count`) |
 
-**Graphite** timers keep the base statistics and percentiles:
+**Graphite** and **JSON** timers keep count, mean, and percentiles, but `min`
+and `max` were removed:
 
 | Field | Kept in v1.11.1 |
 |-------|:---------------:|
-| `count`, `min`, `max`, `mean` | ✅ |
-| `50/75/95/99-percentile` | ✅ |
+| `count`, `mean` | ✅ |
+| `50/75/95/99-percentile` | ✅ (now bucket-interpolated) |
+| `min`, `max` | ❌ (removed) |
 | `std-dev`, `999-percentile` | ❌ |
 | `count_ps`, `one-minute`, `five-minute`, `fifteen-minute`, `mean-rate` | ❌ |
 
-Preserved percentile *values* may differ slightly: the previous backend used
-an exponentially-decaying reservoir, while summaries use a sliding-window
-quantile estimator. Same fields, statistically equivalent numbers.
+Preserved percentile *values* may differ from the old backend: the previous
+`rcrowley/go-metrics` timer used an exponentially-decaying reservoir, whereas
+the percentiles are now interpolated from the histogram's buckets (the same
+method as PromQL's `histogram_quantile`). Their precision therefore depends on
+the bucket layout, and an estimate above the highest configured bucket boundary
+is reported at that boundary. For exact, aggregatable percentiles, scrape the
+Prometheus endpoint and use `histogram_quantile` instead of the Graphite/JSON
+sinks.
 
 ### Prometheus scrape config
 
