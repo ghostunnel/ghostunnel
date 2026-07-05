@@ -65,6 +65,13 @@ func proxyForTestWithProxyProtocol(listener net.Listener, dialer DialFunc) *Prox
 	return New(listener, 5*time.Second, 5*time.Second, 5*time.Second, 1, dialer, &testLogger{}, LogEverything, ProxyProtocolConn, nil)
 }
 
+// Counter readers for tests that exercise New(nil), which records to the
+// package-level defaultMetrics/defaultRegistry. Prometheus counters are
+// monotonic and cannot be reset, so these tests assert on before/after deltas.
+func errorCount() int64       { v, _ := defaultRegistry.SingleValue("accept.error"); return v }
+func successCount() int64     { v, _ := defaultRegistry.SingleValue("accept.success"); return v }
+func connTimeoutCount() int64 { v, _ := defaultRegistry.SingleValue("conn.timeout"); return v }
+
 func TestAbortedConnection(t *testing.T) {
 	p := proxyForTest(&failingListener{}, nil)
 
@@ -72,9 +79,9 @@ func TestAbortedConnection(t *testing.T) {
 	go p.Accept()
 	defer p.Shutdown()
 
-	errorCounter.Clear()
+	before := errorCount()
 	for range 10 {
-		if errorCounter.Count() != 0 {
+		if errorCount() > before {
 			return
 		}
 		time.Sleep(1 * time.Second)
@@ -518,8 +525,9 @@ func TestBackendDialError(t *testing.T) {
 
 	// Regression: dial failure must be recorded as an error, not silently
 	// dropped (accept.total would otherwise diverge from success+error).
-	errorCounter.Clear()
-	successCounter.Clear()
+	// Prometheus counters are monotonic, so assert on before/after deltas.
+	errBefore := errorCount()
+	successBefore := successCount()
 
 	p := proxyForTest(ln, dialer)
 	go p.Accept()
@@ -548,8 +556,8 @@ func TestBackendDialError(t *testing.T) {
 	p.Wait()
 
 	// After Wait() the handler goroutine has drained, so counters are settled.
-	assert.Equal(t, int64(1), errorCounter.Count(), "backend dial failure must increment accept.error")
-	assert.Equal(t, int64(0), successCounter.Count(), "backend dial failure must not increment accept.success")
+	assert.Equal(t, int64(1), errorCount()-errBefore, "backend dial failure must increment accept.error")
+	assert.Equal(t, int64(0), successCount()-successBefore, "backend dial failure must not increment accept.success")
 }
 
 func TestCopyData(t *testing.T) {
@@ -952,9 +960,9 @@ func TestCopyDataErrorClassification(t *testing.T) {
 		defer dst.Close()
 
 		p, logs := newCapturingProxy(LogConnectionErrors)
-		before := connTimeoutCounter.Count()
+		before := connTimeoutCount()
 		written := p.copyData(dst, src)
-		after := connTimeoutCounter.Count()
+		after := connTimeoutCount()
 
 		assert.Equal(t, int64(5), written, "payload should be copied before the error")
 		assert.Equal(t, 1, countCopyErrorLogs(*logs), "real I/O error must be logged once")
@@ -979,9 +987,9 @@ func TestCopyDataErrorClassification(t *testing.T) {
 		defer dst.Close()
 
 		p, logs := newCapturingProxy(LogConnectionErrors)
-		before := connTimeoutCounter.Count()
+		before := connTimeoutCount()
 		_ = p.copyData(dst, src)
-		after := connTimeoutCounter.Count()
+		after := connTimeoutCount()
 
 		assert.Equal(t, int64(1), after-before, "timeout must bump connTimeoutCounter")
 		assert.Equal(t, 1, countCopyErrorLogs(*logs), "timeout must still be logged")
@@ -993,9 +1001,9 @@ func TestCopyDataErrorClassification(t *testing.T) {
 		defer dst.Close()
 
 		p, logs := newCapturingProxy(LogConnectionErrors)
-		before := connTimeoutCounter.Count()
+		before := connTimeoutCount()
 		_ = p.copyData(dst, src)
-		after := connTimeoutCounter.Count()
+		after := connTimeoutCount()
 
 		assert.Equal(t, 0, countCopyErrorLogs(*logs),
 			"closed-connection errors must be silently suppressed by copyData")
@@ -1826,8 +1834,9 @@ func TestProxyProtocolWriteFailureClosesBackend(t *testing.T) {
 	}
 
 	// Regression: a PROXY header write failure must be recorded as an error.
-	errorCounter.Clear()
-	successCounter.Clear()
+	// Prometheus counters are monotonic, so assert on before/after deltas.
+	errBefore := errorCount()
+	successBefore := successCount()
 
 	// Create proxy with PROXY protocol enabled
 	p := proxyForTestWithProxyProtocol(incoming, dialer)
@@ -1848,6 +1857,6 @@ func TestProxyProtocolWriteFailureClosesBackend(t *testing.T) {
 	// Regression: verify backend connection is closed when PROXY header write fails.
 	assert.True(t, backend.closed, "backend connection must be closed when PROXY protocol header write fails")
 
-	assert.Equal(t, int64(1), errorCounter.Count(), "PROXY header write failure must increment accept.error")
-	assert.Equal(t, int64(0), successCounter.Count(), "PROXY header write failure must not increment accept.success")
+	assert.Equal(t, int64(1), errorCount()-errBefore, "PROXY header write failure must increment accept.error")
+	assert.Equal(t, int64(0), successCount()-successBefore, "PROXY header write failure must not increment accept.success")
 }
