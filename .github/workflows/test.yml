@@ -19,7 +19,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
@@ -37,7 +37,7 @@ jobs:
         run: go tool mage -v test:all
       - name: Codecov upload
         if: ${{ github.actor != 'dependabot[bot]' }}
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           files: ./coverage/all.profile
           flags: ${{ contains(matrix.os, 'ubuntu') && 'linux' || (contains(matrix.os, 'macos') && 'darwin' || 'windows') }}
@@ -53,9 +53,9 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Run tests in FreeBSD VM
-        uses: vmactions/freebsd-vm@a6de9343ef5747433d9c25784c90e84998b9d69a # v1.4.6
+        uses: vmactions/freebsd-vm@5a72679103d223925653750faa878a143340fbd0 # v1.5.0
         with:
           release: '14.3'
           usesh: true
@@ -67,7 +67,7 @@ jobs:
             go tool mage -v test:all
       - name: Codecov upload
         if: ${{ github.actor != 'dependabot[bot]' }}
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           files: ./coverage/all.profile
           flags: freebsd
@@ -85,7 +85,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
@@ -94,7 +94,7 @@ jobs:
       - name: Run tests in Docker
         run: go tool mage -v test:docker
       - name: Codecov upload
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         if: ${{ github.actor != 'dependabot[bot]' }}
         with:
           files: ./coverage/all.profile
