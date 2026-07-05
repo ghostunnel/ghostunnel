@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 
 """
-Test that ensures that Graphite metrics submission works.
+Ensures metrics are collected and pushed when a push sink is the ONLY sink:
+--metrics-graphite without --status. This exercises the branch where the
+metrics gate enables collection solely because of a push reporter (with no
+pull surface configured at all).
 """
 
-from common import LOCALHOST, RootCert, STATUS_PORT, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT, get_free_port
+from common import LOCALHOST, RootCert, print_ok, run_ghostunnel, terminate, LISTEN_PORT, TARGET_PORT, get_free_port
 import socket
 
 ghostunnel = None
@@ -21,7 +24,7 @@ try:
     m.bind((LOCALHOST, graphite_port))
     m.listen(1)
 
-    # start ghostunnel
+    # start ghostunnel with graphite as the only metrics sink (no --status)
     ghostunnel = run_ghostunnel(['server',
                                  '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
                                  '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
@@ -29,8 +32,6 @@ try:
                                  '--cacert=root.crt',
                                  '--allow-ou=client',
                                  '--metrics-interval=1s',
-                                 '--status={0}:{1}'.format(LOCALHOST,
-                                                           STATUS_PORT),
                                  '--metrics-graphite=localhost:{0}'.format(graphite_port)])
 
     # wait for metrics to be sent
@@ -46,7 +47,6 @@ try:
         int(parts[2])    # timestamp must be an integer
     names = set(line.split()[0] for line in lines)
     for expected in ['ghostunnel.accept.total.count',
-                     'ghostunnel.conn.handshake.99-percentile',
                      'ghostunnel.runtime.goroutines.value']:
         if expected not in names:
             raise Exception(

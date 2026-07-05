@@ -43,9 +43,11 @@ go tool mage go:build              # Build binary
 go tool mage go:lint               # Run golangci-lint (config: .golangci.yml)
 go tool mage test:all              # Unit + integration tests with merged coverage
 go tool mage test:unit             # Go unit tests only
+go tool mage test:race             # Go unit tests under the race detector
 go tool mage test:integration      # Python integration tests only
 go tool mage test:docker           # Full suite in Docker (includes PKCS#11/SoftHSM)
 go tool mage test:keys             # Generate test certificates in test-keys/
+go tool mage test:bench            # Go microbenchmarks with allocation stats
 go tool mage docker:build          # Build Docker images
 go tool mage -l                    # List all available targets
 ```
@@ -65,6 +67,19 @@ The project uses golangci-lint with configuration in `.golangci.yml`:
 
 ```bash
 go tool mage go:lint
+```
+
+### Benchmarks
+
+For perf-sensitive changes (connection churn, TLS config caching, accept hot
+path), compare benchmarks against the base branch with benchstat before
+merging:
+
+```bash
+go tool mage test:bench > /tmp/bench-head.txt        # on your branch
+git checkout master
+go tool mage test:bench > /tmp/bench-base.txt        # on the base
+benchstat /tmp/bench-base.txt /tmp/bench-head.txt
 ```
 
 ### Viewing Coverage
