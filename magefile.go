@@ -511,6 +511,16 @@ func (Test) Unit(ctx context.Context) error {
 	return sh.Run("go", "test", "-v", "-covermode=count", "-coverpkg", coveredPackages, "-coverprofile=coverage/unit.profile", "./...")
 }
 
+// Race runs the unit tests under the race detector. This is a separate target
+// (and CI step) because -race is incompatible with the -covermode=count
+// instrumentation Test.Unit uses. Several tests (cached TLS configs, timer
+// CAS loops, runtime-collector registration) exist specifically to be run
+// under -race, so CI must run both.
+func (Test) Race(ctx context.Context) error {
+	printf("Running unit tests with the race detector...\n")
+	return sh.RunV("go", "test", "-race", "./...")
+}
+
 // Integration runs the integration tests in parallel.
 // Set GHOSTUNNEL_TEST_PARALLEL to control concurrency (default: NumCPU, max 16).
 func (Test) Integration(ctx context.Context) error {

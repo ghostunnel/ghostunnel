@@ -105,8 +105,8 @@ func BenchmarkConnectionChurn(b *testing.B) {
 // Note: each iteration performs a full ECDSA handshake, which dominates
 // per-connection CPU, so the metric delta is small relative to total time and
 // is clearest under contention (-cpu=4,8), where the two shared timers'
-// (prometheus.Summary) mutex is hottest. A mutex/block profile remains the most direct way
-// to see the timer contention.
+// (prometheus.Histogram) native-histogram Observe lock is hottest. A
+// mutex/block profile remains the most direct way to see the timer contention.
 func BenchmarkConnectionChurnNoSink(b *testing.B) {
 	benchmarkConnectionChurn(b, metrics.NilMetrics())
 }
