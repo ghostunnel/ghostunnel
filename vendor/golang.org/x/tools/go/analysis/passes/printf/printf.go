@@ -416,7 +416,7 @@ func match(info *types.Info, arg ast.Expr, param *types.Var) bool {
 }
 
 // propagate propagates changes in wrapper (non-None) kind information backwards
-// through through the wrapper.callers graph of well-formed forwarding calls.
+// through the wrapper.callers graph of well-formed forwarding calls.
 func propagate(pass *analysis.Pass, w *wrapper, call *ast.CallExpr, kind Kind, res *Result) {
 	// Check correct call forwarding.
 	//
@@ -1061,7 +1061,10 @@ func recursiveStringer(pass *analysis.Pass, e ast.Expr) (string, bool) {
 		e = u.X // strip off & from &r
 	}
 	if id, ok := e.(*ast.Ident); ok {
-		if pass.TypesInfo.Uses[id] == sig.Recv() {
+		// Uses refers to the receiver Var for the declared method, but looking up the String
+		// method on the instantiated receiver type may return an instantiated Signature with
+		// distinct parameter variables. Therefore we must compare against the Origin.
+		if pass.TypesInfo.Uses[id] == sig.Recv().Origin() {
 			return method.FullName(), true
 		}
 	}
