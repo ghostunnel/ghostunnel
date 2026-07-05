@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // treeVisitor is used to walk the AST and find strings that could be constants.
@@ -110,10 +111,12 @@ func (v *treeVisitor) Visit(node ast.Node) ast.Visitor {
 
 	// fn("http://")
 	case *ast.CallExpr:
-		for _, item := range t.Args {
-			lit, ok := item.(*ast.BasicLit)
-			if ok && v.isSupported(lit.Kind) {
-				v.addString(lit.Value, lit.Pos(), Call)
+		if !v.shouldIgnoreCall(t) {
+			for _, item := range t.Args {
+				lit, ok := item.(*ast.BasicLit)
+				if ok && v.isSupported(lit.Kind) {
+					v.addString(lit.Value, lit.Pos(), Call)
+				}
 			}
 		}
 
@@ -145,6 +148,29 @@ func (v *treeVisitor) addCompositeLiteralElement(node ast.Expr) {
 	if valueLit, ok := kv.Value.(*ast.BasicLit); ok && v.isSupported(valueLit.Kind) {
 		v.addString(valueLit.Value, valueLit.Pos(), CompositeLit)
 	}
+}
+
+// shouldIgnoreCall returns true if the call expression matches a function
+// name in the ignoreFunctions set. Supports direct calls (e.g., "println")
+// and one-level qualified calls (e.g., "slog.Info").
+func (v *treeVisitor) shouldIgnoreCall(call *ast.CallExpr) bool {
+	if len(v.p.ignoreFunctions) == 0 {
+		return false
+	}
+	var name string
+	switch fn := call.Fun.(type) {
+	case *ast.Ident:
+		name = fn.Name
+	case *ast.SelectorExpr:
+		if ident, ok := fn.X.(*ast.Ident); ok {
+			name = ident.Name + "." + fn.Sel.Name
+		}
+	}
+	if name == "" {
+		return false
+	}
+	_, found := v.p.ignoreFunctions[name]
+	return found
 }
 
 // addString adds a string in the map along with its position in the tree.
@@ -179,7 +205,7 @@ func (v *treeVisitor) addString(str string, pos token.Pos, typ Type) {
 	}
 
 	// Early length check
-	if len(unquotedStr) == 0 || len(unquotedStr) < v.p.minLength {
+	if len(unquotedStr) == 0 || utf8.RuneCountInString(unquotedStr) < v.p.minLength {
 		return
 	}
 
@@ -242,7 +268,7 @@ func (v *treeVisitor) addConst(name string, val string, pos token.Pos) {
 	}
 
 	// Skip constants with values that would be filtered anyway
-	if len(unquotedVal) < v.p.minLength {
+	if utf8.RuneCountInString(unquotedVal) < v.p.minLength {
 		return
 	}
 

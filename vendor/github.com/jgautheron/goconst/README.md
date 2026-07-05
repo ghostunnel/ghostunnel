@@ -8,6 +8,16 @@ There are obvious benefits to using constants instead of repeating strings, most
 
 While this could be considered a beginner mistake, across time, multiple packages and large codebases, some repetition could have slipped in.
 
+### How it works
+
+goconst detects string (and optionally number) literals that appear multiple times and could be replaced by a constant.
+
+A few things to keep in mind:
+
+- **Exact literal matching** — goconst compares complete, unquoted literal values. Repeated substrings inside larger strings are not detected (e.g., a shared prefix across two different string literals will not be reported).
+- **`const` declarations are skipped by default** — constant values are only analyzed when `-match-constant` (match strings against existing constants) or `-find-duplicates` (find constants sharing the same value) is enabled.
+- **String length is measured in runes**, not bytes, so multi-byte Unicode characters are counted correctly against `-min-length`.
+
 ### Get Started
 
     $ go install github.com/jgautheron/goconst/cmd/goconst@latest
@@ -30,6 +40,7 @@ Flags:
   -match-constant    look for existing constants matching the strings
   -find-duplicates   look for constants with identical values
   -eval-const-expr   enable evaluation of constant expressions (e.g., Prefix + "suffix")
+  -ignore-calls      ignore string literals in calls to these functions (comma separated)
   -numbers           search also for duplicated numbers
   -min               minimum value, only works with -numbers
   -max               maximum value, only works with -numbers
@@ -45,6 +56,7 @@ Examples:
   goconst -numbers -min 60 -max 512 .
   goconst -min-occurrences 5 $(go list -m -f '{{.Dir}}')
   goconst -eval-const-expr -match-constant . # Matches constant expressions like Prefix + "suffix"
+  goconst -ignore-calls slog.Info,slog.Warn,fmt.Errorf ./... # Ignore strings in logging/error calls
 ```
 
 ### Development

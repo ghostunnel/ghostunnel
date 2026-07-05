@@ -1,10 +1,10 @@
-# https://golangci-lint.run/usage/configuration
+# https://golangci-lint.run/docs/configuration/file
 version: "2"
 
 linters:
-  default: standard
   enable:
     - gocritic
+    - modernize
   settings:
     gocritic:
       enable-all: true
@@ -16,3 +16,6 @@ formatters:
   enable:
     - gofumpt
     - goimports
+  settings:
+    gofumpt:
+      extra-rules: true

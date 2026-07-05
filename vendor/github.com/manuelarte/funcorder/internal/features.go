@@ -4,6 +4,7 @@ const (
 	ConstructorCheck Feature = 1 << iota
 	StructMethodCheck
 	AlphabeticalCheck
+	FunctionCheck
 )
 
 type Feature uint8

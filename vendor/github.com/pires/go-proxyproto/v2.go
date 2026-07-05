@@ -148,9 +148,9 @@ func parseVersion2(reader *bufio.Reader) (header *Header, err error) {
 				return nil, fmt.Errorf("%w: %w", ErrInvalidAddress, err)
 			}
 
-			network := "unix"
+			network := networkUnix
 			if header.TransportProtocol.IsDatagram() {
-				network = "unixgram"
+				network = networkUnixgram
 			}
 
 			header.SourceAddr = &net.UnixAddr{

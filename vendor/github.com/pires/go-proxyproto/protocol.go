@@ -40,6 +40,12 @@ var (
 // is set, a default of 10s will be used. This can be disabled by setting the
 // timeout to < 0.
 //
+// Note that ReadHeaderTimeout only bounds how long a single slow connection can
+// hold a goroutine and file descriptor during header detection; it is not a
+// connection count or accept-rate limit. Deployments exposed to untrusted
+// clients should keep ReadHeaderTimeout low and enforce connection/rate limits
+// upstream (or around Accept).
+//
 // Only one of Policy or ConnPolicy should be provided. If both are provided then
 // a panic would occur during accept.
 type Listener struct {
@@ -90,6 +96,8 @@ func ValidateHeader(v Validator) func(*Conn) {
 }
 
 // SetReadHeaderTimeout sets the readHeaderTimeout for a connection when passed as option to NewConn().
+// A value of 0 disables the header read timeout; negative values are ignored,
+// leaving the connection's current timeout (the NewConn default) in place.
 func SetReadHeaderTimeout(t time.Duration) func(*Conn) {
 	return func(c *Conn) {
 		if t >= 0 {
@@ -164,13 +172,15 @@ func (p *Listener) Accept() (net.Conn, error) {
 		}
 		newConn := NewConn(conn, opts...)
 
-		// If the ReadHeaderTimeout for the listener is unset, use the default timeout.
-		if p.ReadHeaderTimeout == 0 {
-			p.ReadHeaderTimeout = DefaultReadHeaderTimeout
+		// Set the readHeaderTimeout of the new conn to the value of the listener,
+		// falling back to the default when unset. Read into a local rather than
+		// writing back to the shared Listener: mutating p here races with
+		// concurrent Accept calls and would silently rewrite the caller's struct.
+		readHeaderTimeout := p.ReadHeaderTimeout
+		if readHeaderTimeout == 0 {
+			readHeaderTimeout = DefaultReadHeaderTimeout
 		}
-
-		// Set the readHeaderTimeout of the new conn to the value of the listener
-		newConn.readHeaderTimeout = p.ReadHeaderTimeout
+		newConn.readHeaderTimeout = readHeaderTimeout
 
 		return newConn, nil
 	}
@@ -189,6 +199,20 @@ func (p *Listener) Addr() net.Addr {
 // NewConn is used to wrap a net.Conn that may be speaking the PROXY protocol
 // into a proxyproto.Conn.
 //
+// By default the returned Conn applies DefaultReadHeaderTimeout (10s) while
+// detecting the PROXY protocol header, so a client that connects but never
+// sends data cannot make header detection block forever.
+//
+// This bounds header detection only, not the first Read end-to-end: under a
+// non-REQUIRE policy, when no header is present Read falls through to a normal
+// read of the underlying connection, which can still block on a silent client
+// (pinning a goroutine and file descriptor). For an end-to-end bound, set a read
+// deadline on the connection, or use the REQUIRE policy, which makes the first
+// Read fail when no header arrives within the timeout.
+//
+// Override the timeout with the SetReadHeaderTimeout option; pass
+// SetReadHeaderTimeout(0) to disable it entirely.
+//
 // NOTE: NewConn may interfere with previously set ReadDeadline on the provided net.Conn,
 // because it sets a temporary deadline when detecting and reading the PROXY protocol header.
 // If you need to enforce a specific ReadDeadline on the connection, be sure to call Conn.SetReadDeadline
@@ -197,8 +221,9 @@ func NewConn(conn net.Conn, opts ...func(*Conn)) *Conn {
 	br := bufio.NewReaderSize(conn, readBufferSize)
 
 	pConn := &Conn{
-		bufReader: br,
-		conn:      conn,
+		bufReader:         br,
+		conn:              conn,
+		readHeaderTimeout: DefaultReadHeaderTimeout,
 	}
 
 	for _, opt := range opts {
@@ -391,11 +416,17 @@ func (p *Conn) readHeader() error {
 		if t == nil {
 			t = time.Time{}
 		}
-		if err := p.conn.SetReadDeadline(t.(time.Time)); err != nil {
-			return err
-		}
+		// Restore the user's deadline on a best-effort basis. This must not
+		// discard a header we already parsed: some connections (notably
+		// net.Pipe) return an error from SetReadDeadline once the peer has
+		// closed, which can happen right after the peer sends the header and
+		// closes. Only surface a restore failure when the read produced neither
+		// a header nor an error of its own.
+		restoreErr := p.conn.SetReadDeadline(t.(time.Time))
 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 			err = ErrNoProxyProtocol
+		} else if err == nil && header == nil {
+			err = restoreErr
 		}
 	}
 

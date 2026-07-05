@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"go/ast"
 	"go/types"
-	"reflect"
 
 	"github.com/uudashr/iface/internal/directive"
 	"golang.org/x/tools/go/analysis"
@@ -21,7 +20,7 @@ func newAnalyzer() *analysis.Analyzer {
 	analyzer := &analysis.Analyzer{
 		Name:     "unexported",
 		Doc:      "Detects interfaces which are not exported but are used as parameters or return values in exported functions or methods.",
-		URL:      "https://pkg.go.dev/github.com/uudashr/iface/visibility",
+		URL:      "https://pkg.go.dev/github.com/uudashr/iface/unexported",
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 		Run:      r.run,
 	}
@@ -50,7 +49,7 @@ func (r *runner) run(pass *analysis.Pass) (any, error) {
 		dir := directive.ParseIgnore(funcDecl.Doc)
 		if dir != nil && dir.ShouldIgnore(pass.Analyzer.Name) {
 			// skip ignored function
-			r.debugln("  skip ignored")
+			r.debugln(" skip ignored")
 
 			return
 		}
@@ -62,36 +61,36 @@ func (r *runner) run(pass *analysis.Pass) (any, error) {
 
 			if r.debug {
 				infoType := pass.TypesInfo.TypeOf(recvType)
-				fmt.Println("  recvType:", recvType, "infoType:", infoType, "reflectType:", reflect.TypeOf(recvType))
+				fmt.Printf(" recvType: %v infoType: %v reflectType: %T\n", recvType, infoType, recvType)
 			}
 
 			switch typ := recvType.(type) {
 			case *ast.Ident:
-				r.debugln("    recvIdent:", typ.Name)
+				r.debugln("  recvIdent:", typ.Name)
 
 				recvName = typ.Name
 			case *ast.StarExpr:
-				r.debugln("    recvStarExpr:", typ.X)
+				r.debugln("  recvStarExpr:", typ.X)
 
 				if ident, ok := typ.X.(*ast.Ident); ok {
-					r.debugln("      recvIdent:", ident.Name)
+					r.debugln("   recvIdent:", ident.Name)
 					recvName = ident.Name
 				} else {
-					r.debugln("      unhandled")
+					r.debugln("   unhandled")
 				}
 			default:
-				r.debugln("    unhandled")
+				r.debugln("  unhandled")
 			}
 		}
 
 		if !funcDecl.Name.IsExported() {
 			// skip unexported functions
-			r.debugln("  skip non-exported")
+			r.debugln(" skip non-exported")
 
 			return
 		}
 
-		r.debugln("  params:")
+		r.debugln(" params:")
 
 		params := funcDecl.Type.Params
 
@@ -99,25 +98,25 @@ func (r *runner) run(pass *analysis.Pass) (any, error) {
 			paramType := param.Type
 			infoType := pass.TypesInfo.TypeOf(paramType)
 
-			r.debugln("    paramType:", paramType, "infoType:", infoType, "reflectType:", reflect.TypeOf(paramType))
+			r.debugf("  paramType: %v infoType: %v reflectType: %T\n", paramType, infoType, paramType)
 
 			if !types.IsInterface(infoType) {
 				// skip non-interface
-				r.debugln("      skip non-interface")
+				r.debugln("   skip non-interface")
 
 				continue
 			}
 
 			if infoType.String() == "error" {
 				// skip error interface
-				r.debugln("      skip error interface")
+				r.debugln("   skip error interface")
 
 				continue
 			}
 
 			if infoType.String() == "any" {
 				// skip any interface
-				r.debugln("      skip any interface")
+				r.debugln("   skip any interface")
 
 				continue
 			}
@@ -125,7 +124,7 @@ func (r *runner) run(pass *analysis.Pass) (any, error) {
 			switch typ := paramType.(type) {
 			case *ast.Ident:
 				if !typ.IsExported() {
-					r.debugln("      unexported")
+					r.debugln("   unexported")
 
 					funcMethod := "function"
 					funcMethodName := funcDecl.Name.Name
@@ -141,15 +140,15 @@ func (r *runner) run(pass *analysis.Pass) (any, error) {
 					})
 				}
 			default:
-				r.debugln("      unhandled")
+				r.debugln("   unhandled")
 			}
 		}
 
-		r.debugln("  results:")
+		r.debugln(" results:")
 
 		results := funcDecl.Type.Results
 		if results == nil {
-			r.debugln("    no results")
+			r.debugln("  no results")
 
 			return
 		}
@@ -158,24 +157,24 @@ func (r *runner) run(pass *analysis.Pass) (any, error) {
 			resultType := result.Type
 			infoType := pass.TypesInfo.TypeOf(resultType)
 
-			r.debugln("    resultType:", resultType, "infoType:", infoType, "reflectType:", reflect.TypeOf(resultType))
+			r.debugf("  resultType: %v infoType: %v reflectType: %T\n", resultType, infoType, resultType)
 
 			if !types.IsInterface(infoType) {
-				r.debugln("      skip non-interface")
+				r.debugln("   skip non-interface")
 
 				continue
 			}
 
 			if infoType.String() == "error" {
 				// skip error interface
-				r.debugln("      skip error interface")
+				r.debugln("   skip error interface")
 
 				continue
 			}
 
 			if infoType.String() == "any" {
 				// skip any interface
-				r.debugln("      skip any interface")
+				r.debugln("   skip any interface")
 
 				continue
 			}
@@ -183,7 +182,7 @@ func (r *runner) run(pass *analysis.Pass) (any, error) {
 			switch typ := resultType.(type) {
 			case *ast.Ident:
 				if !typ.IsExported() {
-					r.debugln("      unexported")
+					r.debugln("   unexported")
 
 					funcMethod := "function"
 					funcMethodName := funcDecl.Name.Name
@@ -199,7 +198,7 @@ func (r *runner) run(pass *analysis.Pass) (any, error) {
 					})
 				}
 			default:
-				r.debugln("      unhandled")
+				r.debugln("   unhandled")
 			}
 		}
 	})
@@ -210,5 +209,11 @@ func (r *runner) run(pass *analysis.Pass) (any, error) {
 func (r *runner) debugln(a ...any) {
 	if r.debug {
 		fmt.Println(a...)
+	}
+}
+
+func (r *runner) debugf(format string, a ...any) {
+	if r.debug {
+		fmt.Printf(format, a...)
 	}
 }

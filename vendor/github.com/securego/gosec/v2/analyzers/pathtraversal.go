@@ -61,10 +61,15 @@ func PathTraversal() taint.Config {
 			{Package: "io/ioutil", Method: "ReadDir"},
 			{Package: "path/filepath", Method: "Walk"},
 			{Package: "path/filepath", Method: "WalkDir"},
+			// HTTP file-serving functions: user-controlled path = arbitrary file read
+			{Package: "net/http", Method: "ServeFile", CheckArgs: []int{2}},
+			{Package: "net/http", Method: "ServeFileFS", CheckArgs: []int{3}},
 		},
 		Sanitizers: []taint.Sanitizer{
 			// filepath.Clean normalizes and removes traversal components
 			{Package: "path/filepath", Method: "Clean"},
+			// filepath.Abs calls Clean internally (per Go docs)
+			{Package: "path/filepath", Method: "Abs"},
 			// filepath.Base extracts just the filename, removing directory traversal
 			{Package: "path/filepath", Method: "Base"},
 			// filepath.Rel computes a relative path safely

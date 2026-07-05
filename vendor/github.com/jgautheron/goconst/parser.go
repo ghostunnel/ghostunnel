@@ -120,6 +120,7 @@ type Parser struct {
 	minLength, minOccurrences   int
 	numberMin, numberMax        int
 	excludeTypes                map[Type]bool
+	ignoreFunctions             map[string]struct{}
 	maxConcurrency              int
 	evalConstExpressions        bool // Whether to evaluate constant expressions
 
@@ -262,6 +263,24 @@ func (p *Parser) EnableBatchProcessing(batchSize int) {
 	if batchSize > 0 {
 		p.batchSize = batchSize
 	}
+}
+
+// SetIgnoreFunctions configures which function calls should have their string
+// arguments ignored. Supports direct calls (e.g., "println") and one-level
+// qualified calls (e.g., "slog.Info", "fmt.Errorf").
+func (p *Parser) SetIgnoreFunctions(names []string) {
+	if len(names) == 0 {
+		p.ignoreFunctions = nil
+		return
+	}
+	m := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		name = strings.TrimSpace(name)
+		if name != "" {
+			m[name] = struct{}{}
+		}
+	}
+	p.ignoreFunctions = m
 }
 
 // ParseTree will search the given path for occurrences that could be moved into constants.

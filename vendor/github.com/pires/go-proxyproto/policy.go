@@ -40,14 +40,14 @@ const (
 	// IGNORE address from PROXY header, but accept connection.
 	IGNORE
 	// REJECT connection when PROXY header is sent
-	// Note: even though the first read on the connection returns an error if
-	// a PROXY header is present, subsequent reads do not. It is the task of
-	// the code using the connection to handle that case properly.
+	// Note: if a PROXY header is present the first read returns
+	// ErrSuperfluousProxyHeader, and every subsequent read returns the same
+	// error, so the connection should be closed.
 	REJECT
 	// REQUIRE connection to send PROXY header, reject if not present
-	// Note: even though the first read on the connection returns an error if
-	// a PROXY header is not present, subsequent reads do not. It is the task
-	// of the code using the connection to handle that case properly.
+	// Note: if no PROXY header is present the first read returns
+	// ErrNoProxyProtocol, and every subsequent read returns the same error,
+	// so the connection should be closed.
 	REQUIRE
 	// SKIP accepts a connection without requiring the PROXY header.
 	// Note: an example usage can be found in the SkipProxyHeaderForCIDR
@@ -151,9 +151,9 @@ func MustLaxWhiteListPolicy(allowed []string) PolicyFunc {
 // ConnStrictWhiteListPolicy returns a ConnPolicyFunc which decides whether the
 // upstream ip is allowed to send a proxy header based on a list of allowed
 // IP addresses and IP ranges. In case upstream IP is not in list reading on
-// the connection will be refused on the first read. Please note: subsequent
-// reads do not error. It is the task of the code using the connection to
-// handle that case properly. If one of the provided IP addresses or IP
+// the connection will be refused: the first read returns
+// ErrSuperfluousProxyHeader and every subsequent read returns the same error,
+// so the connection should be closed. If one of the provided IP addresses or IP
 // ranges is invalid it will return an error instead of a ConnPolicyFunc.
 func ConnStrictWhiteListPolicy(allowed []string) (ConnPolicyFunc, error) {
 	allowFrom, err := parse(allowed)
@@ -167,9 +167,9 @@ func ConnStrictWhiteListPolicy(allowed []string) (ConnPolicyFunc, error) {
 // StrictWhiteListPolicy returns a PolicyFunc which decides whether the
 // upstream ip is allowed to send a proxy header based on a list of allowed
 // IP addresses and IP ranges. In case upstream IP is not in list reading on
-// the connection will be refused on the first read. Please note: subsequent
-// reads do not error. It is the task of the code using the connection to
-// handle that case properly. If one of the provided IP addresses or IP
+// the connection will be refused: the first read returns
+// ErrSuperfluousProxyHeader and every subsequent read returns the same error,
+// so the connection should be closed. If one of the provided IP addresses or IP
 // ranges is invalid it will return an error instead of a PolicyFunc.
 //
 // Deprecated: use ConnStrictWhiteListPolicy instead.

@@ -35,6 +35,7 @@ const (
 	AccessFSRefer
 	AccessFSTruncate
 	AccessFSIoctlDev
+	AccessFSResolveUnix
 )
 
 // Landlock network access rights.

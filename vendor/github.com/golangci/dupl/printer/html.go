@@ -26,10 +26,32 @@ func (p *htmlprinter) PrintHeader() error {
 <meta charset="utf-8"/>
 <title>Duplicates</title>
 <style>
+	body {
+		max-width: 56em;
+		margin: 0 auto;
+		padding: 0 1em;
+		font-family: sans-serif;
+	}
+	h1 {
+		font-size: 1.3em;
+		margin-top: 2em;
+		border-bottom: 1px solid #ddd;
+		padding-bottom: 0.3em;
+	}
+	h2 {
+		font-size: 0.95em;
+		font-weight: normal;
+		color: #555;
+	}
 	pre {
+		tab-size: 4;
 		background-color: #FFD;
 		border: 1px solid #E2E2E2;
-		padding: 1ex;
+		border-radius: 4px;
+		padding: 1em;
+		overflow-x: auto;
+		font-size: 0.85em;
+		line-height: 1.5;
 	}
 </style>
 `)

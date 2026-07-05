@@ -2,69 +2,102 @@ package internal
 
 import (
 	"go/ast"
-	"go/token"
 
 	"golang.org/x/tools/go/analysis"
 )
 
 // FileProcessor Holder to store all the functions that are potential to be constructors and all the structs.
 type FileProcessor struct {
-	fset     *token.FileSet
-	structs  map[string]*StructHolder
-	features Feature
+	structs       map[string]*StructHolder
+	features      Feature
+	topLevelFuncs []*ast.FuncDecl
 }
 
 // NewFileProcessor creates a new file processor.
-func NewFileProcessor(fset *token.FileSet, checkers Feature) *FileProcessor {
+func NewFileProcessor(checkers Feature) *FileProcessor {
 	return &FileProcessor{
-		fset:     fset,
 		structs:  make(map[string]*StructHolder),
 		features: checkers,
 	}
 }
 
 // Analyze check whether the order of the methods in the constructor is correct.
-func (fp *FileProcessor) Analyze() []analysis.Diagnostic {
-	var reports []analysis.Diagnostic
-
+func (fp *FileProcessor) Analyze(pass *analysis.Pass) {
 	for _, sh := range fp.structs {
 		// filter out structs that are not declared inside that file
 		if sh.Struct != nil {
-			reports = append(reports, sh.Analyze()...)
+			sh.Analyze(pass)
 		}
 	}
 
-	return reports
+	if fp.features.IsEnabled(FunctionCheck) {
+		fp.analyzeFunctions(pass)
+	}
 }
 
-func (fp *FileProcessor) NewFileNode(_ *ast.File) {
+func (fp *FileProcessor) ResetStructs() {
 	fp.structs = make(map[string]*StructHolder)
+	fp.topLevelFuncs = nil
 }
 
-func (fp *FileProcessor) NewFuncDecl(n *ast.FuncDecl) {
-	if sc, ok := NewStructConstructor(n); ok {
-		fp.addConstructor(sc)
+func (fp *FileProcessor) AddFuncDecl(n *ast.FuncDecl) {
+	if fp.features.IsEnabled(FunctionCheck) && n.Recv == nil {
+		fp.topLevelFuncs = append(fp.topLevelFuncs, n)
+	}
+
+	if sc := NewStructConstructor(n); sc != nil {
+		sh := fp.getOrCreate(sc.StructReturn.Name)
+		sh.Constructors = append(sh.Constructors, sc.Constructor)
+
 		return
 	}
 
-	if st, ok := FuncIsMethod(n); ok {
-		fp.addMethod(st.Name, n)
+	if st := funcIsMethod(n); st != nil {
+		sh := fp.getOrCreate(st.Name)
+		sh.StructMethods = append(sh.StructMethods, n)
 	}
 }
 
-func (fp *FileProcessor) NewTypeSpec(n *ast.TypeSpec) {
+func (fp *FileProcessor) AddTypeSpec(n *ast.TypeSpec) {
 	sh := fp.getOrCreate(n.Name.Name)
 	sh.Struct = n
 }
 
-func (fp *FileProcessor) addConstructor(sc StructConstructor) {
-	sh := fp.getOrCreate(sc.GetStructReturn().Name)
-	sh.AddConstructor(sc.GetConstructor())
-}
+// analyzeFunctions reports every unexported top-level function that appears
+// before the last exported top-level function in source order.
+// The `init` function is excluded from this check.
+func (fp *FileProcessor) analyzeFunctions(pass *analysis.Pass) {
+	var lastExported *ast.FuncDecl
 
-func (fp *FileProcessor) addMethod(st string, n *ast.FuncDecl) {
-	sh := fp.getOrCreate(st)
-	sh.AddMethod(n)
+	for _, fn := range fp.topLevelFuncs {
+		if fn.Name.Name == "init" {
+			continue
+		}
+
+		if !fn.Name.IsExported() {
+			continue
+		}
+
+		if lastExported == nil || fn.Pos() > lastExported.Pos() {
+			lastExported = fn
+		}
+	}
+
+	if lastExported == nil {
+		return
+	}
+
+	for _, fn := range fp.topLevelFuncs {
+		if fn.Name.Name == "init" {
+			continue
+		}
+
+		if fn.Name.IsExported() || fn.Pos() >= lastExported.Pos() {
+			continue
+		}
+
+		reportUnexportedFuncBeforeExportedFunc(pass, fn, lastExported)
+	}
 }
 
 func (fp *FileProcessor) getOrCreate(structName string) *StructHolder {
@@ -73,10 +106,34 @@ func (fp *FileProcessor) getOrCreate(structName string) *StructHolder {
 	}
 
 	created := &StructHolder{
-		Fset:     fp.fset,
 		Features: fp.features,
 	}
 	fp.structs[structName] = created
 
 	return created
+}
+
+func funcIsMethod(n *ast.FuncDecl) *ast.Ident {
+	if n.Recv == nil {
+		return nil
+	}
+
+	if len(n.Recv.List) != 1 {
+		return nil
+	}
+
+	return getIdent(n.Recv.List[0].Type)
+}
+
+func getIdent(expr ast.Expr) *ast.Ident {
+	switch exp := expr.(type) {
+	case *ast.StarExpr:
+		return getIdent(exp.X)
+
+	case *ast.Ident:
+		return exp
+
+	default:
+		return nil
+	}
 }

@@ -87,3 +87,66 @@ func New(settings *config.GoModGuardSettings) *goanalysis.Linter {
 		}).
 		WithLoadMode(goanalysis.LoadModeSyntax)
 }
+
+// Only used the set YAML struct tags.
+type v2YAML struct {
+	Allowed                []goModGuardv2Base    `yaml:"allowed,omitempty"`
+	Blocked                []goModGuardv2Blocked `yaml:"blocked,omitempty"`
+	LocalReplaceDirectives bool                  `yaml:"local-replace-directives,omitempty"`
+}
+
+// Only used the set YAML struct tags.
+type goModGuardv2Base struct {
+	Module    string `yaml:"module,omitempty"`
+	Version   string `yaml:"version,omitempty"`
+	MatchType string `yaml:"match-type,omitempty"`
+}
+
+// Only used the set YAML struct tags.
+type goModGuardv2Blocked struct {
+	goModGuardv2Base `yaml:",inline"`
+
+	Recommendations []string `yaml:"recommendations,omitempty"`
+	Reason          string   `yaml:"reason,omitempty"`
+}
+
+func Migration(old *config.GoModGuardSettings) any {
+	if old == nil {
+		return nil
+	}
+
+	if len(old.Allowed.Modules) == 0 && len(old.Allowed.Domains) == 0 && len(old.Blocked.Modules) == 0 && !old.Blocked.LocalReplaceDirectives {
+		return nil
+	}
+
+	cfg := &v2YAML{
+		LocalReplaceDirectives: old.Blocked.LocalReplaceDirectives,
+	}
+
+	for _, module := range old.Allowed.Modules {
+		cfg.Allowed = append(cfg.Allowed, goModGuardv2Base{
+			Module: module,
+		})
+	}
+
+	for _, domain := range old.Allowed.Domains {
+		cfg.Allowed = append(cfg.Allowed, goModGuardv2Base{
+			Module:    domain + "/.*",
+			MatchType: "regex",
+		})
+	}
+
+	for _, blocked := range old.Blocked.Modules {
+		for name, module := range blocked {
+			cfg.Blocked = append(cfg.Blocked, goModGuardv2Blocked{
+				goModGuardv2Base: goModGuardv2Base{
+					Module: name,
+				},
+				Recommendations: module.Recommendations,
+				Reason:          module.Reason,
+			})
+		}
+	}
+
+	return cfg
+}
