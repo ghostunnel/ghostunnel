@@ -11,6 +11,12 @@ type Cursor struct {
 	currentIdx int
 	statements []ast.Stmt
 	checkType  CheckType
+	// rbraceLine is the source line of the enclosing block's closing brace.
+	// It is used to avoid false positives when checking for trailing comments:
+	// an inline comment that sits on the same line as the closing brace belongs
+	// to the brace itself, not to the last statement inside the block.
+	// Zero means the enclosing block boundary is unknown (e.g. case clauses).
+	rbraceLine int
 }
 
 // NewCursor creates a new cursor with a given list of statements.
@@ -18,6 +24,17 @@ func NewCursor(statements []ast.Stmt) *Cursor {
 	return &Cursor{
 		currentIdx: -1,
 		statements: statements,
+	}
+}
+
+// NewBlockCursor creates a cursor for the statements of a known block, recording
+// the source line of the block's closing brace so that trailing-comment checks
+// can ignore inline comments that sit on the brace itself.
+func NewBlockCursor(statements []ast.Stmt, rbraceLine int) *Cursor {
+	return &Cursor{
+		currentIdx: -1,
+		statements: statements,
+		rbraceLine: rbraceLine,
 	}
 }
 
@@ -85,4 +102,13 @@ func (c *Cursor) Len() int {
 
 func (c *Cursor) Nth(n int) ast.Stmt {
 	return c.statements[n]
+}
+
+func (c *Cursor) NthPrevious(n int) ast.Node {
+	idx := c.currentIdx - n
+	if idx < 0 {
+		return nil
+	}
+
+	return c.statements[idx]
 }

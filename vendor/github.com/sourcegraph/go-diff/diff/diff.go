@@ -5,12 +5,18 @@ import (
 	"time"
 )
 
+// ParseOptions specifies options for parsing diffs.
+type ParseOptions struct {
+	// KeepCR specifies whether to keep trailing carriage return characters (\r) in lines.
+	KeepCR bool
+}
+
 // A FileDiff represents a unified diff for a single file.
 //
 // A file unified diff has a header that resembles the following:
 //
-//   --- oldname	2009-10-11 15:12:20.000000000 -0700
-//   +++ newname	2009-10-11 15:12:30.000000000 -0700
+//	--- oldname	2009-10-11 15:12:20.000000000 -0700
+//	+++ newname	2009-10-11 15:12:30.000000000 -0700
 type FileDiff struct {
 	// the original name of the file
 	OrigName string

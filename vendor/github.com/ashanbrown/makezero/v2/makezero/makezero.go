@@ -199,8 +199,7 @@ func (v *visitor) isSlice(node ast.Node) bool {
 		obj := ident.Obj
 		if obj == nil {
 			if v.info != nil {
-				_, ok := v.info.ObjectOf(ident).Type().(*types.Slice)
-				return ok
+				return v.isSliceType(v.info.ObjectOf(ident).Type())
 			}
 			return false
 		}
@@ -211,10 +210,26 @@ func (v *visitor) isSlice(node ast.Node) bool {
 		node = spec.Type
 	}
 
+	// handle imported types (e.g., types.S)
+	if sel, ok := node.(*ast.SelectorExpr); ok {
+		if v.info != nil {
+			return v.isSliceType(v.info.ObjectOf(sel.Sel).Type())
+		}
+		return false
+	}
+
 	if node, ok := node.(*ast.ArrayType); ok {
 		return node.Len == nil // only slices have zero length
 	}
 	return false
+}
+
+func (v *visitor) isSliceType(t types.Type) bool {
+	if t == nil {
+		return false
+	}
+	_, ok := t.Underlying().(*types.Slice)
+	return ok
 }
 
 func (v *visitor) hasNoLintOnSameLine(node ast.Node) bool {

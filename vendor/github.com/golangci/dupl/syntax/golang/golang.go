@@ -39,6 +39,7 @@ const (
 	IfStmt
 	IncDecStmt
 	IndexExpr
+	IndexListExpr
 	InterfaceType
 	KeyValueExpr
 	LabeledStmt
@@ -234,6 +235,9 @@ func (t *transformer) trans(node ast.Node) (o *syntax.Node) {
 
 	case *ast.FuncType:
 		o.Type = FuncType
+		if n.TypeParams != nil {
+			o.AddChildren(t.trans(n.TypeParams))
+		}
 		o.AddChildren(t.trans(n.Params))
 		if n.Results != nil {
 			o.AddChildren(t.trans(n.Results))
@@ -269,6 +273,13 @@ func (t *transformer) trans(node ast.Node) (o *syntax.Node) {
 	case *ast.IndexExpr:
 		o.Type = IndexExpr
 		o.AddChildren(t.trans(n.X), t.trans(n.Index))
+
+	case *ast.IndexListExpr:
+		o.Type = IndexListExpr
+		o.AddChildren(t.trans(n.X))
+		for _, idx := range n.Indices {
+			o.AddChildren(t.trans(idx))
+		}
 
 	case *ast.InterfaceType:
 		o.Type = InterfaceType
@@ -358,7 +369,11 @@ func (t *transformer) trans(node ast.Node) (o *syntax.Node) {
 
 	case *ast.TypeSpec:
 		o.Type = TypeSpec
-		o.AddChildren(t.trans(n.Name), t.trans(n.Type))
+		o.AddChildren(t.trans(n.Name))
+		if n.TypeParams != nil {
+			o.AddChildren(t.trans(n.TypeParams))
+		}
+		o.AddChildren(t.trans(n.Type))
 
 	case *ast.TypeSwitchStmt:
 		o.Type = TypeSwitchStmt

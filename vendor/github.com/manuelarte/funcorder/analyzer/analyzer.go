@@ -14,6 +14,7 @@ const (
 	ConstructorCheckName  = "constructor"
 	StructMethodCheckName = "struct-method"
 	AlphabeticalCheckName = "alphabetical"
+	FunctionCheckName     = "function"
 )
 
 func NewAnalyzer() *analysis.Analyzer {
@@ -33,6 +34,8 @@ func NewAnalyzer() *analysis.Analyzer {
 		"Checks if the exported methods of a structure are placed before the unexported ones.")
 	a.Flags.BoolVar(&f.alphabeticalCheck, AlphabeticalCheckName, false,
 		"Checks if the constructors and/or structure methods are sorted alphabetically.")
+	a.Flags.BoolVar(&f.functionCheck, FunctionCheckName, false,
+		"Checks that exported functions are placed before unexported functions.")
 
 	return a
 }
@@ -41,9 +44,16 @@ type funcorder struct {
 	constructorCheck  bool
 	structMethodCheck bool
 	alphabeticalCheck bool
+	functionCheck     bool
 }
 
 func (f *funcorder) run(pass *analysis.Pass) (any, error) {
+	insp, found := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
+	if !found {
+		//nolint:nilnil // impossible case.
+		return nil, nil
+	}
+
 	var enabledCheckers internal.Feature
 	if f.constructorCheck {
 		enabledCheckers.Enable(internal.ConstructorCheck)
@@ -57,13 +67,11 @@ func (f *funcorder) run(pass *analysis.Pass) (any, error) {
 		enabledCheckers.Enable(internal.AlphabeticalCheck)
 	}
 
-	fp := internal.NewFileProcessor(pass.Fset, enabledCheckers)
-
-	insp, found := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-	if !found {
-		//nolint:nilnil // impossible case.
-		return nil, nil
+	if f.functionCheck {
+		enabledCheckers.Enable(internal.FunctionCheck)
 	}
+
+	fp := internal.NewFileProcessor(enabledCheckers)
 
 	nodeFilter := []ast.Node{
 		(*ast.File)(nil),
@@ -74,23 +82,18 @@ func (f *funcorder) run(pass *analysis.Pass) (any, error) {
 	insp.Preorder(nodeFilter, func(n ast.Node) {
 		switch node := n.(type) {
 		case *ast.File:
-			for _, report := range fp.Analyze() {
-				pass.Report(report)
-			}
-
-			fp.NewFileNode(node)
+			fp.Analyze(pass)
+			fp.ResetStructs()
 
 		case *ast.FuncDecl:
-			fp.NewFuncDecl(node)
+			fp.AddFuncDecl(node)
 
 		case *ast.TypeSpec:
-			fp.NewTypeSpec(node)
+			fp.AddTypeSpec(node)
 		}
 	})
 
-	for _, report := range fp.Analyze() {
-		pass.Report(report)
-	}
+	fp.Analyze(pass)
 
 	//nolint:nilnil //any, error
 	return nil, nil

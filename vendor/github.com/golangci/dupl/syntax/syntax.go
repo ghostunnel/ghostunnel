@@ -129,8 +129,8 @@ func getUnitsIndexes(nodeSeq []*Node, threshold int) []int {
 	return indexes
 }
 
-// isCyclic finds out whether there is a repetive pattern in the found clone. If positive,
-// it return false to point out that the clone would be redundant.
+// isCyclic finds out whether there is a repetitive pattern in the found clone. If positive,
+// it returns true to point out that the clone would be redundant.
 func isCyclic(indexes []int, nodes []*Node) bool {
 	cnt := len(indexes)
 	if cnt <= 1 {
