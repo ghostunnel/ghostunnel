@@ -1385,6 +1385,14 @@ a:hover {
   color: var(--text-heading);
 }
 
+/* Dark code frames need light selected text + a stronger highlight, since
+   the global ::selection color above is tuned for the light page. */
+.terminal ::selection,
+.terminal-body ::selection {
+  background: rgba(60, 190, 210, 0.35);
+  color: var(--ink-text-bright);
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -1479,52 +1487,7 @@ a:hover {
   outline-offset: 1px;
 }
 
-/* In-bar buttons (terminal / editor frames) */
-.copy-btn--bar {
-  margin-left: auto;
-  align-self: center;
-}
-
-/* Dark terminal bars: subtle faint ink, brightens on hover */
-.terminal .copy-btn--bar {
-  color: var(--ink-text-faint);
-}
-
-.terminal .copy-btn--bar:hover,
-.terminal .copy-btn--bar:focus-visible {
-  color: var(--ink-text-bright);
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.terminal .copy-btn--bar.copied,
-.terminal .copy-btn--bar.copied:hover {
-  color: var(--accent-bright);
-}
-
-/* Windows terminal bar: controls already sit at the right edge */
-.terminal--windows .copy-btn--bar {
-  margin-left: 0;
-  margin-right: 0.6rem;
-}
-
-/* Light editor bars */
-.editor .copy-btn--bar {
-  margin-right: 0.5rem;
-  color: var(--text-muted);
-}
-
-.editor .copy-btn--bar:hover,
-.editor .copy-btn--bar:focus-visible {
-  color: var(--accent);
-  background: var(--accent-faint);
-}
-
-.editor .copy-btn--bar.copied,
-.editor .copy-btn--bar.copied:hover {
-  color: var(--accent);
-}
-
-/* Floating buttons on plain <pre><code> blocks */
+/* Floating buttons — plain <pre><code> blocks and terminal/editor frames */
 .copy-wrap {
   position: relative;
 }
@@ -1559,6 +1522,29 @@ a:hover {
 .copy-btn--floating.copied,
 .copy-btn--floating.copied:hover {
   color: var(--accent);
+}
+
+/* Terminal frames: solid dark chip over the dark body so the icon reads
+   clearly against the code behind it. */
+.copy-btn--terminal {
+  background: rgba(8, 26, 33, 0.82);
+  border-color: rgba(120, 200, 215, 0.28);
+  color: var(--ink-text);
+  box-shadow: none;
+  /* Override the dimmed floating default — the chip carries its own contrast. */
+  opacity: 0.9;
+}
+
+.copy-btn--terminal:hover,
+.copy-btn--terminal:focus-visible {
+  color: var(--ink-text-bright);
+  border-color: rgba(120, 200, 215, 0.5);
+  background: rgba(12, 38, 47, 0.95);
+}
+
+.copy-btn--terminal.copied,
+.copy-btn--terminal.copied:hover {
+  color: var(--accent-bright);
 }
 
 /* === Prev/next page navigation === */

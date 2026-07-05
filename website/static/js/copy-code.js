@@ -47,14 +47,28 @@
     return btn;
   }
 
+  // Wrap a <pre> in a relatively-positioned container so a floating button
+  // can be pinned to its top-right corner without scrolling with the content.
+  function wrapAndAdd(pre, code, extraClass) {
+    var wrap = document.createElement("div");
+    wrap.className = "copy-wrap";
+    pre.parentNode.insertBefore(wrap, pre);
+    wrap.appendChild(pre);
+    wrap.appendChild(makeButton(code, "copy-btn--floating " + extraClass));
+  }
+
   function init() {
-    // Terminal and editor frames: put the button in the title bar.
+    // Terminal and editor frames: float the button in the top-right of the
+    // code body, just below the title bar, so it clears the frame chrome.
     var frames = document.querySelectorAll(".terminal, .editor");
     frames.forEach(function (frame) {
-      var bar = frame.querySelector(".terminal-bar, .editor-bar");
-      var code = frame.querySelector("pre code");
-      if (!bar || !code) return;
-      bar.appendChild(makeButton(code, "copy-btn--bar"));
+      var pre = frame.querySelector("pre.terminal-body, pre.editor-body");
+      var code = pre && pre.querySelector("code");
+      if (!pre || !code) return;
+      var variant = frame.classList.contains("editor")
+        ? "copy-btn--editor"
+        : "copy-btn--terminal";
+      wrapAndAdd(pre, code, variant);
     });
 
     // Any other <pre><code> blocks: wrap the <pre> so the button can be
@@ -63,11 +77,7 @@
     codes.forEach(function (code) {
       var pre = code.parentNode;
       if (pre.closest(".terminal, .editor, .copy-wrap")) return;
-      var wrap = document.createElement("div");
-      wrap.className = "copy-wrap";
-      pre.parentNode.insertBefore(wrap, pre);
-      wrap.appendChild(pre);
-      wrap.appendChild(makeButton(code, "copy-btn--floating"));
+      wrapAndAdd(pre, code, "");
     });
   }
 

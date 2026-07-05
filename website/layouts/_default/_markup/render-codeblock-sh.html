@@ -1,4 +1,4 @@
-{{- $title := or (.Attributes.title) "shell" -}}
+{{- $title := or (.Attributes.title) "Terminal" -}}
 {{- $body := trim .Inner "\n\r" | htmlEscape -}}
 {{- $body = replaceRE `(?m)^\$` `<span class="t-prompt">$0</span>` $body -}}
 {{- $body = replaceRE `(?m)^#.*$` `<span class="t-comment">$0</span>` $body -}}
