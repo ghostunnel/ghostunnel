@@ -1655,20 +1655,34 @@ a:hover {
   }
 }
 
+/* === Page header (title + edit link) === */
+.page-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.page-header h1 {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
 /* === Edit on GitHub link === */
 .edit-page {
-  margin-top: 3rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--border);
+  flex: none;
   font-size: 0.85rem;
-}
-
-.edit-page a {
   color: var(--text-muted);
   text-decoration: none;
+  white-space: nowrap;
 }
 
-.edit-page a:hover {
+.edit-page:hover {
   color: var(--accent);
 }
 
