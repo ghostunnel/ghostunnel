@@ -579,7 +579,6 @@ func TestValidateStatusAddress(t *testing.T) {
 	}
 }
 
-
 func TestInvalidCABundle(t *testing.T) {
 	cmd := []string{
 		"server",

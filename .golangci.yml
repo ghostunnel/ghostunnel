@@ -3,6 +3,12 @@ version: "2"
 linters:
   # Use default linters (errcheck, govet, ineffassign, staticcheck, unused)
   default: standard
+  # forbidigo guards against reintroducing the container-hostile
+  # runtime.GOMAXPROCS call removed from run(): Go 1.25+ already sizes
+  # GOMAXPROCS from the cgroup CPU quota and updates it dynamically, and an
+  # explicit call disables that. Honor the GOMAXPROCS env var instead.
+  enable:
+    - forbidigo
   # Enable human-readable exclusion presets including std-error-handling
   # which excludes common error handling patterns like Close()
   exclusions:
@@ -19,3 +25,11 @@ linters:
       # Additional functions to exclude from checking
       exclude-functions:
         - (*github.com/ghostunnel/ghostunnel/certloader.spiffeTLSConfigSource).Close
+    forbidigo:
+      forbid:
+        - pattern: '^runtime\.GOMAXPROCS$'
+          msg: >-
+            Do not call runtime.GOMAXPROCS. Go 1.25+ defaults GOMAXPROCS to the
+            cgroup CPU quota and updates it dynamically; an explicit call
+            disables both and overrides the GOMAXPROCS env var. Honor the
+            GOMAXPROCS environment variable instead.
