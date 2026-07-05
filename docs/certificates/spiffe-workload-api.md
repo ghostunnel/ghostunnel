@@ -33,11 +33,11 @@ ghostunnel server \
 
 On Windows:
 
-```bash
-ghostunnel server \
-    --use-workload-api-addr npipe:spire-agent\\public\\api \
-    --listen localhost:8443 \
-    --target localhost:8080 \
+```powershell
+ghostunnel server `
+    --use-workload-api-addr npipe:spire-agent\public\api `
+    --listen localhost:8443 `
+    --target localhost:8080 `
     --allow-uri spiffe://domain.test/frontend
 ```
 
@@ -52,7 +52,9 @@ Note that in client mode, SPIFFE authentication replaces the standard
 hostname verification that applies with other certificate sources: the
 server is verified as presenting a valid X509-SVID chaining to the trust
 bundle, not as matching the target hostname. Use `--verify-uri` to pin the
-expected SPIFFE ID:
+expected SPIFFE ID.
+
+The following examples show how to authorize peers in server and client mode:
 
 As a server:
 

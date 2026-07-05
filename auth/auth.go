@@ -219,11 +219,16 @@ func intersectsIP(left, right []net.IP) bool {
 
 // Returns true if at least one item from left is also contained in right.
 func intersectsURI(left []wildcard.Matcher, right []*url.URL) bool {
+	if len(left) == 0 || len(right) == 0 {
+		return false
+	}
+	serialized := make([]string, len(right))
+	for i, r := range right {
+		serialized[i] = r.String()
+	}
 	for _, l := range left {
-		for _, r := range right {
-			if l.Matches(r.String()) {
-				return true
-			}
+		if slices.ContainsFunc(serialized, l.Matches) {
+			return true
 		}
 	}
 	return false

@@ -3,10 +3,8 @@ version: "2"
 linters:
   # Use default linters (errcheck, govet, ineffassign, staticcheck, unused)
   default: standard
-  # forbidigo guards against reintroducing the container-hostile
-  # runtime.GOMAXPROCS call removed from run(): Go 1.25+ already sizes
-  # GOMAXPROCS from the cgroup CPU quota and updates it dynamically, and an
-  # explicit call disables that. Honor the GOMAXPROCS env var instead.
+  # forbidigo bans a couple of project-specific footgun calls; see the
+  # per-pattern messages under settings.forbidigo for the rationale.
   enable:
     - forbidigo
   # Enable human-readable exclusion presets including std-error-handling
@@ -19,6 +17,12 @@ linters:
       # Ignore errcheck in test files - test code often has best-effort operations
       - linters:
           - errcheck
+        path: "_test\\.go"
+      # Ignore forbidigo in test files - tests legitimately call os.Exit (e.g.
+      # TestMain) and may tune runtime.GOMAXPROCS; the footguns the rules guard
+      # against only matter in the production binary.
+      - linters:
+          - forbidigo
         path: "_test\\.go"
   settings:
     errcheck:
@@ -33,3 +37,9 @@ linters:
             cgroup CPU quota and updates it dynamically; an explicit call
             disables both and overrides the GOMAXPROCS env var. Honor the
             GOMAXPROCS environment variable instead.
+        - pattern: '^os\.Exit$'
+          msg: >-
+            Do not call os.Exit directly; use exitFunc instead. exitFunc is
+            wrapped (see coverage_enabled.go) to flush coverage counters before
+            the process exits, and routing exits through it keeps shutdown
+            graceful. A raw os.Exit bypasses both.

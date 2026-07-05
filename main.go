@@ -200,7 +200,10 @@ func init() {
 	netproxy.RegisterDialerType("http", connectproxy.ConnectProxy)
 }
 
-var exitFunc = os.Exit
+// exitFunc is the single sanctioned reference to os.Exit; all process exits go
+// through it so exit hooks can wrap it to flush coverage counters and so exits
+// stay testable.
+var exitFunc = os.Exit //nolint:forbidigo // the one allowed os.Exit indirection
 
 // extraRWPaths collects additional filesystem paths that should be
 // read-writable under landlock. Populated by init() hooks (e.g. the
@@ -354,7 +357,7 @@ func validateServerCredentials() error {
 
 func validateServerAccessControl(hasAccessFlags, hasOPAFlags bool) error {
 	if !(*serverDisableAuth) && !(*serverAllowAll) && !hasAccessFlags && !hasOPAFlags {
-		return errors.New("at least one access control flag (--allow-{all,cn,ou,dns-san,ip-san,uri-san}, or OPA flags, or --disable-authentication) is required")
+		return errors.New("at least one access control flag (--allow-{all,cn,ou,dns,uri}, or OPA flags, or --disable-authentication) is required")
 	}
 	if !(*serverDisableAuth) && *serverAllowAll && (hasAccessFlags || hasOPAFlags) {
 		return errors.New("--allow-all is mutually exclusive with other access control flags")
@@ -392,15 +395,12 @@ func validateServerACME() error {
 	return nil
 }
 
-func validateServerOPA(hasAccessFlags, hasOPAFlags bool) error {
+func validateServerOPA(hasOPAFlags bool) error {
 	if !hasOPAFlags {
 		return nil
 	}
 	if *serverAllowPolicy == "" || *serverAllowQuery == "" {
 		return errors.New("--allow-policy and --allow-query have to be used together")
-	}
-	if hasAccessFlags {
-		return errors.New("--allow-policy and --allow-query are mutually exclusive with other access control flags")
 	}
 	return nil
 }
@@ -427,7 +427,7 @@ func serverValidateFlags() error {
 	if err := validateServerACME(); err != nil {
 		return err
 	}
-	if err := validateServerOPA(hasAccessFlags, hasOPAFlags); err != nil {
+	if err := validateServerOPA(hasOPAFlags); err != nil {
 		return err
 	}
 	if err := validateServerProxyProtocol(); err != nil {

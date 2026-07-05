@@ -7,7 +7,7 @@ aliases:
 ---
 
 When Ghostunnel terminates TLS, the backend only sees a plaintext connection
-from Ghostunnel itself -- it does not know who the original client was, what TLS
+from Ghostunnel itself — it does not know who the original client was, what TLS
 version was negotiated, or whether a client certificate was presented. The PROXY
 protocol fixes this: Ghostunnel prepends a binary header to each forwarded
 connection with the original client metadata. Backends can then log, enforce

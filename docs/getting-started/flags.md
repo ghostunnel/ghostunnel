@@ -19,7 +19,7 @@ supported file formats and chain ordering.
 
 | Flag | Description |
 |------|-------------|
-| `--keystore PATH` | Path to keystore (combined PEM with cert/key, or PKCS12 keystore). |
+| `--keystore PATH` | Path to keystore (combined PEM with cert/key, PKCS#12 keystore, or JCEKS/JKS keystore). |
 | `--cert PATH` | Path to certificate (PEM with certificate chain). |
 | `--key PATH` | Path to certificate private key (PEM with private key). |
 | `--storepass PASS` | Password for keystore (PKCS#12 or JCEKS; optional for PKCS#12). |
@@ -78,7 +78,7 @@ metrics endpoints, and profiling.
 
 | Flag | Description | Availability |
 |------|-------------|--------------|
-| `--status ADDR` | Enable `/_status` and `/_metrics` on given HOST:PORT (or `unix:SOCKET`). | All platforms |
+| `--status ADDR` | Enable `/_status` and `/_metrics` on given `[http(s)://]HOST:PORT`, `unix:PATH`, `systemd:NAME`, or `launchd:NAME`. | All platforms |
 | `--enable-pprof` | Enable `/debug/pprof` endpoints alongside `/_status` (for profiling). Requires `--status`. | All platforms |
 | `--enable-shutdown` | Enable `/_shutdown` endpoint alongside `/_status` to allow terminating via HTTP POST. Requires `--status`. | All platforms |
 | `--quiet` | Silence log messages. Values: `all`, `conns`, `conn-errs`, `handshake-errs`. Can be repeated. | All platforms |
@@ -124,6 +124,11 @@ See [PROXY Protocol]({{< ref "proxy-protocol.md" >}}) for details on modes and T
 
 See [Access Control Flags]({{< ref "access-flags.md" >}}).
 
+At least one access control flag (one of the `--allow-*` flags, an OPA policy
+flag, or `--disable-authentication`) is required in server mode. Both
+`--allow-all` and `--disable-authentication` are each mutually exclusive with
+all other access control flags.
+
 | Flag | Description |
 |------|-------------|
 | `--allow-all` | Allow all clients, do not check client cert subject. |
@@ -151,7 +156,7 @@ See [Access Control Flags]({{< ref "access-flags.md" >}}) for OPA/Rego policy de
 
 | Flag | Description |
 |------|-------------|
-| `--allow-policy BUNDLE` | Location of an OPA policy bundle. Mutually exclusive with other access control flags. |
+| `--allow-policy BUNDLE` | Location of an OPA policy bundle. Must be used with `--allow-query`. Mutually exclusive with other access control flags. |
 | `--allow-query QUERY` | Rego query to validate against the client certificate and the policy. Must be used with `--allow-policy`. |
 
 ## Client Mode Flags
@@ -194,8 +199,8 @@ See [Access Control Flags]({{< ref "access-flags.md" >}}) for OPA/Rego policy de
 
 | Flag | Description |
 |------|-------------|
-| `--verify-policy BUNDLE` | Location of an OPA policy bundle. |
-| `--verify-query QUERY` | Rego query to evaluate against the server certificate and the policy. |
+| `--verify-policy BUNDLE` | Location of an OPA policy bundle. Must be used with `--verify-query`. |
+| `--verify-query QUERY` | Rego query to evaluate against the server certificate and the policy. Must be used with `--verify-policy`. |
 
 ## Service Subcommands (Windows)
 

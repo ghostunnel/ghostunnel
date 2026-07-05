@@ -14,8 +14,12 @@ client and server present a certificate that the other party verifies.
 Several flags restrict which clients can connect, based on fields in the
 client certificate.
 
-When multiple access control flags are specified, they are OR'd together: a
-client is allowed if at least one flag matches.
+When multiple certificate-field flags (`--allow-cn`, `--allow-ou`,
+`--allow-dns`, `--allow-uri`) are specified, they are OR'd together: a client is
+allowed if at least one flag matches. `--allow-policy`/`--allow-query` may also
+be combined with these flags and is OR'd together with them. The remaining flags,
+`--allow-all` and `--disable-authentication`, are each mutually exclusive with
+the rest.
 
 * `--allow-all`
 
@@ -35,7 +39,7 @@ Performs an exact string match.
 * `--allow-dns`
 
 Allow clients with the given DNS subject alternative name (DNS SAN). Can be
-repeated. Matches the DNS SAN value on the certificate, no DNS lookups are
+repeated. Matches the DNS SAN value on the certificate; no DNS lookups are
 performed.
 
 * `--allow-uri`
@@ -73,8 +77,8 @@ In client mode, additional flags can verify properties of the server
 certificate. Standard hostname verification always runs regardless of which
 flags are set; by default it checks the hostname from `--target` against the
 server certificate's DNS/IP SANs, but `--override-server-name` (see below) can
-redirect verification at a different name (e.g. when dialing by IP, or when
-the cert's SAN doesn't match the dialled host). The one exception is the
+redirect verification to a different name (e.g. when dialing by IP, or when
+the cert's SAN doesn't match the dialed host). The one exception is the
 [SPIFFE Workload API]({{< ref "spiffe-workload-api.md" >}}): when
 `--use-workload-api` is set, hostname verification is replaced by SPIFFE
 authentication (peers are verified as presenting a valid X509-SVID), so use
@@ -87,7 +91,7 @@ passes).
 * `--override-server-name`
 
 Override the server name used for hostname verification and SNI, instead of
-using the hostname from `--target`. Useful when dialling by IP, when the
+using the hostname from `--target`. Useful when dialing by IP, when the
 backend's certificate SAN does not match the dial address, or to pin SNI to a
 specific virtual host. Ignored when `--use-workload-api` is in effect. See the
 `ServerName` field on [`tls.Config`][tls].
@@ -136,10 +140,13 @@ when the backend does not require mutual TLS.
 *Available since v1.7.0, OPA bundle support available since v1.9.0.*
 
 Ghostunnel supports [Open Policy Agent][opa] (OPA) in both server and client
-mode. The policy must be an [OPA bundle][opa-bundles] on disk. When using OPA,
-we recommend expressing all access control logic in the policy itself and not
-combining it with other access control flags. Policy bundles reload at runtime
-via `--timed-reload` or `SIGHUP`, just like certificates.
+mode. The policy must be an [OPA bundle][opa-bundles] on disk. In server mode,
+`--allow-policy`/`--allow-query` may be combined with the other access control
+flags and are OR'd together with them; likewise in client mode,
+`--verify-policy`/`--verify-query` may be combined with other verification flags.
+In both cases we recommend expressing all access control logic in the policy
+itself. Policy bundles reload at runtime via `--timed-reload` or `SIGHUP`, just
+like certificates.
 
 [opa]: https://www.openpolicyagent.org/
 [opa-bundles]: https://www.openpolicyagent.org/docs/latest/management-bundles/
