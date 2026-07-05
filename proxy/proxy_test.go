@@ -65,6 +65,12 @@ func proxyForTestWithProxyProtocol(listener net.Listener, dialer DialFunc) *Prox
 	return New(listener, 5*time.Second, 5*time.Second, 5*time.Second, 1, dialer, &testLogger{}, LogEverything, ProxyProtocolConn, nil)
 }
 
+// Counter readers for tests that exercise New(nil), which records to the
+// package-level defaultMetrics/defaultRegistry. Prometheus counters are
+// monotonic and cannot be reset, so these tests assert on before/after deltas.
+func errorCount() int64       { v, _ := defaultRegistry.SingleValue("accept.error"); return v }
+func connTimeoutCount() int64 { v, _ := defaultRegistry.SingleValue("conn.timeout"); return v }
+
 func TestAbortedConnection(t *testing.T) {
 	p := proxyForTest(&failingListener{}, nil)
 
@@ -72,9 +78,9 @@ func TestAbortedConnection(t *testing.T) {
 	go p.Accept()
 	defer p.Shutdown()
 
-	errorCounter.Clear()
+	before := errorCount()
 	for range 10 {
-		if errorCounter.Count() != 0 {
+		if errorCount() > before {
 			return
 		}
 		time.Sleep(1 * time.Second)
@@ -952,9 +958,9 @@ func TestCopyDataErrorClassification(t *testing.T) {
 		defer dst.Close()
 
 		p, logs := newCapturingProxy(LogConnectionErrors)
-		before := connTimeoutCounter.Count()
+		before := connTimeoutCount()
 		written := p.copyData(dst, src)
-		after := connTimeoutCounter.Count()
+		after := connTimeoutCount()
 
 		assert.Equal(t, int64(5), written, "payload should be copied before the error")
 		assert.Equal(t, 1, countCopyErrorLogs(*logs), "real I/O error must be logged once")
@@ -979,9 +985,9 @@ func TestCopyDataErrorClassification(t *testing.T) {
 		defer dst.Close()
 
 		p, logs := newCapturingProxy(LogConnectionErrors)
-		before := connTimeoutCounter.Count()
+		before := connTimeoutCount()
 		_ = p.copyData(dst, src)
-		after := connTimeoutCounter.Count()
+		after := connTimeoutCount()
 
 		assert.Equal(t, int64(1), after-before, "timeout must bump connTimeoutCounter")
 		assert.Equal(t, 1, countCopyErrorLogs(*logs), "timeout must still be logged")
@@ -993,9 +999,9 @@ func TestCopyDataErrorClassification(t *testing.T) {
 		defer dst.Close()
 
 		p, logs := newCapturingProxy(LogConnectionErrors)
-		before := connTimeoutCounter.Count()
+		before := connTimeoutCount()
 		_ = p.copyData(dst, src)
-		after := connTimeoutCounter.Count()
+		after := connTimeoutCount()
 
 		assert.Equal(t, 0, countCopyErrorLogs(*logs),
 			"closed-connection errors must be silently suppressed by copyData")

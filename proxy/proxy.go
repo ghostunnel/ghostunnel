@@ -29,8 +29,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ghostunnel/ghostunnel/metrics"
 	proxyproto "github.com/pires/go-proxyproto"
-	metrics "github.com/rcrowley/go-metrics"
 	sem "golang.org/x/sync/semaphore"
 )
 
@@ -48,80 +48,15 @@ const (
 	ProxyProtocolTLSFull
 )
 
+// defaultRegistry/defaultMetrics provide the live handles New falls back to
+// when a caller passes nil. This preserves the historical behavior of recording
+// to a package-owned registry (formerly go-metrics' DefaultRegistry); callers
+// that want to skip collection pass metrics.NilMetrics() explicitly. Nothing
+// scrapes this registry, so it exists purely to keep New(nil) recording.
 var (
-	openCounter             = metrics.GetOrRegisterCounter("conn.open", metrics.DefaultRegistry)
-	connTimeoutCounter      = metrics.GetOrRegisterCounter("conn.timeout", metrics.DefaultRegistry)
-	totalCounter            = metrics.GetOrRegisterCounter("accept.total", metrics.DefaultRegistry)
-	successCounter          = metrics.GetOrRegisterCounter("accept.success", metrics.DefaultRegistry)
-	errorCounter            = metrics.GetOrRegisterCounter("accept.error", metrics.DefaultRegistry)
-	handshakeTimeoutCounter = metrics.GetOrRegisterCounter("accept.timeout", metrics.DefaultRegistry)
-	handshakeTimer          = metrics.GetOrRegisterTimer("conn.handshake", metrics.DefaultRegistry)
-	connTimer               = metrics.GetOrRegisterTimer("conn.lifetime", metrics.DefaultRegistry)
-
-	// defaultMetrics wraps the package-level handles registered above on the
-	// default registry. New uses it when a caller passes nil, preserving the
-	// historical behavior of reporting to metrics.DefaultRegistry.
-	defaultMetrics = &Metrics{
-		OpenCounter:             openCounter,
-		ConnTimeoutCounter:      connTimeoutCounter,
-		TotalCounter:            totalCounter,
-		SuccessCounter:          successCounter,
-		ErrorCounter:            errorCounter,
-		HandshakeTimeoutCounter: handshakeTimeoutCounter,
-		HandshakeTimer:          handshakeTimer,
-		ConnTimer:               connTimer,
-	}
+	defaultRegistry = metrics.NewRegistry("ghostunnel")
+	defaultMetrics  = metrics.LiveMetrics(defaultRegistry)
 )
-
-// Metrics holds the go-metrics handles updated on the connection hot path.
-// Injecting the handles (instead of reading package globals) lets the caller
-// decide, once at startup, whether to collect at all: pass LiveMetrics to
-// record against a registry, or NilMetrics to make every update a no-op when no
-// metrics sink is configured. The metric names are part of Ghostunnel's
-// exported surface and must not change.
-type Metrics struct {
-	OpenCounter             metrics.Counter // conn.open
-	ConnTimeoutCounter      metrics.Counter // conn.timeout
-	TotalCounter            metrics.Counter // accept.total
-	SuccessCounter          metrics.Counter // accept.success
-	ErrorCounter            metrics.Counter // accept.error
-	HandshakeTimeoutCounter metrics.Counter // accept.timeout
-	HandshakeTimer          metrics.Timer   // conn.handshake
-	ConnTimer               metrics.Timer   // conn.lifetime
-}
-
-// LiveMetrics registers the connection metrics under their canonical names on
-// the given registry and returns handles that record to it. Registration is
-// idempotent (GetOrRegister), so repeated calls with the same registry return
-// the same underlying handles.
-func LiveMetrics(registry metrics.Registry) *Metrics {
-	return &Metrics{
-		OpenCounter:             metrics.GetOrRegisterCounter("conn.open", registry),
-		ConnTimeoutCounter:      metrics.GetOrRegisterCounter("conn.timeout", registry),
-		TotalCounter:            metrics.GetOrRegisterCounter("accept.total", registry),
-		SuccessCounter:          metrics.GetOrRegisterCounter("accept.success", registry),
-		ErrorCounter:            metrics.GetOrRegisterCounter("accept.error", registry),
-		HandshakeTimeoutCounter: metrics.GetOrRegisterCounter("accept.timeout", registry),
-		HandshakeTimer:          metrics.GetOrRegisterTimer("conn.handshake", registry),
-		ConnTimer:               metrics.GetOrRegisterTimer("conn.lifetime", registry),
-	}
-}
-
-// NilMetrics returns metrics handles whose updates are all no-ops. Use it when
-// no metrics sink is configured so the connection hot path spends nothing
-// updating contended timers; nothing observes the registry in that case anyway.
-func NilMetrics() *Metrics {
-	return &Metrics{
-		OpenCounter:             metrics.NilCounter{},
-		ConnTimeoutCounter:      metrics.NilCounter{},
-		TotalCounter:            metrics.NilCounter{},
-		SuccessCounter:          metrics.NilCounter{},
-		ErrorCounter:            metrics.NilCounter{},
-		HandshakeTimeoutCounter: metrics.NilCounter{},
-		HandshakeTimer:          metrics.NilTimer{},
-		ConnTimer:               metrics.NilTimer{},
-	}
-}
 
 const (
 	// LogConnections will log messages about open/closed connections.
@@ -177,7 +112,7 @@ type Proxy struct {
 	pool sync.Pool
 	// Metrics handles for the connection hot path. Either live (recording to a
 	// registry) or no-op (NilMetrics) when no metrics sink is configured.
-	metrics *Metrics
+	metrics *metrics.Metrics
 }
 
 // PROXY protocol v2 client flag constants (from spec section 2.2.5).
@@ -321,7 +256,7 @@ func New(
 	logger Logger,
 	loggerFlags int,
 	proxyProtocol ProxyProtocolMode,
-	connMetrics *Metrics) *Proxy {
+	connMetrics *metrics.Metrics) *Proxy {
 
 	// A nil handle means "use the default registry" (the historical behavior);
 	// callers that want to skip collection pass NilMetrics explicitly.
@@ -539,7 +474,7 @@ func isACMEChallengeConn(conn net.Conn) bool {
 // unauthenticated clients would be able to open connections and leave them
 // hanging forever. Going through the handshake verifies that clients have a
 // valid client cert and are allowed to talk to us.
-func forceHandshake(ctx context.Context, conn net.Conn, m *Metrics) error {
+func forceHandshake(ctx context.Context, conn net.Conn, m *metrics.Metrics) error {
 	if tlsConn, ok := conn.(*tls.Conn); ok {
 		startTime := time.Now()
 		defer m.HandshakeTimer.UpdateSince(startTime)
