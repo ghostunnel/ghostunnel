@@ -172,7 +172,10 @@ func TestGraphitePush(t *testing.T) {
 	select {
 	case out := <-lines:
 		assert.Contains(t, out, "ghostunnel.accept.total.count 3 ")
-		assert.Contains(t, out, "ghostunnel.conn.handshake.min 10 ")
+		assert.Contains(t, out, "ghostunnel.conn.handshake.count 3 ")
+		assert.Contains(t, out, "ghostunnel.conn.handshake.99-percentile ")
+		assert.NotContains(t, out, "ghostunnel.conn.handshake.min ")
+		assert.NotContains(t, out, "ghostunnel.conn.handshake.max ")
 		assert.NotContains(t, out, "std-dev")
 		assert.NotContains(t, out, "count_ps")
 	case <-time.After(5 * time.Second):

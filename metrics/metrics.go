@@ -32,6 +32,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -71,17 +72,32 @@ type Metrics struct {
 	ConnTimer               Timer   // conn.lifetime
 }
 
-// summaryObjectives are the quantile rank estimates the internal timer's
-// prometheus.Summary tracks. They map directly to the {50,75,95,99}-percentile
-// fields preserved in the JSON and Graphite output. The values are the allowed
-// absolute error per quantile (tighter at the tail, matching prometheus
-// conventions).
-var summaryObjectives = map[float64]float64{
-	0.5:  0.05,
-	0.75: 0.05,
-	0.95: 0.01,
-	0.99: 0.001,
-}
+// Duration histogram bucket boundaries, in nanoseconds. Two presets cover the
+// two operational scales Ghostunnel times: short for sub-second events (TLS
+// handshakes and GC pauses) and long for connection lifetimes, which can run to
+// hours. The classic le-buckets serve both classic Prometheus scrapers and the
+// JSON/Graphite percentile interpolation (see histogramQuantile); the native
+// Prometheus endpoint additionally auto-scales via nativeHistogramBucketFactor,
+// so the choice of classic layout only bounds the accuracy of the legacy
+// percentile estimates, not the native histogram.
+var (
+	shortDurationBuckets = prometheus.ExponentialBucketsRange(1e4, 1e10, 24)    // 10µs … 10s
+	longDurationBuckets  = prometheus.ExponentialBucketsRange(1e6, 8.64e13, 30) // 1ms … 24h
+)
+
+// Native (exponential) histogram tuning. nativeHistogramBucketFactor enables
+// the native representation on every timer, so modern Prometheus scrapers get an
+// auto-scaling histogram regardless of the classic bucket layout above.
+//
+// conn.lifetime durations are driven by external input (connections can live
+// from microseconds to hours), so the native bucket count is capped and the
+// schema is periodically reset to keep memory bounded, as client_golang
+// recommends for externally-influenced observations.
+const (
+	nativeHistogramBucketFactor     = 1.1
+	nativeHistogramMaxBucketNumber  = 160
+	nativeHistogramMinResetDuration = time.Hour
+)
 
 // legacyKind selects how a single-valued metric is rendered by the legacy
 // (JSON/Graphite) adapters. It is independent of the underlying Prometheus
@@ -93,18 +109,18 @@ type legacyKind int
 const (
 	kindCounter legacyKind = iota // Graphite ".count"
 	kindGauge                     // Graphite ".value"
-	kindTimer                     // expanded to count/min/max/mean/percentiles
+	kindTimer                     // expanded to count/mean/percentiles
 )
 
 // descriptor records everything the adapters need about one registered metric:
 // its dotted legacy name, the flattened Prometheus family name used to look its
-// value up in a Gather(), how to render it, and (for timers) the handle that
-// carries the min/max the Summary does not.
+// value up in a Gather(), and how to render it. Timers carry no extra handle:
+// count/sum and the classic buckets the percentiles interpolate from all come
+// straight out of the gathered histogram.
 type descriptor struct {
 	dotted   string // e.g. "conn.open", "runtime.mem.alloc"
 	promName string // e.g. "ghostunnel_conn_open" (as gathered)
 	kind     legacyKind
-	timer    *timer // non-nil iff kind == kindTimer
 }
 
 // Registry owns the single prometheus.Registry plus the metadata the legacy
@@ -170,8 +186,8 @@ func LiveMetrics(r *Registry) *Metrics {
 		SuccessCounter:          r.registerCounter("accept.success"),
 		ErrorCounter:            r.registerCounter("accept.error"),
 		HandshakeTimeoutCounter: r.registerCounter("accept.timeout"),
-		HandshakeTimer:          r.registerTimer("conn.handshake"),
-		ConnTimer:               r.registerTimer("conn.lifetime"),
+		HandshakeTimer:          r.registerTimer("conn.handshake", shortDurationBuckets),
+		ConnTimer:               r.registerTimer("conn.lifetime", longDurationBuckets),
 	}
 }
 
@@ -229,18 +245,22 @@ func (r *Registry) registerOpenGauge(dotted string) Counter {
 	return promGauge{r.newGauge(dotted, kindCounter)}
 }
 
-// registerTimer registers a prometheus.Summary and the internal timer that
-// carries the min/max the Summary does not expose.
-func (r *Registry) registerTimer(dotted string) *timer {
-	s := prometheus.NewSummary(prometheus.SummaryOpts{
-		Namespace:  r.namespace,
-		Name:       flatten(dotted),
-		Help:       dotted,
-		Objectives: summaryObjectives,
+// registerTimer registers a prometheus.Histogram (with the given classic
+// bucket layout plus the native-histogram representation) and the internal
+// timer that records into it.
+func (r *Registry) registerTimer(dotted string, buckets []float64) *timer {
+	h := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Namespace:                       r.namespace,
+		Name:                            flatten(dotted),
+		Help:                            dotted,
+		Buckets:                         buckets,
+		NativeHistogramBucketFactor:     nativeHistogramBucketFactor,
+		NativeHistogramMaxBucketNumber:  nativeHistogramMaxBucketNumber,
+		NativeHistogramMinResetDuration: nativeHistogramMinResetDuration,
 	})
-	r.prom.MustRegister(s)
-	t := newTimer(s)
-	r.addDescriptor(&descriptor{dotted: dotted, promName: fqName(r.namespace, dotted), kind: kindTimer, timer: t})
+	r.prom.MustRegister(h)
+	t := newTimer(h)
+	r.addDescriptor(&descriptor{dotted: dotted, promName: fqName(r.namespace, dotted), kind: kindTimer})
 	return t
 }
 
@@ -261,11 +281,12 @@ type single struct {
 }
 
 // timerReading is a timer/histogram reading in the normalized snapshot, in
-// nanoseconds (matching go-metrics' historical units).
+// nanoseconds (matching go-metrics' historical units). min/max were dropped in
+// the histogram migration; percentiles are interpolated from the histogram
+// buckets (see histogramQuantile).
 type timerReading struct {
 	dotted             string
 	count              int64
-	min, max           int64
 	mean               float64
 	p50, p75, p95, p99 float64
 }
@@ -277,11 +298,10 @@ type snap struct {
 }
 
 // snapshot reads every registered metric once, in canonical descriptor order.
-// Counter/gauge/summary values come from a single Gather() of the prometheus
-// registry; timer min/max come from the timer handles (the Summary does not
-// track them). NaN/Inf quantiles (which a Summary produces once its sliding
-// window has aged out all samples) are clamped to zero so the JSON encoder
-// never fails and Graphite never emits "NaN".
+// Counter/gauge/histogram values all come from a single Gather() of the
+// prometheus registry. Interpolated percentiles for an empty timer are NaN;
+// nz() clamps NaN/Inf to zero so the JSON encoder never fails and Graphite
+// never emits "NaN".
 func (r *Registry) snapshot() snap {
 	families, _ := r.prom.Gather()
 	byName := make(map[string]*dto.MetricFamily, len(families))
@@ -325,36 +345,80 @@ func readTimer(d *descriptor, fam *dto.MetricFamily) timerReading {
 	if fam == nil || len(fam.GetMetric()) == 0 {
 		return tr
 	}
-	sm := fam.GetMetric()[0].GetSummary()
-	tr.count = int64(sm.GetSampleCount())
-	if tr.count <= 0 {
+	h := fam.GetMetric()[0].GetHistogram()
+	count := h.GetSampleCount()
+	tr.count = int64(count)
+	if count == 0 {
 		return tr
 	}
-	tr.mean = nz(sm.GetSampleSum() / float64(tr.count))
-	if d.timer != nil {
-		tr.min = d.timer.minNs.Load()
-		tr.max = d.timer.maxNs.Load()
-		// Defensive: if a reader ever observes count>0 before the first
-		// observation's min/max store is visible, the min sentinel would leak
-		// out. observeNanos orders the stores to prevent this, but clamp here
-		// too so a stray MaxInt64 can never reach the wire.
-		if tr.min == math.MaxInt64 {
-			tr.min = 0
-		}
-	}
-	for _, q := range sm.GetQuantile() {
-		switch q.GetQuantile() {
-		case 0.5:
-			tr.p50 = nz(q.GetValue())
-		case 0.75:
-			tr.p75 = nz(q.GetValue())
-		case 0.95:
-			tr.p95 = nz(q.GetValue())
-		case 0.99:
-			tr.p99 = nz(q.GetValue())
-		}
-	}
+	tr.mean = nz(h.GetSampleSum() / float64(count))
+	buckets := h.GetBucket()
+	tr.p50 = nz(histogramQuantile(0.5, buckets, count))
+	tr.p75 = nz(histogramQuantile(0.75, buckets, count))
+	tr.p95 = nz(histogramQuantile(0.95, buckets, count))
+	tr.p99 = nz(histogramQuantile(0.99, buckets, count))
 	return tr
+}
+
+// histogramQuantile estimates the q-quantile (0 < q < 1) of a classic
+// Prometheus histogram by linear interpolation within the bucket the rank falls
+// into, mirroring PromQL's histogram_quantile. It preserves the JSON/Graphite
+// percentile fields now that timers are histograms rather than summaries.
+//
+// buckets are the cumulative le-buckets as gathered; count is the total
+// observation count. All Ghostunnel timer observations are non-negative
+// durations, so the lowest bucket is interpolated from a zero lower bound.
+// Returns 0 for an empty histogram. A rank that falls in the implicit +Inf
+// bucket (i.e. above the highest finite boundary) is reported at that highest
+// finite boundary, since there is no upper edge to interpolate toward — this
+// caps very-large observations at the top of the configured bucket range.
+func histogramQuantile(q float64, buckets []*dto.Bucket, count uint64) float64 {
+	if count == 0 || len(buckets) == 0 {
+		return 0
+	}
+
+	type cumBucket struct {
+		upper float64
+		cum   float64
+	}
+	bs := make([]cumBucket, 0, len(buckets)+1)
+	for _, b := range buckets {
+		bs = append(bs, cumBucket{upper: b.GetUpperBound(), cum: float64(b.GetCumulativeCount())})
+	}
+	sort.Slice(bs, func(i, j int) bool { return bs[i].upper < bs[j].upper })
+
+	// client_golang omits the +Inf bucket from the gathered list; the total
+	// lives in SampleCount. Append it so the highest rank has a bucket to land
+	// in.
+	if !math.IsInf(bs[len(bs)-1].upper, +1) {
+		bs = append(bs, cumBucket{upper: math.Inf(+1), cum: float64(count)})
+	}
+
+	rank := q * float64(count)
+	i := sort.Search(len(bs), func(i int) bool { return bs[i].cum >= rank })
+	if i == len(bs) {
+		i = len(bs) - 1
+	}
+
+	if math.IsInf(bs[i].upper, +1) {
+		// Rank lands in the +Inf bucket: report the highest finite boundary.
+		if i == 0 {
+			return 0
+		}
+		return bs[i-1].upper
+	}
+
+	bucketEnd := bs[i].upper
+	bucketStart, cumPrev := 0.0, 0.0
+	if i > 0 {
+		bucketStart = bs[i-1].upper
+		cumPrev = bs[i-1].cum
+	}
+	countInBucket := bs[i].cum - cumPrev
+	if countInBucket <= 0 {
+		return bucketEnd
+	}
+	return bucketStart + (bucketEnd-bucketStart)*((rank-cumPrev)/countInBucket)
 }
 
 // SingleValue reports the current value of a counter/gauge by its dotted name.

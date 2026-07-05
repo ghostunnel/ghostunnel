@@ -24,11 +24,10 @@ import (
 )
 
 // runtimeCollector reproduces go-sq-metrics' collectMetrics: a fixed set of
-// runtime/GC gauges plus a GC-pause "histogram" (modeled here as an internal
-// timer so it expands to the same count/min/max/mean/percentile fields). The
-// gauges are persistent prometheus instruments updated on an interval, so they
-// also appear on the native Prometheus endpoint exactly like Ghostunnel's other
-// metrics.
+// runtime/GC gauges plus a GC-pause histogram (an internal timer, so it expands
+// to the same count/mean/percentile fields on the legacy sinks). The gauges are
+// persistent prometheus instruments updated on an interval, so they also appear
+// on the native Prometheus endpoint exactly like Ghostunnel's other metrics.
 //
 // Note: Ghostunnel's go_*/process_* collectors already export the canonical
 // Prometheus runtime/process metrics. These ghostunnel.runtime.* gauges are
@@ -80,7 +79,7 @@ func (r *Registry) registerRuntime() *runtimeCollector {
 	for dotted, read := range readers {
 		rc.gauges = append(rc.gauges, runtimeGauge{gauge: r.registerGauge(dotted), read: read})
 	}
-	rc.gcDuration = r.registerTimer("runtime.mem.gc.duration")
+	rc.gcDuration = r.registerTimer("runtime.mem.gc.duration", shortDurationBuckets)
 
 	return rc
 }

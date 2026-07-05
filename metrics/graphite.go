@@ -28,8 +28,8 @@ import (
 // writeGraphite writes the metrics snapshot in Graphite's line protocol
 // ("<path> <value> <timestamp>\n") to w. It reproduces the kept subset of
 // cyberdelia/go-metrics-graphite's output: counters emit ".count"; gauges emit
-// ".value"; timers emit count/min/max/mean/{50,75,95,99}-percentile. The
-// dropped fields (count_ps, std-dev, the rate fields, and .999-percentile) are
+// ".value"; timers emit count/mean/{50,75,95,99}-percentile. The dropped fields
+// (min, max, count_ps, std-dev, the rate fields, and .999-percentile) are
 // intentionally absent — see docs/networking/metrics.md.
 //
 // Durations are reported in nanoseconds (DurationUnit was time.Nanosecond).
@@ -57,8 +57,6 @@ func (r *Registry) writeGraphite(w io.Writer, now int64) error {
 	}
 	for _, t := range s.timers {
 		line(t.dotted, "count", float64(t.count))
-		line(t.dotted, "min", float64(t.min))
-		line(t.dotted, "max", float64(t.max))
 		line(t.dotted, "mean", t.mean)
 		line(t.dotted, "50-percentile", t.p50)
 		line(t.dotted, "75-percentile", t.p75)

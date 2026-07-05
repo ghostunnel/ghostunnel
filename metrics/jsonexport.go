@@ -34,7 +34,8 @@ type Logger interface {
 // serializeJSON reproduces go-sq-metrics' SerializeMetrics output: one
 // {timestamp, metric, value, hostname} object per emitted value. Counters and
 // gauges emit a single value; timers expand to
-// count/min/max/mean/{50,75,95,99}-percentile. The "metric" field is the
+// count/mean/{50,75,95,99}-percentile (min/max were dropped in the histogram
+// migration). The "metric" field is the
 // prefix-prepended dotted name. Single values carry the float64 Prometheus
 // gathers; Go marshals integer-valued float64 without a decimal point, so
 // counters encode as plain integers. Order is not significant.
@@ -57,8 +58,6 @@ func (r *Registry) serializeJSON() []map[string]any {
 	}
 	for _, t := range s.timers {
 		emit(t.dotted+".count", t.count)
-		emit(t.dotted+".min", t.min)
-		emit(t.dotted+".max", t.max)
 		emit(t.dotted+".mean", t.mean)
 		emit(t.dotted+".50-percentile", t.p50)
 		emit(t.dotted+".75-percentile", t.p75)

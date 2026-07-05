@@ -29,12 +29,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	dto "github.com/prometheus/client_model/go"
 )
 
 // fixture builds a registry with a known set of observations:
 //   - accept.total = 3, accept.error = 1
 //   - conn.open = 2 (Inc'd 3, Dec'd 1)
-//   - conn.handshake observed at 10, 20, 30 ns (count 3, min 10, max 30, mean 20)
+//   - conn.handshake observed at 10ms, 20ms, 30ms (count 3, mean 20ms); values
+//     are in the millisecond range so they land inside the handshake histogram's
+//     bucket layout and the interpolated percentiles are meaningful.
 func fixture(t *testing.T) (*Registry, *Metrics) {
 	t.Helper()
 	r := NewRegistry("ghostunnel")
@@ -51,9 +55,9 @@ func fixture(t *testing.T) (*Registry, *Metrics) {
 	m.OpenCounter.Dec(1)
 
 	ht := m.HandshakeTimer.(*timer)
-	ht.observeNanos(10)
-	ht.observeNanos(20)
-	ht.observeNanos(30)
+	ht.observeNanos(10_000_000)
+	ht.observeNanos(20_000_000)
+	ht.observeNanos(30_000_000)
 
 	return r, m
 }
@@ -87,21 +91,20 @@ func TestJSONFieldSet(t *testing.T) {
 	assert.EqualValues(t, 1, byName["ghostunnel.accept.error"])
 	assert.EqualValues(t, 2, byName["ghostunnel.conn.open"])
 
-	// Timer expands to exactly count/min/max/mean + the four percentiles.
+	// Timer expands to exactly count/mean + the four percentiles (min/max were
+	// dropped in the histogram migration).
 	assert.EqualValues(t, 3, byName["ghostunnel.conn.handshake.count"])
-	assert.EqualValues(t, 10, byName["ghostunnel.conn.handshake.min"])
-	assert.EqualValues(t, 30, byName["ghostunnel.conn.handshake.max"])
-	assert.EqualValues(t, 20, byName["ghostunnel.conn.handshake.mean"])
+	assert.EqualValues(t, 20_000_000, byName["ghostunnel.conn.handshake.mean"])
 	assert.Contains(t, byName, "ghostunnel.conn.handshake.50-percentile")
 	assert.Contains(t, byName, "ghostunnel.conn.handshake.75-percentile")
 	assert.Contains(t, byName, "ghostunnel.conn.handshake.95-percentile")
 	assert.Contains(t, byName, "ghostunnel.conn.handshake.99-percentile")
 
-	// Deprecated/never-present-in-JSON fields must be absent.
+	// Deprecated/dropped/never-present-in-JSON fields must be absent.
 	for name := range byName {
-		for _, banned := range []string{"std-dev", "std_dev", "variance", "999-percentile",
-			"count_ps", "one-minute", "five-minute", "fifteen-minute", "mean-rate",
-			"rate1", "rate5", "rate15", "rate_mean", "-percentile."} {
+		for _, banned := range []string{".min", ".max", "std-dev", "std_dev", "variance",
+			"999-percentile", "count_ps", "one-minute", "five-minute", "fifteen-minute",
+			"mean-rate", "rate1", "rate5", "rate15", "rate_mean", "-percentile."} {
 			assert.NotContains(t, name, banned, "JSON must not contain %q", banned)
 		}
 	}
@@ -127,7 +130,6 @@ func TestJSONEmptyTimerIsZeroed(t *testing.T) {
 	require.NoError(t, err, "empty timers must not produce NaN values")
 	byName := jsonByMetric(t, raw)
 	assert.EqualValues(t, 0, byName["ghostunnel.conn.handshake.count"])
-	assert.EqualValues(t, 0, byName["ghostunnel.conn.handshake.min"])
 	assert.EqualValues(t, 0, byName["ghostunnel.conn.handshake.99-percentile"])
 }
 
@@ -149,15 +151,17 @@ func TestGraphiteFieldSet(t *testing.T) {
 	// Kept fields.
 	assert.Contains(t, got, "ghostunnel.accept.total.count", "counter emits .count")
 	assert.Contains(t, got, "ghostunnel.conn.open.count", "conn.open keeps .count (not .value)")
-	for _, suffix := range []string{"count", "min", "max", "mean",
+	for _, suffix := range []string{"count", "mean",
 		"50-percentile", "75-percentile", "95-percentile", "99-percentile"} {
 		assert.Contains(t, got, "ghostunnel.conn.handshake."+suffix, "timer keeps .%s", suffix)
 	}
 	// A counter must not emit .value.
 	assert.NotContains(t, got, "ghostunnel.accept.total.value", "counters must not emit .value")
 
-	// Dropped fields.
+	// Dropped fields (min/max were removed in the histogram migration).
 	for _, banned := range []string{
+		"ghostunnel.conn.handshake.min",
+		"ghostunnel.conn.handshake.max",
 		"ghostunnel.accept.total.count_ps",
 		"ghostunnel.conn.handshake.std-dev",
 		"ghostunnel.conn.handshake.999-percentile",
@@ -178,9 +182,7 @@ func TestGraphiteFieldSet(t *testing.T) {
 		return f
 	}
 	assert.EqualValues(t, 3, floatVal("ghostunnel.conn.handshake.count"))
-	assert.EqualValues(t, 10, floatVal("ghostunnel.conn.handshake.min"))
-	assert.EqualValues(t, 30, floatVal("ghostunnel.conn.handshake.max"))
-	assert.EqualValues(t, 20, floatVal("ghostunnel.conn.handshake.mean"))
+	assert.EqualValues(t, 20_000_000, floatVal("ghostunnel.conn.handshake.mean"))
 }
 
 func TestPrometheusNative(t *testing.T) {
@@ -192,11 +194,11 @@ func TestPrometheusNative(t *testing.T) {
 		names[f.GetName()] = true
 	}
 
-	// conn.open is a gauge; counters are counters; timers are summaries named
+	// conn.open is a gauge; counters are counters; timers are histograms named
 	// without the historical "_timer" suffix.
 	assert.True(t, names["ghostunnel_conn_open"], "conn.open present")
 	assert.True(t, names["ghostunnel_accept_total"], "accept.total present")
-	assert.True(t, names["ghostunnel_conn_handshake"], "timer is a native summary")
+	assert.True(t, names["ghostunnel_conn_handshake"], "timer is a native histogram")
 	assert.False(t, names["ghostunnel_conn_handshake_timer"], "no legacy _timer suffix")
 
 	// go_*/process_* collectors remain.
@@ -216,48 +218,33 @@ func TestPrometheusNative(t *testing.T) {
 		assert.True(t, hasProcess, "process_* collectors registered")
 	}
 
-	// The summary carries _sum, _count and the four quantiles; no std_dev/variance/rate.
+	// The histogram carries _sum, _count and the classic _bucket{le=...} series;
+	// no summary quantiles, std_dev/variance/rate, or legacy _timer_bucket.
 	body := renderProm(t, r)
 	assert.Contains(t, body, "ghostunnel_conn_handshake_sum")
 	assert.Contains(t, body, "ghostunnel_conn_handshake_count 3")
-	assert.Contains(t, body, `ghostunnel_conn_handshake{quantile="0.5"}`)
-	assert.Contains(t, body, `ghostunnel_conn_handshake{quantile="0.99"}`)
+	assert.Contains(t, body, `ghostunnel_conn_handshake_bucket{le=`)
+	assert.NotContains(t, body, `ghostunnel_conn_handshake{quantile=`, "timers are histograms, not summaries")
 	for _, banned := range []string{"std_dev", "variance", "_rate1", "_rate5", "_rate15", "rate_mean", "_timer_bucket"} {
 		assert.NotContains(t, body, banned, "prometheus must not contain %q", banned)
 	}
 }
 
 func TestTimerObservationsAreNanoseconds(t *testing.T) {
-	// The percentiles must come out in the same units as min/max/mean (ns), so a
-	// median of {10,20,30}ns is ~20, not ~2e-8 (seconds).
+	// The percentiles must come out in the same units as mean (ns): the fixture
+	// observes {10,20,30}ms, so a median near 2e7 ns confirms the histogram
+	// buckets and interpolation are in nanoseconds — not seconds (~0.02) or some
+	// other scale. The exact interpolated value depends on bucket layout, so the
+	// bound is deliberately wide.
 	r, _ := fixture(t)
 	for _, tr := range r.snapshot().timers {
 		if tr.dotted != "conn.handshake" {
 			continue
 		}
-		assert.InDelta(t, 20.0, tr.p50, 15.0, "p50 should be ~20ns")
-		assert.GreaterOrEqual(t, tr.p99, 20.0, "p99 within observed range")
+		assert.Greater(t, tr.p50, 1e6, "p50 must be in the millisecond (ns) range, not seconds")
+		assert.Less(t, tr.p50, 1e8, "p50 must be near the observed 10-30ms range")
+		assert.GreaterOrEqual(t, tr.p99, tr.p50, "p99 must be >= p50")
 	}
-}
-
-func TestTimerFirstObservationMinMax(t *testing.T) {
-	// A timer's very first observation must surface as both min and max — never
-	// the min sentinel (math.MaxInt64). This pins the store ordering in
-	// observeNanos and the clamp in readTimer.
-	r := NewRegistry("ghostunnel")
-	m := LiveMetrics(r)
-	m.HandshakeTimer.(*timer).observeNanos(42)
-
-	var got timerReading
-	for _, tr := range r.snapshot().timers {
-		if tr.dotted == "conn.handshake" {
-			got = tr
-		}
-	}
-	assert.EqualValues(t, 1, got.count)
-	assert.EqualValues(t, 42, got.min, "first observation must be the min")
-	assert.EqualValues(t, 42, got.max, "first observation must be the max")
-	assert.Less(t, got.min, int64(1<<62), "min sentinel must never leak to the wire")
 }
 
 func TestSingleValueAndTimerCount(t *testing.T) {
@@ -336,13 +323,61 @@ func TestPrefixApplied(t *testing.T) {
 }
 
 func TestNZClampsNaNAndInf(t *testing.T) {
-	// nz keeps NaN/Inf off the wire: a Summary whose sliding window has aged out
-	// all samples reports NaN quantiles, which would fail json.Marshal and emit
-	// "NaN" to Graphite.
+	// nz keeps NaN/Inf off the wire: interpolating a percentile from an empty
+	// histogram yields NaN, which would fail json.Marshal and emit "NaN" to
+	// Graphite.
 	assert.EqualValues(t, 0, nz(math.NaN()))
 	assert.EqualValues(t, 0, nz(math.Inf(1)))
 	assert.EqualValues(t, 0, nz(math.Inf(-1)))
 	assert.EqualValues(t, 12.5, nz(12.5), "finite values pass through unchanged")
+}
+
+// mkBucket builds a gathered cumulative bucket with the given upper bound and
+// cumulative count.
+func mkBucket(upper float64, cum uint64) *dto.Bucket {
+	return &dto.Bucket{UpperBound: &upper, CumulativeCount: &cum}
+}
+
+func TestHistogramQuantile(t *testing.T) {
+	// Cumulative buckets le=10 -> 2, le=20 -> 5, le=30 -> 10 (total 10).
+	// client_golang omits the +Inf bucket; histogramQuantile synthesizes it.
+	buckets := []*dto.Bucket{mkBucket(10, 2), mkBucket(20, 5), mkBucket(30, 10)}
+
+	// No observations -> 0 (never NaN out of the quantile itself).
+	assert.Equal(t, 0.0, histogramQuantile(0.5, buckets, 0))
+	assert.Equal(t, 0.0, histogramQuantile(0.5, nil, 10))
+
+	// p50 rank=5 lands exactly at the le=20 boundary: interpolate within (10,20],
+	// rankInBucket = 5-2 = 3 of 3 -> the upper edge, 20.
+	assert.InDelta(t, 20.0, histogramQuantile(0.5, buckets, 10), 1e-9)
+	// p10 rank=1 lands in the first bucket (0,10], 1 of 2 -> 5.
+	assert.InDelta(t, 5.0, histogramQuantile(0.1, buckets, 10), 1e-9)
+
+	// Quantiles are non-decreasing in q and never exceed the top finite bound.
+	prev := 0.0
+	for _, q := range []float64{0.1, 0.25, 0.5, 0.75, 0.9, 0.99} {
+		v := histogramQuantile(q, buckets, 10)
+		assert.GreaterOrEqual(t, v, prev, "quantiles must be non-decreasing in q")
+		assert.LessOrEqual(t, v, 30.0, "must not exceed the highest finite bound")
+		assert.False(t, math.IsInf(v, 0) || math.IsNaN(v), "must be finite")
+		prev = v
+	}
+}
+
+func TestHistogramQuantileInfBucketCap(t *testing.T) {
+	// When the rank lands in the implicit +Inf bucket (observations above the top
+	// finite bound), report the highest finite bound rather than +Inf.
+	buckets := []*dto.Bucket{mkBucket(10, 1), mkBucket(20, 2)}
+	got := histogramQuantile(0.99, buckets, 10) // ranks >0.2 land in +Inf
+	assert.Equal(t, 20.0, got, "ranks above the top finite bucket cap at that bound")
+	assert.False(t, math.IsInf(got, 1), "must never return +Inf")
+}
+
+func TestHistogramQuantileExplicitInfBucket(t *testing.T) {
+	// A gatherer that includes the +Inf bucket explicitly must not have it
+	// double-appended and must still cap at the highest finite bound.
+	buckets := []*dto.Bucket{mkBucket(10, 1), mkBucket(math.Inf(1), 10)}
+	assert.Equal(t, 10.0, histogramQuantile(0.99, buckets, 10))
 }
 
 func TestReadersHandleMissingFamily(t *testing.T) {
@@ -357,24 +392,6 @@ func TestReadersHandleMissingFamily(t *testing.T) {
 	assert.Zero(t, tr.count)
 }
 
-func TestReadTimerClampsMinSentinel(t *testing.T) {
-	// Observe directly on the Summary, bypassing observeNanos, so the gathered
-	// count is >0 while minNs still holds its MaxInt64 sentinel. readTimer's
-	// defensive clamp must keep the sentinel off the wire.
-	r := NewRegistry("ghostunnel")
-	m := LiveMetrics(r)
-	m.HandshakeTimer.(*timer).summary.Observe(5)
-
-	var got timerReading
-	for _, tr := range r.snapshot().timers {
-		if tr.dotted == "conn.handshake" {
-			got = tr
-		}
-	}
-	assert.EqualValues(t, 1, got.count)
-	assert.EqualValues(t, 0, got.min, "min sentinel must be clamped to 0")
-}
-
 func TestTimerUpdateSinceRecords(t *testing.T) {
 	// UpdateSince is the hot-path entry point (observeNanos is the internal one).
 	r := NewRegistry("ghostunnel")
@@ -386,7 +403,8 @@ func TestTimerUpdateSinceRecords(t *testing.T) {
 	assert.EqualValues(t, 1, c)
 	for _, tr := range r.snapshot().timers {
 		if tr.dotted == "conn.handshake" {
-			assert.Positive(t, tr.min, "elapsed duration must be recorded as a positive min")
+			assert.Positive(t, tr.mean, "elapsed duration must be recorded as a positive mean")
+			assert.Positive(t, tr.p50, "elapsed duration must interpolate to a positive p50")
 		}
 	}
 }

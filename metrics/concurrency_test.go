@@ -30,15 +30,16 @@ import (
 // Concurrency tests for the pieces that exist purely for concurrent use.
 // These have real value under -race (see the test:race mage target).
 
-// TestTimerConcurrentObserve hammers observeNanos from many goroutines. The
-// min/max CAS loops must converge on the true extremes and the summary count
-// must reflect every observation.
+// TestTimerConcurrentObserve hammers observeNanos from many goroutines. Every
+// observation must be recorded: the histogram count must reflect all of them,
+// and the exact _sum-derived mean must match, with no lost updates under -race.
 func TestTimerConcurrentObserve(t *testing.T) {
 	r := NewRegistry("test")
-	tm := r.registerTimer("conn.handshake")
+	tm := r.registerTimer("conn.handshake", shortDurationBuckets)
 
 	const goroutines = 8
 	const perGoroutine = 1000
+	const total = goroutines * perGoroutine
 
 	var wg sync.WaitGroup
 	for g := 0; g < goroutines; g++ {
@@ -46,19 +47,26 @@ func TestTimerConcurrentObserve(t *testing.T) {
 		go func(g int) {
 			defer wg.Done()
 			for i := 0; i < perGoroutine; i++ {
-				// Values span [1, goroutines*perGoroutine], each observed once.
+				// Values span [1, total], each observed once.
 				tm.observeNanos(int64(g*perGoroutine + i + 1))
 			}
 		}(g)
 	}
 	wg.Wait()
 
-	assert.Equal(t, int64(1), tm.minNs.Load(), "min must be the smallest observation")
-	assert.Equal(t, int64(goroutines*perGoroutine), tm.maxNs.Load(), "max must be the largest observation")
-
 	count, ok := r.TimerCount("conn.handshake")
 	require.True(t, ok)
-	assert.Equal(t, int64(goroutines*perGoroutine), count, "no observation may be lost")
+	assert.Equal(t, int64(total), count, "no observation may be lost")
+
+	// The exact mean (sum/count) pins that every value contributed: the sum of
+	// 1..total is total*(total+1)/2, so the mean is (total+1)/2.
+	var mean float64
+	for _, tr := range r.snapshot().timers {
+		if tr.dotted == "conn.handshake" {
+			mean = tr.mean
+		}
+	}
+	assert.InDelta(t, float64(total+1)/2.0, mean, 1e-6, "every observation must contribute to the sum")
 }
 
 // TestStartRuntimeCollectorConcurrent races StartRuntimeCollector from many
