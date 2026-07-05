@@ -455,7 +455,7 @@ func pythonCmd() string {
 // coveredPackages is the list of packages to instrument for coverage.
 // Used consistently across unit and integration tests so that coverage
 // blocks are compatible when merged.
-var coveredPackages = ".,./auth,./certloader,./certloader/jceks,./certstore,./policy,./proxy,./wildcard,./socket"
+var coveredPackages = ".,./auth,./certloader,./certloader/jceks,./certstore,./metrics,./policy,./proxy,./wildcard,./socket"
 
 // cleanCoverage removes stale coverage data from previous runs and
 // recreates the coverage subdirectories. Used as a mage dep so that mage's
