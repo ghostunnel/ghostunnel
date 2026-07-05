@@ -34,9 +34,22 @@ try:
 
     # wait for metrics to be sent
     conn, addr = m.accept()
-    for line in conn.makefile().readlines():
-        if len(line.partition(' ')) != 3:
-            raise Exception('invalid metric: ' + line)
+    lines = conn.makefile().readlines()
+    if not lines:
+        raise Exception('no metrics received on graphite socket')
+    for line in lines:
+        parts = line.split()
+        if len(parts) != 3:
+            raise Exception('invalid metric line: ' + repr(line))
+        float(parts[1])  # value must be numeric
+        int(parts[2])    # timestamp must be an integer
+    names = set(line.split()[0] for line in lines)
+    for expected in ['ghostunnel.accept.total.count',
+                     'ghostunnel.conn.handshake.99-percentile',
+                     'ghostunnel.runtime.goroutines.value']:
+        if expected not in names:
+            raise Exception(
+                'expected metric {0} missing from graphite report'.format(expected))
 
     print_ok("OK")
 finally:

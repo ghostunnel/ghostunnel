@@ -17,42 +17,36 @@
 package metrics
 
 import (
-	"math"
-	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// timer is the only non-trivial instrument. A prometheus.Summary feeds the
-// {50,75,95,99}-percentile fields (and the native Prometheus _sum/_count and
-// quantiles); the min/max atomics carry the two statistics the Summary does not
-// expose so the JSON and Graphite adapters can keep emitting them.
+// timer wraps a prometheus.Histogram to record durations in nanoseconds. The
+// histogram carries the cumulative _count/_sum and the classic le-buckets that
+// the JSON and Graphite adapters interpolate percentiles from; the native
+// Prometheus endpoint additionally exposes it as a native (exponential)
+// histogram for scrapers that negotiate it.
+//
+// There is deliberately no min/max, EWMA, std-dev, or variance: those derived
+// fields were dropped in the histogram migration, which is what keeps this type
+// a thin wrapper. Percentiles are a query-time concern on Prometheus
+// (histogram_quantile) and are bucket-interpolated for the legacy sinks (see
+// histogramQuantile in metrics.go).
 //
 // Observations are recorded in nanoseconds, matching the units go-metrics
-// timers historically reported through every sink. There is deliberately no
-// EWMA or variance: the derived rate/std-dev/variance fields were dropped in
-// this migration, which is what keeps this type simple.
+// timers historically reported through every sink.
 type timer struct {
-	summary prometheus.Summary
-	minNs   atomic.Int64
-	maxNs   atomic.Int64
+	hist prometheus.Histogram
 }
 
-func newTimer(s prometheus.Summary) *timer {
-	t := &timer{summary: s}
-	// Start min at the maximum so the first observation always wins the CAS.
-	// snapshot() never reads minNs until count > 0, so this sentinel is never
-	// observed.
-	t.minNs.Store(math.MaxInt64)
-	return t
+func newTimer(h prometheus.Histogram) *timer {
+	return &timer{hist: h}
 }
 
 // UpdateSince records the elapsed time since start. It is called on the
-// connection hot path, so it does only the minimum: one Summary observation
-// (mutex-guarded inside client_golang) plus two compare-and-swap loops for
-// min/max. The Summary itself maintains the cumulative count and sum the
-// adapters read back.
+// connection hot path, so it does the minimum: a single histogram observation
+// (a bucket search plus atomic increments inside client_golang).
 func (t *timer) UpdateSince(start time.Time) {
 	t.observeNanos(time.Since(start).Nanoseconds())
 }
@@ -60,25 +54,6 @@ func (t *timer) UpdateSince(start time.Time) {
 // observeNanos records a single observation given directly in nanoseconds. It
 // is used both by UpdateSince and by the runtime collector's GC-pause path,
 // which has a pause duration rather than a start time.
-//
-// The min/max atomics are updated *before* the Summary observation so a reader
-// can never gather a non-zero sample count while min still holds its sentinel
-// (which would otherwise surface MaxInt64 as a one-shot ".min" on a timer's
-// very first observation). snapshot() reads count from the Summary, so by the
-// time count reflects this observation, min/max already do too.
 func (t *timer) observeNanos(d int64) {
-	for {
-		cur := t.minNs.Load()
-		if d >= cur || t.minNs.CompareAndSwap(cur, d) {
-			break
-		}
-	}
-	for {
-		cur := t.maxNs.Load()
-		if d <= cur || t.maxNs.CompareAndSwap(cur, d) {
-			break
-		}
-	}
-
-	t.summary.Observe(float64(d))
+	t.hist.Observe(float64(d))
 }

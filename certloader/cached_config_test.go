@@ -195,3 +195,98 @@ func TestCachedACMENextProtosStable(t *testing.T) {
 	// The base config's own NextProtos must not have been mutated/aliased.
 	assert.Len(t, base.NextProtos, 2, "build must not append to base.NextProtos")
 }
+
+// newCachedACMEConfig builds an acmeTLSConfig whose source carries the given
+// trust store, mirroring how TLSConfigSourceFromACME wires the cache.
+func newCachedACMEConfig(pool *x509.CertPool) (*acmeTLSConfigSource, *acmeTLSConfig) {
+	source := &acmeTLSConfigSource{}
+	source.cachedTrustStore.Store(pool)
+	return source, &acmeTLSConfig{
+		base:   &tls.Config{MinVersion: tls.VersionTLS12},
+		source: source,
+	}
+}
+
+// After the ACME source's trust store changes, the next call rebuilds with the
+// new pool; without a reload the pointer is stable. This is the acme analogue
+// of TestCachedCertServerConfigReloadVisibility.
+func TestCachedACMEServerConfigReloadVisibility(t *testing.T) {
+	pool1 := x509.NewCertPool()
+	source, cfg := newCachedACMEConfig(pool1)
+
+	first := cfg.GetServerConfig()
+	assert.Same(t, pool1, first.ClientCAs, "config should carry the original pool")
+	assert.Same(t, first, cfg.GetServerConfig(), "no reload means a stable pointer")
+
+	// Simulate a CA-bundle reload: a new pool identity is published.
+	pool2 := x509.NewCertPool()
+	source.cachedTrustStore.Store(pool2)
+
+	rebuilt := cfg.GetServerConfig()
+	assert.NotSame(t, first, rebuilt, "a new pool must force a rebuild")
+	assert.Same(t, pool2, rebuilt.ClientCAs, "config must carry the new pool")
+	assert.Same(t, rebuilt, cfg.GetServerConfig(), "stable pointer again after the rebuild")
+}
+
+// Steady-state ACME GetServerConfig must not allocate.
+func TestCachedACMEServerConfigZeroAllocs(t *testing.T) {
+	_, cfg := newCachedACMEConfig(x509.NewCertPool())
+	cfg.GetServerConfig() // warm the cache
+
+	allocs := testing.AllocsPerRun(100, func() {
+		_ = cfg.GetServerConfig()
+	})
+	assert.Zero(t, allocs, "steady-state GetServerConfig must not allocate")
+}
+
+// Hammer ACME GetServerConfig from many goroutines while another swaps the
+// pool. Run with -race. This is the acme analogue of
+// TestCachedCertServerConfigConcurrentReload.
+func TestCachedACMEServerConfigConcurrentReload(t *testing.T) {
+	pools := []*x509.CertPool{x509.NewCertPool()}
+	for i := 0; i < 8; i++ {
+		pools = append(pools, x509.NewCertPool())
+	}
+	valid := make(map[*x509.CertPool]bool, len(pools))
+	for _, p := range pools {
+		valid[p] = true
+	}
+
+	source, cfg := newCachedACMEConfig(pools[0])
+
+	stop := make(chan struct{})
+	var writer sync.WaitGroup
+	writer.Add(1)
+	go func() {
+		defer writer.Done()
+		i := 0
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				source.cachedTrustStore.Store(pools[i%len(pools)])
+				i++
+			}
+		}
+	}()
+
+	var readers sync.WaitGroup
+	for r := 0; r < 4; r++ {
+		readers.Add(1)
+		go func() {
+			defer readers.Done()
+			for n := 0; n < 5000; n++ {
+				c := cfg.GetServerConfig()
+				if !valid[c.ClientCAs] {
+					t.Errorf("config carries an unexpected (torn/nil) pool: %p", c.ClientCAs)
+					return
+				}
+			}
+		}()
+	}
+
+	readers.Wait()
+	close(stop)
+	writer.Wait()
+}

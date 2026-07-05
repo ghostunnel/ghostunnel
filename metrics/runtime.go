@@ -24,11 +24,10 @@ import (
 )
 
 // runtimeCollector reproduces go-sq-metrics' collectMetrics: a fixed set of
-// runtime/GC gauges plus a GC-pause "histogram" (modeled here as an internal
-// timer so it expands to the same count/min/max/mean/percentile fields). The
-// gauges are persistent prometheus instruments updated on an interval, so they
-// also appear on the native Prometheus endpoint exactly like Ghostunnel's other
-// metrics.
+// runtime/GC gauges plus a GC-pause histogram (an internal timer, so it expands
+// to the same count/mean/percentile fields on the legacy sinks). The gauges are
+// persistent prometheus instruments updated on an interval, so they also appear
+// on the native Prometheus endpoint exactly like Ghostunnel's other metrics.
 //
 // Note: Ghostunnel's go_*/process_* collectors already export the canonical
 // Prometheus runtime/process metrics. These ghostunnel.runtime.* gauges are
@@ -80,7 +79,7 @@ func (r *Registry) registerRuntime() *runtimeCollector {
 	for dotted, read := range readers {
 		rc.gauges = append(rc.gauges, runtimeGauge{gauge: r.registerGauge(dotted), read: read})
 	}
-	rc.gcDuration = r.registerTimer("runtime.mem.gc.duration")
+	rc.gcDuration = r.registerTimer("runtime.mem.gc.duration", shortDurationBuckets)
 
 	return rc
 }
@@ -104,7 +103,7 @@ func (rc *runtimeCollector) collectOnce() {
 		start = mem.NumGC - 256
 	}
 	for i := start; i < mem.NumGC; i++ {
-		rc.gcDuration.observeNanos(int64(mem.PauseNs[(i+1)%256]))
+		rc.gcDuration.observeNanos(int64(mem.PauseNs[i%256]))
 	}
 	rc.observedPauses = mem.NumGC
 }
@@ -112,19 +111,26 @@ func (rc *runtimeCollector) collectOnce() {
 // StartRuntimeCollector registers the runtime gauges (once) and starts a
 // background goroutine that refreshes them every interval. An initial
 // collection runs synchronously so the gauges are populated before the first
-// scrape or push. It is safe to call at most once per registry.
+// scrape or push. Concurrent and repeated calls are safe: only the first call
+// registers and starts anything (guarded by a sync.Once, since racing
+// registrations would panic in MustRegister). The interval of any later call
+// is ignored.
+//
+// The goroutine runs for the remaining lifetime of the process by design:
+// Ghostunnel starts the collector once at startup and never tears it down
+// before exit, so there is deliberately no stop mechanism.
 func (r *Registry) StartRuntimeCollector(interval time.Duration) {
-	if r.runtime != nil {
-		return
-	}
-	r.runtime = r.registerRuntime()
-	r.runtime.collectOnce()
+	r.runtimeOnce.Do(func() {
+		rc := r.registerRuntime()
+		r.runtime = rc
+		rc.collectOnce()
 
-	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for range ticker.C {
-			r.runtime.collectOnce()
-		}
-	}()
+		go func() {
+			ticker := time.NewTicker(interval)
+			defer ticker.Stop()
+			for range ticker.C {
+				rc.collectOnce()
+			}
+		}()
+	})
 }

@@ -1815,3 +1815,103 @@ default allow := true
 		})
 	}
 }
+
+// TestSetupMetricsGate pins the metrics-collection gate: live handles bound to
+// a registry when at least one sink (--status, --metrics-graphite,
+// --metrics-url) is configured, no-op handles and no registry otherwise.
+func TestSetupMetricsGate(t *testing.T) {
+	// setupMetrics reads package-global flags; save and restore them.
+	origStatus, origGraphite, origURL := *statusAddress, *metricsGraphite, *metricsURL
+	origPrefix, origInterval, origCA := *metricsPrefix, *metricsInterval, *caBundlePath
+	defer func() {
+		*statusAddress, *metricsGraphite, *metricsURL = origStatus, origGraphite, origURL
+		*metricsPrefix, *metricsInterval, *caBundlePath = origPrefix, origInterval, origCA
+	}()
+
+	*metricsPrefix = "ghostunnel"
+	*metricsInterval = time.Hour // keep background loops idle during the test
+	*metricsGraphite = nil
+	*metricsURL = ""
+	*caBundlePath = ""
+
+	// No sink configured: collection is skipped entirely.
+	*statusAddress = ""
+	m, registry, err := setupMetrics()
+	assert.NoError(t, err)
+	assert.Nil(t, registry, "no sink must mean no registry (collection skipped)")
+	assert.NotNil(t, m, "proxy must still get no-op metrics handles")
+	m.TotalCounter.Inc(1) // no-op handles must be callable
+
+	// The pull surface alone enables collection, with live handles.
+	*statusAddress = "localhost:0"
+	m, registry, err = setupMetrics()
+	assert.NoError(t, err)
+	assert.NotNil(t, registry, "--status must enable metrics collection")
+	m.TotalCounter.Inc(1)
+	total, ok := registry.SingleValue("accept.total")
+	assert.True(t, ok, "live handles must be bound to the returned registry")
+	assert.Equal(t, int64(1), total)
+
+	// A push sink alone (no --status) must also enable collection.
+	*statusAddress = ""
+	*metricsURL = "https://metrics.invalid/post"
+	_, registry, err = setupMetrics()
+	assert.NoError(t, err)
+	assert.NotNil(t, registry, "--metrics-url alone must enable metrics collection")
+
+	// An unreadable CA bundle for the POST client is a startup error.
+	*caBundlePath = filepath.Join(t.TempDir(), "missing.pem")
+	_, _, err = setupMetrics()
+	assert.Error(t, err, "a missing CA bundle must fail setup")
+}
+
+// TestSetupMetricsRejectsNonPositiveInterval guards the validation that keeps a
+// non-positive --metrics-interval from reaching time.NewTicker (which panics on
+// a non-positive duration). The check must only fire when metrics are actually
+// collected.
+func TestSetupMetricsRejectsNonPositiveInterval(t *testing.T) {
+	origStatus, origGraphite, origURL := *statusAddress, *metricsGraphite, *metricsURL
+	origInterval := *metricsInterval
+	defer func() {
+		*statusAddress, *metricsGraphite, *metricsURL = origStatus, origGraphite, origURL
+		*metricsInterval = origInterval
+	}()
+
+	*metricsGraphite = nil
+	*metricsURL = ""
+
+	// A non-positive interval is rejected once a sink makes metrics live.
+	*statusAddress = "localhost:0"
+	for _, bad := range []time.Duration{0, -1 * time.Second} {
+		*metricsInterval = bad
+		_, _, err := setupMetrics()
+		assert.Error(t, err, "--metrics-interval %s must be rejected", bad)
+	}
+
+	// A positive interval is accepted.
+	*metricsInterval = 30 * time.Second
+	_, registry, err := setupMetrics()
+	assert.NoError(t, err, "a positive --metrics-interval must be accepted")
+	assert.NotNil(t, registry)
+
+	// When no sink is configured the interval is never used, so a non-positive
+	// value must not error (collection is skipped entirely).
+	*statusAddress = ""
+	*metricsInterval = 0
+	_, registry, err = setupMetrics()
+	assert.NoError(t, err, "interval is irrelevant when metrics are disabled")
+	assert.Nil(t, registry)
+}
+
+// TestNewMetricsPostClientHasTimeout pins that the --metrics-url HTTP client is
+// built with a timeout (so a hung receiver can't stall the push loop) and a
+// TLS 1.2 floor.
+func TestNewMetricsPostClientHasTimeout(t *testing.T) {
+	client := newMetricsPostClient(nil, 42*time.Second)
+	assert.Equal(t, 42*time.Second, client.Timeout, "POST client must bound each request")
+
+	transport, ok := client.Transport.(*http.Transport)
+	if assert.True(t, ok, "expected an *http.Transport") {
+		assert.Equal(t, uint16(tls.VersionTLS12), transport.TLSClientConfig.MinVersion)
+	}
+}
