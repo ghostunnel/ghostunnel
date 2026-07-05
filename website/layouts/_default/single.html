@@ -2,9 +2,15 @@
 {{ if eq .Section "docs" }}
 <div class="with-sidebar">
   {{ partial "sidebar.html" . }}
-  <article class="content">
+  <article class="content" data-pagefind-body>
     <h1>{{ .Title }}</h1>
     {{ .Content }}
+    {{ with .File }}
+    <footer class="edit-page">
+      <a href="https://github.com/ghostunnel/ghostunnel/edit/master/{{ .Path }}" target="_blank" rel="noopener">{{ partial "icon-github.html" }} Edit this page on GitHub</a>
+    </footer>
+    {{ end }}
+    {{ partial "prev-next.html" . }}
   </article>
 </div>
 {{ else }}

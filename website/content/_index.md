@@ -54,7 +54,7 @@ features:
       explicitly overridden, and Landlock sandboxing is enabled on Linux.
   - icon: package
     title: Runs Anywhere
-    url: /docs/quickstart/#install-ghostunnel
+    url: /docs/getting-started/quickstart/
     text: >
       Ships as a single static Go binary with no runtime dependencies. Runs
       on Linux, macOS, Windows, and the BSDs.
@@ -62,7 +62,7 @@ features:
 
 ## Getting Started
 
-See the [Quick Start](/docs/quickstart/) guide for installation, generating
+See the [Quick Start](/docs/getting-started/quickstart/) guide for installation, generating
 test certificates, and running your first tunnel. The full documentation is
 available under [Docs](/docs/). Pre-built binaries are available on the
 [Releases](/releases/) page and via

@@ -1,0 +1,34 @@
+{{- /* Previous/next navigation across all docs pages, in sidebar order. */ -}}
+{{- $pages := slice -}}
+{{- range (.Site.GetPage "/docs").Sections.ByWeight -}}
+  {{- range .RegularPages.ByWeight -}}
+    {{- $pages = $pages | append . -}}
+  {{- end -}}
+{{- end -}}
+{{- $current := . -}}
+{{- $idx := -1 -}}
+{{- range $i, $p := $pages -}}
+  {{- if eq $p.RelPermalink $current.RelPermalink -}}{{- $idx = $i -}}{{- end -}}
+{{- end -}}
+{{- if ge $idx 0 -}}
+<nav class="prev-next" aria-label="Previous and next pages">
+  {{- if gt $idx 0 -}}
+  {{- $prev := index $pages (sub $idx 1) }}
+  <a class="prev-next-link prev-next-link--prev" href="{{ $prev.RelPermalink }}" rel="prev">
+    <span class="prev-next-label"><span class="prev-next-arrow">&larr;</span> Previous</span>
+    <span class="prev-next-title">{{ $prev.Title }}</span>
+  </a>
+  {{- else }}
+  <span class="prev-next-spacer" aria-hidden="true"></span>
+  {{- end }}
+  {{- if lt $idx (sub (len $pages) 1) -}}
+  {{- $next := index $pages (add $idx 1) }}
+  <a class="prev-next-link prev-next-link--next" href="{{ $next.RelPermalink }}" rel="next">
+    <span class="prev-next-label">Next <span class="prev-next-arrow">&rarr;</span></span>
+    <span class="prev-next-title">{{ $next.Title }}</span>
+  </a>
+  {{- else }}
+  <span class="prev-next-spacer" aria-hidden="true"></span>
+  {{- end }}
+</nav>
+{{- end -}}

@@ -1420,3 +1420,300 @@ a:hover {
     transform: none;
   }
 }
+
+/* === 404 page === */
+
+/* Reuses the .home-hero dark panel (mist, ghost glow, buttons);
+   flex-centers the content within roughly the space left over
+   after the nav, container padding, and footer. */
+.error-hero .hero-inner {
+  min-height: calc(100vh - 16rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+}
+
+.error-code {
+  font-family: var(--font-mono);
+  font-size: clamp(4rem, 12vw, 6rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  color: var(--accent-bright);
+  text-shadow: 0 0 30px var(--ghost-glow);
+  margin-bottom: 0.75rem;
+}
+
+/* Same specificity as the .home-hero h1 rules, but later in the
+   file, so this smaller size wins at all viewport widths. */
+.error-hero h1 {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+/* === Copy-to-clipboard buttons === */
+.copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0.25rem;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  line-height: 0;
+  color: inherit;
+  transition: color 0.15s ease, background 0.15s ease, opacity 0.15s ease;
+}
+
+.copy-btn svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.copy-btn:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 1px;
+}
+
+/* In-bar buttons (terminal / editor frames) */
+.copy-btn--bar {
+  margin-left: auto;
+  align-self: center;
+}
+
+/* Dark terminal bars: subtle faint ink, brightens on hover */
+.terminal .copy-btn--bar {
+  color: var(--ink-text-faint);
+}
+
+.terminal .copy-btn--bar:hover,
+.terminal .copy-btn--bar:focus-visible {
+  color: var(--ink-text-bright);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.terminal .copy-btn--bar.copied,
+.terminal .copy-btn--bar.copied:hover {
+  color: var(--accent-bright);
+}
+
+/* Windows terminal bar: controls already sit at the right edge */
+.terminal--windows .copy-btn--bar {
+  margin-left: 0;
+  margin-right: 0.6rem;
+}
+
+/* Light editor bars */
+.editor .copy-btn--bar {
+  margin-right: 0.5rem;
+  color: var(--text-muted);
+}
+
+.editor .copy-btn--bar:hover,
+.editor .copy-btn--bar:focus-visible {
+  color: var(--accent);
+  background: var(--accent-faint);
+}
+
+.editor .copy-btn--bar.copied,
+.editor .copy-btn--bar.copied:hover {
+  color: var(--accent);
+}
+
+/* Floating buttons on plain <pre><code> blocks */
+.copy-wrap {
+  position: relative;
+}
+
+.copy-btn--floating {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  padding: 0.3rem;
+  background: var(--bg-card);
+  border: 1px solid var(--code-border);
+  color: var(--text-muted);
+  box-shadow: var(--shadow-sm);
+  /* Visible (dimmed) by default so touch users can find it; full
+     opacity on hover/focus for pointer users. */
+  opacity: 0.45;
+}
+
+.copy-wrap:hover .copy-btn--floating,
+.copy-btn--floating:hover,
+.copy-btn--floating:focus-visible,
+.copy-btn--floating.copied {
+  opacity: 1;
+}
+
+.copy-btn--floating:hover,
+.copy-btn--floating:focus-visible {
+  color: var(--accent);
+  border-color: var(--border-hover);
+}
+
+.copy-btn--floating.copied,
+.copy-btn--floating.copied:hover {
+  color: var(--accent);
+}
+
+/* === Prev/next page navigation === */
+.prev-next {
+  display: flex;
+  justify-content: space-between;
+  align-items: stretch;
+  gap: 1rem;
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.prev-next-link {
+  display: block;
+  flex: 0 1 48%;
+  max-width: 48%;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.85rem 1.1rem;
+  background: var(--bg-card);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.prev-next-link:hover {
+  text-decoration: none;
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.prev-next-link--prev {
+  margin-right: auto;
+  text-align: left;
+}
+
+.prev-next-link--next {
+  margin-left: auto;
+  text-align: right;
+}
+
+.prev-next-label {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-bottom: 0.3rem;
+}
+
+.prev-next-arrow {
+  color: var(--accent);
+  opacity: 0.6;
+}
+
+.prev-next-title {
+  display: block;
+  color: var(--text-heading);
+  font-weight: 600;
+  font-size: 0.95rem;
+  overflow-wrap: break-word;
+}
+
+.prev-next-link:hover .prev-next-title {
+  color: var(--accent);
+}
+
+.prev-next-spacer {
+  flex: 0 1 48%;
+}
+
+@media (max-width: 600px) {
+  .prev-next {
+    flex-direction: column;
+  }
+
+  .prev-next-link {
+    flex-basis: auto;
+    max-width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  .prev-next-spacer {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prev-next-link:hover {
+    transform: none;
+  }
+}
+
+/* === Edit on GitHub link === */
+.edit-page {
+  margin-top: 3rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.edit-page a {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.edit-page a:hover {
+  color: var(--accent);
+}
+
+.edit-page .icon {
+  width: 0.9em;
+  height: 0.9em;
+  vertical-align: middle;
+  margin-right: 0.35em;
+}
+
+/* === Docs search (Pagefind) === */
+#search {
+  --pagefind-ui-scale: 0.7;
+  --pagefind-ui-primary: var(--accent);
+  --pagefind-ui-text: var(--text);
+  --pagefind-ui-background: var(--bg);
+  --pagefind-ui-border: var(--border-hover);
+  --pagefind-ui-tag: var(--accent-faint);
+  --pagefind-ui-border-width: 1px;
+  --pagefind-ui-border-radius: 6px;
+  --pagefind-ui-font: var(--font-sans);
+  margin-bottom: 1rem;
+}
+
+#search .pagefind-ui__search-input {
+  background: var(--bg-card);
+  font-weight: 400;
+}
+
+#search .pagefind-ui__search-input::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+#search .pagefind-ui__result-link {
+  color: var(--link);
+}
+
+#search .pagefind-ui__result-excerpt mark {
+  background: rgba(14, 138, 158, 0.18);
+  color: var(--text-heading);
+  border-radius: 2px;
+}
+
+#search .pagefind-ui__button {
+  background: var(--bg-card);
+  color: var(--accent);
+}

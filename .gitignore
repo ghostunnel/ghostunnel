@@ -26,6 +26,7 @@ test-keys/
 tests/tmp_*
 website/content/contributors.md
 website/public/
+website/static/pagefind/
 public/
 .claude
 .hugo_build.lock

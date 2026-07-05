@@ -1,4 +1,9 @@
 <aside class="sidebar">
+  <link rel="stylesheet" href="{{ "pagefind/pagefind-ui.css" | relURL }}" onerror="this.remove()">
+  <div id="search"></div>
+  <script src="{{ "pagefind/pagefind-ui.js" | relURL }}"
+    onload='if (typeof PagefindUI !== "undefined") { new PagefindUI({ element: "#search", showSubResults: true, showImages: false }); }'
+    onerror="/* pagefind assets absent in local dev; search disabled */"></script>
   <h3><a href="{{ "docs/" | relURL }}">Documentation</a></h3>
   {{ $current := . }}
   {{ $docs := .Site.GetPage "/docs" }}

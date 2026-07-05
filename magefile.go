@@ -1343,9 +1343,17 @@ func (Website) Build(ctx context.Context) error {
 	return sh.Run("hugo", "--source", "website", "--minify")
 }
 
-// Serve generates the contributors page and starts the Hugo dev server.
-// Requires Hugo to be installed.
+// Serve generates the contributors page, builds a Pagefind search index, and
+// starts the Hugo dev server. The index is generated from the last full build
+// (via Website.Build) and mounted through website/static/pagefind so search
+// works in local dev; it reflects the site as of startup and won't pick up
+// later edits until you restart. Requires Hugo to be installed.
 func (Website) Serve(ctx context.Context) error {
 	mg.CtxDeps(ctx, Website.Build)
+	if err := sh.Run("npx", "--yes", "pagefind@1.5.2",
+		"--site", "website/public",
+		"--output-path", "website/static/pagefind"); err != nil {
+		return err
+	}
 	return sh.RunV("hugo", "server", "--source", "website")
 }
