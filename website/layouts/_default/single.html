@@ -3,13 +3,13 @@
 <div class="with-sidebar">
   {{ partial "sidebar.html" . }}
   <article class="content" data-pagefind-body>
-    <h1>{{ .Title }}</h1>
+    <div class="page-header">
+      <h1>{{ .Title }}</h1>
+      {{ with .File }}
+      <a class="edit-page" href="https://github.com/ghostunnel/ghostunnel/edit/master/{{ .Path }}" target="_blank" rel="noopener">{{ partial "icon-github.html" }} Edit on GitHub</a>
+      {{ end }}
+    </div>
     {{ .Content }}
-    {{ with .File }}
-    <footer class="edit-page">
-      <a href="https://github.com/ghostunnel/ghostunnel/edit/master/{{ .Path }}" target="_blank" rel="noopener">{{ partial "icon-github.html" }} Edit this page on GitHub</a>
-    </footer>
-    {{ end }}
     {{ partial "prev-next.html" . }}
   </article>
 </div>
