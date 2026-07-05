@@ -81,9 +81,7 @@ cd tools && go get -tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint@
 
 ### Benchmarks
 
-For perf-sensitive changes (connection churn, TLS config caching, accept hot
-path), compare benchmarks against the base branch with benchstat before
-merging:
+To run benchmarks, you can use the test:bench target in mage:
 
 ```bash
 go tool mage test:bench > /tmp/bench-head.txt        # on your branch
