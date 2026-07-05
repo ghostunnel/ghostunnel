@@ -219,6 +219,9 @@ func intersectsIP(left, right []net.IP) bool {
 
 // Returns true if at least one item from left is also contained in right.
 func intersectsURI(left []wildcard.Matcher, right []*url.URL) bool {
+	if len(left) == 0 || len(right) == 0 {
+		return false
+	}
 	serialized := make([]string, len(right))
 	for i, r := range right {
 		serialized[i] = r.String()
