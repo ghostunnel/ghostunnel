@@ -4,8 +4,6 @@ require (
 	github.com/alecthomas/kingpin/v2 v2.4.0
 	github.com/caddyserver/certmagic v0.25.6
 	github.com/coreos/go-systemd/v22 v22.7.0
-	github.com/cyberdelia/go-metrics-graphite v0.0.0-20260729042415-662a311ee21f
-	github.com/deathowl/go-metrics-prometheus v0.0.0-20221009205350-f2a1482ba35b
 	github.com/hashicorp/go-syslog v1.0.1
 	github.com/kavu/go_reuseport v1.5.0
 	github.com/landlock-lsm/go-landlock v0.10.1
@@ -15,10 +13,9 @@ require (
 	github.com/open-policy-agent/opa v1.21.2
 	github.com/pires/go-proxyproto v0.15.0
 	github.com/prometheus/client_golang v1.25.0
-	github.com/rcrowley/go-metrics v0.0.0-20250401214520-65e299d6c5c9
+	github.com/prometheus/client_model v0.6.3
 	github.com/smallstep/pkcs7 v0.2.3
 	github.com/spiffe/go-spiffe/v2 v2.9.0
-	github.com/square/go-sq-metrics v0.0.0-20170531223841-ae72f332d0d9
 	github.com/stretchr/testify v1.12.1
 	github.com/wrouesnel/go.connect-proxy-scheme v0.0.0-20240822095422-f6d0c8f327b9
 	golang.org/x/mod v0.42.0
@@ -64,9 +61,9 @@ require (
 	github.com/nwaples/rardecode v1.1.3 // indirect
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/prometheus/client_model v0.6.3 // indirect
 	github.com/prometheus/common v0.72.1 // indirect
 	github.com/prometheus/procfs v0.22.0 // indirect
+	github.com/rcrowley/go-metrics v0.0.0-20250401214520-65e299d6c5c9 // indirect
 	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/sirupsen/logrus v1.10.2 // indirect
 	github.com/tchap/go-patricia/v2 v2.3.3 // indirect

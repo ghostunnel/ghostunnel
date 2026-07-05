@@ -32,12 +32,6 @@ github.com/cespare/xxhash/v2
 ## explicit; go 1.23
 github.com/coreos/go-systemd/v22/activation
 github.com/coreos/go-systemd/v22/daemon
-# github.com/cyberdelia/go-metrics-graphite v0.0.0-20260729042415-662a311ee21f
-## explicit; go 1.24.4
-github.com/cyberdelia/go-metrics-graphite
-# github.com/deathowl/go-metrics-prometheus v0.0.0-20221009205350-f2a1482ba35b
-## explicit; go 1.13
-github.com/deathowl/go-metrics-prometheus
 # github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.1
 ## explicit; go 1.17
 github.com/decred/dcrd/dcrec/secp256k1/v4
@@ -283,6 +277,7 @@ github.com/pkg/errors
 github.com/prometheus/client_golang/internal/github.com/golang/gddo/httputil
 github.com/prometheus/client_golang/internal/github.com/golang/gddo/httputil/header
 github.com/prometheus/client_golang/prometheus
+github.com/prometheus/client_golang/prometheus/collectors
 github.com/prometheus/client_golang/prometheus/internal
 github.com/prometheus/client_golang/prometheus/promhttp
 github.com/prometheus/client_golang/prometheus/promhttp/internal
@@ -337,9 +332,6 @@ github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig
 github.com/spiffe/go-spiffe/v2/svid/jwtsvid
 github.com/spiffe/go-spiffe/v2/svid/x509svid
 github.com/spiffe/go-spiffe/v2/workloadapi
-# github.com/square/go-sq-metrics v0.0.0-20170531223841-ae72f332d0d9
-## explicit
-github.com/square/go-sq-metrics
 # github.com/stretchr/testify v1.12.1
 ## explicit; go 1.17
 github.com/stretchr/testify/assert
