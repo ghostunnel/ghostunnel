@@ -168,6 +168,11 @@ type Proxy struct {
 	// Context & associated cancel func
 	context context.Context
 	cancel  context.CancelFunc
+	// Guards Shutdown so the cancel/Close/Done sequence runs exactly once,
+	// even under concurrent callers. handlers.Done() is not idempotent, so a
+	// bare context.Err() check-then-act would let two goroutines both call
+	// Done() and drive the WaitGroup counter negative (panic).
+	shutdownOnce sync.Once
 	// Pool for buffers
 	pool sync.Pool
 	// Metrics handles for the connection hot path. Either live (recording to a
@@ -362,14 +367,13 @@ func New(
 }
 
 // Shutdown tells the proxy to close the listener & stop accepting connections.
+// Safe to call concurrently and repeatedly; the shutdown work runs exactly once.
 func (p *Proxy) Shutdown() {
-	if err := p.context.Err(); err != nil {
-		// Already cancelled
-		return
-	}
-	p.cancel()
-	p.Listener.Close()
-	p.handlers.Done()
+	p.shutdownOnce.Do(func() {
+		p.cancel()
+		p.Listener.Close()
+		p.handlers.Done()
+	})
 }
 
 // Wait until the proxy is shut down (listener closed, connections drained).
