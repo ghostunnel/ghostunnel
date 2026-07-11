@@ -135,6 +135,18 @@ func newMacIdentity(ref C.SecIdentityRef) *macIdentity {
 
 // Certificate implements the Identity interface.
 func (i *macIdentity) Certificate() (*x509.Certificate, error) {
+	// Fast path: already cached.
+	i.mu.Lock()
+	if i.crt != nil {
+		crt := i.crt
+		i.mu.Unlock()
+		return crt, nil
+	}
+	i.mu.Unlock()
+
+	// Do the expensive CGo work outside the lock. getCertRef()/exportCertRef()
+	// must not run while holding i.mu: getCertRef() itself acquires i.mu and
+	// sync.Mutex is not reentrant.
 	certRef, err := i.getCertRef()
 	if err != nil {
 		return nil, err
@@ -145,17 +157,29 @@ func (i *macIdentity) Certificate() (*x509.Certificate, error) {
 		return nil, err
 	}
 
-	i.crt = crt
-
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	// Another goroutine may have populated the cache while we were exporting;
+	// prefer the existing value so all callers observe the same certificate.
+	if i.crt == nil {
+		i.crt = crt
+	}
 	return i.crt, nil
 }
 
 // CertificateChain implements the Identity interface.
 func (i *macIdentity) CertificateChain() ([]*x509.Certificate, error) {
+	// Fast path: already cached.
+	i.mu.Lock()
 	if i.chain != nil {
-		return i.chain, nil
+		chain := i.chain
+		i.mu.Unlock()
+		return chain, nil
 	}
+	i.mu.Unlock()
 
+	// Build the chain outside the lock: it makes CGo/SecTrust calls and
+	// internally calls getCertRef(), which acquires i.mu (non-reentrant).
 	certRef, err := i.getCertRef()
 	if err != nil {
 		return nil, err
@@ -187,8 +211,8 @@ func (i *macIdentity) CertificateChain() ([]*x509.Certificate, error) {
 	trustChain := C.SecTrustCopyCertificateChain(trustRef)
 	defer C.CFRelease(C.CFTypeRef(trustChain))
 
-	for i := C.CFIndex(0); i < nchain; i++ {
-		chainCertref := (C.SecCertificateRef)(C.CFArrayGetValueAtIndex(trustChain, i))
+	for j := C.CFIndex(0); j < nchain; j++ {
+		chainCertref := (C.SecCertificateRef)(C.CFArrayGetValueAtIndex(trustChain, j))
 		if chainCertref == nilSecCertificateRef {
 			return nil, errors.New("nil certificate in chain")
 		}
@@ -201,9 +225,12 @@ func (i *macIdentity) CertificateChain() ([]*x509.Certificate, error) {
 		chain = append(chain, chainCert)
 	}
 
-	i.chain = chain
-
-	return chain, nil
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if i.chain == nil {
+		i.chain = chain
+	}
+	return i.chain, nil
 }
 
 // Signer implements the Identity interface.
