@@ -474,6 +474,7 @@ func (p *Proxy) Accept() {
 
 			backend, err := p.Dial(ctx)
 			if err != nil {
+				p.metrics.ErrorCounter.Inc(1)
 				p.logConditional(LogConnectionErrors, "error on dial: %s", err)
 				return
 			}
@@ -487,6 +488,7 @@ func (p *Proxy) Accept() {
 				h := proxyProtoHeader(conn, tlsState, p.proxyProtocol, p.Logger)
 				_, err = h.WriteTo(backend)
 				if err != nil {
+					p.metrics.ErrorCounter.Inc(1)
 					p.logConditional(LogConnectionErrors, "error writing proxy header: %s", err)
 					backend.Close()
 					return
