@@ -371,3 +371,58 @@ func statusTargetWithResponseStatusCode(code int) (statusResponse, int) {
 
 	return statusResp, res.StatusCode
 }
+
+// TestStoppingIsTerminal is a regression test: once Stopping() has been called
+// (graceful shutdown begun), a timed reload firing mid-drain must not resurrect
+// healthy state. Listening() after Stopping() must be a no-op with respect to
+// the "listening"/Ok status, and /_status must keep returning 503.
+func TestStoppingIsTerminal(t *testing.T) {
+	handler := newStatusHandler(dummyDial, "", "", "", "")
+	handler.Listening()
+	if !handler.listening {
+		t.Fatal("expected listening=true after Listening()")
+	}
+
+	handler.Stopping()
+	if handler.listening || !handler.stopping {
+		t.Fatalf("after Stopping(): listening=%v stopping=%v, want false/true", handler.listening, handler.stopping)
+	}
+
+	// A timed reload firing mid-drain must not resurrect healthy state.
+	handler.Listening()
+	if handler.listening {
+		t.Error("Listening() after Stopping() must not set listening=true")
+	}
+	if !handler.stopping {
+		t.Error("stopping must remain true after a late Listening()")
+	}
+
+	resp := handler.status(context.Background())
+	if resp.Ok {
+		t.Error("expected resp.Ok=false after Stopping() even if Listening() fires again")
+	}
+	if resp.Message != "stopping" {
+		t.Errorf("expected message %q, got %q", "stopping", resp.Message)
+	}
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, &http.Request{})
+	if response.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected HTTP 503 after Stopping()+Listening(), got %d", response.Code)
+	}
+}
+
+// TestReloadingNoOpAfterStopping is a regression test: a timed reload that
+// fires after Stopping() must not flip the status back into "reloading".
+func TestReloadingNoOpAfterStopping(t *testing.T) {
+	handler := newStatusHandler(dummyDial, "", "", "", "")
+	handler.Listening()
+	handler.Stopping()
+	handler.Reloading()
+	if handler.reloading {
+		t.Error("Reloading() after Stopping() must not set reloading=true")
+	}
+	if resp := handler.status(context.Background()); resp.Message != "stopping" {
+		t.Errorf("expected message %q after Reloading() during stop, got %q", "stopping", resp.Message)
+	}
+}

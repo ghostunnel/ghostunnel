@@ -37,6 +37,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -319,6 +320,32 @@ func TestMultipleShutdownCalls(t *testing.T) {
 	p.Wait()
 }
 
+func TestConcurrentShutdownCalls(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	assert.Nil(t, err, "should be able to listen on random port")
+
+	p := proxyForTest(ln, nil)
+
+	// Without the sync.Once guard, two goroutines can both pass the
+	// context.Err() check and both call handlers.Done(), driving the
+	// WaitGroup counter negative and panicking.
+	const n = 64
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(n)
+	for range n {
+		go func() {
+			defer wg.Done()
+			<-start
+			p.Shutdown()
+		}()
+	}
+	close(start)
+	wg.Wait()
+
+	p.Wait() // should not panic; proxy fully drained
+}
+
 func TestProxySuccess(t *testing.T) {
 	// Incoming listener
 	incoming, err := net.Listen("tcp", "127.0.0.1:0")
@@ -489,6 +516,11 @@ func TestBackendDialError(t *testing.T) {
 		return nil, errors.New("failure for test")
 	}
 
+	// Regression: dial failure must be recorded as an error, not silently
+	// dropped (accept.total would otherwise diverge from success+error).
+	errorCounter.Clear()
+	successCounter.Clear()
+
 	p := proxyForTest(ln, dialer)
 	go p.Accept()
 	defer p.Shutdown()
@@ -514,6 +546,10 @@ func TestBackendDialError(t *testing.T) {
 
 	p.Shutdown()
 	p.Wait()
+
+	// After Wait() the handler goroutine has drained, so counters are settled.
+	assert.Equal(t, int64(1), errorCounter.Count(), "backend dial failure must increment accept.error")
+	assert.Equal(t, int64(0), successCounter.Count(), "backend dial failure must not increment accept.success")
 }
 
 func TestCopyData(t *testing.T) {
@@ -667,6 +703,10 @@ func TestIsClosedConnectionError(t *testing.T) {
 			},
 			expected: false,
 		},
+		{name: "net.OpError read ECONNRESET", err: &net.OpError{Op: "read", Err: syscall.ECONNRESET}, expected: true},
+		{name: "net.OpError write EPIPE", err: &net.OpError{Op: "write", Err: syscall.EPIPE}, expected: true},
+		{name: "raw ECONNRESET", err: syscall.ECONNRESET, expected: true},
+		{name: "raw EPIPE", err: syscall.EPIPE, expected: true},
 	}
 
 	for _, tc := range tests {
@@ -1752,6 +1792,10 @@ func TestProxyProtocolWriteFailureClosesBackend(t *testing.T) {
 		return backend, nil
 	}
 
+	// Regression: a PROXY header write failure must be recorded as an error.
+	errorCounter.Clear()
+	successCounter.Clear()
+
 	// Create proxy with PROXY protocol enabled
 	p := proxyForTestWithProxyProtocol(incoming, dialer)
 	go p.Accept()
@@ -1770,4 +1814,7 @@ func TestProxyProtocolWriteFailureClosesBackend(t *testing.T) {
 
 	// Regression: verify backend connection is closed when PROXY header write fails.
 	assert.True(t, backend.closed, "backend connection must be closed when PROXY protocol header write fails")
+
+	assert.Equal(t, int64(1), errorCounter.Count(), "PROXY header write failure must increment accept.error")
+	assert.Equal(t, int64(0), successCounter.Count(), "PROXY header write failure must not increment accept.success")
 }
