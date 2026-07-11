@@ -26,6 +26,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	proxyproto "github.com/pires/go-proxyproto"
@@ -660,6 +661,15 @@ func isTimeoutError(err error) bool {
 }
 
 func isClosedConnectionError(err error) bool {
+	// Abrupt peer termination (RST / broken pipe) is routine for a proxy —
+	// impatient clients, health checks, and idle keep-alive resets all cause
+	// it — and is not actionable, so treat it the same as an orderly close.
+	// errors.Is unwraps net.OpError, so these match whether or not the error
+	// is wrapped in one. Both errnos are defined on Unix and Windows.
+	if errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.EPIPE) {
+		return true
+	}
+
 	opErr := &net.OpError{}
 	if errors.As(err, &opErr) {
 		return (opErr.Op == "read" || opErr.Op == "readfrom" || opErr.Op == "write" || opErr.Op == "writeto") &&
