@@ -39,9 +39,16 @@ func isShutdownSignal(sig os.Signal) bool {
 func (env *Environment) signalHandler(p *proxy.Proxy) {
 	signals := make(chan os.Signal, 3)
 	signal.Notify(signals, append(shutdownSignals, refreshSignals...)...)
-	defer signal.Stop(signals)
 
 	shutdownFunc := func() {
+		// Stop delivering signals to our channel and make sure refresh signals
+		// (SIGHUP/SIGUSR1) don't revert to their default disposition (terminate)
+		// while we drain in-flight connections in p.Wait(). Ignore them instead.
+		signal.Stop(signals)
+		if len(refreshSignals) > 0 {
+			signal.Ignore(refreshSignals...)
+		}
+
 		env.status.Stopping()
 
 		// Best-effort graceful shutdown of status listener
