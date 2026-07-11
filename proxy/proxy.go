@@ -686,6 +686,12 @@ func closeRead(conn net.Conn) {
 		_ = c.CloseRead()
 	case *net.UnixConn:
 		_ = c.CloseRead()
+	case *tls.Conn:
+		// tls.Conn has no CloseRead(): we can't shut down only the read
+		// side without tearing down the whole connection. Do nothing here
+		// and let the CloseTimeout deadline (set by copyData's defer) unblock
+		// and reap the connection. Closing it here would kill the opposite
+		// (still-live) write direction, dropping in-flight return traffic.
 	default:
 		_ = c.Close()
 	}
@@ -696,6 +702,11 @@ func closeWrite(conn net.Conn) {
 	case *net.TCPConn:
 		_ = c.CloseWrite()
 	case *net.UnixConn:
+		_ = c.CloseWrite()
+	case *tls.Conn:
+		// CloseWrite sends a TLS close_notify alert to the peer (a clean
+		// half-close of the write side) without closing the underlying
+		// socket, so the opposite direction can keep reading/forwarding.
 		_ = c.CloseWrite()
 	default:
 		_ = c.Close()
