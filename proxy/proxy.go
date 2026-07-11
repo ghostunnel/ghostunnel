@@ -199,7 +199,7 @@ func transportProtocol(c net.Conn) proxyproto.AddressFamilyAndProtocol {
 	return proxyproto.UNSPEC
 }
 
-func proxyProtoHeader(c net.Conn, tlsState *tls.ConnectionState, mode ProxyProtocolMode, logger Logger) *proxyproto.Header {
+func proxyProtoHeader(c net.Conn, tlsState *tls.ConnectionState, mode ProxyProtocolMode) (*proxyproto.Header, error) {
 	h := &proxyproto.Header{
 		Version:           2,
 		Command:           proxyproto.PROXY,
@@ -211,15 +211,16 @@ func proxyProtoHeader(c net.Conn, tlsState *tls.ConnectionState, mode ProxyProto
 	if tlsState != nil && mode >= ProxyProtocolTLS {
 		tlvs, err := buildTLVs(tlsState, mode)
 		if err != nil {
-			logger.Printf("proxy: failed to build PROXY protocol TLVs: %s", err)
-		} else if len(tlvs) > 0 {
+			return nil, fmt.Errorf("building PROXY protocol TLVs: %w", err)
+		}
+		if len(tlvs) > 0 {
 			if err := h.SetTLVs(tlvs); err != nil {
-				logger.Printf("proxy: failed to set PROXY protocol TLVs: %s", err)
+				return nil, fmt.Errorf("setting PROXY protocol TLVs: %w", err)
 			}
 		}
 	}
 
-	return h
+	return h, nil
 }
 
 // buildTLVs constructs the top-level TLV list from TLS connection state.
@@ -485,9 +486,14 @@ func (p *Proxy) Accept() {
 					state := tlsConn.ConnectionState()
 					tlsState = &state
 				}
-				h := proxyProtoHeader(conn, tlsState, p.proxyProtocol, p.Logger)
-				_, err = h.WriteTo(backend)
+				h, err := proxyProtoHeader(conn, tlsState, p.proxyProtocol)
 				if err != nil {
+					p.metrics.ErrorCounter.Inc(1)
+					p.logConditional(LogConnectionErrors, "error building proxy header: %s", err)
+					backend.Close()
+					return
+				}
+				if _, err = h.WriteTo(backend); err != nil {
 					p.metrics.ErrorCounter.Inc(1)
 					p.logConditional(LogConnectionErrors, "error writing proxy header: %s", err)
 					backend.Close()

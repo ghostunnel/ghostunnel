@@ -81,7 +81,6 @@ func (benchTCPConn) LocalAddr() net.Addr {
 func BenchmarkProxyProtoHeader(b *testing.B) {
 	_, leaf := benchSelfSignedCert(b)
 	conn := benchTCPConn{}
-	logger := &testLogger{}
 
 	state := &tls.ConnectionState{
 		Version:            tls.VersionTLS13,
@@ -102,7 +101,7 @@ func BenchmarkProxyProtoHeader(b *testing.B) {
 		b.Run(tc.name, func(b *testing.B) {
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				_ = proxyProtoHeader(conn, state, tc.mode, logger)
+				_, _ = proxyProtoHeader(conn, state, tc.mode)
 			}
 		})
 	}
