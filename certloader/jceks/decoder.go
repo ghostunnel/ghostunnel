@@ -327,6 +327,13 @@ func (e *privateKeyEntry) Recover(password []byte) (crypto.PrivateKey, error) {
 		return nil, fmt.Errorf("%w: failed to parse private key as DER: %w", errInvalidJCEKSData, err)
 	}
 
+	if eKey.Algo.Algorithm.Equal(oidJKSKeyProtector) {
+		return nil, fmt.Errorf("%w: JKS private-key protection (%v) is not supported; "+
+			"convert the keystore to PKCS#12 with: "+
+			"keytool -importkeystore -srckeystore in.jks -destkeystore out.p12 -deststoretype pkcs12",
+			errUnsupportedJCEKSData, eKey.Algo.Algorithm)
+	}
+
 	if !eKey.Algo.Algorithm.Equal(oidPBEWithMD5AndDES3CBC) {
 		return nil, fmt.Errorf("%w: unsupported encrypted-private-key algorithm: %v",
 			errUnsupportedJCEKSData, eKey.Algo.Algorithm)

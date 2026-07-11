@@ -15,7 +15,7 @@ bytes, so you don't need to specify it explicitly.
 | PEM (separate files) | `.pem`, `.crt` + `.pem` | `--cert` + `--key` | Most common; leaf cert must be first in chain |
 | PEM (combined) | `.pem` | `--keystore` | Single file with cert chain and private key |
 | PKCS#12 | `.p12`, `.pfx` | `--keystore` | Binary bundle; optional `--storepass` for password |
-| JCEKS | `.jceks`, `.jks` | `--keystore` | Java keystore; requires `--storepass` |
+| JCEKS | `.jceks`, `.jks` | `--keystore` | Java keystore (JCEKS; JKS certs only — convert JKS private keys to PKCS#12); requires `--storepass` |
 
 These options are mutually exclusive with each other and with `--use-workload-api`,
 `--keychain-identity`, and PKCS#11 flags.
@@ -112,8 +112,22 @@ See the [openssl-pkcs12][openssl-pkcs12] man page for all options.
 
 ## JCEKS
 
-Ghostunnel can read Java keystores in JCEKS or JKS format. This is mainly
-useful when migrating from a Java-based TLS terminator:
+Ghostunnel can read Java keystores in JCEKS format, and can read trusted
+certificates from JKS keystores. JKS keystores that contain a **private key**
+(the usual case for a server keystore) are **not** supported directly, because
+JKS uses Sun's proprietary key-protection algorithm. Convert such a keystore to
+PKCS#12 first:
+
+```bash
+keytool -importkeystore \
+    -srckeystore server.jks -srcstoretype JKS \
+    -destkeystore server.p12 -deststoretype PKCS12
+```
+
+then pass `server.p12` to `--keystore`.
+
+Reading Java keystores is mainly useful when migrating from a Java-based TLS
+terminator:
 
 ```bash
 ghostunnel server \
