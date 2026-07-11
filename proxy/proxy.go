@@ -408,9 +408,19 @@ func (p *Proxy) Accept() {
 			return
 		}
 
+		// Reserve the handler slot BEFORE the blocking Accept(). This guarantees
+		// that any connection Accept() hands back is already accounted for in the
+		// WaitGroup, so Shutdown()'s Done() (which balances New()'s guard Add)
+		// can never transiently drive the counter to zero while an accepted-but-
+		// not-yet-registered connection is outstanding.
+		p.handlers.Add(1)
+
 		// Wait for new connection
 		conn, err := p.Listener.Accept()
 		if err != nil {
+			// No connection to handle: release the reserved slot.
+			p.handlers.Done()
+
 			// Check if we're supposed to stop
 			if err := p.context.Err(); err != nil {
 				return
@@ -437,7 +447,7 @@ func (p *Proxy) Accept() {
 		// Successful accept: reset backoff.
 		acceptBackoff = 0
 
-		p.handlers.Add(1)
+		// Handler slot reserved above; the handler's cleanup defer calls Done().
 		go func() {
 			// Record the connection lifetime explicitly rather than via
 			// Timer.Time: a no-op timer's Time() would not run the closure at
