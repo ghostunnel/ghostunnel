@@ -727,7 +727,7 @@ func (c errCode) Error() string {
 	return fmt.Sprintf("Error: %X %s", int(c), gomsg)
 }
 
-type securityStatus uint64
+type securityStatus uint32
 
 func checkStatus(s C.SECURITY_STATUS) error {
 	ss := securityStatus(s)
@@ -744,7 +744,7 @@ func checkStatus(s C.SECURITY_STATUS) error {
 }
 
 func (ss securityStatus) Error() string {
-	return fmt.Sprintf("SECURITY_STATUS 0x%08X", uint64(ss))
+	return fmt.Sprintf("SECURITY_STATUS 0x%08X", uint32(ss))
 }
 
 func stringToUTF16(s string) C.LPCWSTR {
