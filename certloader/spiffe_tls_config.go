@@ -19,8 +19,10 @@ package certloader
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"log"
 	"sync/atomic"
+	"time"
 
 	spiffeConfig "github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	spiffeApi "github.com/spiffe/go-spiffe/v2/workloadapi"
@@ -29,11 +31,12 @@ import (
 type spiffeTLSConfigSource struct {
 	client            *spiffeApi.Client
 	clientDisableAuth bool
+	initTimeout       time.Duration
 	logger            *log.Logger
 }
 
 // TLSConfigSourceFromWorkloadAPI creates a TLSConfigSource that uses the SPIFFE Workload API.
-func TLSConfigSourceFromWorkloadAPI(addr string, clientDisableAuth bool, logger *log.Logger) (TLSConfigSource, error) {
+func TLSConfigSourceFromWorkloadAPI(addr string, clientDisableAuth bool, initTimeout time.Duration, logger *log.Logger) (TLSConfigSource, error) {
 	client, err := spiffeApi.New(
 		context.Background(),
 		spiffeApi.WithAddr(addr),
@@ -45,6 +48,7 @@ func TLSConfigSourceFromWorkloadAPI(addr string, clientDisableAuth bool, logger 
 	return &spiffeTLSConfigSource{
 		client:            client,
 		clientDisableAuth: clientDisableAuth,
+		initTimeout:       initTimeout,
 		logger:            logger,
 	}, nil
 }
@@ -71,9 +75,18 @@ func (s *spiffeTLSConfigSource) Close() error {
 }
 
 func (s *spiffeTLSConfigSource) newConfig(base *tls.Config) (*spiffeTLSConfig, error) {
-	source, err := spiffeApi.NewX509Source(context.Background(), spiffeApi.WithClient(s.client))
+	// NewX509Source blocks until the first update is received from the Workload
+	// API. Bound that wait so an unreachable agent surfaces as an error instead
+	// of hanging forever.
+	ctx := context.Background()
+	if s.initTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, s.initTimeout)
+		defer cancel()
+	}
+	source, err := spiffeApi.NewX509Source(ctx, spiffeApi.WithClient(s.client))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("timed out or failed waiting for initial SPIFFE Workload API update (is the agent reachable and is there a registration entry?): %w", err)
 	}
 
 	return &spiffeTLSConfig{
