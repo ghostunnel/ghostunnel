@@ -730,6 +730,15 @@ func (c errCode) Error() string {
 type securityStatus uint32
 
 func checkStatus(s C.SECURITY_STATUS) error {
+	return checkSecurityStatus(int32(s))
+}
+
+// checkSecurityStatus maps a raw Windows SECURITY_STATUS (a signed 32-bit
+// value) to an error. It takes a plain int32 rather than the cgo type so it
+// can be exercised from tests, which cannot use import "C". Reinterpreting the
+// signed value as the unsigned securityStatus must not sign-extend, which is
+// why securityStatus is a 32-bit type.
+func checkSecurityStatus(s int32) error {
 	ss := securityStatus(s)
 
 	if ss == ERROR_SUCCESS {
