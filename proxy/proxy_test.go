@@ -37,6 +37,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -319,6 +320,32 @@ func TestMultipleShutdownCalls(t *testing.T) {
 	p.Wait()
 }
 
+func TestConcurrentShutdownCalls(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	assert.Nil(t, err, "should be able to listen on random port")
+
+	p := proxyForTest(ln, nil)
+
+	// Without the sync.Once guard, two goroutines can both pass the
+	// context.Err() check and both call handlers.Done(), driving the
+	// WaitGroup counter negative and panicking.
+	const n = 64
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(n)
+	for range n {
+		go func() {
+			defer wg.Done()
+			<-start
+			p.Shutdown()
+		}()
+	}
+	close(start)
+	wg.Wait()
+
+	p.Wait() // should not panic; proxy fully drained
+}
+
 func TestProxySuccess(t *testing.T) {
 	// Incoming listener
 	incoming, err := net.Listen("tcp", "127.0.0.1:0")
@@ -489,6 +516,11 @@ func TestBackendDialError(t *testing.T) {
 		return nil, errors.New("failure for test")
 	}
 
+	// Regression: dial failure must be recorded as an error, not silently
+	// dropped (accept.total would otherwise diverge from success+error).
+	errorCounter.Clear()
+	successCounter.Clear()
+
 	p := proxyForTest(ln, dialer)
 	go p.Accept()
 	defer p.Shutdown()
@@ -514,6 +546,10 @@ func TestBackendDialError(t *testing.T) {
 
 	p.Shutdown()
 	p.Wait()
+
+	// After Wait() the handler goroutine has drained, so counters are settled.
+	assert.Equal(t, int64(1), errorCounter.Count(), "backend dial failure must increment accept.error")
+	assert.Equal(t, int64(0), successCounter.Count(), "backend dial failure must not increment accept.success")
 }
 
 func TestCopyData(t *testing.T) {
@@ -667,6 +703,10 @@ func TestIsClosedConnectionError(t *testing.T) {
 			},
 			expected: false,
 		},
+		{name: "net.OpError read ECONNRESET", err: &net.OpError{Op: "read", Err: syscall.ECONNRESET}, expected: true},
+		{name: "net.OpError write EPIPE", err: &net.OpError{Op: "write", Err: syscall.EPIPE}, expected: true},
+		{name: "raw ECONNRESET", err: syscall.ECONNRESET, expected: true},
+		{name: "raw EPIPE", err: syscall.EPIPE, expected: true},
 	}
 
 	for _, tc := range tests {
@@ -1213,7 +1253,8 @@ func TestTransportProtocol(t *testing.T) {
 		// TCPv4 but SourceAddr/DestinationAddr were *net.UnixAddr, causing
 		// every proxied connection to be dropped before any bytes were
 		// written to the backend.
-		h := proxyProtoHeader(conn, nil, ProxyProtocolConn, &testLogger{})
+		h, err := proxyProtoHeader(conn, nil, ProxyProtocolConn)
+		assert.NoError(t, err)
 		var buf bytes.Buffer
 		n, err := h.WriteTo(&buf)
 		assert.Nil(t, err, "WriteTo must not return ErrInvalidAddress for unix listener")
@@ -1575,7 +1616,8 @@ func TestProxyProtoHeaderWithTLS(t *testing.T) {
 		PeerCertificates: []*x509.Certificate{parsedCert},
 	}
 
-	h := proxyProtoHeader(conn, state, ProxyProtocolTLSFull, &testLogger{})
+	h, err := proxyProtoHeader(conn, state, ProxyProtocolTLSFull)
+	assert.NoError(t, err)
 	assert.Equal(t, uint8(2), h.Version)
 	assert.Equal(t, proxyproto.PROXY, proxyproto.ProtocolVersionAndCommand(h.Command))
 	assert.Equal(t, proxyproto.TCPv4, proxyproto.AddressFamilyAndProtocol(h.TransportProtocol))
@@ -1609,7 +1651,8 @@ func TestProxyProtoHeaderWithoutTLS(t *testing.T) {
 	assert.Nil(t, err)
 	defer conn.Close()
 
-	h := proxyProtoHeader(conn, nil, ProxyProtocolTLSFull, &testLogger{})
+	h, err := proxyProtoHeader(conn, nil, ProxyProtocolTLSFull)
+	assert.NoError(t, err)
 	assert.Equal(t, uint8(2), h.Version)
 
 	// Verify no TLVs when no TLS state
@@ -1716,13 +1759,43 @@ func TestProxyProtoHeaderConnMode(t *testing.T) {
 	}
 
 	// Conn mode should send connection info but no TLVs, even with TLS state
-	h := proxyProtoHeader(conn, state, ProxyProtocolConn, &testLogger{})
+	h, err := proxyProtoHeader(conn, state, ProxyProtocolConn)
+	assert.NoError(t, err)
 	assert.Equal(t, uint8(2), h.Version)
 	assert.Equal(t, proxyproto.PROXY, proxyproto.ProtocolVersionAndCommand(h.Command))
 
 	tlvs, err := h.TLVs()
 	assert.Nil(t, err)
 	assert.Empty(t, tlvs, "conn mode should have no TLVs even with TLS state")
+}
+
+func TestProxyProtoHeaderTLVOverflowFailsClosed(t *testing.T) {
+	oversized := &x509.Certificate{Raw: make([]byte, 65600), Subject: pkix.Name{CommonName: "overflow"}}
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	assert.Nil(t, err)
+	defer ln.Close()
+	go func() {
+		if c, _ := ln.Accept(); c != nil {
+			c.Close()
+		}
+	}()
+	conn, err := net.Dial("tcp", ln.Addr().String())
+	assert.Nil(t, err)
+	defer conn.Close()
+
+	state := &tls.ConnectionState{Version: tls.VersionTLS13, ServerName: "example.com",
+		PeerCertificates: []*x509.Certificate{oversized}}
+
+	// tls-full: TLV overflow must fail CLOSED (error, not a stripped header).
+	h, err := proxyProtoHeader(conn, state, ProxyProtocolTLSFull)
+	assert.Error(t, err, "oversized cert TLV must fail closed in tls-full mode")
+	assert.Nil(t, h)
+
+	// conn mode skips the TLV block entirely — must never error.
+	h, err = proxyProtoHeader(conn, state, ProxyProtocolConn)
+	assert.NoError(t, err)
+	assert.NotNil(t, h)
 }
 
 // failWriteConn is a mock connection that tracks Close() calls and fails on Write().
@@ -1752,6 +1825,10 @@ func TestProxyProtocolWriteFailureClosesBackend(t *testing.T) {
 		return backend, nil
 	}
 
+	// Regression: a PROXY header write failure must be recorded as an error.
+	errorCounter.Clear()
+	successCounter.Clear()
+
 	// Create proxy with PROXY protocol enabled
 	p := proxyForTestWithProxyProtocol(incoming, dialer)
 	go p.Accept()
@@ -1770,4 +1847,7 @@ func TestProxyProtocolWriteFailureClosesBackend(t *testing.T) {
 
 	// Regression: verify backend connection is closed when PROXY header write fails.
 	assert.True(t, backend.closed, "backend connection must be closed when PROXY protocol header write fails")
+
+	assert.Equal(t, int64(1), errorCounter.Count(), "PROXY header write failure must increment accept.error")
+	assert.Equal(t, int64(0), successCounter.Count(), "PROXY header write failure must not increment accept.success")
 }

@@ -25,6 +25,7 @@ import (
 type mockStore struct {
 	identities []certstore.Identity
 	identErr   error
+	closed     bool
 }
 
 func (s *mockStore) Identities(flags int) ([]certstore.Identity, error) {
@@ -32,7 +33,7 @@ func (s *mockStore) Identities(flags int) ([]certstore.Identity, error) {
 }
 
 func (s *mockStore) Import(data []byte, password string) error { return nil }
-func (s *mockStore) Close()                                    {}
+func (s *mockStore) Close()                                    { s.closed = true }
 
 // mockIdentity implements certstore.Identity for testing.
 type mockIdentity struct {
@@ -40,6 +41,7 @@ type mockIdentity struct {
 	chainErr error
 	signer   crypto.Signer
 	signErr  error
+	closed   bool
 }
 
 func (i *mockIdentity) Certificate() (*x509.Certificate, error) {
@@ -58,7 +60,7 @@ func (i *mockIdentity) Signer() (crypto.Signer, error) {
 }
 
 func (i *mockIdentity) Delete() error { return nil }
-func (i *mockIdentity) Close()        {}
+func (i *mockIdentity) Close()        { i.closed = true }
 
 func newTestLogger() *log.Logger {
 	return log.New(os.Stdout, "test: ", 0)
@@ -493,4 +495,120 @@ func TestReload_EmptyIdentitiesList(t *testing.T) {
 	}
 	err := c.Reload()
 	assert.ErrorContains(t, err, "unable to find identity")
+}
+
+// TestReload_ClosesResources is a regression test for the keychain reload
+// resource leak: Reload() opens a certstore.Store and enumerates its
+// Identities, but on every code path (success and error) the store handle and
+// all non-chosen identities must be released. On success, the chosen identity
+// must be retained (it backs the live signer); on failure, everything must be
+// closed. The pre-fix code never calls Close() on the store or any identity,
+// so every subtest below fails until the leak fix lands.
+func TestReload_ClosesResources(t *testing.T) {
+	now := time.Now()
+
+	t.Run("success closes store and non-chosen identities, retains chosen", func(t *testing.T) {
+		idOld := &mockIdentity{chain: []*x509.Certificate{newTestCert("my-cert", "ca", 1, now.Add(1*time.Hour))}, signer: newTestKey(t)}
+		idNew := &mockIdentity{chain: []*x509.Certificate{newTestCert("my-cert", "ca", 2, now.Add(48*time.Hour))}, signer: newTestKey(t)}
+		idMid := &mockIdentity{chain: []*x509.Certificate{newTestCert("my-cert", "ca", 3, now.Add(24*time.Hour))}, signer: newTestKey(t)}
+		store := &mockStore{identities: []certstore.Identity{idOld, idNew, idMid}}
+		c := &certstoreCertificate{
+			commonNameOrSerial: "my-cert",
+			logger:             newTestLogger(),
+			openStore:          func(_ *log.Logger) (certstore.Store, error) { return store, nil },
+		}
+		require.NoError(t, c.Reload())
+
+		loaded, err := c.GetCertificate(nil)
+		require.NoError(t, err)
+		require.Equal(t, big.NewInt(2), loaded.Leaf.SerialNumber)
+
+		assert.False(t, idNew.closed, "chosen identity (latest NotAfter) must stay open")
+		assert.True(t, idOld.closed, "non-chosen identity must be closed")
+		assert.True(t, idMid.closed, "non-chosen identity must be closed")
+		assert.True(t, store.closed, "store must be closed after successful reload")
+	})
+
+	t.Run("non-matching identities are closed on success", func(t *testing.T) {
+		idMatch := &mockIdentity{chain: []*x509.Certificate{newTestCert("my-cert", "ca", 1, now.Add(24*time.Hour))}, signer: newTestKey(t)}
+		idOther := &mockIdentity{chain: []*x509.Certificate{newTestCert("other-cert", "ca", 2, now.Add(48*time.Hour))}, signer: newTestKey(t)}
+		store := &mockStore{identities: []certstore.Identity{idMatch, idOther}}
+		c := &certstoreCertificate{
+			commonNameOrSerial: "my-cert",
+			logger:             newTestLogger(),
+			openStore:          func(_ *log.Logger) (certstore.Store, error) { return store, nil },
+		}
+		require.NoError(t, c.Reload())
+
+		assert.False(t, idMatch.closed, "chosen identity must stay open")
+		assert.True(t, idOther.closed, "non-matching identity must be closed")
+		assert.True(t, store.closed, "store must be closed after successful reload")
+	})
+
+	t.Run("no candidates closes all identities and store", func(t *testing.T) {
+		idOne := &mockIdentity{chain: []*x509.Certificate{newTestCert("other-cert", "ca", 1, now.Add(24*time.Hour))}, signer: newTestKey(t)}
+		idTwo := &mockIdentity{chain: []*x509.Certificate{newTestCert("another-cert", "ca", 2, now.Add(48*time.Hour))}, signer: newTestKey(t)}
+		store := &mockStore{identities: []certstore.Identity{idOne, idTwo}}
+		c := &certstoreCertificate{
+			commonNameOrSerial: "nonexistent",
+			logger:             newTestLogger(),
+			openStore:          func(_ *log.Logger) (certstore.Store, error) { return store, nil },
+		}
+		err := c.Reload()
+		require.Error(t, err)
+
+		assert.True(t, idOne.closed, "all identities must be closed when no candidate matches")
+		assert.True(t, idTwo.closed, "all identities must be closed when no candidate matches")
+		assert.True(t, store.closed, "store must be closed when no candidate matches")
+	})
+
+	t.Run("signer error closes chosen identity and store", func(t *testing.T) {
+		idChosen := &mockIdentity{
+			chain:   []*x509.Certificate{newTestCert("my-cert", "ca", 1, now.Add(24*time.Hour))},
+			signErr: errors.New("signer unavailable"),
+		}
+		store := &mockStore{identities: []certstore.Identity{idChosen}}
+		c := &certstoreCertificate{
+			commonNameOrSerial: "my-cert",
+			logger:             newTestLogger(),
+			openStore:          func(_ *log.Logger) (certstore.Store, error) { return store, nil },
+		}
+		err := c.Reload()
+		require.Error(t, err)
+
+		assert.True(t, idChosen.closed, "chosen identity must be closed when signer retrieval fails")
+		assert.True(t, store.closed, "store must be closed when signer retrieval fails")
+	})
+
+	t.Run("trust-store load failure closes chosen identity and store", func(t *testing.T) {
+		idChosen := &mockIdentity{
+			chain:  []*x509.Certificate{newTestCert("my-cert", "ca", 1, now.Add(24*time.Hour))},
+			signer: newTestKey(t),
+		}
+		store := &mockStore{identities: []certstore.Identity{idChosen}}
+		c := &certstoreCertificate{
+			commonNameOrSerial: "my-cert",
+			caBundlePath:       "/nonexistent/path/to/ca-bundle.pem",
+			logger:             newTestLogger(),
+			openStore:          func(_ *log.Logger) (certstore.Store, error) { return store, nil },
+		}
+		err := c.Reload()
+		require.Error(t, err)
+
+		assert.True(t, idChosen.closed, "chosen identity must be closed when trust store load fails")
+		assert.True(t, store.closed, "store must be closed when trust store load fails")
+	})
+
+	t.Run("identities error closes store", func(t *testing.T) {
+		store := &mockStore{identErr: errors.New("identity error")}
+		c := &certstoreCertificate{
+			commonNameOrSerial: "my-cert",
+			logger:             newTestLogger(),
+			openStore:          func(_ *log.Logger) (certstore.Store, error) { return store, nil },
+		}
+		err := c.Reload()
+		require.Error(t, err)
+
+		assert.True(t, store.closed, "store must be closed when Identities() fails")
+	})
 }

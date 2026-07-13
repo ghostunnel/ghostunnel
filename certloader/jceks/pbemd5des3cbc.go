@@ -33,6 +33,7 @@ import (
 
 var (
 	oidPBEWithMD5AndDES3CBC = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 42, 2, 19, 1}
+	oidJKSKeyProtector      = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 42, 2, 17, 1, 1}
 )
 
 const (

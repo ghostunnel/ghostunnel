@@ -26,6 +26,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	proxyproto "github.com/pires/go-proxyproto"
@@ -167,6 +168,11 @@ type Proxy struct {
 	// Context & associated cancel func
 	context context.Context
 	cancel  context.CancelFunc
+	// Guards Shutdown so the cancel/Close/Done sequence runs exactly once,
+	// even under concurrent callers. handlers.Done() is not idempotent, so a
+	// bare context.Err() check-then-act would let two goroutines both call
+	// Done() and drive the WaitGroup counter negative (panic).
+	shutdownOnce sync.Once
 	// Pool for buffers
 	pool sync.Pool
 	// Metrics handles for the connection hot path. Either live (recording to a
@@ -198,7 +204,7 @@ func transportProtocol(c net.Conn) proxyproto.AddressFamilyAndProtocol {
 	return proxyproto.UNSPEC
 }
 
-func proxyProtoHeader(c net.Conn, tlsState *tls.ConnectionState, mode ProxyProtocolMode, logger Logger) *proxyproto.Header {
+func proxyProtoHeader(c net.Conn, tlsState *tls.ConnectionState, mode ProxyProtocolMode) (*proxyproto.Header, error) {
 	h := &proxyproto.Header{
 		Version:           2,
 		Command:           proxyproto.PROXY,
@@ -210,15 +216,16 @@ func proxyProtoHeader(c net.Conn, tlsState *tls.ConnectionState, mode ProxyProto
 	if tlsState != nil && mode >= ProxyProtocolTLS {
 		tlvs, err := buildTLVs(tlsState, mode)
 		if err != nil {
-			logger.Printf("proxy: failed to build PROXY protocol TLVs: %s", err)
-		} else if len(tlvs) > 0 {
+			return nil, fmt.Errorf("building PROXY protocol TLVs: %w", err)
+		}
+		if len(tlvs) > 0 {
 			if err := h.SetTLVs(tlvs); err != nil {
-				logger.Printf("proxy: failed to set PROXY protocol TLVs: %s", err)
+				return nil, fmt.Errorf("setting PROXY protocol TLVs: %w", err)
 			}
 		}
 	}
 
-	return h
+	return h, nil
 }
 
 // buildTLVs constructs the top-level TLV list from TLS connection state.
@@ -360,14 +367,13 @@ func New(
 }
 
 // Shutdown tells the proxy to close the listener & stop accepting connections.
+// Safe to call concurrently and repeatedly; the shutdown work runs exactly once.
 func (p *Proxy) Shutdown() {
-	if err := p.context.Err(); err != nil {
-		// Already cancelled
-		return
-	}
-	p.cancel()
-	p.Listener.Close()
-	p.handlers.Done()
+	p.shutdownOnce.Do(func() {
+		p.cancel()
+		p.Listener.Close()
+		p.handlers.Done()
+	})
 }
 
 // Wait until the proxy is shut down (listener closed, connections drained).
@@ -402,9 +408,19 @@ func (p *Proxy) Accept() {
 			return
 		}
 
+		// Reserve the handler slot BEFORE the blocking Accept(). This guarantees
+		// that any connection Accept() hands back is already accounted for in the
+		// WaitGroup, so Shutdown()'s Done() (which balances New()'s guard Add)
+		// can never transiently drive the counter to zero while an accepted-but-
+		// not-yet-registered connection is outstanding.
+		p.handlers.Add(1)
+
 		// Wait for new connection
 		conn, err := p.Listener.Accept()
 		if err != nil {
+			// No connection to handle: release the reserved slot.
+			p.handlers.Done()
+
 			// Check if we're supposed to stop
 			if err := p.context.Err(); err != nil {
 				return
@@ -431,7 +447,7 @@ func (p *Proxy) Accept() {
 		// Successful accept: reset backoff.
 		acceptBackoff = 0
 
-		p.handlers.Add(1)
+		// Handler slot reserved above; the handler's cleanup defer calls Done().
 		go func() {
 			// Record the connection lifetime explicitly rather than via
 			// Timer.Time: a no-op timer's Time() would not run the closure at
@@ -473,6 +489,7 @@ func (p *Proxy) Accept() {
 
 			backend, err := p.Dial(ctx)
 			if err != nil {
+				p.metrics.ErrorCounter.Inc(1)
 				p.logConditional(LogConnectionErrors, "error on dial: %s", err)
 				return
 			}
@@ -483,9 +500,15 @@ func (p *Proxy) Accept() {
 					state := tlsConn.ConnectionState()
 					tlsState = &state
 				}
-				h := proxyProtoHeader(conn, tlsState, p.proxyProtocol, p.Logger)
-				_, err = h.WriteTo(backend)
+				h, err := proxyProtoHeader(conn, tlsState, p.proxyProtocol)
 				if err != nil {
+					p.metrics.ErrorCounter.Inc(1)
+					p.logConditional(LogConnectionErrors, "error building proxy header: %s", err)
+					backend.Close()
+					return
+				}
+				if _, err = h.WriteTo(backend); err != nil {
+					p.metrics.ErrorCounter.Inc(1)
 					p.logConditional(LogConnectionErrors, "error writing proxy header: %s", err)
 					backend.Close()
 					return
@@ -660,6 +683,15 @@ func isTimeoutError(err error) bool {
 }
 
 func isClosedConnectionError(err error) bool {
+	// Abrupt peer termination (RST / broken pipe) is routine for a proxy —
+	// impatient clients, health checks, and idle keep-alive resets all cause
+	// it — and is not actionable, so treat it the same as an orderly close.
+	// errors.Is unwraps net.OpError, so these match whether or not the error
+	// is wrapped in one. Both errnos are defined on Unix and Windows.
+	if errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.EPIPE) {
+		return true
+	}
+
 	opErr := &net.OpError{}
 	if errors.As(err, &opErr) {
 		return (opErr.Op == "read" || opErr.Op == "readfrom" || opErr.Op == "write" || opErr.Op == "writeto") &&
@@ -674,6 +706,12 @@ func closeRead(conn net.Conn) {
 		_ = c.CloseRead()
 	case *net.UnixConn:
 		_ = c.CloseRead()
+	case *tls.Conn:
+		// tls.Conn has no CloseRead(): we can't shut down only the read
+		// side without tearing down the whole connection. Do nothing here
+		// and let the CloseTimeout deadline (set by copyData's defer) unblock
+		// and reap the connection. Closing it here would kill the opposite
+		// (still-live) write direction, dropping in-flight return traffic.
 	default:
 		_ = c.Close()
 	}
@@ -684,6 +722,11 @@ func closeWrite(conn net.Conn) {
 	case *net.TCPConn:
 		_ = c.CloseWrite()
 	case *net.UnixConn:
+		_ = c.CloseWrite()
+	case *tls.Conn:
+		// CloseWrite sends a TLS close_notify alert to the peer (a clean
+		// half-close of the write side) without closing the underlying
+		// socket, so the opposite direction can keep reading/forwarding.
 		_ = c.CloseWrite()
 	default:
 		_ = c.Close()

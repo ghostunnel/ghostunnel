@@ -81,6 +81,7 @@ func (c *certstoreCertificate) Reload() error {
 	if err != nil {
 		return err
 	}
+	defer store.Close()
 
 	flags := 0
 	if c.requireToken {
@@ -91,6 +92,21 @@ func (c *certstoreCertificate) Reload() error {
 	if err != nil {
 		return err
 	}
+
+	// Close every enumerated identity except the one we choose to serve. The
+	// chosen identity's Signer backs the live tls.Certificate, so it must stay
+	// open; everything else (non-matching identities, non-chosen candidates,
+	// and — on every error path — the chosen candidate too) leaks native
+	// handles unless closed here. chosenIdentity is assigned only on the final
+	// success path, so all error paths close all identities.
+	var chosenIdentity certstore.Identity
+	defer func() {
+		for _, identity := range identities {
+			if identity != chosenIdentity {
+				identity.Close()
+			}
+		}
+	}()
 
 	// Filter any certificates with the matching serial/name/issuer,
 	// as the keychain allows multiple certificates with the same name.
@@ -149,12 +165,12 @@ func (c *certstoreCertificate) Reload() error {
 
 	// choose the certificate with the NotAfter furthest in the future, which is
 	// the first item after the sort
-	chosenIdentity := candidates[0]
-	chain, err := chosenIdentity.CertificateChain()
+	chosen := candidates[0]
+	chain, err := chosen.CertificateChain()
 	if err != nil {
 		return fmt.Errorf("unable to read identity from keychain: %w", err)
 	}
-	signer, err := chosenIdentity.Signer()
+	signer, err := chosen.Signer()
 	if err != nil {
 		return fmt.Errorf("unable to read identity from keychain: %w", err)
 	}
@@ -169,6 +185,9 @@ func (c *certstoreCertificate) Reload() error {
 	if err != nil {
 		return err
 	}
+
+	// Retain the chosen identity so the deferred cleanup does not close it.
+	chosenIdentity = chosen
 
 	c.cachedCertificate.Store(certAndKey)
 	c.cachedCertPool.Store(bundle)

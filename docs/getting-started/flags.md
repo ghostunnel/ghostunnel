@@ -19,7 +19,7 @@ supported file formats and chain ordering.
 
 | Flag | Description |
 |------|-------------|
-| `--keystore PATH` | Path to keystore (combined PEM with cert/key, PKCS#12 keystore, or JCEKS/JKS keystore). |
+| `--keystore PATH` | Path to keystore (combined PEM with cert/key, PKCS#12 keystore, or JCEKS keystore). |
 | `--cert PATH` | Path to certificate (PEM with certificate chain). |
 | `--key PATH` | Path to certificate private key (PEM with private key). |
 | `--storepass PASS` | Password for keystore (PKCS#12 or JCEKS; optional for PKCS#12). |

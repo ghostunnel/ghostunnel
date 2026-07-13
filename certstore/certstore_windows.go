@@ -727,9 +727,18 @@ func (c errCode) Error() string {
 	return fmt.Sprintf("Error: %X %s", int(c), gomsg)
 }
 
-type securityStatus uint64
+type securityStatus uint32
 
 func checkStatus(s C.SECURITY_STATUS) error {
+	return checkSecurityStatus(int32(s))
+}
+
+// checkSecurityStatus maps a raw Windows SECURITY_STATUS (a signed 32-bit
+// value) to an error. It takes a plain int32 rather than the cgo type so it
+// can be exercised from tests, which cannot use import "C". Reinterpreting the
+// signed value as the unsigned securityStatus must not sign-extend, which is
+// why securityStatus is a 32-bit type.
+func checkSecurityStatus(s int32) error {
 	ss := securityStatus(s)
 
 	if ss == ERROR_SUCCESS {
@@ -744,7 +753,7 @@ func checkStatus(s C.SECURITY_STATUS) error {
 }
 
 func (ss securityStatus) Error() string {
-	return fmt.Sprintf("SECURITY_STATUS 0x%08X", uint64(ss))
+	return fmt.Sprintf("SECURITY_STATUS 0x%08X", uint32(ss))
 }
 
 func stringToUTF16(s string) C.LPCWSTR {

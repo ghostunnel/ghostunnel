@@ -7,6 +7,8 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -52,4 +54,42 @@ func TestAlgoForPublicKeyUnsupportedKeyType(t *testing.T) {
 	_, err = algoForPublicKey(pub, crypto.SHA256, crypto.SHA256)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported key type")
+}
+
+// TestMacIdentityConcurrentSign is a regression test for the macIdentity data
+// race: Certificate() and CertificateChain() lazily cache their results into
+// the shared i.crt / i.chain fields without synchronization. Concurrent access
+// from multiple goroutines races on those writes; run under -race to detect it.
+func TestMacIdentityConcurrentSign(t *testing.T) {
+	withIdentity(t, leafRSA, func(ident Identity) {
+		signer, err := ident.Signer()
+		require.NoError(t, err)
+
+		const goroutines = 16
+		const iterations = 50
+		digest := sha256.Sum256([]byte("ghostunnel"))
+
+		var wg sync.WaitGroup
+		for g := 0; g < goroutines; g++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for n := 0; n < iterations; n++ {
+					if _, err := ident.Certificate(); err != nil {
+						t.Error(err)
+						return
+					}
+					if _, err := ident.CertificateChain(); err != nil {
+						t.Error(err)
+						return
+					}
+					_ = signer.Public()
+					if _, err := signer.Sign(rand.Reader, digest[:], crypto.SHA256); err != nil {
+						t.Error(err)
+					}
+				}
+			}()
+		}
+		wg.Wait()
+	})
 }

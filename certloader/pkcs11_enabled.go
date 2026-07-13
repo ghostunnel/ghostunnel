@@ -19,6 +19,7 @@
 package certloader
 
 import (
+	"crypto"
 	"crypto/tls"
 	"fmt"
 	"log"
@@ -81,6 +82,21 @@ func (c *pkcs11Certificate) Reload() error {
 	// We want to avoid reloading the key every time the cert reloads, as it's
 	// a potentially expensive operation that calls out into a shared library.
 	if old := c.cachedCertificate.Load(); old != nil {
+		// The HSM private key handle is bound to a specific public key. If the
+		// certificate file was swapped for one with a different key, reusing the
+		// cached handle would publish a mismatched cert+key pair that breaks
+		// every new handshake. Verify the public keys still match; otherwise
+		// fail closed so the previous (self-consistent) state is kept.
+		type publicKey interface {
+			Equal(x crypto.PublicKey) bool
+		}
+		newPub, ok := certAndKey.Leaf.PublicKey.(publicKey)
+		if !ok {
+			return fmt.Errorf("pkcs11: unsupported public key type %T in certificate %q", certAndKey.Leaf.PublicKey, c.certificatePath)
+		}
+		if old.Leaf == nil || !newPub.Equal(old.Leaf.PublicKey) {
+			return fmt.Errorf("pkcs11: refusing to reload certificate %q: its public key does not match the cached HSM private key", c.certificatePath)
+		}
 		c.logger.Printf("pkcs11: re-using previously cached private key handle from module")
 		certAndKey.PrivateKey = old.PrivateKey
 	} else {

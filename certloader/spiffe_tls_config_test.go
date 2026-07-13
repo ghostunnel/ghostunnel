@@ -2,6 +2,7 @@ package certloader
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -42,7 +43,7 @@ func TestWorkloadAPIClientDisableAuth(t *testing.T) {
 
 	log := log.Default()
 
-	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), true, log)
+	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), true, 10*time.Second, log)
 	require.NoError(t, err)
 	defer source.(*spiffeTLSConfigSource).Close()
 
@@ -72,7 +73,7 @@ func TestWorkloadAPITLSConfigSource(t *testing.T) {
 
 	log := log.Default()
 
-	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), false, log)
+	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), false, 10*time.Second, log)
 	require.NoError(t, err)
 	defer source.(*spiffeTLSConfigSource).Close()
 
@@ -132,7 +133,7 @@ func TestWorkloadAPISourceCreation(t *testing.T) {
 	// SPIFFE client creation succeeds even with unreachable address (lazy connect).
 	// This test exercises the TLSConfigSourceFromWorkloadAPI function to ensure
 	// the source is created with correct settings.
-	source, err := TLSConfigSourceFromWorkloadAPI("tcp://127.0.0.1:1", false, log.Default())
+	source, err := TLSConfigSourceFromWorkloadAPI("tcp://127.0.0.1:1", false, 10*time.Second, log.Default())
 	require.NoError(t, err, "source creation should succeed (lazy connect)")
 	defer source.(*spiffeTLSConfigSource).Close()
 
@@ -140,9 +141,34 @@ func TestWorkloadAPISourceCreation(t *testing.T) {
 	require.False(t, source.(*spiffeTLSConfigSource).clientDisableAuth, "clientDisableAuth should be false")
 }
 
+// TestWorkloadAPIUnreachableTimesOut verifies that when the Workload API is
+// unreachable, building a config surfaces a bounded error (wrapping
+// context.DeadlineExceeded) instead of hanging forever.
+func TestWorkloadAPIUnreachableTimesOut(t *testing.T) {
+	const initTimeout = 500 * time.Millisecond
+	source, err := TLSConfigSourceFromWorkloadAPI("tcp://127.0.0.1:1", false, initTimeout, log.Default())
+	require.NoError(t, err, "source creation should succeed (lazy connect)")
+	defer source.(*spiffeTLSConfigSource).Close()
+
+	done := make(chan error, 1)
+	go func() {
+		_, gerr := source.GetServerConfig(&tls.Config{})
+		done <- gerr
+	}()
+
+	const guard = 5 * time.Second
+	select {
+	case gerr := <-done:
+		require.Error(t, gerr, "expected an error from unreachable Workload API")
+		require.True(t, errors.Is(gerr, context.DeadlineExceeded), "want DeadlineExceeded, got: %v", gerr)
+	case <-time.After(guard):
+		t.Fatalf("GetServerConfig did not return within %s; newConfig is hanging (regression)", guard)
+	}
+}
+
 func TestWorkloadAPISourceCreationDisableAuth(t *testing.T) {
 	// Test source creation with clientDisableAuth=true
-	source, err := TLSConfigSourceFromWorkloadAPI("tcp://127.0.0.1:1", true, log.Default())
+	source, err := TLSConfigSourceFromWorkloadAPI("tcp://127.0.0.1:1", true, 10*time.Second, log.Default())
 	require.NoError(t, err, "source creation should succeed with auth disabled")
 	defer source.(*spiffeTLSConfigSource).Close()
 
@@ -164,7 +190,7 @@ func TestSpiffeTLSConfigSourceClose(t *testing.T) {
 		})
 	defer workloadAPI.Stop()
 
-	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), false, log.Default())
+	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), false, 10*time.Second, log.Default())
 	require.NoError(t, err)
 
 	// Explicitly test Close() method
@@ -186,7 +212,7 @@ func TestWorkloadAPIServerConfigDisableAuth(t *testing.T) {
 		})
 	defer workloadAPI.Stop()
 
-	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), true, log.Default())
+	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), true, 10*time.Second, log.Default())
 	require.NoError(t, err)
 	defer source.(*spiffeTLSConfigSource).Close()
 
@@ -227,7 +253,7 @@ func TestSpiffeTLSConfigSourceReload(t *testing.T) {
 		})
 	defer workloadAPI.Stop()
 
-	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), false, log.Default())
+	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), false, 10*time.Second, log.Default())
 	require.NoError(t, err)
 	defer func() { _ = source.(*spiffeTLSConfigSource).Close() }()
 
@@ -240,7 +266,7 @@ func TestTLSConfigSourceFromWorkloadAPIInvalidAddress(t *testing.T) {
 	// Scheme is not "tcp" or "unix" -> setAddress returns ErrInvalidEndpointScheme
 	// synchronously, so spiffeApi.New returns an error and TLSConfigSourceFromWorkloadAPI
 	// exercises its `return nil, err` branch.
-	source, err := TLSConfigSourceFromWorkloadAPI("invalid://malformed", false, log.Default())
+	source, err := TLSConfigSourceFromWorkloadAPI("invalid://malformed", false, 10*time.Second, log.Default())
 	require.Error(t, err)
 	require.Nil(t, source)
 }
@@ -257,7 +283,7 @@ func TestNewConfigX509SourceErrorOnClosedClient(t *testing.T) {
 	})
 	defer api.Stop()
 
-	source, err := TLSConfigSourceFromWorkloadAPI(api.Addr(), false, log.Default())
+	source, err := TLSConfigSourceFromWorkloadAPI(api.Addr(), false, 10*time.Second, log.Default())
 	require.NoError(t, err)
 
 	// Force the client into a failure state by closing the underlying gRPC ClientConn.
@@ -289,7 +315,7 @@ func TestSpiffeTLSConfigSourceCanServe(t *testing.T) {
 		})
 	defer workloadAPI.Stop()
 
-	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), false, log.Default())
+	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), false, 10*time.Second, log.Default())
 	require.NoError(t, err)
 	defer func() { _ = source.(*spiffeTLSConfigSource).Close() }()
 
@@ -313,7 +339,7 @@ func TestWorkloadAPISVIDRotation(t *testing.T) {
 	})
 	defer workloadAPI.Stop()
 
-	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), false, log.Default())
+	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), false, 10*time.Second, log.Default())
 	require.NoError(t, err)
 	defer func() { _ = source.(*spiffeTLSConfigSource).Close() }()
 

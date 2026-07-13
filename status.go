@@ -97,31 +97,53 @@ func newStatusHandler(dial proxy.DialFunc, command, listenAddress, forwardAddres
 }
 
 func (s *statusHandler) Listening() {
-	notifyServiceReady()
-	notifyServiceStatus(fmt.Sprintf("listening | %s proxying %s => %s", s.command, s.listenAddress, s.forwardAddress))
+	// Hold the lock across the notify calls so the stopping check and the
+	// readiness notification are atomic with respect to Stopping(); otherwise
+	// a timed reload racing shutdown could emit READY=1 after STOPPING=1.
 	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.stopping {
+		// Once we're shutting down, don't resurrect healthy state or
+		// re-notify readiness (e.g. a timed reload firing mid-drain).
+		return
+	}
 	s.listening = true
 	s.reloading = false
-	s.mu.Unlock()
+
+	notifyServiceReady()
+	notifyServiceStatus(fmt.Sprintf("listening | %s proxying %s => %s", s.command, s.listenAddress, s.forwardAddress))
 }
 
 func (s *statusHandler) Reloading() {
-	notifyServiceReloading()
-	notifyServiceStatus(fmt.Sprintf("reloading | %s proxying %s => %s", s.command, s.listenAddress, s.forwardAddress))
+	// Hold the lock across the notify calls so the stopping check and the
+	// reload notification are atomic with respect to Stopping(); otherwise a
+	// timed reload racing shutdown could emit RELOADING=1 after STOPPING=1.
 	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.stopping {
+		// Once we're shutting down, a timed reload firing mid-drain must not
+		// flip us back to reloading or re-emit RELOADING=1.
+		return
+	}
 	s.reloading = true
 	s.lastReload = time.Now()
-	s.mu.Unlock()
+
+	notifyServiceReloading()
+	notifyServiceStatus(fmt.Sprintf("reloading | %s proxying %s => %s", s.command, s.listenAddress, s.forwardAddress))
 }
 
 func (s *statusHandler) Stopping() {
-	notifyServiceStopping()
-	notifyServiceStatus(fmt.Sprintf("stopping | %s proxying %s => %s", s.command, s.listenAddress, s.forwardAddress))
+	// Set stopping and send the stop notification while holding the lock, so a
+	// concurrent Listening()/Reloading() either runs fully before us or observes
+	// stopping and skips its notify — no READY/RELOADING can follow STOPPING.
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.listening = false
 	s.reloading = false
 	s.stopping = true
-	s.mu.Unlock()
+
+	notifyServiceStopping()
+	notifyServiceStatus(fmt.Sprintf("stopping | %s proxying %s => %s", s.command, s.listenAddress, s.forwardAddress))
 }
 
 func (s *statusHandler) HandleWatchdog() {

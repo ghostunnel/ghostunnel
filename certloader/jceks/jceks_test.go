@@ -1656,3 +1656,26 @@ func TestParseWithOptionsTruncatedIntegrityTrailer(t *testing.T) {
 	assert.ErrorIs(t, err, errInvalidJCEKSData)
 	assert.Contains(t, err.Error(), "failed to read integrity checksum")
 }
+
+func TestRecoverJKSKeyProtectorUnsupported(t *testing.T) {
+	// JKS protects private keys with Sun's proprietary key protector
+	// (OID 1.3.6.1.4.1.42.2.17.1.1), which we don't implement. Recovery must
+	// fail with an actionable PKCS#12-conversion hint. Body bytes are
+	// irrelevant: the OID is rejected before any decryption is attempted.
+	epki := encryptedPrivateKeyInfo{
+		Algo: pkix.AlgorithmIdentifier{
+			Algorithm: asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 42, 2, 17, 1, 1},
+		},
+		EncryptedKey: []byte("unused"),
+	}
+	protectedKey, err := asn1.Marshal(epki)
+	require.NoError(t, err)
+
+	entry := &privateKeyEntry{protectedKey: protectedKey}
+	_, err = entry.Recover([]byte("changeit"))
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errUnsupportedJCEKSData)
+	// The Option-B fix must surface an actionable hint pointing users at
+	// converting the JKS keystore to PKCS#12 (e.g. via keytool -importkeystore).
+	assert.Contains(t, err.Error(), "PKCS#12")
+}
