@@ -382,12 +382,35 @@ class BackendServer:
 
     def stop(self):
         self._stopped = True
-        if self.listener:
+        listener = self.listener
+        self.listener = None
+        if listener:
             try:
-                self.listener.close()
+                # shutdown() wakes a thread blocked in accept() (close alone
+                # does not: the blocked accept holds a kernel reference, and
+                # with SO_REUSEPORT the zombie listener would keep stealing
+                # connections from a replacement server on the same port).
+                listener.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass  # already closed, or platform disallows shutdown here
+            try:
+                listener.close()
             except OSError:
                 pass
-        self.listener = None
+        thread = self._accept_thread
+        self._accept_thread = None
+        if thread is not None:
+            thread.join(timeout=1)
+            if thread.is_alive():
+                # shutdown() didn't wake accept() on this platform; poke it
+                # with a throwaway connection (harmlessly bumps .accepted).
+                try:
+                    poke = socket.create_connection(
+                        (LOCALHOST, self.port), timeout=1)
+                    poke.close()
+                except OSError:
+                    pass
+                thread.join(timeout=5)
 
 
 class RootCert:
