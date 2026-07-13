@@ -7,9 +7,13 @@ proxy/proxy.go under real volume.
 
 Direction 1: a TLS client streams a large payload through the tunnel to an
 echo backend while simultaneously reading back and hashing the echoed
-stream. Direction 2: a "server push" backend writes the payload to the
-client and half-closes; the client hashes what it receives and verifies
-that EOF is forwarded.
+stream, and half-closes its write side immediately after the last payload
+byte — while most of the echo is still in flight. The tunnel must keep
+draining the return direction after the half-close (proxy.go half-closes
+tls.Conn via CloseWrite instead of hard-closing it): every echoed byte
+must still arrive, followed by EOF. Direction 2: a "server push" backend
+writes the payload to the client and half-closes; the client hashes what
+it receives and verifies that EOF is forwarded.
 """
 
 import hashlib
@@ -136,7 +140,11 @@ ghostunnel = None
 backend = None
 try:
     root = create_default_certs()
-    ghostunnel = start_ghostunnel_server()
+    # After a half-close, the remaining in-flight return traffic drains
+    # under the --close-timeout deadline (set by copyData's teardown).
+    # The harness default of 1s is enough on an idle machine but a flake
+    # risk for 64 MiB under parallel CI load, so give it real headroom.
+    ghostunnel = start_ghostunnel_server(extra_args=['--close-timeout=10s'])
 
     # Deterministic payload: generated once, hashed once, reused everywhere.
     payload = os.urandom(PAYLOAD_SIZE)
@@ -174,27 +182,26 @@ try:
     client.connect(20)
     sock = client.get_socket()
 
-    # Note: we must receive the full echo BEFORE half-closing. When the
-    # client half-closes, proxy.go's closeRead() falls back to a full
-    # Close() for tls.Conn (only *net.TCPConn/*net.UnixConn get a real
-    # half-close), so any echo data still in flight would be dropped.
+    # Half-close the write side immediately after the last payload byte,
+    # while most of the echo is still in flight. The tunnel half-closes
+    # tls.Conn (closeWrite -> CloseWrite, closeRead -> no-op) instead of
+    # hard-closing it, so every in-flight echoed byte must still arrive.
+    # This is the regression guard for that behavior: a hard close here
+    # drops the tail of the echo stream.
     start = time.monotonic()
     count, received_hash, _ = tls_duplex_pump(
-        sock, payload, recv_limit=PAYLOAD_SIZE)
+        sock, payload, recv_limit=PAYLOAD_SIZE, half_close_after_send=True)
     elapsed = time.monotonic() - start
 
-    check_transfer("client->echo->client", count, received_hash,
-                   expected_hash, elapsed)
+    check_transfer("client->echo->client (half-closed mid-flight)", count,
+                   received_hash, expected_hash, elapsed)
 
-    # Now half-close (pipe is empty) and verify EOF is forwarded back:
-    # the echo backend sees our FIN, finishes, and closes its side.
-    # Half-close via the base class: SSLSocket.shutdown() would set
-    # _sslobj to None, downgrading the recv() below to a raw read.
-    socket.socket.shutdown(sock, socket.SHUT_WR)
+    # After the full echo, the backend sees our forwarded FIN, finishes,
+    # and closes its side; EOF must come back through the tunnel.
     sock.settimeout(TIMEOUT)
     if sock.recv(RECV_CHUNK) != b'':
-        raise Exception("expected EOF after half-closing the echo stream")
-    print_ok("EOF forwarded after echo stream")
+        raise Exception("expected EOF after half-closed echo stream")
+    print_ok("in-flight echo drained after half-close, EOF forwarded")
     client.cleanup()
 
     if backend.handler_errors:
