@@ -37,6 +37,12 @@ def assert_closed_by_server(client, name):
     sock.settimeout(10)
     try:
         data = sock.recv(1)
+    except TimeoutError:
+        # a recv timeout means the socket was NOT closed towards the
+        # client — the reaper only updated its accounting (TimeoutError
+        # must be handled before the generic except below would hide it)
+        raise Exception(
+            "{0}: recv timed out, connection not closed by server".format(name))
     except Exception as e:
         print_ok("{0} closed by server (recv raised: {1})".format(name, e))
         return
@@ -75,9 +81,13 @@ try:
     root = create_default_certs()
     backend = BackendServer(conn_timeout=30).start()
 
-    # start ghostunnel with a short max connection lifetime
+    # Start ghostunnel with a short max connection lifetime. The lifetime
+    # must comfortably exceed the time it takes to open all NUM_CONNS
+    # connections below (~0.3s measured), or the earliest connections get
+    # reaped before the last ones open and conn.open never reaches
+    # NUM_CONNS. 8s gives a ~25x margin against CI scheduling stalls.
     ghostunnel = start_ghostunnel_server(extra_args=[
-        '--max-conn-lifetime=3s',
+        '--max-conn-lifetime=8s',
         '--enable-pprof',
     ])
 

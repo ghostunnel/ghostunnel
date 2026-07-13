@@ -23,6 +23,7 @@ from common import LOCALHOST, RootCert, BackendServer, TlsClient, print_ok, \
 import hashlib
 import os
 import threading
+import time
 
 NUM_PUMPS = 10
 NUM_RELOADS = 5
@@ -109,12 +110,11 @@ try:
     print_ok('{0} pumps started'.format(NUM_PUMPS))
 
     # wait until every pump has demonstrably made progress
-    deadline_event = threading.Event()
     for pump in pumps:
         for _ in range(100):
             if pump.rounds > 0 or pump.error is not None:
                 break
-            deadline_event.wait(0.1)
+            time.sleep(0.1)
         if pump.error is not None:
             raise pump.error
         if pump.rounds == 0:

@@ -15,7 +15,7 @@ must stay alive, and the goroutine count must return near the baseline
 captured at startup.
 """
 
-from common import LOCALHOST, BackendServer, TlsClient, create_default_certs, \
+from common import LOCALHOST, BackendServer, create_default_certs, \
     goroutine_count, print_ok, recv_exact, start_ghostunnel_server, terminate, \
     wait_for_metric, wait_for_status, LISTEN_PORT, TIMEOUT
 
@@ -67,41 +67,6 @@ def echo_roundtrip():
         sock.close()
 
 
-def stop_backend_completely(backend):
-    """Stop a BackendServer AND make sure its accept thread has exited.
-
-    BackendServer.stop() closes the listener fd, but a thread still blocked
-    in accept() keeps a kernel reference to the socket, which therefore
-    stays in the listen table. With SO_REUSEPORT, a replacement backend on
-    the same port would then share incoming connections with the zombie
-    listener. Wake the accept loop with a dummy connection and join the
-    thread before closing the listener."""
-    backend._stopped = True
-    try:
-        dummy = socket.create_connection((LOCALHOST, backend.port), timeout=2)
-        dummy.close()
-    except OSError:
-        pass  # listener may already be gone
-    backend._accept_thread.join(TIMEOUT)
-    if backend._accept_thread.is_alive():
-        raise Exception('backend accept thread did not exit')
-    backend.stop()
-
-
-def start_backend_with_retry(handler=None):
-    """Start a BackendServer, retrying briefly in case the previous
-    listener's port is not immediately rebindable."""
-    deadline = time.time() + TIMEOUT
-    while True:
-        try:
-            return BackendServer(handler=handler).start()
-        except OSError as e:
-            if time.time() > deadline:
-                raise
-            print('backend rebind failed ({0}), retrying...'.format(e))
-            time.sleep(0.2)
-
-
 ghostunnel = None
 rst_backend = None
 echo_backend = None
@@ -123,6 +88,10 @@ try:
             data = sock.recv(1)
             if data != b'':
                 raise Exception('unexpected data with no backend: {0!r}'.format(data))
+        except TimeoutError:
+            # a recv timeout means the tunnel left the connection dangling
+            # after the failed backend dial instead of closing it
+            raise Exception('tunnel did not close connection with no backend')
         except (ssl.SSLError, ConnectionResetError, BrokenPipeError, OSError):
             pass  # abrupt closure is also an acceptable way to end the tunnel
         finally:
@@ -131,7 +100,7 @@ try:
     print_ok('phase A: 10 handshakes with no backend, tunnel closed each time')
 
     # Phase B: backend accepts then immediately resets (RST) every conn.
-    rst_backend = start_backend_with_retry(handler=rst_handler)
+    rst_backend = BackendServer(handler=rst_handler).start()
     for i in range(20):
         sock = tls_connect()
         try:
@@ -139,6 +108,10 @@ try:
             data = sock.recv(4096)
             if data != b'':
                 raise Exception('unexpected data from RST backend: {0!r}'.format(data))
+        except TimeoutError:
+            # a recv timeout means the backend RST was not propagated and
+            # the tunnel left the connection dangling
+            raise Exception('tunnel did not propagate backend RST')
         except (ssl.SSLError, ConnectionResetError, BrokenPipeError, OSError):
             pass  # abrupt closure expected
         finally:
@@ -147,10 +120,12 @@ try:
     wait_for_metric('ghostunnel.conn.open', lambda v: v == 0)
     print_ok('phase B: 20 connections through RST backend, conn.open back to 0')
 
-    # Phase C: recovery with a well-behaved echo backend.
-    stop_backend_completely(rst_backend)
+    # Phase C: recovery with a well-behaved echo backend. stop() joins the
+    # accept thread, so the RST listener is fully gone before the echo
+    # backend binds the same port (no SO_REUSEPORT connection stealing).
+    rst_backend.stop()
     rst_backend = None
-    echo_backend = start_backend_with_retry()
+    echo_backend = BackendServer().start()
 
     # first connection should work right away (retry against timing noise)
     deadline = time.time() + TIMEOUT
@@ -171,11 +146,17 @@ try:
     assert_alive(ghostunnel, 'phase C (recovery)')
     print_ok('phase C: 10 consecutive successful roundtrip connections')
 
-    # goroutine count must settle back near the baseline
+    # goroutine count must settle back near the baseline (tolerate
+    # transient status-port fetch failures while polling)
     deadline = time.time() + 3 * TIMEOUT
     count = None
     while time.time() < deadline:
-        count = goroutine_count()
+        try:
+            count = goroutine_count()
+        except Exception as e:
+            print('goroutine fetch failed ({0}), retrying...'.format(e))
+            time.sleep(0.5)
+            continue
         if count <= baseline + GOROUTINE_TOLERANCE:
             break
         time.sleep(0.5)

@@ -8,7 +8,7 @@ handshake). Afterwards verifies that no semaphore slot was leaked by
 opening exactly max-concurrent-conns simultaneous working connections.
 """
 
-from common import BackendServer, LOCALHOST, LISTEN_PORT, TARGET_PORT, \
+from common import BackendServer, LOCALHOST, LISTEN_PORT, \
     TcpClient, STATUS_PORT, create_default_certs, print_ok, recv_exact, \
     start_ghostunnel_server, terminate, wait_for_metric, TIMEOUT, _poll_sleep
 import socket

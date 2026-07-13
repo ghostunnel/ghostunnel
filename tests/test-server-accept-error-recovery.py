@@ -10,7 +10,6 @@ alive and that service recovers once the pressure goes away.
 from common import LISTEN_PORT, LOCALHOST, BackendServer, TlsClient, \
     create_default_certs, print_ok, recv_exact, require_platform, \
     start_ghostunnel_server, terminate, wait_for_metric
-import os
 import shutil
 import socket
 import sys

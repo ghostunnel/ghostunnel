@@ -7,8 +7,8 @@ metrics return to zero, accept counters add up, goroutine counts return to
 baseline, and (on Linux) file descriptor counts return to baseline.
 """
 
-from common import BackendServer, LOCALHOST, LISTEN_PORT, TARGET_PORT, \
-    TcpClient, STATUS_PORT, create_default_certs, fd_count, get_metrics, \
+from common import BackendServer, LOCALHOST, LISTEN_PORT, \
+    TcpClient, STATUS_PORT, create_default_certs, fd_count, \
     goroutine_count, print_ok, recv_exact, start_ghostunnel_server, \
     terminate, wait_for_metric, TIMEOUT, _poll_sleep
 import socket
@@ -155,12 +155,11 @@ try:
     wait_for_metric('ghostunnel.conn.open', lambda v: v == 0)
     print_ok("conn.open returned to 0")
 
-    # accept counter must have seen at least all our connections (+ warmup)
-    metrics = get_metrics()
-    accept_total = metrics['ghostunnel.accept.total']
-    if accept_total < TOTAL_CONNS + 1:
-        raise Exception("accept.total is {0}, expected >= {1}".format(
-            accept_total, TOTAL_CONNS + 1))
+    # accept counter must have seen at least all our connections (+ warmup);
+    # poll via wait_for_metric so a transient status-port hiccup retries
+    # instead of failing the test
+    accept_total = wait_for_metric(
+        'ghostunnel.accept.total', lambda v: v >= TOTAL_CONNS + 1)
     print_ok("accept.total={0} (>= {1})".format(accept_total, TOTAL_CONNS + 1))
 
     # backend must have seen exactly one connection per tunnel connection

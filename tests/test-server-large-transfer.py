@@ -142,11 +142,9 @@ try:
     payload = os.urandom(PAYLOAD_SIZE)
     expected_hash = hashlib.sha256(payload).hexdigest()
 
-    # Single backend for both directions. (Stopping a BackendServer and
-    # starting a new one on the same port is racy: the stopped server's
-    # accept thread can survive stop() and steal connections via fd reuse.)
-    # First connection: echo. Second connection: push PAYLOAD_SIZE bytes,
-    # half-close, then drain until the client closes.
+    # Single backend for both directions, dispatching on connection order:
+    # first connection echoes, second pushes PAYLOAD_SIZE bytes,
+    # half-closes, then drains until the client closes.
     def push_handler(conn):
         view = memoryview(payload)
         for i in range(0, PAYLOAD_SIZE, SEND_CHUNK):

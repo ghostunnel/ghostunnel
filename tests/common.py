@@ -360,8 +360,12 @@ class BackendServer:
 
     def _accept_loop(self):
         while not self._stopped:
+            # snapshot: stop() nulls self.listener concurrently
+            listener = self.listener
+            if listener is None:
+                return
             try:
-                conn, _ = self.listener.accept()
+                conn, _ = listener.accept()
             except OSError:
                 return  # listener closed by stop()
             self.accepted += 1

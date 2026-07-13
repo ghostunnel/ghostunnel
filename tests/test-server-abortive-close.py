@@ -7,7 +7,7 @@ in ghostunnel: conn.open must return to zero and the tunnel must still
 serve normal connections afterwards.
 """
 
-from common import BackendServer, LOCALHOST, LISTEN_PORT, TARGET_PORT, \
+from common import BackendServer, LOCALHOST, LISTEN_PORT, \
     TcpClient, STATUS_PORT, create_default_certs, print_ok, recv_exact, \
     start_ghostunnel_server, terminate, wait_for_metric, TIMEOUT, _poll_sleep
 import socket
@@ -121,6 +121,13 @@ def backend_side_rst(ctx, i):
                 raise Exception(
                     "unexpected data after backend RST: {0!r}".format(data))
             # empty read = clean EOF propagated by the tunnel, acceptable
+        except TimeoutError:
+            # a recv timeout means the tunnel left the connection dangling
+            # instead of propagating the RST — exactly the failure this
+            # test exists to catch (TimeoutError is an OSError subclass,
+            # so it must be handled before the catch-all below)
+            raise Exception(
+                "tunnel did not propagate backend RST within timeout")
         except (ConnectionError, ssl.SSLError, OSError):
             pass  # reset/TLS error propagated by the tunnel, acceptable
     finally:
