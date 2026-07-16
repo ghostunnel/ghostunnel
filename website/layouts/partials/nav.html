@@ -10,7 +10,9 @@
     </label>
     <ul class="nav-links">
       {{ range .Site.Menus.main }}
-      <li><a href="{{ .URL }}"{{ if hasPrefix .URL "http" }} target="_blank" rel="noopener"{{ end }}>{{ with .Params.icon }}{{ partial (printf "%s.html" .) }}{{ end }}<span>{{ .Name }}</span></a></li>
+      {{- $external := hasPrefix .URL "http" -}}
+      {{- $active := and (not $external) (hasPrefix $.RelPermalink .URL) -}}
+      <li><a href="{{ .URL }}"{{ if $external }} target="_blank" rel="noopener"{{ end }}{{ if $active }} class="active" aria-current="page"{{ end }}>{{ with .Params.icon }}{{ partial (printf "%s.html" .) }}{{ end }}<span>{{ .Name }}</span></a></li>
       {{ end }}
     </ul>
   </div>
