@@ -18,14 +18,16 @@ package auth
 
 import (
 	"context"
-	"crypto/sha256"
+	"crypto"
 	"crypto/subtle"
 	"crypto/x509"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net"
 	"net/url"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/ghostunnel/ghostunnel/policy"
@@ -74,15 +76,71 @@ type ACL struct {
 	// if AllowOPAQuery is nil.
 	OPAQueryTimeout time.Duration
 
-	// Pins holds the raw SHA-256 hashes (32 bytes each) of the expected
-	// peer's SubjectPublicKeyInfo (SPKI). When non-empty, verification uses
-	// out-of-band key pinning (in the style of RFC 7858 section 4.2): the peer
-	// is authenticated solely by requiring the leaf certificate's SPKI hash to
-	// match one of these pins, and the certificate chain, validity period, and
-	// hostname are not verified. Multiple pins may be supplied so that a
-	// current and a backup key can both be accepted during key rotation. This
-	// is mutually exclusive with all other ACL fields.
-	Pins [][]byte
+	// Pins holds SPKI pins (see Pin and ParsePins) of the expected peer's
+	// SubjectPublicKeyInfo. When non-empty, verification uses out-of-band key
+	// pinning (in the style of RFC 7858 section 4.2): the peer is authenticated
+	// solely by requiring the leaf certificate's SPKI hash to match one of these
+	// pins, and the certificate chain, validity period, and hostname are not
+	// verified. Multiple pins may be supplied so that a current and a backup
+	// key can both be accepted during key rotation. This is mutually exclusive
+	// with all other ACL fields.
+	Pins []Pin
+}
+
+// supportedPinHashes maps the algorithm name accepted in the "<algo>:<digest>"
+// pin syntax to its crypto.Hash.
+var supportedPinHashes = map[string]crypto.Hash{
+	"sha256": crypto.SHA256,
+	"sha384": crypto.SHA384,
+	"sha512": crypto.SHA512,
+}
+
+// Pin is a single SPKI pin: a hash algorithm and the expected digest of the
+// peer's DER-encoded SubjectPublicKeyInfo. The digest is compared in constant
+// time (see verifyPin).
+type Pin struct {
+	hash   crypto.Hash
+	digest []byte
+}
+
+// ParsePins parses SPKI pins of the form "<algo>:<base64-digest>" (e.g.
+// "sha256:..."). The algorithm prefix is required and must be one of the
+// supported SHA-2 hashes. The digest must be base64-decodable and exactly
+// hash.Size() bytes. Returns nil if pins is empty. Any invalid entry rejects
+// the whole set, so malformed pins surface at startup rather than at
+// listen/dial time.
+func ParsePins(pins []string) ([]Pin, error) {
+	if len(pins) == 0 {
+		return nil, nil
+	}
+	parsed := make([]Pin, 0, len(pins))
+	for _, p := range pins {
+		pin, err := parsePin(p)
+		if err != nil {
+			return nil, err
+		}
+		parsed = append(parsed, pin)
+	}
+	return parsed, nil
+}
+
+func parsePin(s string) (Pin, error) {
+	algo, digest, ok := strings.Cut(s, ":")
+	if !ok {
+		return Pin{}, fmt.Errorf("invalid pin %q: expected format <algo>:<base64-digest>", s)
+	}
+	hash, ok := supportedPinHashes[algo]
+	if !ok {
+		return Pin{}, fmt.Errorf("invalid pin %q: unsupported hash algorithm %q (supported: sha256, sha384, sha512)", s, algo)
+	}
+	raw, err := base64.StdEncoding.DecodeString(digest)
+	if err != nil {
+		return Pin{}, fmt.Errorf("invalid pin %q: base64 decode failed: %w", s, err)
+	}
+	if len(raw) != hash.Size() {
+		return Pin{}, fmt.Errorf("invalid pin %q: expected %d bytes for %s, got %d", s, hash.Size(), algo, len(raw))
+	}
+	return Pin{hash: hash, digest: raw}, nil
 }
 
 // PinningEnabled reports whether this ACL authenticates peers via SPKI pinning
@@ -98,7 +156,11 @@ func (a ACL) PinningEnabled() bool {
 
 // verifyPin checks whether the leaf certificate in rawCerts matches one of the
 // configured SPKI pins. It is called when pinning is enabled, bypassing all
-// chain-based verification.
+// chain-based verification. Each pin's hash is computed independently of the
+// others, so multiple pins configured with different algorithms are all
+// evaluated. The pin set is scanned sequentially and short-circuits on the
+// first match; the pin set is operator configuration (not a secret), so only
+// the individual digest comparison is constant-time (via subtle.ConstantTimeCompare).
 func (a ACL) verifyPin(rawCerts [][]byte) error {
 	if len(rawCerts) == 0 {
 		return errors.New("unauthorized: no certificate presented")
@@ -109,9 +171,11 @@ func (a ACL) verifyPin(rawCerts [][]byte) error {
 		return fmt.Errorf("unauthorized: failed to parse certificate: %w", err)
 	}
 
-	hash := sha256.Sum256(cert.RawSubjectPublicKeyInfo)
+	spki := cert.RawSubjectPublicKeyInfo
 	for _, pin := range a.Pins {
-		if subtle.ConstantTimeCompare(hash[:], pin) == 1 {
+		h := pin.hash.New()
+		h.Write(spki)
+		if subtle.ConstantTimeCompare(h.Sum(nil), pin.digest) == 1 {
 			return nil
 		}
 	}

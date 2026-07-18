@@ -136,7 +136,7 @@ all other access control flags.
 | `--allow-ou OU` | Allow clients with given organizational unit name (repeatable). |
 | `--allow-dns DNS` | Allow clients with given DNS subject alternative name (repeatable). |
 | `--allow-uri URI` | Allow clients with given URI subject alternative name (repeatable). |
-| `--allow-pin PIN` | Allow clients matching the given base64-encoded SHA-256 SPKI pin (repeatable). Out-of-band key pinning; chain, validity, and hostname are not verified. Mutually exclusive with other access control flags. |
+| `--allow-spki-pin PIN` | Allow clients matching the given SPKI pin of the form `<algo>:<base64-digest>` (repeatable, e.g. `sha256:...`). Out-of-band key pinning; chain, validity, and hostname are not verified. Mutually exclusive with other access control flags. |
 | `--disable-authentication` | Disable client authentication, no client certificate will be required. |
 
 ### ACME (Server)
@@ -193,7 +193,7 @@ See [Access Control Flags]({{< ref "access-flags.md" >}}).
 | `--verify-ou OU` | Allow servers with given organizational unit name (repeatable). |
 | `--verify-dns DNS` | Allow servers with given DNS subject alternative name (repeatable). |
 | `--verify-uri URI` | Allow servers with given URI subject alternative name (repeatable). |
-| `--verify-pin PIN` | Verify the server matches the given base64-encoded SHA-256 SPKI pin (repeatable). Out-of-band key pinning; unlike other verify flags, hostname/chain/validity checks are not performed. Mutually exclusive with other verification flags. |
+| `--verify-spki-pin PIN` | Verify the server matches the given SPKI pin of the form `<algo>:<base64-digest>` (repeatable, e.g. `sha256:...`). Out-of-band key pinning; unlike other verify flags, hostname/chain/validity checks are not performed. Mutually exclusive with other verification flags. |
 
 ### OPA Policy (Client)
 

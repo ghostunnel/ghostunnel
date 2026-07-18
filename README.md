@@ -148,7 +148,7 @@ To set allowed clients, you must specify at least one of `--allow-all`,
 `--allow-cn`, `--allow-ou`, `--allow-dns`, `--allow-uri`, or `--allow-policy`. All
 checks are made against the certificate of the client. Multiple flags are
 treated as a logical disjunction (OR), meaning clients can connect as long as
-any of the flags matches. Alternatively, `--allow-pin` authenticates clients by
+any of the flags matches. Alternatively, `--allow-spki-pin` authenticates clients by
 out-of-band SPKI key pinning. See [ACCESS-FLAGS](docs/security/access-flags.md)
 for more information. In this example, we assume that the CN of the client cert we want
 to accept connections from is `client`.

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
 """
-Tests that ghostunnel server mode works with --allow-pin for SPKI pinning.
+Tests that ghostunnel server mode works with --allow-spki-pin for SPKI pinning.
 Verifies that a client with the correct pin is accepted and a client with
-the wrong pin is rejected. Also verifies that --allow-pin can be repeated so
-that multiple keys (e.g. a current and a backup key) are accepted.
+the wrong pin is rejected. Also verifies that --allow-spki-pin can be repeated
+so that multiple keys (e.g. a current and a backup key) are accepted.
 """
 
 from common import (
@@ -25,17 +25,17 @@ try:
     bad_client = RootCert('bad_client')
 
     # Get the SPKI pin for the client cert
-    client_pin = get_spki_pin('client.crt')
+    client_pin = get_spki_pin('client.crt', 'sha256')
     print_ok("client SPKI pin: {0}".format(client_pin))
 
-    # Start ghostunnel server with --allow-pin
+    # Start ghostunnel server with --allow-spki-pin
     ghostunnel = run_ghostunnel(['server',
                                  '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
                                  '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
                                  '--cert=server.crt',
                                  '--key=server.key',
                                  '--cacert=root.crt',
-                                 '--allow-pin={0}'.format(client_pin),
+                                 '--allow-spki-pin={0}'.format(client_pin),
                                  '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
 
     # Test 1: Client with matching pin should connect
@@ -53,9 +53,9 @@ try:
     )
     print_ok("Test 2: Wrong pin rejected OK")
 
-    # Test 3: --allow-pin repeated with two pins accepts a client matching
+    # Test 3: --allow-spki-pin repeated with two pins accepts a client matching
     # either pin (e.g. current + backup key during rotation).
-    bad_client_pin = get_spki_pin('bad_client.crt')
+    bad_client_pin = get_spki_pin('bad_client.crt', 'sha256')
     print_ok("bad_client SPKI pin: {0}".format(bad_client_pin))
 
     terminate(ghostunnel)
@@ -65,8 +65,8 @@ try:
                                  '--cert=server.crt',
                                  '--key=server.key',
                                  '--cacert=root.crt',
-                                 '--allow-pin={0}'.format(bad_client_pin),
-                                 '--allow-pin={0}'.format(client_pin),
+                                 '--allow-spki-pin={0}'.format(bad_client_pin),
+                                 '--allow-spki-pin={0}'.format(client_pin),
                                  '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
 
     # A client matching the second pin connects.

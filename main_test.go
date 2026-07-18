@@ -398,7 +398,7 @@ func TestClientFlagValidation(t *testing.T) {
 	assert.Nil(t, err, "neither OPA flag set should be valid")
 }
 
-func TestValidateServerAccessControlPin(t *testing.T) {
+func TestValidateServerAccessControlSpkiPin(t *testing.T) {
 	reset := func() {
 		*serverAllowAll = false
 		*serverDisableAuth = false
@@ -406,32 +406,32 @@ func TestValidateServerAccessControlPin(t *testing.T) {
 	}
 	defer reset()
 
-	// --allow-pin on its own is a valid access control mechanism.
+	// --allow-spki-pin on its own is a valid access control mechanism.
 	reset()
-	assert.Nil(t, validateServerAccessControl(false, true, false), "--allow-pin alone should be valid")
+	assert.Nil(t, validateServerAccessControl(false, true, false), "--allow-spki-pin alone should be valid")
 
-	// Combining --allow-pin with any other mechanism is rejected. The
+	// Combining --allow-spki-pin with any other mechanism is rejected. The
 	// message varies by which branch fires (allow-all / disable-auth take
 	// precedence), so we only assert that an error is returned.
 	reset()
-	assert.NotNil(t, validateServerAccessControl(true, true, false), "--allow-pin and other --allow-* flags are mutually exclusive")
+	assert.NotNil(t, validateServerAccessControl(true, true, false), "--allow-spki-pin and other --allow-* flags are mutually exclusive")
 
 	reset()
-	assert.NotNil(t, validateServerAccessControl(false, true, true), "--allow-pin and OPA flags are mutually exclusive")
+	assert.NotNil(t, validateServerAccessControl(false, true, true), "--allow-spki-pin and OPA flags are mutually exclusive")
 
 	reset()
 	*serverAllowAll = true
-	assert.NotNil(t, validateServerAccessControl(false, true, false), "--allow-pin and --allow-all are mutually exclusive")
+	assert.NotNil(t, validateServerAccessControl(false, true, false), "--allow-spki-pin and --allow-all are mutually exclusive")
 
 	reset()
 	*serverDisableAuth = true
-	assert.NotNil(t, validateServerAccessControl(false, true, false), "--allow-pin and --disable-authentication are mutually exclusive")
+	assert.NotNil(t, validateServerAccessControl(false, true, false), "--allow-spki-pin and --disable-authentication are mutually exclusive")
 
-	// --allow-pin cannot be combined with the SPIFFE Workload API source.
+	// --allow-spki-pin cannot be combined with the SPIFFE Workload API source.
 	reset()
 	*useWorkloadAPI = true
 	err := validateServerAccessControl(false, true, false)
-	if assert.NotNil(t, err, "--allow-pin and --use-workload-api are mutually exclusive") {
+	if assert.NotNil(t, err, "--allow-spki-pin and --use-workload-api are mutually exclusive") {
 		assert.Contains(t, err.Error(), "--use-workload-api")
 	}
 
@@ -440,10 +440,10 @@ func TestValidateServerAccessControlPin(t *testing.T) {
 	assert.NotNil(t, validateServerAccessControl(false, false, false), "at least one access control flag is required")
 }
 
-func TestValidateClientPin(t *testing.T) {
-	validPin := base64.StdEncoding.EncodeToString(make([]byte, 32))
+func TestValidateClientSpkiPin(t *testing.T) {
+	validPin := "sha256:" + base64.StdEncoding.EncodeToString(make([]byte, 32))
 	reset := func() {
-		*clientVerifyPin = nil
+		*clientVerifySpkiPin = nil
 		*clientAllowedCNs = nil
 		*clientAllowedOUs = nil
 		*clientAllowedDNSs = nil
@@ -458,21 +458,21 @@ func TestValidateClientPin(t *testing.T) {
 	defer reset()
 
 	reset()
-	assert.Nil(t, validateClientPin(), "no --verify-pin should be valid")
+	assert.Nil(t, validateClientPin(), "no --verify-spki-pin should be valid")
 
 	reset()
-	*clientVerifyPin = []string{validPin}
-	assert.Nil(t, validateClientPin(), "--verify-pin alone should be valid")
+	*clientVerifySpkiPin = []string{validPin}
+	assert.Nil(t, validateClientPin(), "--verify-spki-pin alone should be valid")
 
 	reset()
-	*clientVerifyPin = []string{validPin, validPin}
-	assert.Nil(t, validateClientPin(), "multiple --verify-pin should be valid")
+	*clientVerifySpkiPin = []string{validPin, validPin}
+	assert.Nil(t, validateClientPin(), "multiple --verify-spki-pin should be valid")
 	assert.Equal(t, 2, len(decodedClientPins), "validation should decode the pins into decodedClientPins")
 
 	// Malformed pins are rejected at validation time (before listen/dial).
 	reset()
-	*clientVerifyPin = []string{"not valid base64 @@@"}
-	assert.NotNil(t, validateClientPin(), "malformed --verify-pin should be rejected at validation")
+	*clientVerifySpkiPin = []string{"sha256:not valid base64 @@@"}
+	assert.NotNil(t, validateClientPin(), "malformed --verify-spki-pin should be rejected at validation")
 	assert.Nil(t, decodedClientPins, "no pins should be stored on validation failure")
 
 	conflicts := map[string]func(){
@@ -488,48 +488,13 @@ func TestValidateClientPin(t *testing.T) {
 	}
 	for name, set := range conflicts {
 		reset()
-		*clientVerifyPin = []string{validPin}
+		*clientVerifySpkiPin = []string{validPin}
 		set()
 		err := validateClientPin()
-		if assert.NotNil(t, err, "--verify-pin must be mutually exclusive with "+name) {
-			assert.Contains(t, err.Error(), "--verify-pin is mutually exclusive")
+		if assert.NotNil(t, err, "--verify-spki-pin must be mutually exclusive with "+name) {
+			assert.Contains(t, err.Error(), "--verify-spki-pin is mutually exclusive")
 		}
 	}
-}
-
-func TestDecodePins(t *testing.T) {
-	// Empty input yields no pins and no error.
-	pins, err := decodePins(nil)
-	assert.Nil(t, err)
-	assert.Nil(t, pins)
-
-	valid := base64.StdEncoding.EncodeToString(make([]byte, 32))
-
-	// A single valid pin decodes to 32 bytes.
-	pins, err = decodePins([]string{valid})
-	assert.Nil(t, err)
-	assert.Equal(t, 1, len(pins))
-	assert.Equal(t, 32, len(pins[0]))
-
-	// Multiple valid pins all decode.
-	pins, err = decodePins([]string{valid, valid})
-	assert.Nil(t, err)
-	assert.Equal(t, 2, len(pins))
-
-	// Invalid base64 is rejected.
-	_, err = decodePins([]string{"not valid base64 @@@"})
-	assert.NotNil(t, err)
-	assert.Contains(t, err.Error(), "base64 decode failed")
-
-	// A pin that is not 32 bytes is rejected.
-	short := base64.StdEncoding.EncodeToString(make([]byte, 16))
-	_, err = decodePins([]string{short})
-	assert.NotNil(t, err)
-	assert.Contains(t, err.Error(), "expected 32 bytes")
-
-	// If any pin in the list is invalid, the whole call fails.
-	_, err = decodePins([]string{valid, short})
-	assert.NotNil(t, err)
 }
 
 func TestAllowsLocalhost(t *testing.T) {

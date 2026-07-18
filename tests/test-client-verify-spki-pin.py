@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Tests that ghostunnel client mode works with --verify-pin for SPKI pinning.
+Tests that ghostunnel client mode works with --verify-spki-pin for SPKI pinning.
 Verifies that a server with the correct pin is accepted and a server with
 the wrong pin is rejected.
 """
@@ -19,7 +19,7 @@ try:
 
     server_cert = RootCert('server')
 
-    server_pin = get_spki_pin('server.crt')
+    server_pin = get_spki_pin('server.crt', 'sha256')
     print_ok("server SPKI pin: {0}".format(server_pin))
 
     ghostunnel = run_ghostunnel(['client',
@@ -28,7 +28,7 @@ try:
                                  '--cert=client.crt',
                                  '--key=client.key',
                                  '--cacert=root.crt',
-                                 '--verify-pin={0}'.format(server_pin),
+                                 '--verify-spki-pin={0}'.format(server_pin),
                                  '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
 
     # Test 1: Server with matching pin should connect
@@ -53,7 +53,7 @@ try:
                                  '--cert=client.crt',
                                  '--key=client.key',
                                  '--cacert=root.crt',
-                                 '--verify-pin={0}'.format(server_pin),
+                                 '--verify-spki-pin={0}'.format(server_pin),
                                  '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
 
     assert_connection_rejected(
