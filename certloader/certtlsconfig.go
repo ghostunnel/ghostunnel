@@ -104,7 +104,14 @@ func (c *certTLSConfig) GetServerConfig() *tls.Config {
 	}
 	config := c.base.Clone()
 	config.GetCertificate = c.cert.GetCertificate
-	config.ClientCAs = pool
+	// Under RequireAnyClientCert (SPKI pin mode) no chain verification happens,
+	// so ClientCAs never authenticates anything; its only effect is the
+	// certificate_authorities hint Go advertises in the handshake. In pin mode
+	// that hint is actively misleading — a strict client may withhold a pinned
+	// cert that doesn't chain to it — so we leave ClientCAs nil.
+	if c.base.ClientAuth != tls.RequireAnyClientCert {
+		config.ClientCAs = pool
+	}
 	c.cachedServer.Store(&cachedTLSConfig{pool: pool, config: config})
 	return config
 }

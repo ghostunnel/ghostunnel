@@ -262,7 +262,14 @@ func (a *acmeTLSConfig) GetServerConfig() *tls.Config {
 func (a *acmeTLSConfig) buildServerConfig(pool *x509.CertPool) *tls.Config {
 	config := a.base.Clone()
 	config.GetCertificate = a.magicConfig.GetCertificate
-	config.ClientCAs = pool
+	// Under RequireAnyClientCert (SPKI pin mode) no chain verification happens,
+	// so ClientCAs never authenticates anything; its only effect is the
+	// certificate_authorities hint Go advertises in the handshake. In pin mode
+	// that hint is actively misleading — a strict client may withhold a pinned
+	// cert that doesn't chain to it — so we leave ClientCAs nil.
+	if a.base.ClientAuth != tls.RequireAnyClientCert {
+		config.ClientCAs = pool
+	}
 	config.NextProtos = append(append([]string(nil), a.base.NextProtos...), acmez.ACMETLS1Protocol)
 
 	// The ACME CA's TLS-ALPN-01 validator opens a probe handshake with

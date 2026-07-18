@@ -67,6 +67,11 @@ period, and hostname are *not* verified and a pinned key need not chain to a
 trusted CA. Mutually exclusive with other access control flags and with
 `--use-workload-api`.
 
+When `--allow-spki-pin` is set, `--cacert` has no effect on client
+verification: the client is authenticated by the pin alone, and ghostunnel does
+not advertise the CA pool in the TLS handshake (so a strict client is not
+prompted to withhold a pinned certificate that does not chain to it).
+
 > **Prefer an OPA policy if the client is already PKIX-valid.** `--allow-spki-pin` is
 > for clients whose certificate is *not* otherwise trusted (self-signed or
 > out-of-band-distributed keys). If clients already present a certificate that
