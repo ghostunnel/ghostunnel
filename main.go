@@ -130,12 +130,6 @@ var (
 	useWorkloadAPI     = app.Flag("use-workload-api", "If true, certificate and root CAs are retrieved via the SPIFFE Workload API").Bool()
 	useWorkloadAPIAddr = app.Flag("use-workload-api-addr", "If set, certificates and root CAs are retrieved via the SPIFFE Workload API at the specified address (implies --use-workload-api)").Envar("SPIFFE_ENDPOINT_SOCKET").PlaceHolder("ADDR").String()
 
-	// Decoded SPKI pins (populated during flag validation from
-	// --allow-spki-pin / --verify-spki-pin, so that malformed pins are
-	// rejected at startup rather than at listen/dial time).
-	decodedServerPins []auth.SPKIPin
-	decodedClientPins []auth.SPKIPin
-
 	// Deprecated cipher suite flags
 	enabledCipherSuites     = app.Flag("cipher-suites", "Set of cipher suites to enable, comma-separated, in order of preference (AES, CHACHA).").Hidden().Default("AES,CHACHA").String()
 	allowUnsafeCipherSuites = app.Flag("allow-unsafe-cipher-suites", "Allow cipher suites deemed to be unsafe to be enabled via the cipher-suites flag.").Hidden().Default("false").Bool()
@@ -420,6 +414,15 @@ func validateServerOPA(hasOPAFlags bool) error {
 	}
 	return nil
 }
+
+// Decoded SPKI pins, populated by decodeSPKIPins during flag validation from
+// --allow-spki-pin / --verify-spki-pin so that malformed pins are rejected at
+// startup rather than at listen/dial time. Kept out of the flag var block above
+// since they are derived state, not kingpin flags.
+var (
+	decodedServerPins []auth.SPKIPin
+	decodedClientPins []auth.SPKIPin
+)
 
 // decodeSPKIPins parses SPKI pin flag values, tagging any parse error with the
 // flag name so the message is actionable. Used by both the server
