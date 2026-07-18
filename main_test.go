@@ -77,325 +77,282 @@ func TestPanicOnError(t *testing.T) {
 }
 
 func TestFlagValidation(t *testing.T) {
+	// reset establishes a valid baseline so each case toggles exactly one thing.
+	reset := func() {
+		*enableProf = false
+		*enableShutdown = false
+		*statusAddress = ""
+		*metricsURL = ""
+		*serverStatusTargetAddress = ""
+		*connectTimeout = 10 * time.Second
+	}
+	defer reset()
+
+	reset()
 	*enableProf = true
-	*statusAddress = ""
-	err := validateFlags(nil)
-	assert.NotNil(t, err, "--enable-pprof implies --status")
+	assert.NotNil(t, validateFlags(nil), "--enable-pprof implies --status")
 
-	*enableProf = false
+	reset()
 	*enableShutdown = true
-	*statusAddress = ""
-	err = validateFlags(nil)
-	assert.NotNil(t, err, "--enable-shutdown implies --status")
-	*enableShutdown = false
+	assert.NotNil(t, validateFlags(nil), "--enable-shutdown implies --status")
+
+	reset()
 	*metricsURL = "127.0.0.1"
-	err = validateFlags(nil)
-	assert.NotNil(t, err, "invalid --metrics-url should be rejected")
-	*metricsURL = ""
+	assert.NotNil(t, validateFlags(nil), "invalid --metrics-url should be rejected")
 
-	*enableProf = false
+	reset()
 	*serverStatusTargetAddress = "127.0.0.1:8000"
-	err = validateFlags(nil)
-	assert.NotNil(t, err, "--target-status should start with http:// or https://")
-	*serverStatusTargetAddress = ""
+	assert.NotNil(t, validateFlags(nil), "--target-status should start with http:// or https://")
 
+	reset()
 	*connectTimeout = 0
-	err = validateFlags(nil)
-	assert.NotNil(t, err, "invalid --connect-timeout should be rejected")
-	*connectTimeout = 10 * time.Second
+	assert.NotNil(t, validateFlags(nil), "invalid --connect-timeout should be rejected")
 }
 
 func TestServerFlagValidation(t *testing.T) {
+	// reset establishes a fully valid server config (keystore credential,
+	// --allow-all, safe local target) so each case toggles exactly one thing.
+	// Building each case from a known-good baseline avoids the trap where an
+	// assertion passes for the wrong reason (e.g. failing credential validation
+	// before ever reaching the access-control check it claims to exercise).
+	reset := func() {
+		*serverAllowAll = true
+		*serverAllowedCNs = nil
+		*serverAllowedOUs = nil
+		*serverAllowedDNSs = nil
+		*serverAllowedIPs = nil
+		*serverAllowedURIs = nil
+		*serverAllowPolicy = ""
+		*serverAllowQuery = ""
+		*serverAllowSpkiPin = nil
+		*serverDisableAuth = false
+		*useWorkloadAPI = false
+		*keystorePath = "file"
+		*certPath = ""
+		*keyPath = ""
+		keychainIdentity = nil
+		keychainIssuer = nil
+		*serverAutoACMEFQDN = ""
+		*serverForwardAddress = "127.0.0.1:8080"
+		*serverUnsafeTarget = false
+		*serverProxyProtocol = false
+		*serverProxyProtocolMode = ""
+		*enabledCipherSuites = "AES,CHACHA"
+		decodedServerPins = nil
+	}
+	defer reset()
+
+	// Sanity: the baseline itself is valid.
+	reset()
+	assert.Nil(t, serverValidateFlags(), "baseline server config should be valid")
+
+	// No access control mechanism at all is rejected.
+	reset()
 	*serverAllowAll = false
-	*serverAllowedCNs = nil
-	*serverAllowedOUs = nil
-	*serverAllowedDNSs = nil
-	*serverAllowedIPs = nil
-	*serverAllowedURIs = nil
+	assert.NotNil(t, serverValidateFlags(), "at least one access control flag is required")
+
+	// --allow-all is mutually exclusive with every other access control flag.
+	for name, set := range map[string]func(){
+		"--allow-cn":  func() { *serverAllowedCNs = []string{"test"} },
+		"--allow-ou":  func() { *serverAllowedOUs = []string{"test"} },
+		"--allow-dns": func() { *serverAllowedDNSs = []string{"test"} },
+		"--allow-ip":  func() { *serverAllowedIPs = []net.IP{net.IPv4(0, 0, 0, 0)} },
+		"--allow-uri": func() { *serverAllowedURIs = []string{"spiffe://example.com/*"} },
+	} {
+		reset()
+		set()
+		assert.NotNil(t, serverValidateFlags(), "--allow-all is mutually exclusive with "+name)
+	}
+
+	// --allow-all is mutually exclusive with the OPA flags.
+	reset()
+	*serverAllowPolicy = "policy"
+	*serverAllowQuery = "query"
+	assert.NotNil(t, serverValidateFlags(), "--allow-all is mutually exclusive with OPA flags")
+
+	// The OPA flags must be supplied together.
+	reset()
+	*serverAllowAll = false
+	*serverAllowPolicy = "policy"
+	assert.NotNil(t, serverValidateFlags(), "--allow-policy needs --allow-query")
+
+	reset()
+	*serverAllowAll = false
+	*serverAllowQuery = "query"
+	assert.NotNil(t, serverValidateFlags(), "--allow-query needs --allow-policy")
+
+	// OPA flags MAY be combined with the --allow-* subject flags (they are
+	// OR'd together at authorization time), on the server just as on the client.
+	for name, set := range map[string]func(){
+		"--allow-cn":  func() { *serverAllowedCNs = []string{"test"} },
+		"--allow-ou":  func() { *serverAllowedOUs = []string{"test"} },
+		"--allow-dns": func() { *serverAllowedDNSs = []string{"test"} },
+		"--allow-ip":  func() { *serverAllowedIPs = []net.IP{net.IPv4(0, 0, 0, 0)} },
+		"--allow-uri": func() { *serverAllowedURIs = []string{"spiffe://example.com/*"} },
+	} {
+		reset()
+		*serverAllowAll = false
+		*serverAllowPolicy = "policy"
+		*serverAllowQuery = "query"
+		set()
+		assert.Nil(t, serverValidateFlags(), "OPA flags may be combined with "+name)
+	}
+
+	// --disable-authentication is a valid standalone access mode, but conflicts
+	// with any other access control flag.
+	reset()
+	*serverAllowAll = false
+	*serverDisableAuth = true
+	assert.Nil(t, serverValidateFlags(), "--disable-authentication alone should be valid")
+
+	reset()
+	*serverDisableAuth = true // baseline still has --allow-all set
+	assert.NotNil(t, serverValidateFlags(), "--disable-authentication is mutually exclusive with --allow-all")
+
+	reset()
+	*serverAllowAll = false
+	*serverDisableAuth = true
+	*serverAllowedCNs = []string{"test"}
+	assert.NotNil(t, serverValidateFlags(), "--disable-authentication is mutually exclusive with --allow-cn")
+
+	// Credential validation.
+	reset()
+	*keystorePath = ""
 	err := serverValidateFlags()
-	assert.NotNil(t, err, "invalid access control flags accepted")
-
-	*serverAllowAll = true
-	*serverAllowedCNs = []string{"test"}
-	err = serverValidateFlags()
-	assert.NotNil(t, err, "--allow-all and --allow-cn are mutually exclusive")
-
-	*serverAllowedCNs = nil
-	*serverAllowedOUs = []string{"test"}
-	err = serverValidateFlags()
-	assert.NotNil(t, err, "--allow-all and --allow-ou are mutually exclusive")
-
-	*serverAllowedOUs = nil
-	*serverAllowedDNSs = []string{"test"}
-	err = serverValidateFlags()
-	assert.NotNil(t, err, "--allow-all and --allow-dns-san are mutually exclusive")
-
-	*serverAllowedDNSs = nil
-	*serverAllowedIPs = []net.IP{net.IPv4(0, 0, 0, 0)}
-	err = serverValidateFlags()
-	assert.NotNil(t, err, "--allow-all and --allow-ip-san are mutually exclusive")
-
-	// OPA flags
-	*serverAllowedIPs = nil
-	*serverAllowPolicy = "policy"
-	err = serverValidateFlags()
-	assert.NotNil(t, err, "--allow-all and --allow-policy are mutually exclusive")
-
-	*serverAllowPolicy = ""
-	*serverAllowQuery = "query"
-	err = serverValidateFlags()
-	assert.NotNil(t, err, "--allow-all and --allow-query are mutually exclusive")
-
-	*serverAllowAll = false
-	*serverAllowPolicy = "policy"
-	*serverAllowQuery = ""
-	err = serverValidateFlags()
-	assert.NotNil(t, err, "--allow-policy needs --allow-query")
-
-	*serverAllowPolicy = ""
-	*serverAllowQuery = "query"
-	err = serverValidateFlags()
-	assert.NotNil(t, err, "--allow-query needs --allow-policy")
-
-	*serverAllowPolicy = "policy"
-	*serverAllowQuery = "query"
-	*serverAllowedCNs = []string{"test"}
-	err = serverValidateFlags()
-	assert.NotNil(t, err, "--allow-policy and --allow-cn are mutually exclusive")
-
-	*serverAllowedCNs = nil
-	*serverAllowedOUs = []string{"test"}
-	err = serverValidateFlags()
-	assert.NotNil(t, err, "--allow-policy and --allow-ou are mutually exclusive")
-
-	*serverAllowedOUs = nil
-	*serverAllowedDNSs = []string{"test"}
-	err = serverValidateFlags()
-	assert.NotNil(t, err, "--allow-policy and --allow-dns-san are mutually exclusive")
-
-	*serverAllowedDNSs = nil
-	*serverAllowedIPs = []net.IP{net.IPv4(0, 0, 0, 0)}
-	err = serverValidateFlags()
-	assert.NotNil(t, err, "--allow-policy and --allow-ip-san are mutually exclusive")
-
-	*serverAllowedIPs = nil
-	*serverAllowAll = true
-	*serverDisableAuth = true
-	err = serverValidateFlags()
-	assert.NotNil(t, err, "--disable-authentication mutually exclusive with --allow-all and other server access control flags")
-
-	*serverAllowedCNs = nil
-	*serverAllowAll = true
-	*serverDisableAuth = true
-	err = serverValidateFlags()
-	assert.NotNil(t, err, "--disable-authentication mutually exclusive with --allow-all and other server access control flags")
-
-	*keystorePath = "file"
-	*serverAllowedCNs = []string{"test"}
-	*serverDisableAuth = false
-	err = serverValidateFlags()
-	assert.NotNil(t, err, "--allow-all mutually exclusive with other access control flags")
-	*serverAllowedCNs = nil
-
-	*serverAllowAll = false
-	*serverUnsafeTarget = false
-	*serverForwardAddress = "foo.com"
-	err = serverValidateFlags()
-	assert.NotNil(t, err, "unsafe target should be rejected")
-
-	*certPath = "file"
-	err = serverValidateFlags()
-	assert.NotNil(t, err, "--cert also requires --key or should error")
-	*certPath = ""
-
-	test := "test"
-	*keystorePath = "file"
-	keychainIdentity = &test
-	err = serverValidateFlags()
-	assert.NotNil(t, err, "--keystore and --keychain-identity can't be set at the same time")
-
-	keychainIdentity = nil
-	keychainIssuer = &test
-	err = serverValidateFlags()
-	assert.NotNil(t, err, "--keystore and --keychain-issuer can't be set at the same time")
-
-	*keystorePath = ""
-	*certPath = "file"
-	*keyPath = "file"
-	keychainIdentity = &test
-	err = serverValidateFlags()
-	assert.NotNil(t, err, "--cert and --keychain-identity/issuer can't be set at the same time")
-	*certPath = ""
-	*keyPath = ""
-	keychainIdentity = nil
-	keychainIssuer = nil
-
-	*keystorePath = "test"
-	*serverDisableAuth = true
-	*serverAllowAll = true
-	err = serverValidateFlags()
-	assert.NotNil(t, err, "can't use access control flags if auth is disabled")
-	*serverDisableAuth = false
-
-	*serverForwardAddress = "example.com:443"
-	err = serverValidateFlags()
-	assert.NotNil(t, err, "should reject non-local address if unsafe flag not set")
-
-	*enabledCipherSuites = "ABC"
-	*serverForwardAddress = "127.0.0.1:8080"
-	err = serverValidateFlags()
-	assert.NotNil(t, err, "invalid cipher suite option should be rejected")
-
-	*enabledCipherSuites = "AES,CHACHA"
-	*serverForwardAddress = ""
-	*serverAllowAll = false
-	*keystorePath = ""
-
-	// Test: no credentials at all
-	*keystorePath = ""
-	*certPath = ""
-	*keyPath = ""
-	*useWorkloadAPI = false
-	*serverAutoACMEFQDN = ""
-	keychainIdentity = nil
-	keychainIssuer = nil
-	*serverAllowAll = true
-	*serverForwardAddress = "127.0.0.1:8080"
-	err = serverValidateFlags()
-	assert.NotNil(t, err, "should require at least one credential source")
+	assert.NotNil(t, err, "at least one credential source is required")
 	assert.Contains(t, err.Error(), "at least one of")
 
-	// Test: --key without --cert
+	reset()
 	*keystorePath = ""
 	*keyPath = "file"
-	*certPath = ""
-	err = serverValidateFlags()
-	assert.NotNil(t, err, "--key without --cert should be rejected")
-	*keyPath = ""
+	assert.NotNil(t, serverValidateFlags(), "--key without --cert should be rejected")
 
-	// Test: --disable-authentication with --allow-cn (not --allow-all)
-	*keystorePath = "file"
-	*serverDisableAuth = true
-	*serverAllowAll = false
-	*serverAllowedCNs = []string{"test"}
-	err = serverValidateFlags()
-	assert.NotNil(t, err, "--disable-authentication is mutually exclusive with --allow-cn")
-	*serverAllowedCNs = nil
-	*serverDisableAuth = false
-
-	// Test: OPA flags may be combined with --allow-uri (OR'd together)
-	*serverAllowPolicy = "policy"
-	*serverAllowQuery = "query"
-	*serverAllowedURIs = []string{"spiffe://example.com/*"}
-	err = serverValidateFlags()
-	assert.Nil(t, err, "--allow-policy and --allow-uri can be combined")
-	*serverAllowPolicy = ""
-	*serverAllowQuery = ""
-	*serverAllowedURIs = nil
+	reset()
 	*keystorePath = ""
+	*certPath = "file"
+	assert.NotNil(t, serverValidateFlags(), "--cert without --key should be rejected")
 
-	// Test: --proxy-protocol and --proxy-protocol-mode are mutually exclusive
-	*keystorePath = "file"
-	*serverAllowAll = true
+	reset()
+	*certPath = "file"
+	*keyPath = "file"
+	assert.NotNil(t, serverValidateFlags(), "--keystore and --cert/--key are mutually exclusive")
+
+	reset()
+	test := "test"
+	keychainIdentity = &test
+	assert.NotNil(t, serverValidateFlags(), "--keystore and --keychain-identity are mutually exclusive")
+
+	reset()
+	keychainIssuer = &test
+	assert.NotNil(t, serverValidateFlags(), "--keystore and --keychain-issuer are mutually exclusive")
+
+	// Target validation: non-local targets are rejected unless --unsafe-target.
+	reset()
+	*serverForwardAddress = "example.com:443"
+	assert.NotNil(t, serverValidateFlags(), "should reject non-local address if --unsafe-target not set")
+
+	// Cipher suite validation.
+	reset()
+	*enabledCipherSuites = "ABC"
+	assert.NotNil(t, serverValidateFlags(), "invalid cipher suite option should be rejected")
+
+	// PROXY protocol flags are mutually exclusive; either alone is fine.
+	reset()
 	*serverProxyProtocol = true
 	*serverProxyProtocolMode = "tls"
-	err = serverValidateFlags()
-	assert.NotNil(t, err, "--proxy-protocol and --proxy-protocol-mode are mutually exclusive")
+	assert.NotNil(t, serverValidateFlags(), "--proxy-protocol and --proxy-protocol-mode are mutually exclusive")
 
-	// Test: --proxy-protocol-mode alone is valid
-	*serverProxyProtocol = false
+	reset()
 	*serverProxyProtocolMode = "tls"
-	err = serverValidateFlags()
-	assert.Nil(t, err, "--proxy-protocol-mode alone should be valid")
-	*serverProxyProtocol = false
-	*serverProxyProtocolMode = ""
-	*serverAllowAll = false
-	*keystorePath = ""
+	assert.Nil(t, serverValidateFlags(), "--proxy-protocol-mode alone should be valid")
 }
 
 func TestClientFlagValidation(t *testing.T) {
-	*keystorePath = "file"
-	*clientUnsafeListen = false
+	// reset establishes a fully valid client config (keystore credential, safe
+	// listen, valid target) so each case toggles exactly one thing.
+	reset := func() {
+		*keystorePath = "file"
+		*certPath = ""
+		*keyPath = ""
+		keychainIdentity = nil
+		keychainIssuer = nil
+		*clientDisableAuth = false
+		*useWorkloadAPI = false
+		*clientUnsafeListen = false
+		*clientListenAddress = "127.0.0.1:8080"
+		*clientForwardAddress = "localhost:8443"
+		*enabledCipherSuites = "AES,CHACHA"
+		*clientAllowPolicy = ""
+		*clientAllowQuery = ""
+		*clientVerifySpkiPin = nil
+	}
+	defer reset()
+
+	// Sanity: the baseline itself is valid.
+	reset()
+	assert.Nil(t, clientValidateFlags(), "baseline client config should be valid")
+
+	reset()
 	*clientListenAddress = "0.0.0.0:8080"
-	err := clientValidateFlags()
-	assert.NotNil(t, err, "unsafe listen should be rejected")
+	assert.NotNil(t, clientValidateFlags(), "unsafe listen should be rejected")
 
+	// Credential source is exactly one of keystore / cert-key / keychain /
+	// disable-authentication.
+	reset()
 	*clientDisableAuth = true
-	err = clientValidateFlags()
-	assert.NotNil(t, err, "--keystore can't be used with --disable-authentication")
+	assert.NotNil(t, clientValidateFlags(), "--keystore can't be used with --disable-authentication")
 
+	reset()
 	*keystorePath = ""
 	*certPath = "file"
 	*keyPath = "file"
-	err = clientValidateFlags()
-	assert.NotNil(t, err, "--cert/--key can't be used with --disable-authentication")
+	*clientDisableAuth = true
+	assert.NotNil(t, clientValidateFlags(), "--cert/--key can't be used with --disable-authentication")
 
-	*keystorePath = "file"
+	reset()
 	*certPath = "file"
 	*keyPath = "file"
-	*clientDisableAuth = false
-	err = clientValidateFlags()
-	assert.NotNil(t, err, "--keystore can't be used with --cert/--key")
-	*certPath = ""
-	*keyPath = ""
+	assert.NotNil(t, clientValidateFlags(), "--keystore can't be used with --cert/--key")
 
+	reset()
 	test := "test"
 	keychainIdentity = &test
-	err = clientValidateFlags()
-	assert.NotNil(t, err, "--keystore can't be used with --keychain-identity")
-	keychainIdentity = nil
+	assert.NotNil(t, clientValidateFlags(), "--keystore can't be used with --keychain-identity")
 
-	*enabledCipherSuites = "ABC"
-	*clientListenAddress = "127.0.0.1:8080"
-	err = clientValidateFlags()
-	assert.NotNil(t, err, "invalid cipher suite option should be rejected")
-
-	*clientDisableAuth = false
+	reset()
 	*keystorePath = ""
-	err = clientValidateFlags()
-	assert.NotNil(t, err, "one of --keystore or --disable-authentication is required")
+	assert.NotNil(t, clientValidateFlags(), "one of --keystore or --disable-authentication is required")
 
-	// Test: --cert without --key
-	*enabledCipherSuites = "AES,CHACHA"
+	reset()
+	*keystorePath = ""
 	*certPath = "file"
-	*keyPath = ""
-	*clientListenAddress = "127.0.0.1:8080"
-	err = clientValidateFlags()
-	assert.NotNil(t, err, "--cert without --key should be rejected")
-	*certPath = ""
+	assert.NotNil(t, clientValidateFlags(), "--cert without --key should be rejected")
 
-	// Test: --key without --cert
+	reset()
+	*keystorePath = ""
 	*keyPath = "file"
-	*certPath = ""
-	err = clientValidateFlags()
-	assert.NotNil(t, err, "--key without --cert should be rejected")
-	*keyPath = ""
+	assert.NotNil(t, clientValidateFlags(), "--key without --cert should be rejected")
 
-	// Test: OPA flags must be used together
-	*keystorePath = "file"
-	*clientListenAddress = "127.0.0.1:8080"
-	*clientForwardAddress = "localhost:8443"
-	*enabledCipherSuites = "AES,CHACHA"
+	reset()
+	*enabledCipherSuites = "ABC"
+	assert.NotNil(t, clientValidateFlags(), "invalid cipher suite option should be rejected")
 
+	// OPA flags must be used together, and either-neither is valid.
+	reset()
 	*clientAllowPolicy = "policy"
-	*clientAllowQuery = ""
-	err = clientValidateFlags()
-	assert.NotNil(t, err, "--verify-policy needs --verify-query")
+	assert.NotNil(t, clientValidateFlags(), "--verify-policy needs --verify-query")
 
-	*clientAllowPolicy = ""
+	reset()
 	*clientAllowQuery = "query"
-	err = clientValidateFlags()
-	assert.NotNil(t, err, "--verify-query needs --verify-policy")
+	assert.NotNil(t, clientValidateFlags(), "--verify-query needs --verify-policy")
 
+	reset()
 	*clientAllowPolicy = "policy"
 	*clientAllowQuery = "query"
-	err = clientValidateFlags()
-	assert.Nil(t, err, "--verify-policy and --verify-query together should be valid")
+	assert.Nil(t, clientValidateFlags(), "--verify-policy and --verify-query together should be valid")
 
-	*clientAllowPolicy = ""
-	*clientAllowQuery = ""
-	err = clientValidateFlags()
-	assert.Nil(t, err, "neither OPA flag set should be valid")
+	reset()
+	assert.Nil(t, clientValidateFlags(), "neither OPA flag set should be valid")
 }
 
 func TestValidateServerAccessControlSpkiPin(t *testing.T) {
