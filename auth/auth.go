@@ -32,7 +32,7 @@ import (
 
 	// pin.hash.New() panics unless the hash implementation is linked into the
 	// binary. These blank imports register the SHA-2 hashes referenced by
-	// supportedPinHashes (crypto/sha512 registers SHA-384 as well as SHA-512),
+	// supportedSPKIPinHashes (crypto/sha512 registers SHA-384 as well as SHA-512),
 	// so pinning does not depend on some other package importing them first.
 	_ "crypto/sha256"
 	_ "crypto/sha512"
@@ -83,7 +83,7 @@ type ACL struct {
 	// if AllowOPAQuery is nil.
 	OPAQueryTimeout time.Duration
 
-	// Pins holds SPKI pins (see Pin and ParsePins) of the expected peer's
+	// AllowedPins holds SPKI pins (see SPKIPin and ParseSPKIPins) of the expected peer's
 	// SubjectPublicKeyInfo. When non-empty, verification uses out-of-band key
 	// pinning (in the style of RFC 7858 section 4.2): the peer is authenticated
 	// solely by requiring the leaf certificate's SPKI hash to match one of these
@@ -91,38 +91,38 @@ type ACL struct {
 	// verified. Multiple pins may be supplied so that a current and a backup
 	// key can both be accepted during key rotation. This is mutually exclusive
 	// with all other ACL fields.
-	Pins []Pin
+	AllowedPins []SPKIPin
 }
 
-// supportedPinHashes maps the algorithm name accepted in the "<algo>:<digest>"
+// supportedSPKIPinHashes maps the algorithm name accepted in the "<algo>:<digest>"
 // pin syntax to its crypto.Hash.
-var supportedPinHashes = map[string]crypto.Hash{
+var supportedSPKIPinHashes = map[string]crypto.Hash{
 	"sha256": crypto.SHA256,
 	"sha384": crypto.SHA384,
 	"sha512": crypto.SHA512,
 }
 
-// Pin is a single SPKI pin: a hash algorithm and the expected digest of the
+// SPKIPin is a single SPKI pin: a hash algorithm and the expected digest of the
 // peer's DER-encoded SubjectPublicKeyInfo. The digest is compared in constant
-// time (see verifyPin).
-type Pin struct {
+// time (see verifySPKIPin).
+type SPKIPin struct {
 	hash   crypto.Hash
 	digest []byte
 }
 
-// ParsePins parses SPKI pins of the form "<algo>:<base64-digest>" (e.g.
+// ParseSPKIPins parses SPKI pins of the form "<algo>:<base64-digest>" (e.g.
 // "sha256:..."). The algorithm prefix is required and must be one of the
 // supported SHA-2 hashes. The digest must be base64-decodable and exactly
 // hash.Size() bytes. Returns nil if pins is empty. Any invalid entry rejects
 // the whole set, so malformed pins surface at startup rather than at
 // listen/dial time.
-func ParsePins(pins []string) ([]Pin, error) {
+func ParseSPKIPins(pins []string) ([]SPKIPin, error) {
 	if len(pins) == 0 {
 		return nil, nil
 	}
-	parsed := make([]Pin, 0, len(pins))
+	parsed := make([]SPKIPin, 0, len(pins))
 	for _, p := range pins {
-		pin, err := parsePin(p)
+		pin, err := parseSPKIPin(p)
 		if err != nil {
 			return nil, err
 		}
@@ -131,54 +131,54 @@ func ParsePins(pins []string) ([]Pin, error) {
 	return parsed, nil
 }
 
-func parsePin(s string) (Pin, error) {
+func parseSPKIPin(s string) (SPKIPin, error) {
 	algo, digest, ok := strings.Cut(s, ":")
 	if !ok {
-		return Pin{}, fmt.Errorf("invalid pin %q: expected format <algo>:<base64-digest>", s)
+		return SPKIPin{}, fmt.Errorf("invalid pin %q: expected format <algo>:<base64-digest>", s)
 	}
 	// Accept the algorithm prefix case-insensitively (e.g. "SHA256" as well as
-	// "sha256"); supportedPinHashes is keyed on the lowercase form.
+	// "sha256"); supportedSPKIPinHashes is keyed on the lowercase form.
 	algo = strings.ToLower(algo)
-	hash, ok := supportedPinHashes[algo]
+	hash, ok := supportedSPKIPinHashes[algo]
 	if !ok {
-		return Pin{}, fmt.Errorf("invalid pin %q: unsupported hash algorithm %q (supported: sha256, sha384, sha512)", s, algo)
+		return SPKIPin{}, fmt.Errorf("invalid pin %q: unsupported hash algorithm %q (supported: sha256, sha384, sha512)", s, algo)
 	}
-	// Belt and braces: any hash added to supportedPinHashes must also be linked
+	// Belt and braces: any hash added to supportedSPKIPinHashes must also be linked
 	// in (see the blank crypto/sha* imports above), otherwise hash.New() would
-	// panic mid-handshake in verifyPin. Reject here so a missing import fails
+	// panic mid-handshake in verifySPKIPin. Reject here so a missing import fails
 	// cleanly at flag-parse time instead.
 	if !hash.Available() {
-		return Pin{}, fmt.Errorf("invalid pin %q: hash algorithm %q is not available in this build", s, algo)
+		return SPKIPin{}, fmt.Errorf("invalid pin %q: hash algorithm %q is not available in this build", s, algo)
 	}
 	raw, err := base64.StdEncoding.DecodeString(digest)
 	if err != nil {
-		return Pin{}, fmt.Errorf("invalid pin %q: base64 decode failed: %w", s, err)
+		return SPKIPin{}, fmt.Errorf("invalid pin %q: base64 decode failed: %w", s, err)
 	}
 	if len(raw) != hash.Size() {
-		return Pin{}, fmt.Errorf("invalid pin %q: expected %d bytes for %s, got %d", s, hash.Size(), algo, len(raw))
+		return SPKIPin{}, fmt.Errorf("invalid pin %q: expected %d bytes for %s, got %d", s, hash.Size(), algo, len(raw))
 	}
-	return Pin{hash: hash, digest: raw}, nil
+	return SPKIPin{hash: hash, digest: raw}, nil
 }
 
 // PinningEnabled reports whether this ACL authenticates peers via SPKI pinning
-// (see Pins). It is the single source of truth for pin mode: when it returns
+// (see AllowedPins). It is the single source of truth for pin mode: when it returns
 // true, the transport MUST disable normal certificate verification
 // (InsecureSkipVerify on clients, RequireAnyClientCert on servers) so that
-// verifyPin becomes the sole authentication check, and VerifyPeerCertificate{Server,Client}
+// verifySPKIPin becomes the sole authentication check, and VerifyPeerCertificate{Server,Client}
 // enforce the pin. Keeping both decisions derived from this one predicate
 // prevents the transport and the verifier from drifting out of sync.
 func (a ACL) PinningEnabled() bool {
-	return len(a.Pins) > 0
+	return len(a.AllowedPins) > 0
 }
 
-// verifyPin checks whether the leaf certificate in rawCerts matches one of the
+// verifySPKIPin checks whether the leaf certificate in rawCerts matches one of the
 // configured SPKI pins. It is called when pinning is enabled, bypassing all
 // chain-based verification. Each pin's hash is computed independently of the
 // others, so multiple pins configured with different algorithms are all
 // evaluated. The pin set is scanned sequentially and short-circuits on the
 // first match; the pin set is operator configuration (not a secret), so only
 // the individual digest comparison is constant-time (via subtle.ConstantTimeCompare).
-func (a ACL) verifyPin(rawCerts [][]byte) error {
+func (a ACL) verifySPKIPin(rawCerts [][]byte) error {
 	if len(rawCerts) == 0 {
 		return errors.New("unauthorized: no certificate presented")
 	}
@@ -189,7 +189,7 @@ func (a ACL) verifyPin(rawCerts [][]byte) error {
 	}
 
 	spki := cert.RawSubjectPublicKeyInfo
-	for _, pin := range a.Pins {
+	for _, pin := range a.AllowedPins {
 		h := pin.hash.New()
 		h.Write(spki)
 		if subtle.ConstantTimeCompare(h.Sum(nil), pin.digest) == 1 {
@@ -206,7 +206,7 @@ func (a ACL) verifyPin(rawCerts [][]byte) error {
 // no clients will be allowed (fails closed).
 func (a ACL) VerifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
 	if a.PinningEnabled() {
-		return a.verifyPin(rawCerts)
+		return a.verifySPKIPin(rawCerts)
 	}
 
 	if len(verifiedChains) == 0 {
@@ -271,7 +271,7 @@ func (a ACL) VerifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*
 // has already taken place, and therefore fails open).
 func (a ACL) VerifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
 	if a.PinningEnabled() {
-		return a.verifyPin(rawCerts)
+		return a.verifySPKIPin(rawCerts)
 	}
 
 	if len(verifiedChains) == 0 {

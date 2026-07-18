@@ -133,8 +133,8 @@ var (
 	// Decoded SPKI pins (populated during flag validation from
 	// --allow-spki-pin / --verify-spki-pin, so that malformed pins are
 	// rejected at startup rather than at listen/dial time).
-	decodedServerPins []auth.Pin
-	decodedClientPins []auth.Pin
+	decodedServerPins []auth.SPKIPin
+	decodedClientPins []auth.SPKIPin
 
 	// Deprecated cipher suite flags
 	enabledCipherSuites     = app.Flag("cipher-suites", "Set of cipher suites to enable, comma-separated, in order of preference (AES, CHACHA).").Hidden().Default("AES,CHACHA").String()
@@ -421,13 +421,13 @@ func validateServerOPA(hasOPAFlags bool) error {
 	return nil
 }
 
-// decodePins parses SPKI pin flag values, tagging any parse error with the
+// decodeSPKIPins parses SPKI pin flag values, tagging any parse error with the
 // flag name so the message is actionable. Used by both the server
 // (--allow-spki-pin) and client (--verify-spki-pin) validators. The returned
 // error is already fully descriptive and is meant to be returned directly, not
 // separately logged.
-func decodePins(values []string, flag string) ([]auth.Pin, error) {
-	pins, err := auth.ParsePins(values)
+func decodeSPKIPins(values []string, flag string) ([]auth.SPKIPin, error) {
+	pins, err := auth.ParseSPKIPins(values)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", flag, err)
 	}
@@ -452,7 +452,7 @@ func serverValidateFlags() error {
 		return err
 	}
 	if hasPinFlag {
-		pins, err := decodePins(*serverAllowSpkiPin, "--allow-spki-pin")
+		pins, err := decodeSPKIPins(*serverAllowSpkiPin, "--allow-spki-pin")
 		if err != nil {
 			return err
 		}
@@ -553,7 +553,7 @@ func validateClientPin() error {
 	if hasVerifyFlags || hasOPAFlags {
 		return errors.New("--verify-spki-pin is mutually exclusive with other verification flags")
 	}
-	pins, err := decodePins(*clientVerifySpkiPin, "--verify-spki-pin")
+	pins, err := decodeSPKIPins(*clientVerifySpkiPin, "--verify-spki-pin")
 	if err != nil {
 		return err
 	}
@@ -873,14 +873,14 @@ func serverListen(env *Environment, regoPolicy policy.Policy) error {
 		AllowOPAQuery:   regoPolicy,
 		AllowedURIs:     allowedURIs,
 		OPAQueryTimeout: *connectTimeout,
-		Pins:            decodedServerPins,
+		AllowedPins:     decodedServerPins,
 	}
 
 	if *serverDisableAuth {
 		config.ClientAuth = tls.NoClientCert
 	} else {
 		if serverACL.PinningEnabled() {
-			// Pin-based verification: require a client cert but skip chain
+			// SPKIPin-based verification: require a client cert but skip chain
 			// validation. The ACL callback verifies the SPKI hash instead.
 			config.ClientAuth = tls.RequireAnyClientCert
 		}
@@ -1127,11 +1127,11 @@ func clientBackendDialer(
 		AllowedURIs:     allowedURIs,
 		AllowOPAQuery:   regoPolicy,
 		OPAQueryTimeout: *connectTimeout,
-		Pins:            decodedClientPins,
+		AllowedPins:     decodedClientPins,
 	}
 
 	if clientACL.PinningEnabled() {
-		// Pin-based verification: skip chain and hostname validation.
+		// SPKIPin-based verification: skip chain and hostname validation.
 		// The ACL callback will verify the SPKI hash.
 		config.InsecureSkipVerify = true
 	}

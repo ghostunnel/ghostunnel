@@ -508,19 +508,19 @@ func makePinTestCert(t *testing.T) (certDER []byte, sha256Digest []byte) {
 }
 
 // spkiPin is a test helper that computes the digest of a cert's SPKI under the
-// given hash and wraps it in a Pin.
-func spkiPin(t *testing.T, certDER []byte, hash crypto.Hash) Pin {
+// given hash and wraps it in a SPKIPin.
+func spkiPin(t *testing.T, certDER []byte, hash crypto.Hash) SPKIPin {
 	t.Helper()
 	cert, err := x509.ParseCertificate(certDER)
 	assert.NoError(t, err)
 	h := hash.New()
 	h.Write(cert.RawSubjectPublicKeyInfo)
-	return Pin{hash: hash, digest: h.Sum(nil)}
+	return SPKIPin{hash: hash, digest: h.Sum(nil)}
 }
 
-func TestParsePins(t *testing.T) {
+func TestParseSPKIPins(t *testing.T) {
 	// Empty input yields no pins and no error.
-	pins, err := ParsePins(nil)
+	pins, err := ParseSPKIPins(nil)
 	assert.Nil(t, err)
 	assert.Nil(t, pins)
 
@@ -529,68 +529,68 @@ func TestParsePins(t *testing.T) {
 	sha512Digest := base64.StdEncoding.EncodeToString(make([]byte, 64))
 
 	// A single valid sha256 pin parses.
-	pins, err = ParsePins([]string{"sha256:" + sha256Digest})
+	pins, err = ParseSPKIPins([]string{"sha256:" + sha256Digest})
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(pins))
 	assert.Equal(t, crypto.SHA256, pins[0].hash)
 	assert.Equal(t, 32, len(pins[0].digest))
 
 	// sha384 and sha512 are also accepted, with their respective digest sizes.
-	pins, err = ParsePins([]string{"sha384:" + sha384Digest})
+	pins, err = ParseSPKIPins([]string{"sha384:" + sha384Digest})
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(pins))
 	assert.Equal(t, crypto.SHA384, pins[0].hash)
 	assert.Equal(t, 48, len(pins[0].digest))
 
-	pins, err = ParsePins([]string{"sha512:" + sha512Digest})
+	pins, err = ParseSPKIPins([]string{"sha512:" + sha512Digest})
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(pins))
 	assert.Equal(t, crypto.SHA512, pins[0].hash)
 	assert.Equal(t, 64, len(pins[0].digest))
 
 	// Multiple valid pins all parse, including mixed algorithms.
-	pins, err = ParsePins([]string{"sha256:" + sha256Digest, "sha512:" + sha512Digest})
+	pins, err = ParseSPKIPins([]string{"sha256:" + sha256Digest, "sha512:" + sha512Digest})
 	assert.Nil(t, err)
 	assert.Equal(t, 2, len(pins))
 
 	// The algorithm prefix is case-insensitive.
-	pins, err = ParsePins([]string{"SHA256:" + sha256Digest})
+	pins, err = ParseSPKIPins([]string{"SHA256:" + sha256Digest})
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(pins))
 	assert.Equal(t, crypto.SHA256, pins[0].hash)
 
 	// Missing algorithm prefix is rejected.
-	_, err = ParsePins([]string{sha256Digest})
+	_, err = ParseSPKIPins([]string{sha256Digest})
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "expected format <algo>:<base64-digest>")
 
 	// Unknown algorithm is rejected.
-	_, err = ParsePins([]string{"sha1:" + base64.StdEncoding.EncodeToString(make([]byte, 20))})
+	_, err = ParseSPKIPins([]string{"sha1:" + base64.StdEncoding.EncodeToString(make([]byte, 20))})
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "unsupported hash algorithm")
 	assert.Contains(t, err.Error(), "sha256, sha384, sha512")
 
 	// Invalid base64 is rejected.
-	_, err = ParsePins([]string{"sha256:not valid base64 @@@"})
+	_, err = ParseSPKIPins([]string{"sha256:not valid base64 @@@"})
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "base64 decode failed")
 
 	// Wrong digest length is rejected.
 	short := base64.StdEncoding.EncodeToString(make([]byte, 16))
-	_, err = ParsePins([]string{"sha256:" + short})
+	_, err = ParseSPKIPins([]string{"sha256:" + short})
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "expected 32 bytes for sha256, got 16")
 
 	// If any pin in the list is invalid, the whole call fails.
-	_, err = ParsePins([]string{"sha256:" + sha256Digest, "sha256:" + short})
+	_, err = ParseSPKIPins([]string{"sha256:" + sha256Digest, "sha256:" + short})
 	assert.NotNil(t, err)
 }
 
 func TestAuthorizePinMatch(t *testing.T) {
 	certDER, digest := makePinTestCert(t)
 
-	pin := Pin{hash: crypto.SHA256, digest: digest}
-	testACL := ACL{Pins: []Pin{pin}}
+	pin := SPKIPin{hash: crypto.SHA256, digest: digest}
+	testACL := ACL{AllowedPins: []SPKIPin{pin}}
 
 	err := testACL.VerifyPeerCertificateServer([][]byte{certDER}, nil)
 	assert.Nil(t, err, "matching pin should allow connection")
@@ -605,7 +605,7 @@ func TestAuthorizePinNonSha256(t *testing.T) {
 	certDER, _ := makePinTestCert(t)
 
 	pin := spkiPin(t, certDER, crypto.SHA512)
-	testACL := ACL{Pins: []Pin{pin}}
+	testACL := ACL{AllowedPins: []SPKIPin{pin}}
 
 	assert.Nil(t, testACL.VerifyPeerCertificateServer([][]byte{certDER}, nil),
 		"sha512 pin should match")
@@ -617,18 +617,18 @@ func TestAuthorizePinNonSha256(t *testing.T) {
 // a current and a backup key), a peer matching any one of them is accepted.
 func TestAuthorizePinMultiple(t *testing.T) {
 	certDER, digest := makePinTestCert(t)
-	otherPin := Pin{hash: crypto.SHA256, digest: make([]byte, 32)} // a backup/rotation pin that does not match
-	matchedPin := Pin{hash: crypto.SHA256, digest: digest}
+	otherPin := SPKIPin{hash: crypto.SHA256, digest: make([]byte, 32)} // a backup/rotation pin that does not match
+	matchedPin := SPKIPin{hash: crypto.SHA256, digest: digest}
 
-	// Pin matches whether it is first or last in the list, and the list may
+	// SPKIPin matches whether it is first or last in the list, and the list may
 	// mix algorithms.
 	mixedAlgo := spkiPin(t, certDER, crypto.SHA384)
-	for _, pins := range [][]Pin{
+	for _, pins := range [][]SPKIPin{
 		{matchedPin, otherPin},
 		{otherPin, matchedPin},
 		{otherPin, mixedAlgo},
 	} {
-		testACL := ACL{Pins: pins}
+		testACL := ACL{AllowedPins: pins}
 		err := testACL.VerifyPeerCertificateServer([][]byte{certDER}, nil)
 		assert.Nil(t, err, "connection should be allowed when one of the pins matches")
 		err = testACL.VerifyPeerCertificateClient([][]byte{certDER}, nil)
@@ -655,7 +655,7 @@ func TestAuthorizePinExpiredCert(t *testing.T) {
 	assert.NoError(t, err)
 
 	pin := spkiPin(t, certDER, crypto.SHA256)
-	testACL := ACL{Pins: []Pin{pin}}
+	testACL := ACL{AllowedPins: []SPKIPin{pin}}
 
 	assert.Nil(t, testACL.VerifyPeerCertificateServer([][]byte{certDER}, nil),
 		"expired cert with matching pin should be accepted (expiry is not checked)")
@@ -666,8 +666,8 @@ func TestAuthorizePinExpiredCert(t *testing.T) {
 func TestAuthorizePinMismatch(t *testing.T) {
 	certDER, _ := makePinTestCert(t)
 
-	wrongPin := Pin{hash: crypto.SHA256, digest: make([]byte, 32)}
-	testACL := ACL{Pins: []Pin{wrongPin}}
+	wrongPin := SPKIPin{hash: crypto.SHA256, digest: make([]byte, 32)}
+	testACL := ACL{AllowedPins: []SPKIPin{wrongPin}}
 
 	err := testACL.VerifyPeerCertificateServer([][]byte{certDER}, nil)
 	assert.NotNil(t, err, "mismatched pin should reject connection")
@@ -679,8 +679,8 @@ func TestAuthorizePinMismatch(t *testing.T) {
 }
 
 func TestAuthorizePinNoRawCerts(t *testing.T) {
-	pin := Pin{hash: crypto.SHA256, digest: make([]byte, 32)}
-	testACL := ACL{Pins: []Pin{pin}}
+	pin := SPKIPin{hash: crypto.SHA256, digest: make([]byte, 32)}
+	testACL := ACL{AllowedPins: []SPKIPin{pin}}
 
 	err := testACL.VerifyPeerCertificateServer(nil, nil)
 	assert.NotNil(t, err, "no raw certs should reject connection")
@@ -689,12 +689,12 @@ func TestAuthorizePinNoRawCerts(t *testing.T) {
 	assert.NotNil(t, err, "no raw certs should reject connection")
 }
 
-// TestAuthorizePinMalformedDER covers the parse-error branch of verifyPin: a
+// TestAuthorizePinMalformedDER covers the parse-error branch of verifySPKIPin: a
 // non-empty rawCerts entry that is not a valid certificate is rejected rather
-// than panicking. This closes the one uncovered line in verifyPin.
+// than panicking. This closes the one uncovered line in verifySPKIPin.
 func TestAuthorizePinMalformedDER(t *testing.T) {
-	pin := Pin{hash: crypto.SHA256, digest: make([]byte, 32)}
-	testACL := ACL{Pins: []Pin{pin}}
+	pin := SPKIPin{hash: crypto.SHA256, digest: make([]byte, 32)}
+	testACL := ACL{AllowedPins: []SPKIPin{pin}}
 
 	err := testACL.VerifyPeerCertificateServer([][]byte{[]byte("not a certificate")}, nil)
 	assert.NotNil(t, err, "malformed cert DER should reject connection")
