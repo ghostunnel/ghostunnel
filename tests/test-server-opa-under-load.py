@@ -74,6 +74,7 @@ def echo_roundtrip(timeout):
 ghostunnel = None
 backend = None
 root = None
+tmp_dir = None
 try:
     root = create_default_certs()
     backend = BackendServer().start()
@@ -219,3 +220,9 @@ finally:
         backend.stop()
     if root:
         root.cleanup()
+    if tmp_dir:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+    try:
+        os.remove('slow-policy.rego')
+    except OSError:
+        pass  # only exists if part 2 ran; nothing to clean otherwise

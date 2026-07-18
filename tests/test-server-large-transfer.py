@@ -138,6 +138,7 @@ def check_transfer(name, count, received_hash, expected_hash, elapsed):
 
 ghostunnel = None
 backend = None
+root = None
 try:
     root = create_default_certs()
     # After a half-close, the remaining in-flight return traffic drains
@@ -250,3 +251,5 @@ finally:
     terminate(ghostunnel)
     if backend:
         backend.stop()
+    if root:
+        root.cleanup()

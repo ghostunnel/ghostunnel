@@ -125,6 +125,7 @@ def tls_duplex_pump(sock, payload=b'', chunk_sizes=None, recv_limit=None,
 
 ghostunnel = None
 backend = None
+root = None
 try:
     root = create_default_certs()
     ghostunnel = start_ghostunnel_server()
@@ -203,3 +204,5 @@ finally:
     terminate(ghostunnel)
     if backend:
         backend.stop()
+    if root:
+        root.cleanup()

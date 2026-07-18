@@ -200,6 +200,7 @@ def run_client_connection(conn_id):
 
 ghostunnel = None
 backend = None
+root = None
 try:
     root = create_default_certs()
     ghostunnel = start_ghostunnel_server()
@@ -260,3 +261,5 @@ finally:
     terminate(ghostunnel)
     if backend:
         backend.stop()
+    if root:
+        root.cleanup()

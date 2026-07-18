@@ -177,3 +177,5 @@ finally:
             pass  # abandoned sockets may already be reaped/closed
     if backend:
         backend.stop()
+    if root:
+        root.cleanup()

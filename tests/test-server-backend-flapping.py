@@ -82,7 +82,7 @@ try:
 
     # Phase A: backend down. The TLS handshake completes, but the tunnel
     # closes quickly because the backend dial fails.
-    for i in range(10):
+    for _ in range(10):
         sock = tls_connect()
         try:
             data = sock.recv(1)
@@ -101,7 +101,7 @@ try:
 
     # Phase B: backend accepts then immediately resets (RST) every conn.
     rst_backend = BackendServer(handler=rst_handler).start()
-    for i in range(20):
+    for _ in range(20):
         sock = tls_connect()
         try:
             sock.sendall(b'x' * 1024)
@@ -141,7 +141,7 @@ try:
     print_ok('phase C: first connection after recovery works')
 
     # then ten consecutive successful roundtrip connections
-    for i in range(10):
+    for _ in range(10):
         echo_roundtrip()
     assert_alive(ghostunnel, 'phase C (recovery)')
     print_ok('phase C: 10 consecutive successful roundtrip connections')

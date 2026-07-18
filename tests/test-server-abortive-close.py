@@ -179,3 +179,5 @@ finally:
     terminate(ghostunnel)
     if backend:
         backend.stop()
+    if root:
+        root.cleanup()
