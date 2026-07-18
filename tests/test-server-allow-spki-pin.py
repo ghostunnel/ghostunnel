@@ -20,6 +20,9 @@ try:
     root = RootCert('root')
     root.create_signed_cert('server')
 
+    # Keep these RootCert handles referenced for the whole test: RootCert.__del__
+    # deletes the generated .crt/.key files, so an unreferenced RootCert(...)
+    # would remove them again as soon as it is garbage-collected.
     client_cert = RootCert('client')
 
     bad_client = RootCert('bad_client')

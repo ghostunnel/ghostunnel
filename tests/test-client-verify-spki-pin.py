@@ -17,6 +17,9 @@ try:
     root = RootCert('root')
     root.create_signed_cert('client')
 
+    # Keep this RootCert handle referenced for the whole test: RootCert.__del__
+    # deletes the generated .crt/.key files, so an unreferenced RootCert(...)
+    # would remove them again as soon as it is garbage-collected.
     server_cert = RootCert('server')
 
     server_pin = get_spki_pin('server.crt', 'sha256')
@@ -39,22 +42,13 @@ try:
     pair.validate_closing_client_closes_server("client close -> server close")
     print_ok("Test 1: Matching pin accepted OK")
 
-    # Test 2: Server with wrong pin (different key) should be rejected
+    # Test 2: Server with wrong pin (different key) should be rejected. The same
+    # ghostunnel instance handles this test: its flags don't change between
+    # Test 1 and Test 2, so there is no need to terminate and restart it. Each
+    # incoming client connection triggers a fresh dial to the (now wrong-pin)
+    # target, which is exactly what we want to exercise.
     other_root = RootCert('other_root')
     other_root.create_signed_cert('other_server')
-
-    # Terminate and restart ghostunnel pointing at the wrong server
-    terminate(ghostunnel)
-
-    # The wrong-pin server has a different key, so its SPKI won't match
-    ghostunnel = run_ghostunnel(['client',
-                                 '--listen={0}:{1}'.format(LOCALHOST, LISTEN_PORT),
-                                 '--target={0}:{1}'.format(LOCALHOST, TARGET_PORT),
-                                 '--cert=client.crt',
-                                 '--key=client.key',
-                                 '--cacert=root.crt',
-                                 '--verify-spki-pin={0}'.format(server_pin),
-                                 '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
 
     # The wrong-pin server MUST verify ghostunnel's client cert against 'root'
     # (the CA that signed client.crt), not 'other_root'. If it used 'other_root'
