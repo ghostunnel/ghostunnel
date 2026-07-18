@@ -440,6 +440,51 @@ func TestValidateServerAccessControlSpkiPin(t *testing.T) {
 	assert.NotNil(t, validateServerAccessControl(false, false, false), "at least one access control flag is required")
 }
 
+func TestValidateServerSpkiPinParsing(t *testing.T) {
+	validPin := "sha256:" + base64.StdEncoding.EncodeToString(make([]byte, 32))
+	// A minimally-valid server config so serverValidateFlags reaches the pin
+	// decode/store path: file-based credentials, a safe target, and no other
+	// access control flags (pin mode is mutually exclusive with them).
+	reset := func() {
+		*serverAllowSpkiPin = nil
+		*certPath = "server.crt"
+		*keyPath = "server.key"
+		*keystorePath = ""
+		*useWorkloadAPI = false
+		*serverAutoACMEFQDN = ""
+		*serverForwardAddress = "localhost:8080"
+		*serverUnsafeTarget = false
+		*serverAllowAll = false
+		*serverDisableAuth = false
+		*serverAllowedCNs = nil
+		*serverAllowedOUs = nil
+		*serverAllowedDNSs = nil
+		*serverAllowedIPs = nil
+		*serverAllowedURIs = nil
+		*serverAllowPolicy = ""
+		*serverAllowQuery = ""
+		*serverProxyProtocol = false
+		*serverProxyProtocolMode = ""
+		decodedServerPins = nil
+	}
+	defer reset()
+
+	// Valid pins are decoded and stored in decodedServerPins.
+	reset()
+	*serverAllowSpkiPin = []string{validPin, validPin}
+	assert.Nil(t, serverValidateFlags(), "valid --allow-spki-pin should be accepted")
+	assert.Equal(t, 2, len(decodedServerPins), "validation should decode the pins into decodedServerPins")
+
+	// A malformed pin fails validation and leaves decodedServerPins nil.
+	reset()
+	*serverAllowSpkiPin = []string{"sha256:not valid base64 @@@"}
+	err := serverValidateFlags()
+	if assert.NotNil(t, err, "malformed --allow-spki-pin should be rejected at validation") {
+		assert.Contains(t, err.Error(), "--allow-spki-pin", "error should name the offending flag")
+	}
+	assert.Nil(t, decodedServerPins, "no pins should be stored on validation failure")
+}
+
 func TestValidateClientSpkiPin(t *testing.T) {
 	validPin := "sha256:" + base64.StdEncoding.EncodeToString(make([]byte, 32))
 	reset := func() {

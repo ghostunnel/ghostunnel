@@ -421,6 +421,19 @@ func validateServerOPA(hasOPAFlags bool) error {
 	return nil
 }
 
+// decodePins parses SPKI pin flag values, tagging any parse error with the
+// flag name so the message is actionable. Used by both the server
+// (--allow-spki-pin) and client (--verify-spki-pin) validators. The returned
+// error is already fully descriptive and is meant to be returned directly, not
+// separately logged.
+func decodePins(values []string, flag string) ([]auth.Pin, error) {
+	pins, err := auth.ParsePins(values)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", flag, err)
+	}
+	return pins, nil
+}
+
 // Validate flags for server mode
 func serverValidateFlags() error {
 	if err := validateServerCredentials(); err != nil {
@@ -439,9 +452,8 @@ func serverValidateFlags() error {
 		return err
 	}
 	if hasPinFlag {
-		pins, err := auth.ParsePins(*serverAllowSpkiPin)
+		pins, err := decodePins(*serverAllowSpkiPin, "--allow-spki-pin")
 		if err != nil {
-			logger.Printf("invalid --allow-spki-pin value: %s", err)
 			return err
 		}
 		decodedServerPins = pins
@@ -541,9 +553,8 @@ func validateClientPin() error {
 	if hasVerifyFlags || hasOPAFlags {
 		return errors.New("--verify-spki-pin is mutually exclusive with other verification flags")
 	}
-	pins, err := auth.ParsePins(*clientVerifySpkiPin)
+	pins, err := decodePins(*clientVerifySpkiPin, "--verify-spki-pin")
 	if err != nil {
-		logger.Printf("invalid --verify-spki-pin value: %s", err)
 		return err
 	}
 	decodedClientPins = pins
