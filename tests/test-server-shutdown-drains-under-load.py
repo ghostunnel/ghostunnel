@@ -9,8 +9,10 @@ Starts an echo backend and ghostunnel with --shutdown-timeout=30s, opens
 five connections each pumping a fixed 8 MiB total through the tunnel in
 64 KiB echo roundtrips. Once every pump has transferred its first 1 MiB,
 the pumps pause at a barrier while the test sends SIGTERM. The test then
-verifies that new connections are refused (polled: the listener may take
-a moment to close) while ghostunnel keeps running, releases the pumps to
+verifies that new connections fail (refused or dropped, polled: the
+listener may take a moment to close) while ghostunnel keeps running,
+depending on how the platform handles the remaining SO_REUSEPORT
+reservation socket once the listener is gone, releases the pumps to
 finish their remaining 7 MiB each, verifies every transfer completed with
 intact hashes (finishing with a client half-close and a clean EOF), and
 finally checks that ghostunnel exits 0 well before the shutdown timeout.
@@ -123,23 +125,29 @@ try:
     else:
         ghostunnel.terminate()
 
-    # new connections must be refused once the listener closes; allow a
-    # brief race window right after signaling by polling until refused
-    refused = False
+    # New connections must fail once the listener closes. On Linux and
+    # FreeBSD the closed listener produces an immediate RST, so the probe
+    # raises ConnectionRefusedError. On macOS the harness's SO_REUSEPORT
+    # port-reservation socket (see get_free_port) stays bound to
+    # LISTEN_PORT, and with no listening socket left in the reuseport
+    # group the kernel silently drops incoming SYNs instead of refusing
+    # them — the probe times out. Either failure mode proves the listener
+    # stopped accepting, so keep polling only while probes still connect
+    # successfully (the brief race window right after signaling).
+    listener_closed = False
     deadline = time.time() + TIMEOUT
     while time.time() < deadline:
         try:
             probe = socket.create_connection((LOCALHOST, LISTEN_PORT), timeout=2)
             probe.close()
             time.sleep(0.1)
-        except ConnectionRefusedError:
-            refused = True
+        except OSError as e:
+            listener_closed = True
+            print_ok('probe failed as expected after SIGTERM: {0!r}'.format(e))
             break
-        except OSError:
-            time.sleep(0.1)
-    if not refused:
+    if not listener_closed:
         raise Exception('new connections still accepted after SIGTERM')
-    print_ok('new connections refused after SIGTERM')
+    print_ok('new connections no longer accepted after SIGTERM')
 
     # ghostunnel must still be draining (our 5 connections are open)
     if ghostunnel.poll() is not None:
