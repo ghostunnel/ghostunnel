@@ -136,6 +136,9 @@ func parsePin(s string) (Pin, error) {
 	if !ok {
 		return Pin{}, fmt.Errorf("invalid pin %q: expected format <algo>:<base64-digest>", s)
 	}
+	// Accept the algorithm prefix case-insensitively (e.g. "SHA256" as well as
+	// "sha256"); supportedPinHashes is keyed on the lowercase form.
+	algo = strings.ToLower(algo)
 	hash, ok := supportedPinHashes[algo]
 	if !ok {
 		return Pin{}, fmt.Errorf("invalid pin %q: unsupported hash algorithm %q (supported: sha256, sha384, sha512)", s, algo)

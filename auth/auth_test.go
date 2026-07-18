@@ -553,6 +553,12 @@ func TestParsePins(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, 2, len(pins))
 
+	// The algorithm prefix is case-insensitive.
+	pins, err = ParsePins([]string{"SHA256:" + sha256Digest})
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(pins))
+	assert.Equal(t, crypto.SHA256, pins[0].hash)
+
 	// Missing algorithm prefix is rejected.
 	_, err = ParsePins([]string{sha256Digest})
 	assert.NotNil(t, err)
