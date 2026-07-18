@@ -52,7 +52,7 @@ with `spiffe://ghostunnel/client1` or `spiffe://ghostunnel/client2` URI SANs (as
 well as other values). See documentation for the [wildcard][wildcard] package
 for more information.
 
-* `--allow-spki-pin`
+* `--allow-spki-pin` (*available since v1.11.1*)
 
 Allow clients whose leaf certificate's public key matches the given SPKI pin,
 of the form `<algo>:<base64-digest>`, where `<algo>` is one of `sha256`,
@@ -152,7 +152,7 @@ with `spiffe://ghostunnel/server1` or `spiffe://ghostunnel/server2` URI SANs (as
 well as other values). See documentation for the [wildcard][wildcard] package
 for more information.
 
-* `--verify-spki-pin`
+* `--verify-spki-pin` (*available since v1.11.1*)
 
 Verify the server's leaf certificate's public key against the given SPKI pin,
 of the form `<algo>:<base64-digest>`, where `<algo>` is one of `sha256`,
