@@ -56,9 +56,16 @@ try:
                                  '--verify-spki-pin={0}'.format(server_pin),
                                  '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)])
 
+    # The wrong-pin server MUST verify ghostunnel's client cert against 'root'
+    # (the CA that signed client.crt), not 'other_root'. If it used 'other_root'
+    # the server itself would reject ghostunnel's root-signed client cert during
+    # the handshake, so the connection would fail even if ghostunnel's pin check
+    # were broken (e.g. an always-accept regression) — masking the very thing
+    # this test exists to catch. With 'root' here, a pin mismatch is the only
+    # possible cause of rejection.
     assert_connection_rejected(
         TcpClient(LISTEN_PORT),
-        TlsServer('other_server', 'other_root', TARGET_PORT),
+        TlsServer('other_server', 'root', TARGET_PORT),
         "wrong-pin server",
         timeout_ok=False,
     )
