@@ -18,8 +18,15 @@ package auth
 
 import (
 	"context"
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
+	"math/big"
 	"net"
 	"net/url"
 	"testing"
@@ -475,6 +482,221 @@ func TestVerifyOPARejectAllOU(t *testing.T) {
 		OPAQueryTimeout: 10 * time.Second,
 	}
 	assert.NotNil(t, testACL.VerifyPeerCertificateClient(nil, fakeChains), "Rego policy rejects none OU")
+}
+
+// makePinTestCert generates a self-signed ECDSA certificate and returns its
+// DER encoding along with the SHA-256 SPKI pin digest (the raw 32-byte hash).
+func makePinTestCert(t *testing.T) (certDER []byte, sha256Digest []byte) {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	assert.NoError(t, err)
+
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "pin-test"},
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(time.Hour),
+	}
+	certDER, err = x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	assert.NoError(t, err)
+
+	cert, err := x509.ParseCertificate(certDER)
+	assert.NoError(t, err)
+
+	hash := sha256.Sum256(cert.RawSubjectPublicKeyInfo)
+	return certDER, hash[:]
+}
+
+// spkiPin is a test helper that computes the digest of a cert's SPKI under the
+// given hash and wraps it in a Pin.
+func spkiPin(t *testing.T, certDER []byte, hash crypto.Hash) Pin {
+	t.Helper()
+	cert, err := x509.ParseCertificate(certDER)
+	assert.NoError(t, err)
+	h := hash.New()
+	h.Write(cert.RawSubjectPublicKeyInfo)
+	return Pin{hash: hash, digest: h.Sum(nil)}
+}
+
+func TestParsePins(t *testing.T) {
+	// Empty input yields no pins and no error.
+	pins, err := ParsePins(nil)
+	assert.Nil(t, err)
+	assert.Nil(t, pins)
+
+	sha256Digest := base64.StdEncoding.EncodeToString(make([]byte, 32))
+	sha384Digest := base64.StdEncoding.EncodeToString(make([]byte, 48))
+	sha512Digest := base64.StdEncoding.EncodeToString(make([]byte, 64))
+
+	// A single valid sha256 pin parses.
+	pins, err = ParsePins([]string{"sha256:" + sha256Digest})
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(pins))
+	assert.Equal(t, crypto.SHA256, pins[0].hash)
+	assert.Equal(t, 32, len(pins[0].digest))
+
+	// sha384 and sha512 are also accepted, with their respective digest sizes.
+	pins, err = ParsePins([]string{"sha384:" + sha384Digest})
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(pins))
+	assert.Equal(t, crypto.SHA384, pins[0].hash)
+	assert.Equal(t, 48, len(pins[0].digest))
+
+	pins, err = ParsePins([]string{"sha512:" + sha512Digest})
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(pins))
+	assert.Equal(t, crypto.SHA512, pins[0].hash)
+	assert.Equal(t, 64, len(pins[0].digest))
+
+	// Multiple valid pins all parse, including mixed algorithms.
+	pins, err = ParsePins([]string{"sha256:" + sha256Digest, "sha512:" + sha512Digest})
+	assert.Nil(t, err)
+	assert.Equal(t, 2, len(pins))
+
+	// Missing algorithm prefix is rejected.
+	_, err = ParsePins([]string{sha256Digest})
+	assert.NotNil(t, err)
+	assert.Contains(t, err.Error(), "expected format <algo>:<base64-digest>")
+
+	// Unknown algorithm is rejected.
+	_, err = ParsePins([]string{"sha1:" + base64.StdEncoding.EncodeToString(make([]byte, 20))})
+	assert.NotNil(t, err)
+	assert.Contains(t, err.Error(), "unsupported hash algorithm")
+	assert.Contains(t, err.Error(), "sha256, sha384, sha512")
+
+	// Invalid base64 is rejected.
+	_, err = ParsePins([]string{"sha256:not valid base64 @@@"})
+	assert.NotNil(t, err)
+	assert.Contains(t, err.Error(), "base64 decode failed")
+
+	// Wrong digest length is rejected.
+	short := base64.StdEncoding.EncodeToString(make([]byte, 16))
+	_, err = ParsePins([]string{"sha256:" + short})
+	assert.NotNil(t, err)
+	assert.Contains(t, err.Error(), "expected 32 bytes for sha256, got 16")
+
+	// If any pin in the list is invalid, the whole call fails.
+	_, err = ParsePins([]string{"sha256:" + sha256Digest, "sha256:" + short})
+	assert.NotNil(t, err)
+}
+
+func TestAuthorizePinMatch(t *testing.T) {
+	certDER, digest := makePinTestCert(t)
+
+	pin := Pin{hash: crypto.SHA256, digest: digest}
+	testACL := ACL{Pins: []Pin{pin}}
+
+	err := testACL.VerifyPeerCertificateServer([][]byte{certDER}, nil)
+	assert.Nil(t, err, "matching pin should allow connection")
+
+	err = testACL.VerifyPeerCertificateClient([][]byte{certDER}, nil)
+	assert.Nil(t, err, "matching pin should allow connection")
+}
+
+// TestAuthorizePinNonSha256 verifies that the generalized hash path works: a
+// pin configured with sha512 matches a cert whose SPKI is hashed with sha512.
+func TestAuthorizePinNonSha256(t *testing.T) {
+	certDER, _ := makePinTestCert(t)
+
+	pin := spkiPin(t, certDER, crypto.SHA512)
+	testACL := ACL{Pins: []Pin{pin}}
+
+	assert.Nil(t, testACL.VerifyPeerCertificateServer([][]byte{certDER}, nil),
+		"sha512 pin should match")
+	assert.Nil(t, testACL.VerifyPeerCertificateClient([][]byte{certDER}, nil),
+		"sha512 pin should match")
+}
+
+// TestAuthorizePinMultiple verifies that when several pins are configured (e.g.
+// a current and a backup key), a peer matching any one of them is accepted.
+func TestAuthorizePinMultiple(t *testing.T) {
+	certDER, digest := makePinTestCert(t)
+	otherPin := Pin{hash: crypto.SHA256, digest: make([]byte, 32)} // a backup/rotation pin that does not match
+	matchedPin := Pin{hash: crypto.SHA256, digest: digest}
+
+	// Pin matches whether it is first or last in the list, and the list may
+	// mix algorithms.
+	mixedAlgo := spkiPin(t, certDER, crypto.SHA384)
+	for _, pins := range [][]Pin{
+		{matchedPin, otherPin},
+		{otherPin, matchedPin},
+		{otherPin, mixedAlgo},
+	} {
+		testACL := ACL{Pins: pins}
+		err := testACL.VerifyPeerCertificateServer([][]byte{certDER}, nil)
+		assert.Nil(t, err, "connection should be allowed when one of the pins matches")
+		err = testACL.VerifyPeerCertificateClient([][]byte{certDER}, nil)
+		assert.Nil(t, err, "connection should be allowed when one of the pins matches")
+	}
+}
+
+// TestAuthorizePinExpiredCert locks in the intentional behavior that SPKI
+// pinning authenticates by public key alone: an expired certificate whose key
+// matches the pin is still accepted, because the validity period is not
+// checked. If this ever changes, it must be a deliberate decision.
+func TestAuthorizePinExpiredCert(t *testing.T) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	assert.NoError(t, err)
+
+	// A certificate that became valid two hours ago and expired one hour ago.
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "pin-test-expired"},
+		NotBefore:    time.Now().Add(-2 * time.Hour),
+		NotAfter:     time.Now().Add(-1 * time.Hour),
+	}
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	assert.NoError(t, err)
+
+	pin := spkiPin(t, certDER, crypto.SHA256)
+	testACL := ACL{Pins: []Pin{pin}}
+
+	assert.Nil(t, testACL.VerifyPeerCertificateServer([][]byte{certDER}, nil),
+		"expired cert with matching pin should be accepted (expiry is not checked)")
+	assert.Nil(t, testACL.VerifyPeerCertificateClient([][]byte{certDER}, nil),
+		"expired cert with matching pin should be accepted (expiry is not checked)")
+}
+
+func TestAuthorizePinMismatch(t *testing.T) {
+	certDER, _ := makePinTestCert(t)
+
+	wrongPin := Pin{hash: crypto.SHA256, digest: make([]byte, 32)}
+	testACL := ACL{Pins: []Pin{wrongPin}}
+
+	err := testACL.VerifyPeerCertificateServer([][]byte{certDER}, nil)
+	assert.NotNil(t, err, "mismatched pin should reject connection")
+	assert.Contains(t, err.Error(), "pin verification failed")
+
+	err = testACL.VerifyPeerCertificateClient([][]byte{certDER}, nil)
+	assert.NotNil(t, err, "mismatched pin should reject connection")
+	assert.Contains(t, err.Error(), "pin verification failed")
+}
+
+func TestAuthorizePinNoRawCerts(t *testing.T) {
+	pin := Pin{hash: crypto.SHA256, digest: make([]byte, 32)}
+	testACL := ACL{Pins: []Pin{pin}}
+
+	err := testACL.VerifyPeerCertificateServer(nil, nil)
+	assert.NotNil(t, err, "no raw certs should reject connection")
+
+	err = testACL.VerifyPeerCertificateClient(nil, nil)
+	assert.NotNil(t, err, "no raw certs should reject connection")
+}
+
+// TestAuthorizePinMalformedDER covers the parse-error branch of verifyPin: a
+// non-empty rawCerts entry that is not a valid certificate is rejected rather
+// than panicking. This closes the one uncovered line in verifyPin.
+func TestAuthorizePinMalformedDER(t *testing.T) {
+	pin := Pin{hash: crypto.SHA256, digest: make([]byte, 32)}
+	testACL := ACL{Pins: []Pin{pin}}
+
+	err := testACL.VerifyPeerCertificateServer([][]byte{[]byte("not a certificate")}, nil)
+	assert.NotNil(t, err, "malformed cert DER should reject connection")
+	assert.Contains(t, err.Error(), "failed to parse certificate")
+
+	err = testACL.VerifyPeerCertificateClient([][]byte{[]byte("not a certificate")}, nil)
+	assert.NotNil(t, err, "malformed cert DER should reject connection")
+	assert.Contains(t, err.Error(), "failed to parse certificate")
 }
 
 func TestAuthorizeOPAEvalError(t *testing.T) {

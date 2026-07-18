@@ -2,7 +2,9 @@ import subprocess
 from subprocess import call, check_call, check_output, Popen, DEVNULL
 from tempfile import mkstemp, mkdtemp
 import atexit
+import base64
 import json
+import hashlib
 import shutil
 import sys
 import threading
@@ -780,6 +782,22 @@ def convert_p12_to_jceks(p12_name, jceks_name, password):
     if ret != 0:
         print("keytool -importkeystore failed", file=sys.stderr)
         sys.exit(2)
+
+def get_spki_pin(cert_file, algo):
+    """Extract the SPKI pin from a cert file as '<algo>:<base64-digest>'."""
+    der = check_output(
+        'openssl x509 -in {0} -pubkey -noout | openssl pkey -pubin -outform DER'.format(cert_file),
+        shell=True,
+    )
+    if algo == "sha256":
+        digest = hashlib.sha256(der).digest()
+    elif algo == "sha384":
+        digest = hashlib.sha384(der).digest()
+    elif algo == "sha512":
+        digest = hashlib.sha512(der).digest()
+    else:
+        raise ValueError("unsupported pin algorithm: {0}".format(algo))
+    return "{0}:{1}".format(algo, base64.b64encode(digest).decode())
 
 def print_ok(msg):
     print("\033[92m{0}\033[0m".format(msg))

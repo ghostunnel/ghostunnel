@@ -18,6 +18,7 @@ package main
 
 import (
 	"crypto/tls"
+	"encoding/base64"
 	"errors"
 	"net"
 	"net/http"
@@ -395,6 +396,105 @@ func TestClientFlagValidation(t *testing.T) {
 	*clientAllowQuery = ""
 	err = clientValidateFlags()
 	assert.Nil(t, err, "neither OPA flag set should be valid")
+}
+
+func TestValidateServerAccessControlSpkiPin(t *testing.T) {
+	reset := func() {
+		*serverAllowAll = false
+		*serverDisableAuth = false
+		*useWorkloadAPI = false
+	}
+	defer reset()
+
+	// --allow-spki-pin on its own is a valid access control mechanism.
+	reset()
+	assert.Nil(t, validateServerAccessControl(false, true, false), "--allow-spki-pin alone should be valid")
+
+	// Combining --allow-spki-pin with any other mechanism is rejected. The
+	// message varies by which branch fires (allow-all / disable-auth take
+	// precedence), so we only assert that an error is returned.
+	reset()
+	assert.NotNil(t, validateServerAccessControl(true, true, false), "--allow-spki-pin and other --allow-* flags are mutually exclusive")
+
+	reset()
+	assert.NotNil(t, validateServerAccessControl(false, true, true), "--allow-spki-pin and OPA flags are mutually exclusive")
+
+	reset()
+	*serverAllowAll = true
+	assert.NotNil(t, validateServerAccessControl(false, true, false), "--allow-spki-pin and --allow-all are mutually exclusive")
+
+	reset()
+	*serverDisableAuth = true
+	assert.NotNil(t, validateServerAccessControl(false, true, false), "--allow-spki-pin and --disable-authentication are mutually exclusive")
+
+	// --allow-spki-pin cannot be combined with the SPIFFE Workload API source.
+	reset()
+	*useWorkloadAPI = true
+	err := validateServerAccessControl(false, true, false)
+	if assert.NotNil(t, err, "--allow-spki-pin and --use-workload-api are mutually exclusive") {
+		assert.Contains(t, err.Error(), "--use-workload-api")
+	}
+
+	// Sanity: with no mechanism at all, at least one flag is required.
+	reset()
+	assert.NotNil(t, validateServerAccessControl(false, false, false), "at least one access control flag is required")
+}
+
+func TestValidateClientSpkiPin(t *testing.T) {
+	validPin := "sha256:" + base64.StdEncoding.EncodeToString(make([]byte, 32))
+	reset := func() {
+		*clientVerifySpkiPin = nil
+		*clientAllowedCNs = nil
+		*clientAllowedOUs = nil
+		*clientAllowedDNSs = nil
+		*clientAllowedIPs = nil
+		*clientAllowedURIs = nil
+		*clientAllowPolicy = ""
+		*clientAllowQuery = ""
+		*clientDisableAuth = false
+		*useWorkloadAPI = false
+		decodedClientPins = nil
+	}
+	defer reset()
+
+	reset()
+	assert.Nil(t, validateClientPin(), "no --verify-spki-pin should be valid")
+
+	reset()
+	*clientVerifySpkiPin = []string{validPin}
+	assert.Nil(t, validateClientPin(), "--verify-spki-pin alone should be valid")
+
+	reset()
+	*clientVerifySpkiPin = []string{validPin, validPin}
+	assert.Nil(t, validateClientPin(), "multiple --verify-spki-pin should be valid")
+	assert.Equal(t, 2, len(decodedClientPins), "validation should decode the pins into decodedClientPins")
+
+	// Malformed pins are rejected at validation time (before listen/dial).
+	reset()
+	*clientVerifySpkiPin = []string{"sha256:not valid base64 @@@"}
+	assert.NotNil(t, validateClientPin(), "malformed --verify-spki-pin should be rejected at validation")
+	assert.Nil(t, decodedClientPins, "no pins should be stored on validation failure")
+
+	conflicts := map[string]func(){
+		"--verify-cn":              func() { *clientAllowedCNs = []string{"test"} },
+		"--verify-ou":              func() { *clientAllowedOUs = []string{"test"} },
+		"--verify-dns-san":         func() { *clientAllowedDNSs = []string{"test"} },
+		"--verify-ip-san":          func() { *clientAllowedIPs = []net.IP{net.IPv4(0, 0, 0, 0)} },
+		"--verify-uri-san":         func() { *clientAllowedURIs = []string{"spiffe://example.com/*"} },
+		"--verify-policy":          func() { *clientAllowPolicy = "policy" },
+		"--verify-query":           func() { *clientAllowQuery = "query" },
+		"--disable-authentication": func() { *clientDisableAuth = true },
+		"--use-workload-api":       func() { *useWorkloadAPI = true },
+	}
+	for name, set := range conflicts {
+		reset()
+		*clientVerifySpkiPin = []string{validPin}
+		set()
+		err := validateClientPin()
+		if assert.NotNil(t, err, "--verify-spki-pin must be mutually exclusive with "+name) {
+			assert.Contains(t, err.Error(), "--verify-spki-pin is mutually exclusive")
+		}
+	}
 }
 
 func TestAllowsLocalhost(t *testing.T) {
