@@ -54,7 +54,7 @@ def tls_connect(ctx, attempts=CONNECT_ATTEMPTS):
             try:
                 tls_sock.close()
             except OSError:
-                pass
+                pass  # cleanup of a failed connect attempt, socket state unknown
             _poll_sleep(i)
     raise Exception("connect failed after {0} attempts: {1}".format(
         attempts, last))
@@ -162,7 +162,7 @@ try:
             try:
                 tls_sock.close()
             except OSError:
-                pass
+                pass  # best-effort close of capacity-check connections
 
     wait_for_metric('ghostunnel.conn.open', lambda v: v == 0)
     print_ok("conn.open returned to 0 after capacity check")
@@ -174,6 +174,6 @@ finally:
         try:
             sock.close()
         except OSError:
-            pass
+            pass  # abandoned sockets may already be reaped/closed
     if backend:
         backend.stop()

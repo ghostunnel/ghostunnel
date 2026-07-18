@@ -54,7 +54,7 @@ def tls_connect(ctx, attempts=CONNECT_ATTEMPTS):
             try:
                 tls_sock.close()
             except OSError:
-                pass
+                pass  # cleanup of a failed connect attempt, socket state unknown
             with retried_lock:
                 retried_attempts += 1
             _poll_sleep(i)

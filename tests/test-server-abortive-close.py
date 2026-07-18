@@ -69,7 +69,7 @@ def tls_connect(ctx, attempts=3):
             try:
                 tls_sock.close()
             except OSError:
-                pass
+                pass  # cleanup of a failed connect attempt, socket state unknown
             _poll_sleep(i)
     raise Exception("connect failed after {0} attempts: {1}".format(
         attempts, last))
@@ -134,7 +134,7 @@ def backend_side_rst(ctx, i):
         try:
             tls_sock.close()
         except OSError:
-            pass
+            pass  # close-time errors are expected after an abortive reset
 
 
 ghostunnel = None

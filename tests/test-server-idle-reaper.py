@@ -142,7 +142,7 @@ finally:
         try:
             client.cleanup()
         except Exception:
-            pass
+            pass  # best-effort cleanup, sockets may already be closed by the reaper
     terminate(ghostunnel)
     if backend:
         backend.stop()

@@ -114,7 +114,7 @@ try:
         try:
             s.close()
         except OSError:
-            pass
+            pass  # best-effort release of flood sockets
     flood = []
     print_ok("closed all flood connections")
 
@@ -153,7 +153,7 @@ finally:
         try:
             s.close()
         except OSError:
-            pass
+            pass  # best-effort teardown, sockets may already be dead
     terminate(ghostunnel)
     if backend:
         backend.stop()
@@ -164,6 +164,6 @@ finally:
             with open(LOG_FILE, 'rb') as f:
                 sys.stderr.buffer.write(f.read())
         except OSError:
-            pass
+            pass  # log replay is a debugging aid; never fail cleanup on it
     if root:
         root.cleanup()

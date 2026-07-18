@@ -110,7 +110,7 @@ try:
         try:
             s.close()
         except OSError:
-            pass
+            pass  # flood sockets may already be reaped by ghostunnel
     flood = []
 
     open_conns = wait_for_metric('ghostunnel.conn.open', lambda v: v == 0)
@@ -130,7 +130,7 @@ finally:
         try:
             s.close()
         except OSError:
-            pass
+            pass  # best-effort teardown, sockets may already be dead
     terminate(ghostunnel)
     if backend:
         backend.stop()

@@ -99,7 +99,7 @@ def tls_duplex_pump(sock, payload=b'', chunk_sizes=None, recv_limit=None,
                     rcvd += len(data)
                     progressed = True
             except (ssl.SSLWantReadError, ssl.SSLWantWriteError):
-                pass
+                pass  # no data available right now; wait for select() below
         # Push the send side until it would block.
         if sent < total:
             try:
@@ -112,7 +112,7 @@ def tls_duplex_pump(sock, payload=b'', chunk_sizes=None, recv_limit=None,
                     pending = pending[n:] if n < len(pending) else None
                     progressed = True
             except (ssl.SSLWantReadError, ssl.SSLWantWriteError):
-                pass
+                pass  # send buffer full right now; wait for select() below
         if progressed:
             last_progress = time.monotonic()
             continue
@@ -163,7 +163,7 @@ try:
             while conn.recv(RECV_CHUNK):
                 pass
         except OSError:
-            pass
+            pass  # client may reset instead of closing cleanly; drain is best-effort
 
     conn_counter = itertools.count()
 

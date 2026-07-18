@@ -382,7 +382,7 @@ class BackendServer:
             try:
                 conn.close()
             except OSError:
-                pass
+                pass  # socket may already be closed by the handler or the peer
 
     def stop(self):
         self._stopped = True
@@ -400,7 +400,7 @@ class BackendServer:
             try:
                 listener.close()
             except OSError:
-                pass
+                pass  # already closed during teardown
         thread = self._accept_thread
         self._accept_thread = None
         if thread is not None:
@@ -413,7 +413,7 @@ class BackendServer:
                         (LOCALHOST, self.port), timeout=1)
                     poke.close()
                 except OSError:
-                    pass
+                    pass  # nothing accepting anymore; the join below still bounds exit
                 thread.join(timeout=5)
 
 
