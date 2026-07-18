@@ -5,6 +5,7 @@ import atexit
 import json
 import shutil
 import sys
+import threading
 import time
 import socket
 import ssl
@@ -233,6 +234,188 @@ def dump_goroutines():
             context=ctx).read())
     except Exception as e:
         print('unable to dump goroutines:', e)
+
+def get_metrics():
+    """Fetch metrics from the status port as a {name: value} dict.
+
+    Metric names carry the configured prefix (default 'ghostunnel.'),
+    e.g. 'ghostunnel.conn.open'. Returns None if the fetch fails."""
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    try:
+        data = json.loads(urllib.request.urlopen(
+            "https://{0}:{1}/_metrics?format=json".format(
+                LOCALHOST, STATUS_PORT),
+            context=ctx).read())
+        return {item['metric']: item['value'] for item in data}
+    except Exception as e:
+        print('unable to fetch metrics:', e)
+        return None
+
+
+def wait_for_metric(name, predicate, timeout=30):
+    """Poll get_metrics() until predicate(value) of the named metric is truthy.
+
+    Returns the metric value that satisfied the predicate; raises
+    TimeoutError (including the last observed value) otherwise."""
+    deadline = time.time() + timeout
+    iteration = 0
+    last = None
+    while time.time() < deadline:
+        metrics = get_metrics()
+        if metrics is not None and name in metrics:
+            last = metrics[name]
+            if predicate(last):
+                return last
+        _poll_sleep(iteration)
+        iteration += 1
+    raise TimeoutError(
+        "metric {0} did not satisfy predicate after {1}s (last value: {2})".format(
+            name, timeout, last))
+
+
+def goroutine_count():
+    """Return the current goroutine count via the pprof endpoint.
+
+    Requires ghostunnel to be started with --enable-pprof. Raises on
+    failure to fetch or parse."""
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    body = urllib.request.urlopen(
+        "https://{0}:{1}/debug/pprof/goroutine?debug=1".format(
+            LOCALHOST, STATUS_PORT),
+        context=ctx).read().decode('utf-8')
+    # First line looks like: "goroutine profile: total 12"
+    first_line = body.splitlines()[0]
+    return int(first_line.rsplit(' ', 1)[1])
+
+
+def fd_count(pid):
+    """Return the number of open file descriptors for pid.
+
+    Only works on platforms with /proc (Linux); returns None elsewhere
+    or if the pid has already exited."""
+    try:
+        return len(os.listdir('/proc/{0}/fd'.format(pid)))
+    except OSError:
+        return None
+
+
+def recv_exact(sock, n):
+    """Receive exactly n bytes from sock. Raises on premature EOF."""
+    buf = bytearray()
+    while len(buf) < n:
+        chunk = sock.recv(min(1 << 16, n - len(buf)))
+        if not chunk:
+            raise Exception(
+                "unexpected EOF after {0} of {1} bytes".format(len(buf), n))
+        buf.extend(chunk)
+    return bytes(buf)
+
+
+class BackendServer:
+    """Multi-connection TCP backend for load/stress tests.
+
+    Unlike TcpServer (which accepts exactly one connection), this accepts
+    any number of connections on the given port and handles each one on
+    its own daemon thread via handler(conn). The default handler echoes
+    all received data back until EOF.
+
+    Tracks the number of accepted connections in self.accepted and
+    collects handler exceptions in self.handler_errors (socket timeouts
+    from idle/abandoned connections are recorded too; tests that expect
+    ugly disconnects should filter accordingly)."""
+
+    def __init__(self, port=None, handler=None, conn_timeout=None):
+        self.port = port if port is not None else TARGET_PORT
+        self.handler = handler if handler is not None else self.echo_handler
+        self.conn_timeout = conn_timeout if conn_timeout is not None else TIMEOUT
+        self.accepted = 0
+        self.handler_errors = []
+        self.listener = None
+        self._accept_thread = None
+        self._stopped = False
+
+    @staticmethod
+    def echo_handler(conn):
+        while True:
+            data = conn.recv(1 << 16)
+            if not data:
+                break
+            conn.sendall(data)
+
+    def start(self):
+        self.listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if _SO_REUSEPORT is not None:
+            self.listener.setsockopt(socket.SOL_SOCKET, _SO_REUSEPORT, 1)
+        self.listener.bind((LOCALHOST, self.port))
+        self.listener.listen(128)
+        self._accept_thread = threading.Thread(
+            target=self._accept_loop, daemon=True)
+        self._accept_thread.start()
+        return self
+
+    def _accept_loop(self):
+        while not self._stopped:
+            # snapshot: stop() nulls self.listener concurrently
+            listener = self.listener
+            if listener is None:
+                return
+            try:
+                conn, _ = listener.accept()
+            except OSError:
+                return  # listener closed by stop()
+            self.accepted += 1
+            threading.Thread(
+                target=self._run_handler, args=(conn,), daemon=True).start()
+
+    def _run_handler(self, conn):
+        try:
+            conn.settimeout(self.conn_timeout)
+            self.handler(conn)
+        except Exception as e:
+            self.handler_errors.append(e)
+        finally:
+            try:
+                conn.close()
+            except OSError:
+                pass  # socket may already be closed by the handler or the peer
+
+    def stop(self):
+        self._stopped = True
+        listener = self.listener
+        self.listener = None
+        if listener:
+            try:
+                # shutdown() wakes a thread blocked in accept() (close alone
+                # does not: the blocked accept holds a kernel reference, and
+                # with SO_REUSEPORT the zombie listener would keep stealing
+                # connections from a replacement server on the same port).
+                listener.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass  # already closed, or platform disallows shutdown here
+            try:
+                listener.close()
+            except OSError:
+                pass  # already closed during teardown
+        thread = self._accept_thread
+        self._accept_thread = None
+        if thread is not None:
+            thread.join(timeout=1)
+            if thread.is_alive():
+                # shutdown() didn't wake accept() on this platform; poke it
+                # with a throwaway connection (harmlessly bumps .accepted).
+                try:
+                    poke = socket.create_connection(
+                        (LOCALHOST, self.port), timeout=1)
+                    poke.close()
+                except OSError:
+                    pass  # nothing accepting anymore; the join below still bounds exit
+                thread.join(timeout=5)
+
 
 class RootCert:
     """Helper class to create root + signed certs"""
