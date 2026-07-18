@@ -30,6 +30,13 @@ import (
 	"strings"
 	"time"
 
+	// pin.hash.New() panics unless the hash implementation is linked into the
+	// binary. These blank imports register the SHA-2 hashes referenced by
+	// supportedPinHashes (crypto/sha512 registers SHA-384 as well as SHA-512),
+	// so pinning does not depend on some other package importing them first.
+	_ "crypto/sha256"
+	_ "crypto/sha512"
+
 	"github.com/ghostunnel/ghostunnel/policy"
 	"github.com/ghostunnel/ghostunnel/wildcard"
 	"github.com/open-policy-agent/opa/v1/rego"
@@ -132,6 +139,13 @@ func parsePin(s string) (Pin, error) {
 	hash, ok := supportedPinHashes[algo]
 	if !ok {
 		return Pin{}, fmt.Errorf("invalid pin %q: unsupported hash algorithm %q (supported: sha256, sha384, sha512)", s, algo)
+	}
+	// Belt and braces: any hash added to supportedPinHashes must also be linked
+	// in (see the blank crypto/sha* imports above), otherwise hash.New() would
+	// panic mid-handshake in verifyPin. Reject here so a missing import fails
+	// cleanly at flag-parse time instead.
+	if !hash.Available() {
+		return Pin{}, fmt.Errorf("invalid pin %q: hash algorithm %q is not available in this build", s, algo)
 	}
 	raw, err := base64.StdEncoding.DecodeString(digest)
 	if err != nil {
