@@ -159,8 +159,12 @@ current and a backup key for rotation).
 Unlike the other verification flags, this is out-of-band key pinning in the
 style of [RFC 7858 §4.2][rfc7858]: the server is authenticated by the pin
 alone, so standard hostname verification, chain validation, and validity-period
-checks do *not* run. Mutually exclusive with other verification/authentication
-flags and with `--use-workload-api`.
+checks do *not* run. Mutually exclusive with the other verification flags and
+with `--use-workload-api`. It *may*, however, be combined with
+`--disable-authentication`: on the client that flag only suppresses sending a
+client certificate, so the pair yields a deployment where ghostunnel presents no
+certificate of its own and authenticates the server by pin alone — the typical
+DNS-over-TLS (DoT) style setup that motivates SPKI pinning.
 
 > **Prefer an OPA policy if the server is already PKIX-valid.** `--verify-spki-pin` is
 > for servers whose certificate is *not* otherwise trusted (self-signed or

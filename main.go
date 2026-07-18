@@ -533,8 +533,13 @@ func validateClientPin() error {
 		len(*clientAllowedIPs) > 0 ||
 		len(*clientAllowedURIs) > 0
 	hasOPAFlags := len(*clientAllowPolicy) > 0 || len(*clientAllowQuery) > 0
-	if hasVerifyFlags || hasOPAFlags || *clientDisableAuth {
-		return errors.New("--verify-spki-pin is mutually exclusive with other verification/authentication flags")
+	// --disable-authentication is deliberately NOT a conflict here: on the client
+	// it only governs whether we present our own certificate to the server, not
+	// how we verify the server. Combining it with --verify-spki-pin is the
+	// motivating DoT-style deployment (no client cert, server authenticated by
+	// pin alone).
+	if hasVerifyFlags || hasOPAFlags {
+		return errors.New("--verify-spki-pin is mutually exclusive with other verification flags")
 	}
 	pins, err := auth.ParsePins(*clientVerifySpkiPin)
 	if err != nil {

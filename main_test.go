@@ -469,6 +469,14 @@ func TestValidateClientSpkiPin(t *testing.T) {
 	assert.Nil(t, validateClientPin(), "multiple --verify-spki-pin should be valid")
 	assert.Equal(t, 2, len(decodedClientPins), "validation should decode the pins into decodedClientPins")
 
+	// --disable-authentication may be combined with --verify-spki-pin on the
+	// client: it only suppresses the client's own certificate, while the pin
+	// still authenticates the server (the DoT-style no-client-cert deployment).
+	reset()
+	*clientVerifySpkiPin = []string{validPin}
+	*clientDisableAuth = true
+	assert.Nil(t, validateClientPin(), "--verify-spki-pin with --disable-authentication should be valid")
+
 	// Malformed pins are rejected at validation time (before listen/dial).
 	reset()
 	*clientVerifySpkiPin = []string{"sha256:not valid base64 @@@"}
@@ -476,15 +484,14 @@ func TestValidateClientSpkiPin(t *testing.T) {
 	assert.Nil(t, decodedClientPins, "no pins should be stored on validation failure")
 
 	conflicts := map[string]func(){
-		"--verify-cn":              func() { *clientAllowedCNs = []string{"test"} },
-		"--verify-ou":              func() { *clientAllowedOUs = []string{"test"} },
-		"--verify-dns-san":         func() { *clientAllowedDNSs = []string{"test"} },
-		"--verify-ip-san":          func() { *clientAllowedIPs = []net.IP{net.IPv4(0, 0, 0, 0)} },
-		"--verify-uri-san":         func() { *clientAllowedURIs = []string{"spiffe://example.com/*"} },
-		"--verify-policy":          func() { *clientAllowPolicy = "policy" },
-		"--verify-query":           func() { *clientAllowQuery = "query" },
-		"--disable-authentication": func() { *clientDisableAuth = true },
-		"--use-workload-api":       func() { *useWorkloadAPI = true },
+		"--verify-cn":        func() { *clientAllowedCNs = []string{"test"} },
+		"--verify-ou":        func() { *clientAllowedOUs = []string{"test"} },
+		"--verify-dns-san":   func() { *clientAllowedDNSs = []string{"test"} },
+		"--verify-ip-san":    func() { *clientAllowedIPs = []net.IP{net.IPv4(0, 0, 0, 0)} },
+		"--verify-uri-san":   func() { *clientAllowedURIs = []string{"spiffe://example.com/*"} },
+		"--verify-policy":    func() { *clientAllowPolicy = "policy" },
+		"--verify-query":     func() { *clientAllowQuery = "query" },
+		"--use-workload-api": func() { *useWorkloadAPI = true },
 	}
 	for name, set := range conflicts {
 		reset()

@@ -164,7 +164,10 @@ algorithms are sha256, sha384, and sha512. The flag may be repeated to accept
 multiple keys (e.g. for key rotation). Unlike the other verification flags, the
 server is authenticated by the pin alone, so regular hostname verification,
 chain validation, and validity-period checks are not performed.
-\fB--verify-spki-pin\fR is mutually exclusive with the other verification flags.
+\fB--verify-spki-pin\fR is mutually exclusive with the other verification flags,
+but may be combined with \fB--disable-authentication\fR: the client then presents
+no certificate of its own and authenticates the server by pin alone, as in a
+DNS-over-TLS (DoT) style deployment.
 
 .SH "EXAMPLE: UNIX SOCKETS"
 Ghostunnel supports UNIX domain sockets for both listening and forwarding:
