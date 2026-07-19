@@ -134,6 +134,34 @@ func TestCertTLSConfigSourceGetServerConfig(t *testing.T) {
 	assert.NotNil(t, tlsConfig, "TLS config should not be nil")
 }
 
+// With a normal base (chain-verifying ClientAuth) the server config carries the
+// certificate's trust store as ClientCAs so Go advertises it and verifies chains.
+func TestCertTLSConfigServerConfigClientCAsDefault(t *testing.T) {
+	cert := &mockCertificateWithPrivateKey{}
+	source := TLSConfigSourceFromCertificate(cert, log.New(io.Discard, "", 0))
+
+	config, err := source.GetServerConfig(&tls.Config{ClientAuth: tls.RequireAndVerifyClientCert})
+	assert.Nil(t, err, "should succeed getting server config")
+
+	tlsConfig := config.GetServerConfig()
+	assert.NotNil(t, tlsConfig.ClientCAs, "ClientCAs should carry the trust store when not in pin mode")
+}
+
+// In SPKI pin mode (RequireAnyClientCert) no chain verification happens, so the
+// pool's only effect is the misleading certificate_authorities hint. The server
+// config must leave ClientCAs nil.
+func TestCertTLSConfigServerConfigClientCAsPinMode(t *testing.T) {
+	cert := &mockCertificateWithPrivateKey{}
+	source := TLSConfigSourceFromCertificate(cert, log.New(io.Discard, "", 0))
+
+	config, err := source.GetServerConfig(&tls.Config{ClientAuth: tls.RequireAnyClientCert})
+	assert.Nil(t, err, "should succeed getting server config")
+
+	tlsConfig := config.GetServerConfig()
+	assert.Nil(t, tlsConfig.ClientCAs, "ClientCAs should be nil in pin mode to avoid the CA hint")
+	assert.Equal(t, tls.RequireAnyClientCert, tlsConfig.ClientAuth, "ClientAuth should be preserved")
+}
+
 func TestNewCertTLSConfigNilBase(t *testing.T) {
 	cert := &mockCertificateWithPrivateKey{}
 	config := newCertTLSConfig(cert, nil)

@@ -255,6 +255,40 @@ func TestACMETLSConfigGetServerConfigWithTrustStore(t *testing.T) {
 	assert.True(t, tlsConfig.ClientCAs.Equal(trustStore), "ClientCAs should match the loaded trust store")
 }
 
+func TestACMETLSConfigGetServerConfigPinMode(t *testing.T) {
+	// In SPKI pin mode (RequireAnyClientCert) no chain verification happens, so
+	// the trust store's only effect would be the misleading certificate_authorities
+	// hint. GetServerConfig must leave ClientCAs nil even though a trust store is
+	// loaded.
+	caFile, err := os.CreateTemp("", "ghostunnel-test-ca")
+	require.NoError(t, err)
+	defer os.Remove(caFile.Name())
+
+	_, err = caFile.Write([]byte(testCertificate))
+	require.NoError(t, err)
+	caFile.Close()
+
+	trustStore, err := LoadTrustStore(caFile.Name())
+	require.NoError(t, err)
+
+	source := &acmeTLSConfigSource{
+		magicConfig:  certmagic.NewDefault(),
+		gtACMEConfig: &ACMEConfig{CABundlePath: caFile.Name()},
+		caBundlePath: caFile.Name(),
+	}
+	source.cachedTrustStore.Store(trustStore)
+
+	serverConfig, err := source.GetServerConfig(&tls.Config{
+		MinVersion: tls.VersionTLS12,
+		ClientAuth: tls.RequireAnyClientCert,
+	})
+	require.NoError(t, err)
+
+	tlsConfig := serverConfig.GetServerConfig()
+	require.NotNil(t, tlsConfig)
+	assert.Nil(t, tlsConfig.ClientCAs, "ClientCAs should be nil in pin mode to avoid the CA hint")
+}
+
 func TestACMETLSConfigGetServerConfigWithoutTrustStore(t *testing.T) {
 	// When CABundlePath is empty, the system cert pool should be used
 	source := &acmeTLSConfigSource{

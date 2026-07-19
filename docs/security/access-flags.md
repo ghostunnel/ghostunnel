@@ -52,7 +52,7 @@ with `spiffe://ghostunnel/client1` or `spiffe://ghostunnel/client2` URI SANs (as
 well as other values). See documentation for the [wildcard][wildcard] package
 for more information.
 
-* `--allow-spki-pin`
+* `--allow-spki-pin` (*available since v1.11.1*)
 
 Allow clients whose leaf certificate's public key matches the given SPKI pin,
 of the form `<algo>:<base64-digest>`, where `<algo>` is one of `sha256`,
@@ -66,6 +66,11 @@ client is authenticated by the pin alone, so the certificate chain, validity
 period, and hostname are *not* verified and a pinned key need not chain to a
 trusted CA. Mutually exclusive with other access control flags and with
 `--use-workload-api`.
+
+When `--allow-spki-pin` is set, `--cacert` has no effect on client
+verification: the client is authenticated by the pin alone, and ghostunnel does
+not advertise the CA pool in the TLS handshake (so a strict client is not
+prompted to withhold a pinned certificate that does not chain to it).
 
 > **Prefer an OPA policy if the client is already PKIX-valid.** `--allow-spki-pin` is
 > for clients whose certificate is *not* otherwise trusted (self-signed or
@@ -147,7 +152,7 @@ with `spiffe://ghostunnel/server1` or `spiffe://ghostunnel/server2` URI SANs (as
 well as other values). See documentation for the [wildcard][wildcard] package
 for more information.
 
-* `--verify-spki-pin`
+* `--verify-spki-pin` (*available since v1.11.1*)
 
 Verify the server's leaf certificate's public key against the given SPKI pin,
 of the form `<algo>:<base64-digest>`, where `<algo>` is one of `sha256`,
@@ -159,8 +164,12 @@ current and a backup key for rotation).
 Unlike the other verification flags, this is out-of-band key pinning in the
 style of [RFC 7858 §4.2][rfc7858]: the server is authenticated by the pin
 alone, so standard hostname verification, chain validation, and validity-period
-checks do *not* run. Mutually exclusive with other verification/authentication
-flags and with `--use-workload-api`.
+checks do *not* run. Mutually exclusive with the other verification flags and
+with `--use-workload-api`. It *may*, however, be combined with
+`--disable-authentication`: on the client that flag only suppresses sending a
+client certificate, so the pair yields a deployment where ghostunnel presents no
+certificate of its own and authenticates the server by pin alone — the typical
+DNS-over-TLS (DoT) style setup that motivates SPKI pinning.
 
 > **Prefer an OPA policy if the server is already PKIX-valid.** `--verify-spki-pin` is
 > for servers whose certificate is *not* otherwise trusted (self-signed or

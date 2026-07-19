@@ -86,7 +86,7 @@ var (
 	serverAllowedDNSs         = serverCommand.Flag("allow-dns", "Allow clients with given DNS subject alternative name (can be repeated).").PlaceHolder("DNS").Strings()
 	serverAllowedIPs          = serverCommand.Flag("allow-ip", "").Hidden().PlaceHolder("SAN").IPList()
 	serverAllowedURIs         = serverCommand.Flag("allow-uri", "Allow clients with given URI subject alternative name (can be repeated).").PlaceHolder("URI").Strings()
-	serverAllowSpkiPin        = serverCommand.Flag("allow-spki-pin", "Allow clients matching the given SPKI pin of the form <algo>:<base64-digest> (repeatable, e.g. sha256:...). Out-of-band key pinning; chain, validity, and hostname are not verified. Mutually exclusive with other access control flags.").PlaceHolder("PIN").Strings()
+	serverAllowSpkiPin        = serverCommand.Flag("allow-spki-pin", "Allow clients matching the given SPKI pin of the form <algo>:<base64-digest> (repeatable, e.g. sha256:...). This is out-of-band key pinning: the client is authenticated by the pin alone. Its certificate chain, validity period, and hostname are not verified. Mutually exclusive with other access control flags.").PlaceHolder("PIN").Strings()
 	serverAllowPolicy         = serverCommand.Flag("allow-policy", "Allow passing the location of an OPA bundle.").PlaceHolder("BUNDLE").String()
 	serverAllowQuery          = serverCommand.Flag("allow-query", "Allow defining a query to validate against the client certificate and the Rego policy.").PlaceHolder("QUERY").String()
 	serverDisableAuth         = serverCommand.Flag("disable-authentication", "Disable client authentication, no client certificate will be required.").Default("false").Bool()
@@ -116,7 +116,7 @@ var (
 	clientAllowedDNSs    = clientCommand.Flag("verify-dns", "Allow servers with given DNS subject alternative name (can be repeated).").PlaceHolder("DNS").Strings()
 	clientAllowedIPs     = clientCommand.Flag("verify-ip", "").Hidden().PlaceHolder("SAN").IPList()
 	clientAllowedURIs    = clientCommand.Flag("verify-uri", "Allow servers with given URI subject alternative name (can be repeated).").PlaceHolder("URI").Strings()
-	clientVerifySpkiPin  = clientCommand.Flag("verify-spki-pin", "Verify the server matches the given SPKI pin of the form <algo>:<base64-digest> (repeatable, e.g. sha256:...). Out-of-band key pinning; unlike other verify flags, hostname/chain/validity checks are not performed. Mutually exclusive with other verification flags.").PlaceHolder("PIN").Strings()
+	clientVerifySpkiPin  = clientCommand.Flag("verify-spki-pin", "Verify the server matches the given SPKI pin of the form <algo>:<base64-digest> (repeatable, e.g. sha256:...). This is out-of-band key pinning: the server is authenticated by the pin alone. Its certificate chain, validity period, and hostname are not verified. Mutually exclusive with other verification flags.").PlaceHolder("PIN").Strings()
 	clientAllowPolicy    = clientCommand.Flag("verify-policy", "Allow passing the location of an OPA bundle.").PlaceHolder("BUNDLE").String()
 	clientAllowQuery     = clientCommand.Flag("verify-query", "Rego query to evaluate against the server certificate and the policy.").PlaceHolder("QUERY").String()
 	clientDisableAuth    = clientCommand.Flag("disable-authentication", "Disable client authentication, no certificate will be provided to the server.").Default("false").Bool()
@@ -129,12 +129,6 @@ var (
 	caBundlePath       = app.Flag("cacert", "Path to CA bundle file (PEM/X509). Uses system trust store by default.").Envar("CACERT_PATH").String()
 	useWorkloadAPI     = app.Flag("use-workload-api", "If true, certificate and root CAs are retrieved via the SPIFFE Workload API").Bool()
 	useWorkloadAPIAddr = app.Flag("use-workload-api-addr", "If set, certificates and root CAs are retrieved via the SPIFFE Workload API at the specified address (implies --use-workload-api)").Envar("SPIFFE_ENDPOINT_SOCKET").PlaceHolder("ADDR").String()
-
-	// Decoded SPKI pins (populated during flag validation from
-	// --allow-spki-pin / --verify-spki-pin, so that malformed pins are
-	// rejected at startup rather than at listen/dial time).
-	decodedServerPins []auth.Pin
-	decodedClientPins []auth.Pin
 
 	// Deprecated cipher suite flags
 	enabledCipherSuites     = app.Flag("cipher-suites", "Set of cipher suites to enable, comma-separated, in order of preference (AES, CHACHA).").Hidden().Default("AES,CHACHA").String()
@@ -421,6 +415,28 @@ func validateServerOPA(hasOPAFlags bool) error {
 	return nil
 }
 
+// Decoded SPKI pins, populated by decodeSPKIPins during flag validation from
+// --allow-spki-pin / --verify-spki-pin so that malformed pins are rejected at
+// startup rather than at listen/dial time. Kept out of the flag var block above
+// since they are derived state, not kingpin flags.
+var (
+	decodedServerPins []auth.SPKIPin
+	decodedClientPins []auth.SPKIPin
+)
+
+// decodeSPKIPins parses SPKI pin flag values, tagging any parse error with the
+// flag name so the message is actionable. Used by both the server
+// (--allow-spki-pin) and client (--verify-spki-pin) validators. The returned
+// error is already fully descriptive and is meant to be returned directly, not
+// separately logged.
+func decodeSPKIPins(values []string, flag string) ([]auth.SPKIPin, error) {
+	pins, err := auth.ParseSPKIPins(values)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", flag, err)
+	}
+	return pins, nil
+}
+
 // Validate flags for server mode
 func serverValidateFlags() error {
 	if err := validateServerCredentials(); err != nil {
@@ -438,13 +454,8 @@ func serverValidateFlags() error {
 	if err := validateServerAccessControl(hasAccessFlags, hasPinFlag, hasOPAFlags); err != nil {
 		return err
 	}
-	if hasPinFlag {
-		pins, err := auth.ParsePins(*serverAllowSpkiPin)
-		if err != nil {
-			logger.Printf("invalid --allow-spki-pin value: %s", err)
-			return err
-		}
-		decodedServerPins = pins
+	if err := validateServerPin(); err != nil {
+		return err
 	}
 	if err := validateServerTarget(); err != nil {
 		return err
@@ -459,6 +470,23 @@ func serverValidateFlags() error {
 		return err
 	}
 	return validateCipherSuites()
+}
+
+// validateServerPin decodes --allow-spki-pin into decodedServerPins. It always
+// resets decodedServerPins first so repeated in-process validation (as unit
+// tests do) can't leak a previous run's decoded pins into a later run that
+// omits the flag or fails parsing.
+func validateServerPin() error {
+	decodedServerPins = nil
+	if len(*serverAllowSpkiPin) == 0 {
+		return nil
+	}
+	pins, err := decodeSPKIPins(*serverAllowSpkiPin, "--allow-spki-pin")
+	if err != nil {
+		return err
+	}
+	decodedServerPins = pins
+	return nil
 }
 
 func validateServerProxyProtocol() error {
@@ -518,7 +546,12 @@ func validateClientOPA() error {
 	return nil
 }
 
+// validateClientPin decodes --verify-spki-pin into decodedClientPins. It
+// always resets decodedClientPins first so repeated in-process validation (as
+// unit tests do) can't leak a previous run's decoded pins into a later run
+// that omits the flag or fails parsing.
 func validateClientPin() error {
+	decodedClientPins = nil
 	if len(*clientVerifySpkiPin) == 0 {
 		return nil
 	}
@@ -533,12 +566,16 @@ func validateClientPin() error {
 		len(*clientAllowedIPs) > 0 ||
 		len(*clientAllowedURIs) > 0
 	hasOPAFlags := len(*clientAllowPolicy) > 0 || len(*clientAllowQuery) > 0
-	if hasVerifyFlags || hasOPAFlags || *clientDisableAuth {
-		return errors.New("--verify-spki-pin is mutually exclusive with other verification/authentication flags")
+	// --disable-authentication is deliberately NOT a conflict here: on the client
+	// it only governs whether we present our own certificate to the server, not
+	// how we verify the server. Combining it with --verify-spki-pin is the
+	// motivating DoT-style deployment (no client cert, server authenticated by
+	// pin alone).
+	if hasVerifyFlags || hasOPAFlags {
+		return errors.New("--verify-spki-pin is mutually exclusive with other verification flags")
 	}
-	pins, err := auth.ParsePins(*clientVerifySpkiPin)
+	pins, err := decodeSPKIPins(*clientVerifySpkiPin, "--verify-spki-pin")
 	if err != nil {
-		logger.Printf("invalid --verify-spki-pin value: %s", err)
 		return err
 	}
 	decodedClientPins = pins
@@ -857,14 +894,14 @@ func serverListen(env *Environment, regoPolicy policy.Policy) error {
 		AllowOPAQuery:   regoPolicy,
 		AllowedURIs:     allowedURIs,
 		OPAQueryTimeout: *connectTimeout,
-		Pins:            decodedServerPins,
+		AllowedPins:     decodedServerPins,
 	}
 
 	if *serverDisableAuth {
 		config.ClientAuth = tls.NoClientCert
 	} else {
 		if serverACL.PinningEnabled() {
-			// Pin-based verification: require a client cert but skip chain
+			// SPKIPin-based verification: require a client cert but skip chain
 			// validation. The ACL callback verifies the SPKI hash instead.
 			config.ClientAuth = tls.RequireAnyClientCert
 		}
@@ -1111,11 +1148,11 @@ func clientBackendDialer(
 		AllowedURIs:     allowedURIs,
 		AllowOPAQuery:   regoPolicy,
 		OPAQueryTimeout: *connectTimeout,
-		Pins:            decodedClientPins,
+		AllowedPins:     decodedClientPins,
 	}
 
 	if clientACL.PinningEnabled() {
-		// Pin-based verification: skip chain and hostname validation.
+		// SPKIPin-based verification: skip chain and hostname validation.
 		// The ACL callback will verify the SPKI hash.
 		config.InsecureSkipVerify = true
 	}

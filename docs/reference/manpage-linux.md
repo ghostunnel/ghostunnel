@@ -98,6 +98,16 @@ disjunction (OR), meaning clients can connect as long as any of the
 flags match. To disable requiring client certificates, use
 **--disable-authentication**.
 
+Alternatively, **--allow-spki-pin** authenticates clients by out-of-band
+SPKI key pinning (RFC 7858 section 4.2): only clients presenting a
+certificate whose public key matches the given SPKI pin are allowed. A
+pin is of the form *\<algo\>:\<base64-digest\>*, e.g. **sha256:...**;
+supported algorithms are sha256, sha384, and sha512. The flag may be
+repeated to accept multiple keys (e.g. for key rotation). Because the
+client is authenticated by the pin alone, the certificate chain,
+validity period, and hostname are not verified. **--allow-spki-pin** is
+mutually exclusive with the other access control flags.
+
 # EXAMPLE: CLIENT MODE
 
 Start a ghostunnel in client mode to proxy connections from
@@ -120,6 +130,21 @@ flags are treated as a logical disjunction (OR), meaning clients will
 connect to the server as long as any of the flags match, assuming that
 hostname verification was also successful. To disable sending client
 certificates, use **--disable-authentication**.
+
+Alternatively, **--verify-spki-pin** authenticates the server by
+out-of-band SPKI key pinning (RFC 7858 section 4.2): the connection
+succeeds only if the server presents a certificate whose public key
+matches the given SPKI pin. A pin is of the form
+*\<algo\>:\<base64-digest\>*, e.g. **sha256:...**; supported algorithms
+are sha256, sha384, and sha512. The flag may be repeated to accept
+multiple keys (e.g. for key rotation). Unlike the other verification
+flags, the server is authenticated by the pin alone, so regular hostname
+verification, chain validation, and validity-period checks are not
+performed. **--verify-spki-pin** is mutually exclusive with the other
+verification flags, but may be combined with
+**--disable-authentication**: the client then presents no certificate of
+its own and authenticates the server by pin alone, as in a DNS-over-TLS
+(DoT) style deployment.
 
 # EXAMPLE: UNIX SOCKETS
 
@@ -247,7 +272,7 @@ given URL (via HTTP/JSON).
 specified interval.
 
 **--status=ADDR** Enable serving /\_status and /\_metrics on given
-HOST:PORT (or unix:SOCKET).
+\[http(s)://\]HOST:PORT, unix:PATH, systemd:NAME or launchd:NAME.
 
 **--enable-pprof** Enable serving /debug/pprof endpoints alongside
 /\_status (for profiling).
@@ -317,6 +342,12 @@ name (can be repeated).
 **--allow-uri=URI** Allow clients with given URI subject alternative
 name (can be repeated).
 
+**--allow-spki-pin=PIN** Allow clients matching the given SPKI pin of
+the form \<algo\>:\<base64-digest\> (repeatable, e.g. sha256:...). This
+is out-of-band key pinning: the client is authenticated by the pin
+alone. Its certificate chain, validity period, and hostname are not
+verified. Mutually exclusive with other access control flags.
+
 **--allow-policy=BUNDLE** Allow passing the location of an OPA bundle.
 
 **--allow-query=QUERY** Allow defining a query to validate against the
@@ -369,6 +400,12 @@ name (can be repeated).
 
 **--verify-uri=URI** Allow servers with given URI subject alternative
 name (can be repeated).
+
+**--verify-spki-pin=PIN** Verify the server matches the given SPKI pin
+of the form \<algo\>:\<base64-digest\> (repeatable, e.g. sha256:...).
+This is out-of-band key pinning: the server is authenticated by the pin
+alone. Its certificate chain, validity period, and hostname are not
+verified. Mutually exclusive with other verification flags.
 
 **--verify-policy=BUNDLE** Allow passing the location of an OPA bundle.
 
