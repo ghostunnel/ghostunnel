@@ -285,6 +285,7 @@ func TestClientFlagValidation(t *testing.T) {
 		*clientAllowPolicy = ""
 		*clientAllowQuery = ""
 		*clientVerifySpkiPin = nil
+		decodedClientPins = nil
 	}
 	defer reset()
 
@@ -440,6 +441,18 @@ func TestValidateServerSpkiPinParsing(t *testing.T) {
 		assert.Contains(t, err.Error(), "--allow-spki-pin", "error should name the offending flag")
 	}
 	assert.Nil(t, decodedServerPins, "no pins should be stored on validation failure")
+
+	// A successful decode must not leak into a later in-process run that omits
+	// --allow-spki-pin: validateServerPin resets decodedServerPins itself, so
+	// this holds even without the test's own reset() clearing it.
+	reset()
+	*serverAllowSpkiPin = []string{validPin, validPin}
+	assert.Nil(t, serverValidateFlags(), "valid --allow-spki-pin should be accepted")
+	assert.Equal(t, 2, len(decodedServerPins))
+	*serverAllowSpkiPin = nil
+	*serverAllowAll = true
+	assert.Nil(t, serverValidateFlags(), "baseline without --allow-spki-pin should be accepted")
+	assert.Nil(t, decodedServerPins, "decodedServerPins from the earlier run should not leak into this one")
 }
 
 func TestValidateClientSpkiPin(t *testing.T) {
@@ -484,6 +497,17 @@ func TestValidateClientSpkiPin(t *testing.T) {
 	*clientVerifySpkiPin = []string{"sha256:not valid base64 @@@"}
 	assert.NotNil(t, validateClientPin(), "malformed --verify-spki-pin should be rejected at validation")
 	assert.Nil(t, decodedClientPins, "no pins should be stored on validation failure")
+
+	// A successful decode must not leak into a later in-process run that omits
+	// --verify-spki-pin: validateClientPin resets decodedClientPins itself, so
+	// this holds even without the test's own reset() clearing it.
+	reset()
+	*clientVerifySpkiPin = []string{validPin, validPin}
+	assert.Nil(t, validateClientPin(), "valid --verify-spki-pin should be accepted")
+	assert.Equal(t, 2, len(decodedClientPins))
+	*clientVerifySpkiPin = nil
+	assert.Nil(t, validateClientPin(), "baseline without --verify-spki-pin should be accepted")
+	assert.Nil(t, decodedClientPins, "decodedClientPins from the earlier run should not leak into this one")
 
 	conflicts := map[string]func(){
 		"--verify-cn":        func() { *clientAllowedCNs = []string{"test"} },

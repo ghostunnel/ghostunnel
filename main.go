@@ -454,12 +454,8 @@ func serverValidateFlags() error {
 	if err := validateServerAccessControl(hasAccessFlags, hasPinFlag, hasOPAFlags); err != nil {
 		return err
 	}
-	if hasPinFlag {
-		pins, err := decodeSPKIPins(*serverAllowSpkiPin, "--allow-spki-pin")
-		if err != nil {
-			return err
-		}
-		decodedServerPins = pins
+	if err := validateServerPin(); err != nil {
+		return err
 	}
 	if err := validateServerTarget(); err != nil {
 		return err
@@ -474,6 +470,23 @@ func serverValidateFlags() error {
 		return err
 	}
 	return validateCipherSuites()
+}
+
+// validateServerPin decodes --allow-spki-pin into decodedServerPins. It always
+// resets decodedServerPins first so repeated in-process validation (as unit
+// tests do) can't leak a previous run's decoded pins into a later run that
+// omits the flag or fails parsing.
+func validateServerPin() error {
+	decodedServerPins = nil
+	if len(*serverAllowSpkiPin) == 0 {
+		return nil
+	}
+	pins, err := decodeSPKIPins(*serverAllowSpkiPin, "--allow-spki-pin")
+	if err != nil {
+		return err
+	}
+	decodedServerPins = pins
+	return nil
 }
 
 func validateServerProxyProtocol() error {
@@ -533,7 +546,12 @@ func validateClientOPA() error {
 	return nil
 }
 
+// validateClientPin decodes --verify-spki-pin into decodedClientPins. It
+// always resets decodedClientPins first so repeated in-process validation (as
+// unit tests do) can't leak a previous run's decoded pins into a later run
+// that omits the flag or fails parsing.
 func validateClientPin() error {
+	decodedClientPins = nil
 	if len(*clientVerifySpkiPin) == 0 {
 		return nil
 	}
