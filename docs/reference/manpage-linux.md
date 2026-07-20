@@ -241,6 +241,10 @@ via the SPIFFE Workload API
 retrieved via the SPIFFE Workload API at the specified address (implies
 --use-workload-api)
 
+**--use-workload-api-timeout=10m** Timeout for the initial certificate
+fetch from the SPIFFE Workload API at startup (set to 0 to wait
+indefinitely)
+
 **--timed-reload=DURATION** Reload keystores every given interval (e.g.
 300s), refresh listener/client on changes.
 
@@ -250,8 +254,15 @@ timeout even if connections still open.
 **--connect-timeout=10s** Timeout for establishing connections,
 handshakes.
 
-**--close-timeout=60s** Timeout for closing connections when one side
-terminates. Zero means immediate closure.
+**--close-timeout=60s** Inactivity timeout for closing connections when
+one side terminates: once a connection is half-closed, the surviving
+direction is closed after this much time passes with no data
+transferred. Active transfers are never cut off. Zero means immediate
+closure.
+
+**--idle-timeout=0s** Close a connection when no data is transferred in
+either direction for this long. Any byte transferred in either direction
+resets the clock. Zero means no idle timeout.
 
 **--max-conn-lifetime=0s** Maximum lifetime for connections post
 handshake, no matter what. Zero means infinite.

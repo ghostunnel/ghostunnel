@@ -22,6 +22,7 @@ import (
 	"log"
 	"sync"
 	"testing"
+	"time"
 
 	spiffetest "github.com/ghostunnel/ghostunnel/certloader/internal/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -51,7 +52,7 @@ func newCachedSPIFFEConfig(t *testing.T, clientDisableAuth bool) *spiffeTLSConfi
 	})
 	t.Cleanup(workloadAPI.Stop)
 
-	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), clientDisableAuth, log.New(io.Discard, "", 0))
+	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), clientDisableAuth, 10*time.Second, log.New(io.Discard, "", 0))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = source.(*spiffeTLSConfigSource).Close() })
 

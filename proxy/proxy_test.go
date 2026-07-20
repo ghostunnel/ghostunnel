@@ -43,6 +43,7 @@ import (
 
 	proxyproto "github.com/pires/go-proxyproto"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type testLogger struct{}
@@ -58,18 +59,20 @@ func (m *failingListener) Close() error              { return nil }
 func (m *failingListener) Addr() net.Addr            { return nil }
 
 func proxyForTest(listener net.Listener, dialer DialFunc) *Proxy {
-	return New(listener, 5*time.Second, 5*time.Second, 5*time.Second, 1, dialer, &testLogger{}, LogEverything, ProxyProtocolOff, nil)
+	return New(listener, Timeouts{Connect: 5 * time.Second, Close: 5 * time.Second, MaxLifetime: 5 * time.Second}, 1, dialer, &testLogger{}, LogEverything, ProxyProtocolOff, nil)
 }
 
 func proxyForTestWithProxyProtocol(listener net.Listener, dialer DialFunc) *Proxy {
-	return New(listener, 5*time.Second, 5*time.Second, 5*time.Second, 1, dialer, &testLogger{}, LogEverything, ProxyProtocolConn, nil)
+	return New(listener, Timeouts{Connect: 5 * time.Second, Close: 5 * time.Second, MaxLifetime: 5 * time.Second}, 1, dialer, &testLogger{}, LogEverything, ProxyProtocolConn, nil)
 }
 
 // Counter readers for tests that exercise New(nil), which records to the
 // package-level defaultMetrics/defaultRegistry. Prometheus counters are
 // monotonic and cannot be reset, so these tests assert on before/after deltas.
 func errorCount() int64       { v, _ := defaultRegistry.SingleValue("accept.error"); return v }
+func successCount() int64     { v, _ := defaultRegistry.SingleValue("accept.success"); return v }
 func connTimeoutCount() int64 { v, _ := defaultRegistry.SingleValue("conn.timeout"); return v }
+func connErrorCount() int64   { v, _ := defaultRegistry.SingleValue("conn.error"); return v }
 
 func TestAbortedConnection(t *testing.T) {
 	p := proxyForTest(&failingListener{}, nil)
@@ -198,7 +201,7 @@ func TestAcceptErrorLogged(t *testing.T) {
 	}}
 
 	ln := newCountingFailingListener()
-	p := New(ln, 5*time.Second, 5*time.Second, 5*time.Second, 1, nil, logger, LogConnectionErrors, ProxyProtocolOff, nil)
+	p := New(ln, Timeouts{Connect: 5 * time.Second, Close: 5 * time.Second, MaxLifetime: 5 * time.Second}, 1, nil, logger, LogConnectionErrors, ProxyProtocolOff, nil)
 
 	go p.Accept()
 	defer func() {
@@ -241,7 +244,7 @@ func TestAcceptErrorNotLoggedWhenFlagDisabled(t *testing.T) {
 
 	ln := newCountingFailingListener()
 	// loggerFlags = 0 (no flags set) -- accept errors must not be logged.
-	p := New(ln, 5*time.Second, 5*time.Second, 5*time.Second, 1, nil, logger, 0, ProxyProtocolOff, nil)
+	p := New(ln, Timeouts{Connect: 5 * time.Second, Close: 5 * time.Second, MaxLifetime: 5 * time.Second}, 1, nil, logger, 0, ProxyProtocolOff, nil)
 
 	go p.Accept()
 	defer func() {
@@ -524,8 +527,9 @@ func TestBackendDialError(t *testing.T) {
 
 	// Regression: dial failure must be recorded as an error, not silently
 	// dropped (accept.total would otherwise diverge from success+error).
-	errorCounter.Clear()
-	successCounter.Clear()
+	// Prometheus counters are monotonic, so assert on before/after deltas.
+	errBefore := errorCount()
+	successBefore := successCount()
 
 	p := proxyForTest(ln, dialer)
 	go p.Accept()
@@ -554,8 +558,8 @@ func TestBackendDialError(t *testing.T) {
 	p.Wait()
 
 	// After Wait() the handler goroutine has drained, so counters are settled.
-	assert.Equal(t, int64(1), errorCounter.Count(), "backend dial failure must increment accept.error")
-	assert.Equal(t, int64(0), successCounter.Count(), "backend dial failure must not increment accept.success")
+	assert.Equal(t, int64(1), errorCount()-errBefore, "backend dial failure must increment accept.error")
+	assert.Equal(t, int64(0), successCount()-successBefore, "backend dial failure must not increment accept.success")
 }
 
 func TestCopyData(t *testing.T) {
@@ -572,7 +576,7 @@ func TestCopyData(t *testing.T) {
 	}()
 
 	go func() {
-		proxy.copyData(dstIn, srcOut)
+		proxy.copyData(dstIn, srcOut, proxy.newPairWatchdog(dstIn, srcOut))
 	}()
 
 	input := make([]byte, size)
@@ -660,6 +664,11 @@ func TestIsClosedConnectionError(t *testing.T) {
 		expected bool
 	}{
 		{
+			name:     "nil error",
+			err:      nil,
+			expected: false,
+		},
+		{
 			name:     "regular error",
 			err:      errors.New("test error"),
 			expected: false,
@@ -670,44 +679,17 @@ func TestIsClosedConnectionError(t *testing.T) {
 			expected: true,
 		},
 		{
-			name: "net.OpError read closed",
+			name:     "raw net.ErrClosed",
+			err:      net.ErrClosed,
+			expected: true,
+		},
+		{
+			name: "net.OpError wrapping net.ErrClosed",
 			err: &net.OpError{
 				Op:  "read",
-				Err: errors.New("use of closed network connection"),
+				Err: net.ErrClosed,
 			},
 			expected: true,
-		},
-		{
-			name: "net.OpError write closed",
-			err: &net.OpError{
-				Op:  "write",
-				Err: errors.New("use of closed network connection"),
-			},
-			expected: true,
-		},
-		{
-			name: "net.OpError readfrom closed",
-			err: &net.OpError{
-				Op:  "readfrom",
-				Err: errors.New("use of closed network connection"),
-			},
-			expected: true,
-		},
-		{
-			name: "net.OpError writeto closed",
-			err: &net.OpError{
-				Op:  "writeto",
-				Err: errors.New("use of closed network connection"),
-			},
-			expected: true,
-		},
-		{
-			name: "net.OpError other op",
-			err: &net.OpError{
-				Op:  "dial",
-				Err: errors.New("use of closed network connection"),
-			},
-			expected: false,
 		},
 		{name: "net.OpError read ECONNRESET", err: &net.OpError{Op: "read", Err: syscall.ECONNRESET}, expected: true},
 		{name: "net.OpError write EPIPE", err: &net.OpError{Op: "write", Err: syscall.EPIPE}, expected: true},
@@ -721,6 +703,16 @@ func TestIsClosedConnectionError(t *testing.T) {
 			assert.Equal(t, tc.expected, result)
 		})
 	}
+}
+
+func TestIsClosedConnectionErrorNil(t *testing.T) {
+	// A nil error must be classified without dereferencing (err.Error() would
+	// panic on nil), so callers can pass a copy result unconditionally.
+	var result bool
+	assert.NotPanics(t, func() {
+		result = isClosedConnectionError(nil)
+	})
+	assert.False(t, result)
 }
 
 // mockConn is a minimal net.Conn implementation that is neither TCP nor Unix
@@ -935,7 +927,7 @@ func TestCopyDataErrorClassification(t *testing.T) {
 		lg := &callbackLogger{callback: func(format string, v ...any) {
 			logs = append(logs, logEntry{format: format, args: v})
 		}}
-		p := New(nil, 5*time.Second, 5*time.Second, 0, 0, nil, lg, flags, ProxyProtocolOff, nil)
+		p := New(nil, Timeouts{Connect: 5 * time.Second, Close: 5 * time.Second}, 0, nil, lg, flags, ProxyProtocolOff, nil)
 		return p, &logs
 	}
 
@@ -949,7 +941,7 @@ func TestCopyDataErrorClassification(t *testing.T) {
 		return n
 	}
 
-	t.Run("real I/O error logged when LogConnectionErrors set", func(t *testing.T) {
+	t.Run("real I/O error logged and counted when LogConnectionErrors set", func(t *testing.T) {
 		src := &readErrConn{
 			payload: []byte("hello"),
 			err:     errors.New("synthetic disk gone bad"),
@@ -958,13 +950,16 @@ func TestCopyDataErrorClassification(t *testing.T) {
 		defer dst.Close()
 
 		p, logs := newCapturingProxy(LogConnectionErrors)
-		before := connTimeoutCount()
-		written := p.copyData(dst, src)
-		after := connTimeoutCount()
+		beforeTimeout := connTimeoutCount()
+		beforeErr := connErrorCount()
+		written := p.copyData(dst, src, p.newPairWatchdog(dst, src))
+		afterTimeout := connTimeoutCount()
+		afterErr := connErrorCount()
 
 		assert.Equal(t, int64(5), written, "payload should be copied before the error")
 		assert.Equal(t, 1, countCopyErrorLogs(*logs), "real I/O error must be logged once")
-		assert.Equal(t, before, after, "non-timeout error must not bump connTimeoutCounter")
+		assert.Equal(t, beforeTimeout, afterTimeout, "non-timeout error must not bump connTimeoutCounter")
+		assert.Equal(t, int64(1), afterErr-beforeErr, "real I/O error must increment conn.error")
 	})
 
 	t.Run("real I/O error suppressed when LogConnectionErrors cleared", func(t *testing.T) {
@@ -973,24 +968,38 @@ func TestCopyDataErrorClassification(t *testing.T) {
 		defer dst.Close()
 
 		p, logs := newCapturingProxy(LogConnections)
-		_ = p.copyData(dst, src)
+		before := connErrorCount()
+		_ = p.copyData(dst, src, p.newPairWatchdog(dst, src))
 
 		assert.Equal(t, 0, countCopyErrorLogs(*logs),
 			"copy errors must be silent without LogConnectionErrors")
+		assert.Equal(t, int64(1), connErrorCount()-before,
+			"conn.error must be incremented even when logging is suppressed")
 	})
 
-	t.Run("timeout error increments timeout counter and logs", func(t *testing.T) {
+	t.Run("timeout-shaped error is classified as a real copy error", func(t *testing.T) {
+		// The watchdog, not copyData, owns timeout counting and logging. It reaps
+		// by closing the conns, which surfaces to copyData as net.ErrClosed. A
+		// timeout-shaped error therefore never reaches copyData in production.
+		// If one somehow did, copyData treats it like any other non-closed
+		// error. It is counted as conn.error and logged as "error during copy",
+		// NOT as a timeout. Timeout counting is covered end-to-end by
+		// TestIdleTimeoutReapLoggedNotErrored and the max-conn-lifetime tests.
 		src := &readErrConn{err: fakeTimeoutErr{}}
 		dst := newDiscardConn()
 		defer dst.Close()
 
-		p, logs := newCapturingProxy(LogConnectionErrors)
-		before := connTimeoutCount()
-		_ = p.copyData(dst, src)
-		after := connTimeoutCount()
+		p, logs := newCapturingProxy(LogEverything)
+		beforeTimeout := connTimeoutCount()
+		beforeErr := connErrorCount()
+		_ = p.copyData(dst, src, p.newPairWatchdog(dst, src))
 
-		assert.Equal(t, int64(1), after-before, "timeout must bump connTimeoutCounter")
-		assert.Equal(t, 1, countCopyErrorLogs(*logs), "timeout must still be logged")
+		assert.Equal(t, beforeTimeout, connTimeoutCount(),
+			"copyData must not bump connTimeoutCounter; only the watchdog counts timeouts")
+		assert.Equal(t, int64(1), connErrorCount()-beforeErr,
+			"a timeout-shaped error reaching copyData is counted as conn.error")
+		assert.Equal(t, 1, countCopyErrorLogs(*logs),
+			"a timeout-shaped error reaching copyData is logged as 'error during copy'")
 	})
 
 	t.Run("closed-connection error is silently suppressed", func(t *testing.T) {
@@ -1000,7 +1009,7 @@ func TestCopyDataErrorClassification(t *testing.T) {
 
 		p, logs := newCapturingProxy(LogConnectionErrors)
 		before := connTimeoutCount()
-		_ = p.copyData(dst, src)
+		_ = p.copyData(dst, src, p.newPairWatchdog(dst, src))
 		after := connTimeoutCount()
 
 		assert.Equal(t, 0, countCopyErrorLogs(*logs),
@@ -1156,7 +1165,7 @@ func TestACMEChallengeNotForwardedToBackend(t *testing.T) {
 
 func TestLogConnectionMessageDisabled(t *testing.T) {
 	// Test with LogConnections disabled
-	p := New(nil, 5*time.Second, 5*time.Second, 0, 0, nil, &testLogger{}, 0, ProxyProtocolOff, nil)
+	p := New(nil, Timeouts{Connect: 5 * time.Second, Close: 5 * time.Second}, 0, nil, &testLogger{}, 0, ProxyProtocolOff, nil)
 
 	// Create pipe connections
 	src, dst := net.Pipe()
@@ -1174,7 +1183,7 @@ func TestLogConditional(t *testing.T) {
 	}}
 
 	// Test with flag enabled
-	p := New(nil, 5*time.Second, 5*time.Second, 0, 0, nil, logger, LogConnectionErrors, ProxyProtocolOff, nil)
+	p := New(nil, Timeouts{Connect: 5 * time.Second, Close: 5 * time.Second}, 0, nil, logger, LogConnectionErrors, ProxyProtocolOff, nil)
 	p.logConditional(LogConnectionErrors, "test message")
 	assert.True(t, logged, "should log when flag is enabled")
 
@@ -1687,7 +1696,7 @@ func TestProxyProtocolTLSModeSuccess(t *testing.T) {
 		return d.DialContext(ctx, "tcp", target.Addr().String())
 	}
 
-	p := New(incoming, 5*time.Second, 5*time.Second, 5*time.Second, 1, dialer, &testLogger{}, LogEverything, ProxyProtocolTLS, nil)
+	p := New(incoming, Timeouts{Connect: 5 * time.Second, Close: 5 * time.Second, MaxLifetime: 5 * time.Second}, 1, dialer, &testLogger{}, LogEverything, ProxyProtocolTLS, nil)
 	go p.Accept()
 	defer p.Shutdown()
 
@@ -1832,8 +1841,9 @@ func TestProxyProtocolWriteFailureClosesBackend(t *testing.T) {
 	}
 
 	// Regression: a PROXY header write failure must be recorded as an error.
-	errorCounter.Clear()
-	successCounter.Clear()
+	// Prometheus counters are monotonic, so assert on before/after deltas.
+	errBefore := errorCount()
+	successBefore := successCount()
 
 	// Create proxy with PROXY protocol enabled
 	p := proxyForTestWithProxyProtocol(incoming, dialer)
@@ -1854,6 +1864,740 @@ func TestProxyProtocolWriteFailureClosesBackend(t *testing.T) {
 	// Regression: verify backend connection is closed when PROXY header write fails.
 	assert.True(t, backend.closed, "backend connection must be closed when PROXY protocol header write fails")
 
-	assert.Equal(t, int64(1), errorCounter.Count(), "PROXY header write failure must increment accept.error")
-	assert.Equal(t, int64(0), successCounter.Count(), "PROXY header write failure must not increment accept.success")
+	assert.Equal(t, int64(1), errorCount()-errBefore, "PROXY header write failure must increment accept.error")
+	assert.Equal(t, int64(0), successCount()-successBefore, "PROXY header write failure must not increment accept.success")
+}
+
+// tcpConnPair returns the two ends of a connected localhost TCP socket. Both
+// ends are *net.TCPConn, so tests exercise the real CloseRead/CloseWrite
+// half-close behavior the teardown relies on (net.Pipe would not).
+func tcpConnPair(t *testing.T) (net.Conn, net.Conn) {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.Nil(t, err, "should be able to listen on random port")
+	defer ln.Close()
+
+	type acceptResult struct {
+		conn net.Conn
+		err  error
+	}
+	acceptC := make(chan acceptResult, 1)
+	go func() {
+		c, err := ln.Accept()
+		acceptC <- acceptResult{c, err}
+	}()
+
+	dial, err := net.Dial("tcp", ln.Addr().String())
+	require.Nil(t, err, "should be able to dial the listener")
+
+	res := <-acceptC
+	require.Nil(t, res.err, "should accept the connection")
+	return dial, res.conn
+}
+
+// rollingProxy builds a proxy wired for the half-close teardown tests: no real
+// listener/dialer, the given close/max-lifetime timeouts, and the given logger.
+func rollingProxy(closeTimeout, maxConnLifetime time.Duration, logger Logger, flags int) *Proxy {
+	return idleProxy(closeTimeout, 0, maxConnLifetime, logger, flags)
+}
+
+// idleProxy builds a proxy wired for the connection-wide idle-timeout tests:
+// no real listener/dialer, the given close/idle/max-lifetime timeouts, and the
+// given logger.
+func idleProxy(closeTimeout, idleTimeout, maxConnLifetime time.Duration, logger Logger, flags int) *Proxy {
+	return New(nil, Timeouts{
+		Connect:     5 * time.Second,
+		Close:       closeTimeout,
+		Idle:        idleTimeout,
+		MaxLifetime: maxConnLifetime,
+	}, 0, nil, logger, flags, ProxyProtocolOff, nil)
+}
+
+// TestTrackedConnWriteRecordsActivity guards the watchdog activity clock for
+// slow-draining transfers: a completed write is data movement and must reset
+// the idle clock, so a transfer whose reads went quiet while a write drains is
+// not reaped as stale.
+func TestTrackedConnWriteRecordsActivity(t *testing.T) {
+	p := idleProxy(time.Minute, time.Minute, 0, &testLogger{}, LogEverything)
+	w := p.newPairWatchdog(&mockConn{}, &mockConn{})
+
+	before := w.lastActivityTime()
+	time.Sleep(5 * time.Millisecond)
+
+	tc := &trackedConn{conn: &mockConn{}, watchdog: w}
+	_, err := tc.Write([]byte("data"))
+	require.Nil(t, err, "mock write should succeed")
+	assert.True(t, w.lastActivityTime().After(before),
+		"a successful write must reset the watchdog idle clock")
+}
+
+// TestFuseReturnsPromptlyAfterCleanClose guards the inline-watchdog structure.
+// The second directionFinished() must close doneC so that runWatchdog, which
+// runs on the fuse goroutine, returns as soon as both directions are done. A
+// regression here would leave every cleanly-closed connection holding fuse and
+// the accept handler's semaphore slot for a full CloseTimeout after the peers
+// hang up. That is 60s at the default settings.
+func TestFuseReturnsPromptlyAfterCleanClose(t *testing.T) {
+	// Large CloseTimeout: if fuse's return depended on a close-timeout reap,
+	// the bound below would trip long before the 60s window expired.
+	p := idleProxy(60*time.Second, 0, 0, &testLogger{}, LogEverything)
+
+	clientConn, proxyClient := tcpConnPair(t)
+	proxyBackend, backendConn := tcpConnPair(t)
+
+	done := make(chan struct{})
+	go func() {
+		p.fuse(proxyClient, proxyBackend)
+		close(done)
+	}()
+
+	// Move a little data end-to-end, then close both peers cleanly.
+	_, err := clientConn.Write([]byte("ping"))
+	require.Nil(t, err, "client write should succeed")
+	buf := make([]byte, 4)
+	_, err = io.ReadFull(backendConn, buf)
+	require.Nil(t, err, "backend should receive the client's bytes")
+	require.Nil(t, clientConn.Close(), "client close should succeed")
+	require.Nil(t, backendConn.Close(), "backend close should succeed")
+
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("fuse did not return promptly after a clean close; the watchdog is waiting out CloseTimeout")
+	}
+}
+
+// TestRollingDeadlineKeepsActiveTransferAlive is the headline behavior: once a
+// client half-closes, return traffic that keeps moving must NOT be cut off at
+// CloseTimeout. The backend dribbles a chunk every 100ms (< the 200ms
+// CloseTimeout) for ~800ms, and the client must receive every chunk. Under the
+// old absolute-deadline code the surviving direction would be reaped ~200ms
+// after the half-close and the client would see only the first chunk or two.
+func TestRollingDeadlineKeepsActiveTransferAlive(t *testing.T) {
+	p := rollingProxy(200*time.Millisecond, 0, &testLogger{}, LogEverything)
+
+	clientConn, proxyClient := tcpConnPair(t)
+	proxyBackend, backendConn := tcpConnPair(t)
+	defer clientConn.Close()
+	defer backendConn.Close()
+
+	done := make(chan struct{})
+	go func() {
+		p.fuse(proxyClient, proxyBackend)
+		close(done)
+	}()
+
+	// Client sends a request; backend receives it (both directions still open).
+	_, err := clientConn.Write([]byte("request"))
+	assert.Nil(t, err)
+	_ = backendConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	reqBuf := make([]byte, len("request"))
+	_, err = io.ReadFull(backendConn, reqBuf)
+	assert.Nil(t, err, "backend should receive the request")
+
+	// Client half-closes its write side: this arms the teardown state.
+	assert.Nil(t, clientConn.(*net.TCPConn).CloseWrite())
+
+	// Backend dribbles chunks every 100ms, total ~800ms == 4x CloseTimeout.
+	const chunks = 8
+	go func() {
+		for i := range chunks {
+			time.Sleep(100 * time.Millisecond)
+			if _, err := backendConn.Write([]byte{byte('A' + i)}); err != nil {
+				return
+			}
+		}
+	}()
+
+	// The client must receive every chunk despite the 200ms CloseTimeout.
+	_ = clientConn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	got := make([]byte, chunks)
+	n, err := io.ReadFull(clientConn, got)
+	assert.Nil(t, err, "rolling deadline must keep the active half-closed transfer alive")
+	assert.Equal(t, chunks, n, "client must receive all return-traffic chunks")
+
+	// Backend goes away; the idle reaper closes the pair and fuse returns.
+	backendConn.Close()
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("fuse did not return after the backend closed")
+	}
+}
+
+// TestRollingDeadlineIdleReap verifies the reaper still fires: after a
+// half-close with no return traffic, the surviving direction is closed after
+// ~CloseTimeout of silence rather than lingering forever.
+func TestRollingDeadlineIdleReap(t *testing.T) {
+	p := rollingProxy(200*time.Millisecond, 0, &testLogger{}, LogEverything)
+
+	clientConn, proxyClient := tcpConnPair(t)
+	proxyBackend, backendConn := tcpConnPair(t)
+	defer clientConn.Close()
+	defer backendConn.Close()
+
+	done := make(chan struct{})
+	start := time.Now()
+	go func() {
+		p.fuse(proxyClient, proxyBackend)
+		close(done)
+	}()
+
+	// Half-close the client write side; the backend stays completely silent.
+	assert.Nil(t, clientConn.(*net.TCPConn).CloseWrite())
+
+	select {
+	case <-done:
+		// Reaped after ~CloseTimeout; bound generously (well under 5x) for slow CI.
+		assert.Less(t, time.Since(start), time.Second,
+			"idle half-closed connection must be reaped well within 5x CloseTimeout")
+	case <-time.After(3 * time.Second):
+		t.Fatal("idle half-closed connection was never reaped")
+	}
+}
+
+// TestRollingDeadlineReapsCounted asserts that every watchdog reap increments
+// conn.timeout — close-timeout reaps of half-closed pairs included — and that
+// a reap is reported as a timeout, never as an "error during copy".
+func TestRollingDeadlineReapsCounted(t *testing.T) {
+	countCopyErrorLogs := func(logs []string) int {
+		n := 0
+		for _, f := range logs {
+			if strings.HasPrefix(f, "error during copy:") {
+				n++
+			}
+		}
+		return n
+	}
+
+	t.Run("half-closed idle reap is counted, not an error", func(t *testing.T) {
+		var logs []string
+		lg := &callbackLogger{callback: func(format string, v ...any) {
+			logs = append(logs, format)
+		}}
+		p := rollingProxy(200*time.Millisecond, 0, lg, LogEverything)
+
+		clientConn, proxyClient := tcpConnPair(t)
+		proxyBackend, backendConn := tcpConnPair(t)
+		defer clientConn.Close()
+		defer backendConn.Close()
+
+		before := connTimeoutCount()
+		done := make(chan struct{})
+		go func() {
+			p.fuse(proxyClient, proxyBackend)
+			close(done)
+		}()
+
+		assert.Nil(t, clientConn.(*net.TCPConn).CloseWrite())
+
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("idle half-closed connection was never reaped")
+		}
+
+		assert.Equal(t, int64(1), connTimeoutCount()-before,
+			"half-closed idle reap must increment conn.timeout")
+		assert.Equal(t, 0, countCopyErrorLogs(logs),
+			"half-closed idle reap must not log an error during copy")
+	})
+
+	t.Run("max-conn-lifetime timeout is still counted", func(t *testing.T) {
+		// Large CloseTimeout so only the 200ms MaxConnLifetime can fire; no
+		// half-close, so the timeout is observed while not half-closed.
+		p := rollingProxy(5*time.Second, 200*time.Millisecond, &testLogger{}, LogConnectionErrors)
+
+		clientConn, proxyClient := tcpConnPair(t)
+		proxyBackend, backendConn := tcpConnPair(t)
+		defer clientConn.Close()
+		defer backendConn.Close()
+
+		before := connTimeoutCount()
+		done := make(chan struct{})
+		go func() {
+			p.fuse(proxyClient, proxyBackend)
+			close(done)
+		}()
+
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("max-conn-lifetime did not reap the idle connection")
+		}
+
+		assert.Equal(t, int64(1), connTimeoutCount()-before,
+			"max-conn-lifetime timeout must increment conn.timeout exactly once (single watchdog reap site)")
+	})
+
+	t.Run("max-conn-lifetime timeout on half-closed pair is counted", func(t *testing.T) {
+		// Large CloseTimeout so only the 200ms MaxConnLifetime can fire; the
+		// client half-closes immediately, so the lifetime cap reaps a
+		// half-closed pair. The reap is a policy event, not silent teardown.
+		p := rollingProxy(5*time.Second, 200*time.Millisecond, &testLogger{}, LogConnectionErrors)
+
+		clientConn, proxyClient := tcpConnPair(t)
+		proxyBackend, backendConn := tcpConnPair(t)
+		defer clientConn.Close()
+		defer backendConn.Close()
+
+		before := connTimeoutCount()
+		done := make(chan struct{})
+		go func() {
+			p.fuse(proxyClient, proxyBackend)
+			close(done)
+		}()
+
+		assert.Nil(t, clientConn.(*net.TCPConn).CloseWrite())
+
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("max-conn-lifetime did not reap the half-closed connection")
+		}
+
+		assert.Equal(t, int64(1), connTimeoutCount()-before,
+			"max-conn-lifetime timeout on a half-closed pair must increment conn.timeout")
+	})
+}
+
+// TestRollingDeadlineClampedByMaxConnLifetime verifies that rolling extensions
+// never push a deadline past MaxConnLifetime. With CloseTimeout=200ms and
+// MaxConnLifetime=500ms, a backend that dribbles forever would keep the
+// connection alive indefinitely without the clamp; with it, the connection
+// must die at ~500ms.
+func TestRollingDeadlineClampedByMaxConnLifetime(t *testing.T) {
+	p := rollingProxy(200*time.Millisecond, 500*time.Millisecond, &testLogger{}, LogEverything)
+
+	clientConn, proxyClient := tcpConnPair(t)
+	proxyBackend, backendConn := tcpConnPair(t)
+	defer clientConn.Close()
+	defer backendConn.Close()
+
+	start := time.Now()
+	done := make(chan struct{})
+	go func() {
+		p.fuse(proxyClient, proxyBackend)
+		close(done)
+	}()
+
+	// Half-close to arm, then dribble return traffic every 100ms indefinitely.
+	assert.Nil(t, clientConn.(*net.TCPConn).CloseWrite())
+	stop := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			time.Sleep(100 * time.Millisecond)
+			if _, err := backendConn.Write([]byte{'x'}); err != nil {
+				return
+			}
+		}
+	}()
+	go func() { _, _ = io.Copy(io.Discard, clientConn) }()
+
+	select {
+	case <-done:
+		elapsed := time.Since(start)
+		close(stop)
+		assert.Greater(t, elapsed, 400*time.Millisecond,
+			"connection must survive until close to max-conn-lifetime")
+		assert.Less(t, elapsed, time.Second,
+			"rolling extension must be clamped by max-conn-lifetime, not run forever")
+	case <-time.After(3 * time.Second):
+		close(stop)
+		t.Fatal("rolling extension was not clamped by max-conn-lifetime")
+	}
+}
+
+// TestZeroCloseTimeoutPromptClosure guards the documented flag behavior: with
+// --close-timeout=0, the surviving direction is closed immediately once the
+// peer half-closes.
+func TestZeroCloseTimeoutPromptClosure(t *testing.T) {
+	p := rollingProxy(0, 0, &testLogger{}, LogEverything)
+
+	clientConn, proxyClient := tcpConnPair(t)
+	proxyBackend, backendConn := tcpConnPair(t)
+	defer clientConn.Close()
+	defer backendConn.Close()
+
+	start := time.Now()
+	done := make(chan struct{})
+	go func() {
+		p.fuse(proxyClient, proxyBackend)
+		close(done)
+	}()
+
+	assert.Nil(t, clientConn.(*net.TCPConn).CloseWrite())
+
+	select {
+	case <-done:
+		assert.Less(t, time.Since(start), 500*time.Millisecond,
+			"zero close-timeout must close the surviving direction promptly")
+	case <-time.After(2 * time.Second):
+		t.Fatal("zero close-timeout did not promptly close the connection")
+	}
+}
+
+// TestAbortiveCloseReapsPeerAfterCloseTimeout verifies that when one end aborts
+// the connection (RST), the surviving direction is NOT collapsed to an immediate
+// reap but is given CloseTimeout to drain, exactly like a graceful half-close.
+// An RST on one physical connection says nothing about whether the other
+// physical connection still has deliverable data (e.g. a unix-socket backend
+// that wrote its response and then reset); the half-close transition gives the
+// survivor CloseTimeout of silence before the watchdog reaps it.
+func TestAbortiveCloseReapsPeerAfterCloseTimeout(t *testing.T) {
+	// Small CloseTimeout so the survivor is reaped promptly but only after the
+	// rolling idle window, never instantly.
+	p := rollingProxy(200*time.Millisecond, 0, &testLogger{}, LogEverything)
+
+	clientConn, proxyClient := tcpConnPair(t)
+	proxyBackend, backendConn := tcpConnPair(t)
+	defer clientConn.Close()
+	defer backendConn.Close()
+
+	start := time.Now()
+	done := make(chan struct{})
+	go func() {
+		p.fuse(proxyClient, proxyBackend)
+		close(done)
+	}()
+
+	// Abort the client side with a RST (SO_LINGER 0 + Close). The backend stays
+	// idle and open, so the surviving backend->client direction is reaped after
+	// CloseTimeout of silence -- not immediately, and not only at some large cap.
+	assert.Nil(t, clientConn.(*net.TCPConn).SetLinger(0))
+	assert.Nil(t, clientConn.Close())
+
+	select {
+	case <-done:
+		elapsed := time.Since(start)
+		assert.Greater(t, elapsed, 100*time.Millisecond,
+			"an abortive close (RST) must not collapse the survivor's deadline to an immediate reap")
+		assert.Less(t, elapsed, 2*time.Second,
+			"the surviving direction must be reaped after CloseTimeout of silence")
+	case <-time.After(3 * time.Second):
+		t.Fatal("abortive close did not reap the surviving direction")
+	}
+}
+
+// TestIdleTimeoutReapsIdleConnection verifies the basic idle timeout: with both
+// directions open and neither peer sending, the pair is reaped after
+// ~IdleTimeout of silence (no half-close involved).
+func TestIdleTimeoutReapsIdleConnection(t *testing.T) {
+	p := idleProxy(60*time.Second, 200*time.Millisecond, 0, &testLogger{}, LogEverything)
+
+	clientConn, proxyClient := tcpConnPair(t)
+	proxyBackend, backendConn := tcpConnPair(t)
+	defer clientConn.Close()
+	defer backendConn.Close()
+
+	start := time.Now()
+	done := make(chan struct{})
+	go func() {
+		p.fuse(proxyClient, proxyBackend)
+		close(done)
+	}()
+
+	// Neither side sends anything. The connection must be reaped after
+	// ~IdleTimeout; bound generously (well under 5x) for slow CI.
+	select {
+	case <-done:
+		assert.Less(t, time.Since(start), time.Second,
+			"fully idle connection must be reaped well within 5x IdleTimeout")
+	case <-time.After(3 * time.Second):
+		t.Fatal("fully idle connection was never reaped")
+	}
+
+	// The proxy-side conns are closed, so the client observes EOF.
+	_ = clientConn.SetReadDeadline(time.Now().Add(time.Second))
+	_, err := clientConn.Read(make([]byte, 1))
+	assert.Equal(t, io.EOF, err, "client must see EOF after the idle reap closes the pair")
+}
+
+// TestIdleTimeoutDoesNotReapAsymmetricTransfer is THE regression test: idle is a
+// property of the connection, not a direction. The client sends one request then
+// goes silent (does NOT half-close) while the backend streams a chunk every
+// ~100ms (< IdleTimeout) for ~1s (5x IdleTimeout). The client must receive every
+// chunk: activity on the backend->client direction keeps the silent
+// client->backend direction alive. A per-direction idle deadline (no bump-both)
+// would reap the silent direction mid-stream and fail this test.
+func TestIdleTimeoutDoesNotReapAsymmetricTransfer(t *testing.T) {
+	p := idleProxy(60*time.Second, 200*time.Millisecond, 0, &testLogger{}, LogEverything)
+
+	clientConn, proxyClient := tcpConnPair(t)
+	proxyBackend, backendConn := tcpConnPair(t)
+	defer clientConn.Close()
+	defer backendConn.Close()
+
+	done := make(chan struct{})
+	go func() {
+		p.fuse(proxyClient, proxyBackend)
+		close(done)
+	}()
+
+	// Client sends a request; backend receives it. Both directions still open.
+	_, err := clientConn.Write([]byte("request"))
+	assert.Nil(t, err)
+	_ = backendConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	reqBuf := make([]byte, len("request"))
+	_, err = io.ReadFull(backendConn, reqBuf)
+	assert.Nil(t, err, "backend should receive the request")
+
+	// Client now goes silent (no half-close). Backend dribbles chunks every
+	// 100ms, total ~1s == 5x IdleTimeout.
+	const chunks = 10
+	go func() {
+		for i := range chunks {
+			time.Sleep(100 * time.Millisecond)
+			if _, err := backendConn.Write([]byte{byte('A' + i)}); err != nil {
+				return
+			}
+		}
+	}()
+
+	// The client must receive every chunk despite the 200ms IdleTimeout and its
+	// own silence -- the connection-wide idle clock is reset by backend activity.
+	_ = clientConn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	got := make([]byte, chunks)
+	n, err := io.ReadFull(clientConn, got)
+	assert.Nil(t, err, "connection-wide idle timeout must keep the asymmetric transfer alive")
+	assert.Equal(t, chunks, n, "client must receive all streamed chunks")
+
+	// Both peers go away (EOF in both directions); fuse returns promptly without
+	// waiting on the large CloseTimeout used to isolate the idle behavior above.
+	backendConn.Close()
+	clientConn.Close()
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("fuse did not return after both peers closed")
+	}
+}
+
+// TestIdleTimeoutActivityResetsClock verifies that steady activity keeps a
+// connection up across many IdleTimeout windows, and that it is reaped once the
+// activity stops.
+func TestIdleTimeoutActivityResetsClock(t *testing.T) {
+	p := idleProxy(60*time.Second, 200*time.Millisecond, 0, &testLogger{}, LogEverything)
+
+	clientConn, proxyClient := tcpConnPair(t)
+	proxyBackend, backendConn := tcpConnPair(t)
+	defer clientConn.Close()
+	defer backendConn.Close()
+
+	// Drain whatever the client dribbles through to the backend.
+	go func() { _, _ = io.Copy(io.Discard, backendConn) }()
+
+	start := time.Now()
+	done := make(chan struct{})
+	go func() {
+		p.fuse(proxyClient, proxyBackend)
+		close(done)
+	}()
+
+	// Dribble one byte every ~100ms (half the IdleTimeout) for ~1s: 5 windows.
+	const beats = 10
+	for range beats {
+		time.Sleep(100 * time.Millisecond)
+		if _, err := clientConn.Write([]byte{'x'}); err != nil {
+			t.Fatalf("write during dribble failed: %s", err)
+		}
+	}
+
+	// The connection must still be alive after several windows of activity.
+	select {
+	case <-done:
+		t.Fatal("active connection was reaped despite steady activity")
+	default:
+	}
+	assert.Greater(t, time.Since(start), time.Second,
+		"connection survived the full dribble period")
+
+	// Now go silent: the connection must be reaped after ~IdleTimeout.
+	silentStart := time.Now()
+	select {
+	case <-done:
+		assert.Less(t, time.Since(silentStart), time.Second,
+			"connection must be reaped within 5x IdleTimeout once activity stops")
+	case <-time.After(3 * time.Second):
+		t.Fatal("idle connection was never reaped after activity stopped")
+	}
+}
+
+// TestIdleTimeoutZeroNeverReaps guards the default (--idle-timeout=0): an idle
+// connection with no half-close and no lifetime cap must live indefinitely,
+// exactly as before this feature existed.
+func TestIdleTimeoutZeroNeverReaps(t *testing.T) {
+	p := idleProxy(60*time.Second, 0, 0, &testLogger{}, LogEverything)
+
+	clientConn, proxyClient := tcpConnPair(t)
+	proxyBackend, backendConn := tcpConnPair(t)
+	defer clientConn.Close()
+	defer backendConn.Close()
+
+	done := make(chan struct{})
+	go func() {
+		p.fuse(proxyClient, proxyBackend)
+		close(done)
+	}()
+
+	// Both sides idle for well over any small idle duration: must stay open.
+	select {
+	case <-done:
+		t.Fatal("idle-timeout=0 must never reap an idle connection")
+	case <-time.After(600 * time.Millisecond):
+	}
+
+	// Tear it down manually and confirm fuse returns (no goroutine leak).
+	clientConn.Close()
+	backendConn.Close()
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("fuse did not return after manual close")
+	}
+}
+
+// TestIdleTimeoutReapLoggedNotErrored asserts that an idle-timeout reap is
+// treated as a deliberate policy close: it increments conn.timeout exactly once
+// and logs at the connection level, NOT as "error during copy".
+func TestIdleTimeoutReapLoggedNotErrored(t *testing.T) {
+	var mu sync.Mutex
+	var logs []string
+	lg := &callbackLogger{callback: func(format string, v ...any) {
+		mu.Lock()
+		logs = append(logs, format)
+		mu.Unlock()
+	}}
+	p := idleProxy(60*time.Second, 200*time.Millisecond, 0, lg, LogEverything)
+
+	clientConn, proxyClient := tcpConnPair(t)
+	proxyBackend, backendConn := tcpConnPair(t)
+	defer clientConn.Close()
+	defer backendConn.Close()
+
+	before := connTimeoutCount()
+	done := make(chan struct{})
+	go func() {
+		p.fuse(proxyClient, proxyBackend)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("idle connection was never reaped")
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	timeoutCount, sawError := 0, false
+	for _, f := range logs {
+		if strings.HasPrefix(f, "connection closed by timeout:") {
+			timeoutCount++
+		}
+		if strings.HasPrefix(f, "error during copy:") {
+			sawError = true
+		}
+	}
+	assert.Equal(t, 1, timeoutCount, "idle reap must log exactly one 'connection closed by timeout' message")
+	assert.False(t, sawError, "idle reap must not log an 'error during copy' message")
+	assert.Equal(t, int64(1), connTimeoutCount()-before,
+		"idle reap must increment conn.timeout exactly once")
+}
+
+// TestIdleTimeoutHalfCloseTransition verifies that once a connection half-closes
+// the surviving direction is governed by CloseTimeout, not IdleTimeout. With
+// IdleTimeout=1s and CloseTimeout=200ms, the survivor of a half-close that then
+// goes idle must be reaped in ~200ms, well under the 1s idle window.
+func TestIdleTimeoutHalfCloseTransition(t *testing.T) {
+	p := idleProxy(200*time.Millisecond, time.Second, 0, &testLogger{}, LogEverything)
+
+	clientConn, proxyClient := tcpConnPair(t)
+	proxyBackend, backendConn := tcpConnPair(t)
+	defer clientConn.Close()
+	defer backendConn.Close()
+
+	done := make(chan struct{})
+	go func() {
+		p.fuse(proxyClient, proxyBackend)
+		close(done)
+	}()
+
+	// Exchange a little data so both directions are live, then half-close the
+	// client write side and let the backend go silent.
+	_, err := clientConn.Write([]byte("hi"))
+	assert.Nil(t, err)
+	_ = backendConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_, err = io.ReadFull(backendConn, make([]byte, 2))
+	assert.Nil(t, err, "backend should receive the request")
+
+	halfCloseStart := time.Now()
+	assert.Nil(t, clientConn.(*net.TCPConn).CloseWrite())
+
+	select {
+	case <-done:
+		// Governed by the 200ms CloseTimeout, not the 1s IdleTimeout.
+		assert.Less(t, time.Since(halfCloseStart), 700*time.Millisecond,
+			"after half-close the survivor must be governed by CloseTimeout, not IdleTimeout")
+	case <-time.After(3 * time.Second):
+		t.Fatal("half-closed survivor was never reaped")
+	}
+}
+
+// TestIdleTimeoutClampedByMaxConnLifetime verifies that MaxConnLifetime caps the
+// idle extension: with IdleTimeout=200ms and MaxConnLifetime=500ms, a client
+// that dribbles forever (resetting the idle clock every 100ms) is still reaped
+// at ~500ms rather than living indefinitely.
+func TestIdleTimeoutClampedByMaxConnLifetime(t *testing.T) {
+	p := idleProxy(60*time.Second, 200*time.Millisecond, 500*time.Millisecond, &testLogger{}, LogEverything)
+
+	clientConn, proxyClient := tcpConnPair(t)
+	proxyBackend, backendConn := tcpConnPair(t)
+	defer clientConn.Close()
+	defer backendConn.Close()
+
+	// Drain the forwarded dribble at the backend.
+	go func() { _, _ = io.Copy(io.Discard, backendConn) }()
+
+	start := time.Now()
+	done := make(chan struct{})
+	go func() {
+		p.fuse(proxyClient, proxyBackend)
+		close(done)
+	}()
+
+	// Dribble every 100ms (< IdleTimeout) indefinitely; the idle clock keeps
+	// resetting, so only the lifetime clamp can reap the connection.
+	stop := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			time.Sleep(100 * time.Millisecond)
+			if _, err := clientConn.Write([]byte{'x'}); err != nil {
+				return
+			}
+		}
+	}()
+
+	select {
+	case <-done:
+		elapsed := time.Since(start)
+		close(stop)
+		assert.Greater(t, elapsed, 400*time.Millisecond,
+			"connection must survive until close to max-conn-lifetime")
+		assert.Less(t, elapsed, time.Second,
+			"idle extension must be clamped by max-conn-lifetime, not run forever")
+	case <-time.After(3 * time.Second):
+		close(stop)
+		t.Fatal("idle extension was not clamped by max-conn-lifetime")
+	}
 }
