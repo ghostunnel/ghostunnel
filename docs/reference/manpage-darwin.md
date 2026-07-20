@@ -250,7 +250,7 @@ timeout even if connections still open.
 **--connect-timeout=10s** Timeout for establishing connections,
 handshakes.
 
-**--close-timeout=1s** Timeout for closing connections when one side
+**--close-timeout=60s** Timeout for closing connections when one side
 terminates. Zero means immediate closure.
 
 **--max-conn-lifetime=0s** Maximum lifetime for connections post
