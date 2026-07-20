@@ -127,8 +127,9 @@ var (
 	keyPath            = app.Flag("key", "Path to certificate private key (PEM with private key).").PlaceHolder("PATH").Envar("KEY_PATH").String()
 	keystorePass       = app.Flag("storepass", "Password for keystore (PKCS#12 or JCEKS; optional for PKCS#12).").PlaceHolder("PASS").Envar("KEYSTORE_PASS").String()
 	caBundlePath       = app.Flag("cacert", "Path to CA bundle file (PEM/X509). Uses system trust store by default.").Envar("CACERT_PATH").String()
-	useWorkloadAPI     = app.Flag("use-workload-api", "If true, certificate and root CAs are retrieved via the SPIFFE Workload API").Bool()
-	useWorkloadAPIAddr = app.Flag("use-workload-api-addr", "If set, certificates and root CAs are retrieved via the SPIFFE Workload API at the specified address (implies --use-workload-api)").Envar("SPIFFE_ENDPOINT_SOCKET").PlaceHolder("ADDR").String()
+	useWorkloadAPI        = app.Flag("use-workload-api", "If true, certificate and root CAs are retrieved via the SPIFFE Workload API").Bool()
+	useWorkloadAPIAddr    = app.Flag("use-workload-api-addr", "If set, certificates and root CAs are retrieved via the SPIFFE Workload API at the specified address (implies --use-workload-api)").Envar("SPIFFE_ENDPOINT_SOCKET").PlaceHolder("ADDR").String()
+	useWorkloadAPITimeout = app.Flag("use-workload-api-timeout", "Timeout for the initial certificate fetch from the SPIFFE Workload API at startup (set to 0 to wait indefinitely)").Default("10m").Duration()
 
 	// Deprecated cipher suite flags
 	enabledCipherSuites     = app.Flag("cipher-suites", "Set of cipher suites to enable, comma-separated, in order of preference (AES, CHACHA).").Hidden().Default("AES,CHACHA").String()
@@ -274,6 +275,9 @@ func validateFlags(app *kingpin.Application) error {
 	}
 	if *connectTimeout == 0 {
 		return fmt.Errorf("--connect-timeout duration must not be zero")
+	}
+	if *useWorkloadAPITimeout < 0 {
+		return fmt.Errorf("--use-workload-api-timeout duration must not be negative (use 0 to wait indefinitely)")
 	}
 	return nil
 }
@@ -1207,7 +1211,7 @@ func proxyLoggerFlags(flags []string) int {
 func getTLSConfigSource(disableAuth bool) (certloader.TLSConfigSource, error) {
 	if *useWorkloadAPI {
 		logger.Printf("using SPIFFE Workload API as certificate source")
-		source, err := certloader.TLSConfigSourceFromWorkloadAPI(*useWorkloadAPIAddr, disableAuth, *connectTimeout, logger)
+		source, err := certloader.TLSConfigSourceFromWorkloadAPI(*useWorkloadAPIAddr, disableAuth, *useWorkloadAPITimeout, logger)
 		if err != nil {
 			logger.Printf("error: unable to create workload API TLS source: %s\n", err)
 			return nil, err

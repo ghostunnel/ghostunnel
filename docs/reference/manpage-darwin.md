@@ -241,6 +241,10 @@ via the SPIFFE Workload API
 retrieved via the SPIFFE Workload API at the specified address (implies
 --use-workload-api)
 
+**--use-workload-api-timeout=10m** Timeout for the initial certificate
+fetch from the SPIFFE Workload API at startup (set to 0 to wait
+indefinitely)
+
 **--timed-reload=DURATION** Reload keystores every given interval (e.g.
 300s), refresh listener/client on changes.
 

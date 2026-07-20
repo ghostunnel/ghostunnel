@@ -85,6 +85,7 @@ func TestFlagValidation(t *testing.T) {
 		*metricsURL = ""
 		*serverStatusTargetAddress = ""
 		*connectTimeout = 10 * time.Second
+		*useWorkloadAPITimeout = 10 * time.Minute
 	}
 	defer reset()
 
@@ -107,6 +108,14 @@ func TestFlagValidation(t *testing.T) {
 	reset()
 	*connectTimeout = 0
 	assert.NotNil(t, validateFlags(nil), "invalid --connect-timeout should be rejected")
+
+	reset()
+	*useWorkloadAPITimeout = -1
+	assert.NotNil(t, validateFlags(nil), "negative --use-workload-api-timeout should be rejected")
+
+	reset()
+	*useWorkloadAPITimeout = 0
+	assert.Nil(t, validateFlags(nil), "zero --use-workload-api-timeout (wait indefinitely) should be accepted")
 }
 
 func TestServerFlagValidation(t *testing.T) {
