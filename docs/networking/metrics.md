@@ -107,7 +107,8 @@ Ghostunnel exports the following base metrics:
 | Metric | Type | Description |
 |--------|------|-------------|
 | `conn.open` | Counter (gauge-like) | Number of currently open connections |
-| `conn.timeout` | Counter | Connections that timed out during data transfer |
+| `conn.timeout` | Counter | Connections reaped by a timeout: idle (`--idle-timeout`), max-lifetime (`--max-conn-lifetime`), or half-closed connections whose surviving peer went silent for `--close-timeout`. |
+| `conn.error` | Counter | Connections that ended with an I/O error during data transfer (not a timeout or graceful close). |
 | `accept.total` | Counter | Total connection attempts accepted |
 | `accept.success` | Counter | Connections successfully established |
 | `accept.error` | Counter | Failed connection attempts |

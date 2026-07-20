@@ -121,7 +121,7 @@ func TestSignalHandlerReloadAndShutdown(t *testing.T) {
 	lis := &nopListener{closed: make(chan struct{})}
 	p := proxy.New(
 		lis,
-		time.Second, time.Second, time.Second,
+		proxy.Timeouts{Connect: time.Second, Close: time.Second, MaxLifetime: time.Second},
 		1,
 		func(ctx context.Context) (net.Conn, error) {
 			return nil, errors.New("nope")

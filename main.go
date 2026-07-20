@@ -135,7 +135,8 @@ var (
 	timedReload            = app.Flag("timed-reload", "Reload keystores every given interval (e.g. 300s), refresh listener/client on changes.").PlaceHolder("DURATION").Duration()
 	processShutdownTimeout = app.Flag("shutdown-timeout", "Process shutdown timeout. Terminates after timeout even if connections still open.").Default("5m").Duration()
 	connectTimeout         = app.Flag("connect-timeout", "Timeout for establishing connections, handshakes.").Default("10s").Duration()
-	closeTimeout           = app.Flag("close-timeout", "Timeout for closing connections when one side terminates. Zero means immediate closure.").Default("60s").Duration()
+	closeTimeout           = app.Flag("close-timeout", "Inactivity timeout for closing connections when one side terminates: once a connection is half-closed, the surviving direction is closed after this much time passes with no data transferred. Active transfers are never cut off. Zero means immediate closure.").Default("60s").Duration()
+	idleTimeout            = app.Flag("idle-timeout", "Close a connection when no data is transferred in either direction for this long. Any byte transferred in either direction resets the clock. Zero means no idle timeout.").Default("0s").Duration()
 	maxConnLifetime        = app.Flag("max-conn-lifetime", "Maximum lifetime for connections post handshake, no matter what. Zero means infinite.").Default("0s").Duration()
 	maxConcurrentConns     = app.Flag("max-concurrent-conns", "Maximum number of concurrent connections to handle in the proxy. Zero means infinite.").Default("0").Uint32()
 
@@ -951,9 +952,12 @@ func serverListen(env *Environment, regoPolicy policy.Policy) error {
 
 	p := proxy.New(
 		certloader.NewListener(listener, serverConfig),
-		*connectTimeout,
-		*closeTimeout,
-		*maxConnLifetime,
+		proxy.Timeouts{
+			Connect:     *connectTimeout,
+			Close:       *closeTimeout,
+			Idle:        *idleTimeout,
+			MaxLifetime: *maxConnLifetime,
+		},
 		int64(*maxConcurrentConns),
 		env.dial,
 		logger,
@@ -993,9 +997,12 @@ func clientListen(env *Environment) error {
 
 	p := proxy.New(
 		listener,
-		*connectTimeout,
-		*closeTimeout,
-		*maxConnLifetime,
+		proxy.Timeouts{
+			Connect:     *connectTimeout,
+			Close:       *closeTimeout,
+			Idle:        *idleTimeout,
+			MaxLifetime: *maxConnLifetime,
+		},
 		int64(*maxConcurrentConns),
 		env.dial,
 		logger,
