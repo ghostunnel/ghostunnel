@@ -12,6 +12,14 @@ import (
 	"github.com/mholt/acmez"
 )
 
+// loggerOrDefault returns l if non-nil, otherwise log.Default().
+func loggerOrDefault(l *log.Logger) *log.Logger {
+	if l != nil {
+		return l
+	}
+	return log.Default()
+}
+
 const defaultMaxAttempts = 5
 
 // acmeInitialBackoff and acmeMaxBackoff control the exponential backoff used
@@ -68,6 +76,11 @@ type ACMEConfig struct {
 	// integration test so it can run without privileged-port binding;
 	// production deployments should leave this unset.
 	AltTLSALPNPort int
+
+	// Logger is used for retry messages during initial certificate issuance.
+	// If nil, log.Default() is used so the message routes through the standard
+	// logger rather than escaping to stderr with wrong flags under --syslog.
+	Logger *log.Logger
 }
 
 // TLSConfigSourceFromACME creates a TLSConfigSource that obtains certificates via ACME.
@@ -119,6 +132,7 @@ func TLSConfigSourceFromACME(acme *ACMEConfig) (TLSConfigSource, error) {
 		maxAttempts = defaultMaxAttempts
 	}
 
+	logger := loggerOrDefault(acme.Logger)
 	var err error
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
@@ -128,8 +142,8 @@ func TLSConfigSourceFromACME(acme *ACMEConfig) (TLSConfigSource, error) {
 		}
 
 		if attempt < maxAttempts {
-			log.Printf(
-				"ACME initial certificate load failed (attempt %d/%d): %v; retrying in %s",
+			logger.Printf(
+				"warning: unable to load initial ACME certificate (attempt %d/%d): %v; retrying in %s",
 				attempt, maxAttempts, err, backoff,
 			)
 
