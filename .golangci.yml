@@ -5,8 +5,13 @@ linters:
   default: standard
   # forbidigo bans a couple of project-specific footgun calls; see the
   # per-pattern messages under settings.forbidigo for the rationale.
+  # errorlint enforces errors.Is comparisons and %w wrapping — the core
+  # rules from the logging/error-message conventions.
+  # perfsprint catches fmt.Errorf with no format args (use errors.New instead).
   enable:
     - forbidigo
+    - errorlint
+    - perfsprint
   # Enable human-readable exclusion presets including std-error-handling
   # which excludes common error handling patterns like Close()
   exclusions:
@@ -29,6 +34,23 @@ linters:
       # Additional functions to exclude from checking
       exclude-functions:
         - (*github.com/ghostunnel/ghostunnel/certloader.spiffeTLSConfigSource).Close
+    errorlint:
+      # Flag fmt.Errorf with %v (or %s) wrapping an error — must use %w.
+      errorf: true
+      errorf-multi: true
+      # Flag == / != comparisons against sentinel errors — must use errors.Is.
+      comparison: true
+      # Assertion checks add noise on legitimately-typed error values; keep off.
+      asserts: false
+    perfsprint:
+      # Only flag fmt.Errorf with no format args — errors.New is preferred.
+      # All other perfsprint checks (sprintf1, strconcat, int-conversion,
+      # err-error) are disabled to avoid unrelated churn.
+      errorf: true
+      sprintf1: false
+      strconcat: false
+      int-conversion: false
+      err-error: false
     forbidigo:
       forbid:
         - pattern: '^runtime\.GOMAXPROCS$'

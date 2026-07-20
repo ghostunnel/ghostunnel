@@ -3,6 +3,7 @@ package proxy
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -67,7 +68,7 @@ func benchmarkCopyData(b *testing.B, proxy *Proxy, size int, idleTimeout time.Du
 			for err == nil {
 				_, err = dstOut.Read(buf)
 			}
-			if err != io.EOF && !isClosedConnectionError(err) {
+			if !errors.Is(err, io.EOF) && !isClosedConnectionError(err) {
 				fmt.Fprintf(os.Stderr, "%v\n", err)
 			}
 		}()

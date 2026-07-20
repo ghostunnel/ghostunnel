@@ -11,6 +11,7 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"crypto/x509"
+	"errors"
 	"testing"
 )
 
@@ -129,7 +130,7 @@ func TestSignerRSA(t *testing.T) {
 		// SHA256WithRSA
 		sha256Digest := sha256.Sum256([]byte("hello"))
 		sig, err = signer.Sign(rand.Reader, sha256Digest[:], crypto.SHA256)
-		if err == ErrUnsupportedHash {
+		if errors.Is(err, ErrUnsupportedHash) {
 			// Some Windows CSPs may not support this algorithm. Pass...
 		} else if err != nil {
 			t.Fatal(err)
@@ -142,7 +143,7 @@ func TestSignerRSA(t *testing.T) {
 		// SHA256WithRSAPSS
 		sha256Digest = sha256.Sum256([]byte("hello"))
 		sig, err = signer.Sign(rand.Reader, sha256Digest[:], &rsa.PSSOptions{Hash: crypto.SHA256})
-		if err == ErrUnsupportedHash {
+		if errors.Is(err, ErrUnsupportedHash) {
 			// Some Windows CSPs may not support this algorithm. Pass...
 		} else if err != nil {
 			t.Fatal(err)
@@ -155,7 +156,7 @@ func TestSignerRSA(t *testing.T) {
 		// SHA384WithRSA
 		sha384Digest := sha512.Sum384([]byte("hello"))
 		sig, err = signer.Sign(rand.Reader, sha384Digest[:], crypto.SHA384)
-		if err == ErrUnsupportedHash {
+		if errors.Is(err, ErrUnsupportedHash) {
 			// Some Windows CSPs may not support this algorithm. Pass...
 		} else if err != nil {
 			t.Fatal(err)
@@ -168,7 +169,7 @@ func TestSignerRSA(t *testing.T) {
 		// SHA384WithRSAPSS
 		sha384Digest = sha512.Sum384([]byte("hello"))
 		sig, err = signer.Sign(rand.Reader, sha384Digest[:], &rsa.PSSOptions{Hash: crypto.SHA384})
-		if err == ErrUnsupportedHash {
+		if errors.Is(err, ErrUnsupportedHash) {
 			// Some Windows CSPs may not support this algorithm. Pass...
 		} else if err != nil {
 			t.Fatal(err)
@@ -181,7 +182,7 @@ func TestSignerRSA(t *testing.T) {
 		// SHA512WithRSA
 		sha512Digest := sha512.Sum512([]byte("hello"))
 		sig, err = signer.Sign(rand.Reader, sha512Digest[:], crypto.SHA512)
-		if err == ErrUnsupportedHash {
+		if errors.Is(err, ErrUnsupportedHash) {
 			// Some Windows CSPs may not support this algorithm. Pass...
 		} else if err != nil {
 			t.Fatal(err)
@@ -194,7 +195,7 @@ func TestSignerRSA(t *testing.T) {
 		// SHA512WithRSAPSS
 		sha512Digest = sha512.Sum512([]byte("hello"))
 		sig, err = signer.Sign(rand.Reader, sha512Digest[:], &rsa.PSSOptions{Hash: crypto.SHA512})
-		if err == ErrUnsupportedHash {
+		if errors.Is(err, ErrUnsupportedHash) {
 			// Some Windows CSPs may not support this algorithm. Pass...
 		} else if err != nil {
 			t.Fatal(err)
@@ -213,7 +214,7 @@ func TestSignerRSA(t *testing.T) {
 		// Unsupported hash
 		sha224Digest := sha256.Sum224([]byte("hello"))
 		_, err = signer.Sign(rand.Reader, sha224Digest[:], crypto.SHA224)
-		if err != ErrUnsupportedHash {
+		if !errors.Is(err, ErrUnsupportedHash) {
 			t.Fatal("expected ErrUnsupportedHash, got ", err)
 		}
 	})

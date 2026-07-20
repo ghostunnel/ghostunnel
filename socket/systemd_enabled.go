@@ -51,10 +51,10 @@ func systemdSocket(name string) (net.Listener, error) {
 func systemdSocketFromMap(name string, listeners map[string][]net.Listener) (net.Listener, error) {
 	if listener, ok := listeners[name]; ok {
 		if len(listener) != 1 {
-			return nil, fmt.Errorf("expected exactly 1 listening socket configured in systemd for name %s, found %d", name, len(listener))
+			return nil, fmt.Errorf("expected exactly 1 listening socket configured in systemd for name %q, found %d", name, len(listener))
 		}
 		return listener[0], nil
 	}
 
-	return nil, fmt.Errorf("expected listener with name %s, but found none", name)
+	return nil, fmt.Errorf("expected listener with name %q, but found none", name)
 }

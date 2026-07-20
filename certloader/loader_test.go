@@ -140,7 +140,7 @@ func TestReadPEMFormatError(t *testing.T) {
 
 	_, err = readCertificateFile(tmp.Name(), "", "")
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to detect format")
+	assert.Contains(t, err.Error(), "unable to detect format")
 }
 
 func TestReadPEMNoCertsFound(t *testing.T) {
@@ -198,7 +198,7 @@ func TestReadX509ParseCertificateError(t *testing.T) {
 
 	_, err = readX509(tmp.Name())
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "error reading file")
+	assert.Contains(t, err.Error(), "unable to read file")
 }
 
 func TestReadX509MultipleCerts(t *testing.T) {

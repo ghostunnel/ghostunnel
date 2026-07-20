@@ -109,13 +109,13 @@ func readCertsFromStream(reader io.Reader, format string, password string) ([]*p
 	case "JCEKS":
 		return readJCEKSBlocks(reader, password)
 	}
-	return nil, fmt.Errorf("unknown file type '%s'", format)
+	return nil, fmt.Errorf("unknown file type %q", format)
 }
 
 func readPEMBlocks(reader io.Reader) ([]*pem.Block, error) {
 	data, err := io.ReadAll(io.LimitReader(reader, maxReadSize))
 	if err != nil {
-		return nil, fmt.Errorf("error reading PEM data: %w", err)
+		return nil, fmt.Errorf("unable to read PEM data: %w", err)
 	}
 
 	var blocks []*pem.Block
@@ -199,7 +199,7 @@ func readJCEKSBlocks(reader io.Reader, password string) ([]*pem.Block, error) {
 	for _, alias := range keyStore.ListCerts() {
 		cert, err := keyStore.GetCert(alias)
 		if err != nil {
-			return nil, fmt.Errorf("unable to get certificate '%s': %w", alias, err)
+			return nil, fmt.Errorf("unable to get certificate %q: %w", alias, err)
 		}
 		blocks = append(blocks, encodeX509ToPEM(cert))
 	}
@@ -207,7 +207,7 @@ func readJCEKSBlocks(reader io.Reader, password string) ([]*pem.Block, error) {
 	for _, alias := range keyStore.ListPrivateKeys() {
 		key, certs, err := keyStore.GetPrivateKeyAndCerts(alias, []byte(password))
 		if err != nil {
-			return nil, fmt.Errorf("unable to recover private key '%s': %w", alias, err)
+			return nil, fmt.Errorf("unable to recover private key %q: %w", alias, err)
 		}
 
 		block, err := keyToPEM(key)
@@ -237,7 +237,7 @@ func encodeX509ToPEM(cert *x509.Certificate) *pem.Block {
 func keyToPEM(key crypto.PrivateKey) (*pem.Block, error) {
 	raw, err := x509.MarshalPKCS8PrivateKey(key)
 	if err != nil {
-		return nil, fmt.Errorf("error marshaling private key: %w", err)
+		return nil, fmt.Errorf("unable to marshal private key: %w", err)
 	}
 	return &pem.Block{
 		Type:  "PRIVATE KEY",

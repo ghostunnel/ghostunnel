@@ -115,11 +115,11 @@ func (env *Environment) reloadHandler(interval time.Duration) {
 func (env *Environment) reload() {
 	env.status.Reloading()
 	if err := env.tlsConfigSource.Reload(); err != nil {
-		logger.Printf("error reloading TLS configuration: %s", err)
+		logger.Printf("error reloading TLS configuration: %v", err)
 	}
 	if env.regoPolicy != nil {
 		if err := env.regoPolicy.Reload(); err != nil {
-			logger.Printf("error reloading OPA policy: %s", err)
+			logger.Printf("error reloading OPA policy: %v", err)
 		}
 	}
 	logger.Printf("reloading configuration complete")

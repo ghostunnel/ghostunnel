@@ -254,26 +254,26 @@ func panicOnError(err error) {
 func validateFlags(app *kingpin.Application) error {
 	if *statusAddress == "" {
 		if *enableProf {
-			return fmt.Errorf("--enable-pprof requires --status to be set")
+			return errors.New("--enable-pprof requires --status to be set")
 		}
 		if *enableShutdown {
-			return fmt.Errorf("--enable-shutdown requires --status to be set")
+			return errors.New("--enable-shutdown requires --status to be set")
 		}
 	}
 	if *metricsURL != "" && !strings.HasPrefix(*metricsURL, "http://") && !strings.HasPrefix(*metricsURL, "https://") {
-		return fmt.Errorf("--metrics-url should start with http:// or https://")
+		return errors.New("--metrics-url should start with http:// or https://")
 	}
 	if *serverStatusTargetAddress != "" && !strings.HasPrefix(*serverStatusTargetAddress, "http://") && !strings.HasPrefix(*serverStatusTargetAddress, "https://") {
-		return fmt.Errorf("--target-status should start with http:// or https://")
+		return errors.New("--target-status should start with http:// or https://")
 	}
 	if err := validateStatusAddress(); err != nil {
 		return err
 	}
 	if *connectTimeout == 0 {
-		return fmt.Errorf("--connect-timeout duration must not be zero")
+		return errors.New("--connect-timeout duration must not be zero")
 	}
 	if *useWorkloadAPITimeout < 0 {
-		return fmt.Errorf("--use-workload-api-timeout duration must not be negative (use 0 to wait indefinitely)")
+		return errors.New("--use-workload-api-timeout duration must not be negative (use 0 to wait indefinitely)")
 	}
 	if err := validateALPN(); err != nil {
 		return err
@@ -530,7 +530,7 @@ func validateClientCredentials() error {
 
 func validateClientListen() error {
 	if !*clientUnsafeListen && !consideredSafe(*clientListenAddress) {
-		return fmt.Errorf("--listen must be unix:PATH, localhost:PORT, systemd:NAME or launchd:NAME (unless --unsafe-listen is set)")
+		return errors.New("--listen must be unix:PATH, localhost:PORT, systemd:NAME or launchd:NAME (unless --unsafe-listen is set)")
 	}
 	return nil
 }
@@ -710,7 +710,13 @@ func main() {
 	}
 	err := run(os.Args[1:])
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %s\n", err)
+		// Report fatal startup errors once, here. Failure sites and the
+		// helpers run() calls wrap errors with context but do not log; we
+		// surface the final error through both the configured logger (so
+		// syslog/eventlog operators see it) and stderr. Note initLogger runs
+		// inside run(); before it runs, logger is the default stdout logger.
+		logger.Printf("error: %v", err)
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		exitFunc(1)
 	}
 	exitFunc(0)
@@ -769,14 +775,12 @@ func run(args []string) error {
 
 	proxyMetrics, metricsRegistry, err := setupMetrics()
 	if err != nil {
-		logger.Printf("error: unable to set up metrics: %s\n", err)
 		return err
 	}
 
 	switch command {
 	case serverCommand.FullCommand():
 		if err := serverValidateFlags(); err != nil {
-			logger.Printf("error: %s\n", err)
 			return err
 		}
 
@@ -789,8 +793,7 @@ func run(args []string) error {
 
 		dial, err := serverBackendDialer()
 		if err != nil {
-			logger.Printf("error: invalid target address: %s\n", err)
-			return err
+			return fmt.Errorf("invalid target address: %w", err)
 		}
 		logger.Printf("using target address %s", *serverForwardAddress)
 
@@ -816,15 +819,10 @@ func run(args []string) error {
 		go env.reloadHandler(*timedReload)
 
 		// Start listening
-		err = serverListen(env, regoPolicy)
-		if err != nil {
-			logger.Printf("error from server listen: %s\n", err)
-		}
-		return err
+		return serverListen(env, regoPolicy)
 
 	case clientCommand.FullCommand():
 		if err := clientValidateFlags(); err != nil {
-			logger.Printf("error: %s\n", err)
 			return err
 		}
 
@@ -842,15 +840,13 @@ func run(args []string) error {
 		skipRes := *skipResolve || *clientProxy != nil
 		network, address, host, err := socket.ParseAddress(*clientForwardAddress, skipRes)
 		if err != nil {
-			logger.Printf("error: invalid target address: %s\n", err)
-			return err
+			return fmt.Errorf("invalid target address: %w", err)
 		}
 		logger.Printf("using target address %s", *clientForwardAddress)
 
 		dial, policy, err := clientBackendDialer(tlsConfigSource, network, address, host)
 		if err != nil {
-			logger.Printf("error: unable to build dialer: %s\n", err)
-			return err
+			return fmt.Errorf("unable to build dialer: %w", err)
 		}
 
 		// NOTE: We don't provide a target status address here because this handler
@@ -871,11 +867,7 @@ func run(args []string) error {
 		go env.reloadHandler(*timedReload)
 
 		// Start listening
-		err = clientListen(env)
-		if err != nil {
-			logger.Printf("error from client listen: %s\n", err)
-		}
-		return err
+		return clientListen(env)
 	}
 
 	return errors.New("unknown command")
@@ -890,8 +882,7 @@ func loadOPAPolicy(allowPolicy, allowQuery string) (policy.Policy, error) {
 	}
 	p, err := policy.LoadFromPath(allowPolicy, allowQuery)
 	if err != nil {
-		logger.Printf("Invalid rego policy or query: %s", err)
-		return nil, err
+		return nil, fmt.Errorf("invalid rego policy or query: %w", err)
 	}
 	return p, nil
 }
@@ -904,14 +895,12 @@ func loadOPAPolicy(allowPolicy, allowQuery string) (policy.Policy, error) {
 func serverListen(env *Environment, regoPolicy policy.Policy) error {
 	config, err := buildServerConfig(*enabledCipherSuites, *maxTLSVersion, *allowUnsafeCipherSuites, *alpn)
 	if err != nil {
-		logger.Printf("error trying to read CA bundle: %s", err)
-		return err
+		return fmt.Errorf("unable to read CA bundle: %w", err)
 	}
 
 	allowedURIs, err := wildcard.CompileList(*serverAllowedURIs)
 	if err != nil {
-		logger.Printf("invalid URI pattern in --allow-uri flag (%s)", err)
-		return err
+		return fmt.Errorf("invalid URI pattern in --allow-uri flag: %w", err)
 	}
 
 	serverACL := auth.ACL{
@@ -939,15 +928,13 @@ func serverListen(env *Environment, regoPolicy policy.Policy) error {
 
 	listener, err := socket.ParseAndOpen(*serverListenAddress)
 	if err != nil {
-		logger.Printf("error trying to listen: %s", err)
-		return err
+		return fmt.Errorf("unable to listen: %w", err)
 	}
 
 	serverConfig, err := getServerConfig(env.tlsConfigSource, config)
 	if err != nil {
 		listener.Close()
-		logger.Printf("error: unable to get server TLS config: %s", err)
-		return err
+		return fmt.Errorf("unable to get server TLS config: %w", err)
 	}
 
 	p := proxy.New(
@@ -970,7 +957,6 @@ func serverListen(env *Environment, regoPolicy policy.Policy) error {
 		err := env.serveStatus()
 		if err != nil {
 			listener.Close()
-			logger.Printf("error serving /_status: %s", err)
 			return err
 		}
 	}
@@ -991,8 +977,7 @@ func serverListen(env *Environment, regoPolicy policy.Policy) error {
 func clientListen(env *Environment) error {
 	listener, err := socket.ParseAndOpen(*clientListenAddress)
 	if err != nil {
-		logger.Printf("error opening socket: %s", err)
-		return err
+		return fmt.Errorf("unable to open socket: %w", err)
 	}
 
 	p := proxy.New(
@@ -1015,7 +1000,6 @@ func clientListen(env *Environment) error {
 		err := env.serveStatus()
 		if err != nil {
 			listener.Close()
-			logger.Printf("error serving /_status: %s", err)
 			return err
 		}
 	}
@@ -1099,8 +1083,7 @@ func (env *Environment) serveStatus() error {
 
 	listener, err := socket.Open(network, address)
 	if err != nil {
-		logger.Printf("error: unable to bind on status port: %s\n", err)
-		return err
+		return fmt.Errorf("unable to bind on status port: %w", err)
 	}
 
 	if network == "tcp" && https && env.tlsConfigSource.CanServe() {
@@ -1139,7 +1122,7 @@ func (env *Environment) serveStatus() error {
 	go func() {
 		err := env.statusHTTP.Serve(listener)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.Printf("error serving status port: %s", err)
+			logger.Printf("error serving status port: %v", err)
 		}
 	}()
 
@@ -1178,8 +1161,7 @@ func clientBackendDialer(
 
 	allowedURIs, err := wildcard.CompileList(*clientAllowedURIs)
 	if err != nil {
-		logger.Printf("invalid URI pattern in --verify-uri flag (%s)", err)
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("invalid URI pattern in --verify-uri flag: %w", err)
 	}
 
 	regoPolicy, err := loadOPAPolicy(*clientAllowPolicy, *clientAllowQuery)
@@ -1212,14 +1194,12 @@ func clientBackendDialer(
 		logger.Printf("using proxy %s", (*clientProxy).String())
 		proxyDialer, err := netproxy.FromURL(*clientProxy, &net.Dialer{Timeout: *connectTimeout})
 		if err != nil {
-			logger.Printf("error: error configuring proxy: %s\n", err)
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("unable to configure proxy: %w", err)
 		}
 
 		var ok bool
 		dialer, ok = proxyDialer.(netproxy.ContextDialer)
 		if !ok {
-			logger.Printf("unexpected: proxy dialer scheme did not implement context dialing, aborting")
 			return nil, nil, errors.New("unexpected: proxy dialer scheme did not implement context dialing, aborting")
 		}
 	}
@@ -1261,8 +1241,7 @@ func getTLSConfigSource(disableAuth bool) (certloader.TLSConfigSource, error) {
 		logger.Printf("using SPIFFE Workload API as certificate source")
 		source, err := certloader.TLSConfigSourceFromWorkloadAPI(*useWorkloadAPIAddr, disableAuth, *useWorkloadAPITimeout, logger)
 		if err != nil {
-			logger.Printf("error: unable to create workload API TLS source: %s\n", err)
-			return nil, err
+			return nil, fmt.Errorf("unable to create workload API TLS source: %w", err)
 		}
 		return source, nil
 	}
@@ -1278,19 +1257,18 @@ func getTLSConfigSource(disableAuth bool) (certloader.TLSConfigSource, error) {
 			CABundlePath:       *caBundlePath,
 			RenewCheckInterval: *serverAutoACMERenewCheckInterval,
 			AltTLSALPNPort:     *serverAutoACMEAltTLSALPNPort,
+			Logger:             logger,
 		}
 		source, err := certloader.TLSConfigSourceFromACME(&acmeConfig)
 		if err != nil {
-			logger.Printf("error: Unable to load or obtain ACME cert: %s\n", err)
-			return nil, err
+			return nil, fmt.Errorf("unable to load or obtain ACME cert: %w", err)
 		}
 		return source, nil
 	}
 
 	cert, err := buildCertificate(*keystorePath, *certPath, *keyPath, *keystorePass, *caBundlePath, logger)
 	if err != nil {
-		logger.Printf("error: unable to load certificates: %s\n", err)
-		return nil, err
+		return nil, fmt.Errorf("unable to load certificates: %w", err)
 	}
 	return certloader.TLSConfigSourceFromCertificate(cert, logger), nil
 }

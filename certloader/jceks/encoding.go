@@ -97,7 +97,7 @@ func readCertificate(r io.Reader, maxLen uint) (*x509.Certificate, error) {
 	}
 	cert, err := x509.ParseCertificate(certDER)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse certificate: %w", err)
+		return nil, fmt.Errorf("unable to parse certificate: %w", err)
 	}
 
 	return cert, nil
