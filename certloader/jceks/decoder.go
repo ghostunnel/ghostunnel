@@ -41,7 +41,7 @@ var (
 	errJCEKSDataTooLarge            = errors.New("JCEKS data too large")
 	errUnsupportedJCEKSData         = errors.New("unsupported JCEKS data")
 	errIntegrityProtectionViolation = errors.New("integrity protection violation")
-	errDecryptionFailed             = errors.New("decryption failed with the given password")
+	errDecryptionFailed             = errors.New("unable to decrypt with the given password")
 )
 
 const (
@@ -132,7 +132,7 @@ func (ks *KeyStore) parseWithOptions(r io.Reader, password []byte, options ...pa
 
 	cfg, err := makeParseConfig(options...)
 	if err != nil {
-		return fmt.Errorf("failed to configure parser: %w", err)
+		return fmt.Errorf("unable to configure parser: %w", err)
 	}
 
 	var md hash.Hash
@@ -156,23 +156,23 @@ func (ks *KeyStore) parseWithOptions(r io.Reader, password []byte, options ...pa
 
 	count, err := readInt32(r)
 	if err != nil {
-		return fmt.Errorf("%w: failed to read entry count", errInvalidJCEKSData)
+		return fmt.Errorf("%w: unable to read entry count", errInvalidJCEKSData)
 	}
 	for i := 0; i < int(count); i++ {
 		tag, err := readUint32(r)
 		if err != nil {
-			return fmt.Errorf("%w: failed to read entry %d tag", errInvalidJCEKSData, i)
+			return fmt.Errorf("%w: unable to read entry %d tag", errInvalidJCEKSData, i)
 		}
 		switch tag {
 		case privateKeyEntryTag:
 			err := ks.parsePrivateKey(r, cfg)
 			if err != nil {
-				return fmt.Errorf("%w: failed to parse private key entry %d: %w", errInvalidJCEKSData, i, err)
+				return fmt.Errorf("%w: unable to parse private key entry %d: %w", errInvalidJCEKSData, i, err)
 			}
 		case trustedCertEntryTag:
 			err := ks.parseTrustedCert(r, cfg)
 			if err != nil {
-				return fmt.Errorf("%w: failed to parse certificate entry %d: %w", errInvalidJCEKSData, i, err)
+				return fmt.Errorf("%w: unable to parse certificate entry %d: %w", errInvalidJCEKSData, i, err)
 			}
 		case secretKeyEntryTag:
 			return fmt.Errorf("%w: file contains a secret key entry", errUnsupportedJCEKSData)
@@ -186,7 +186,7 @@ func (ks *KeyStore) parseWithOptions(r io.Reader, password []byte, options ...pa
 		actual := make([]byte, len(computed))
 		_, err := io.ReadFull(r, actual)
 		if err != nil {
-			return fmt.Errorf("%w: failed to read integrity checksum: %w", errInvalidJCEKSData, err)
+			return fmt.Errorf("%w: unable to read integrity checksum: %w", errInvalidJCEKSData, err)
 		}
 		if subtle.ConstantTimeCompare(computed, actual) != 1 {
 			return fmt.Errorf("%w: keystore was tampered with or password was incorrect",
@@ -324,7 +324,7 @@ func (e *privateKeyEntry) Recover(password []byte) (crypto.PrivateKey, error) {
 	var eKey encryptedPrivateKeyInfo
 	_, err := asn1.Unmarshal(e.protectedKey, &eKey)
 	if err != nil {
-		return nil, fmt.Errorf("%w: failed to parse private key as DER: %w", errInvalidJCEKSData, err)
+		return nil, fmt.Errorf("%w: unable to parse private key as DER: %w", errInvalidJCEKSData, err)
 	}
 
 	if eKey.Algo.Algorithm.Equal(oidJKSKeyProtector) {

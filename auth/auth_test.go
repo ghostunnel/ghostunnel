@@ -573,7 +573,7 @@ func TestParseSPKIPins(t *testing.T) {
 	// Invalid base64 is rejected.
 	_, err = ParseSPKIPins([]string{"sha256:not valid base64 @@@"})
 	assert.NotNil(t, err)
-	assert.Contains(t, err.Error(), "base64 decode failed")
+	assert.Contains(t, err.Error(), "unable to decode base64")
 
 	// Wrong digest length is rejected.
 	short := base64.StdEncoding.EncodeToString(make([]byte, 16))
@@ -671,11 +671,11 @@ func TestAuthorizePinMismatch(t *testing.T) {
 
 	err := testACL.VerifyPeerCertificateServer([][]byte{certDER}, nil)
 	assert.NotNil(t, err, "mismatched pin should reject connection")
-	assert.Contains(t, err.Error(), "pin verification failed")
+	assert.Contains(t, err.Error(), "unable to verify pin")
 
 	err = testACL.VerifyPeerCertificateClient([][]byte{certDER}, nil)
 	assert.NotNil(t, err, "mismatched pin should reject connection")
-	assert.Contains(t, err.Error(), "pin verification failed")
+	assert.Contains(t, err.Error(), "unable to verify pin")
 }
 
 func TestAuthorizePinNoRawCerts(t *testing.T) {
@@ -698,11 +698,11 @@ func TestAuthorizePinMalformedDER(t *testing.T) {
 
 	err := testACL.VerifyPeerCertificateServer([][]byte{[]byte("not a certificate")}, nil)
 	assert.NotNil(t, err, "malformed cert DER should reject connection")
-	assert.Contains(t, err.Error(), "failed to parse certificate")
+	assert.Contains(t, err.Error(), "unable to parse certificate")
 
 	err = testACL.VerifyPeerCertificateClient([][]byte{[]byte("not a certificate")}, nil)
 	assert.NotNil(t, err, "malformed cert DER should reject connection")
-	assert.Contains(t, err.Error(), "failed to parse certificate")
+	assert.Contains(t, err.Error(), "unable to parse certificate")
 }
 
 func TestAuthorizeOPAEvalError(t *testing.T) {

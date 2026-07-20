@@ -390,7 +390,7 @@ func TestProxySuccess(t *testing.T) {
 	received := make([]byte, 1)
 	for {
 		n, err := dst.Read(received)
-		if err != io.EOF {
+		if !errors.Is(err, io.EOF) {
 			assert.Nil(t, err, "should be able to receive data from connection on target")
 		}
 		if n == 1 {
@@ -449,7 +449,7 @@ func TestProxyProtocolSuccess(t *testing.T) {
 	received := make([]byte, 1)
 	for {
 		n, err := dst.Read(received)
-		if err != io.EOF {
+		if !errors.Is(err, io.EOF) {
 			assert.Nil(t, err, "should be able to receive data from connection on target")
 		}
 		if n == 1 {
@@ -592,7 +592,7 @@ func TestCopyData(t *testing.T) {
 	if n != size {
 		t.Fatalf("expected %d bytes, got %d instead", size, n)
 	}
-	if err != nil && err != io.EOF && !isClosedConnectionError(err) {
+	if err != nil && !errors.Is(err, io.EOF) && !isClosedConnectionError(err) {
 		t.Fatalf("got unexpected error: %v", err)
 	}
 	if !bytes.Equal(input, output) {
@@ -1733,7 +1733,7 @@ func TestProxyProtocolTLSModeSuccess(t *testing.T) {
 	received := make([]byte, 1)
 	for {
 		n, err := dst.Read(received)
-		if err != io.EOF {
+		if !errors.Is(err, io.EOF) {
 			assert.Nil(t, err, "should receive data on target")
 		}
 		if n == 1 {

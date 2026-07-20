@@ -120,7 +120,7 @@ func resolveCipherSuites(spec string, allowUnsafe bool) ([]uint16, error) {
 			ciphers, ok = unsafeCipherSuites[name]
 		}
 		if !ok {
-			return nil, fmt.Errorf("invalid cipher suite '%s' selected", name)
+			return nil, fmt.Errorf("invalid cipher suite %q selected", name)
 		}
 
 		suites = append(suites, ciphers...)
