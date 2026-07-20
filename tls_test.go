@@ -341,7 +341,7 @@ func TestCipherSuitePreference(t *testing.T) {
 	assert.NotNil(t, err, "should not be able to build server TLS config with invalid cipher suite option")
 
 	_, err = buildConfig("", "TLS1.3", false)
-	assert.NotNil(t, err, "should not be able to build TLS config wihout cipher suite selection")
+	assert.NotNil(t, err, "should not be able to build TLS config without cipher suite selection")
 
 	conf, err := buildConfig("CHACHA,AES", "TLS1.3", false)
 	assert.Nil(t, err, "should be able to build TLS config")

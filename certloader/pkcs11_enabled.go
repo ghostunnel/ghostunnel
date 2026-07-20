@@ -98,7 +98,7 @@ func (c *pkcs11Certificate) Reload() error {
 		if old.Leaf == nil || !newPub.Equal(old.Leaf.PublicKey) {
 			return fmt.Errorf("pkcs11: refusing to reload certificate %q: its public key does not match the cached HSM private key", c.certificatePath)
 		}
-		c.logger.Printf("pkcs11: re-using previously cached private key handle from module")
+		c.logger.Printf("pkcs11: reusing previously cached private key handle from module")
 		certAndKey.PrivateKey = old.PrivateKey
 	} else {
 		c.logger.Printf("pkcs11: loading private key for given certificate from module")
