@@ -143,9 +143,9 @@ func parseSPKIPin(s string) (SPKIPin, error) {
 	if !ok {
 		return SPKIPin{}, fmt.Errorf("invalid pin %q: unsupported hash algorithm %q (supported: sha256, sha384, sha512)", s, algo)
 	}
-	// Belt and braces: any hash added to supportedSPKIPinHashes must also be linked
-	// in (see the blank crypto/sha* imports above), otherwise hash.New() would
-	// panic mid-handshake in verifySPKIPin. Reject here so a missing import fails
+	// Any hash added to supportedSPKIPinHashes must also be linked in (see the
+	// blank crypto/sha* imports above), otherwise hash.New() would panic
+	// mid-handshake in verifySPKIPin. Reject here so a missing import fails
 	// cleanly at flag-parse time instead.
 	if !hash.Available() {
 		return SPKIPin{}, fmt.Errorf("invalid pin %q: hash algorithm %q is not available in this build", s, algo)
