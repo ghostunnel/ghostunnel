@@ -36,6 +36,8 @@ type spiffeTLSConfigSource struct {
 }
 
 // TLSConfigSourceFromWorkloadAPI creates a TLSConfigSource that uses the SPIFFE Workload API.
+// initTimeout bounds how long the first certificate fetch (NewX509Source) may block at startup.
+// A value of 0 (or negative) means wait indefinitely — the old behavior before the timeout was introduced.
 func TLSConfigSourceFromWorkloadAPI(addr string, clientDisableAuth bool, initTimeout time.Duration, logger *log.Logger) (TLSConfigSource, error) {
 	client, err := spiffeApi.New(
 		context.Background(),
@@ -77,7 +79,7 @@ func (s *spiffeTLSConfigSource) Close() error {
 func (s *spiffeTLSConfigSource) newConfig(base *tls.Config) (*spiffeTLSConfig, error) {
 	// NewX509Source blocks until the first update is received from the Workload
 	// API. Bound that wait so an unreachable agent surfaces as an error instead
-	// of hanging forever.
+	// of hanging forever. initTimeout <= 0 means wait indefinitely (no deadline).
 	ctx := context.Background()
 	if s.initTimeout > 0 {
 		var cancel context.CancelFunc

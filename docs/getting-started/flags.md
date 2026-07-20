@@ -26,6 +26,7 @@ supported file formats and chain ordering.
 | `--cacert CACERT` | Path to CA bundle file (PEM/X509). Uses system trust store by default. |
 | `--use-workload-api` | Certificate and root CAs are retrieved via the SPIFFE Workload API. See [SPIFFE]({{< ref "spiffe-workload-api.md" >}}). |
 | `--use-workload-api-addr ADDR` | Retrieve certificates and root CAs via the SPIFFE Workload API at the specified address (implies `--use-workload-api`). See [SPIFFE]({{< ref "spiffe-workload-api.md" >}}). |
+| `--use-workload-api-timeout DURATION` | Timeout for the initial certificate fetch from the SPIFFE Workload API at startup (default `10m`). Set to `0` to wait indefinitely, which restores the behavior prior to v1.11.1. See [SPIFFE]({{< ref "spiffe-workload-api.md" >}}). |
 
 ### Keychain
 

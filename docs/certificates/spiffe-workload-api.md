@@ -76,6 +76,14 @@ ghostunnel client \
     --verify-uri spiffe://domain.test/backend
 ```
 
+## Startup Timeout
+
+At startup, Ghostunnel waits up to `--use-workload-api-timeout` (default `10m`) for the
+first certificate to arrive from the Workload API before treating it as a fatal error. This
+covers deployments where the SPIRE agent is slow to attest at boot (e.g. fresh nodes, or
+ghostunnel racing spire-agent under systemd or Kubernetes). Setting the flag to `0` restores
+the pre-v1.11.1 behavior of waiting indefinitely.
+
 ## Trust Bundle Updates
 
 When using the Workload API, Ghostunnel automatically watches for updates
