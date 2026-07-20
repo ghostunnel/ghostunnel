@@ -213,7 +213,7 @@ func benchmarkConnectionChurn(b *testing.B, connMetrics *metrics.Metrics) {
 
 	// Unlimited semaphore (0) so concurrency isn't capped — proxyForTest pins
 	// it at 1, which would serialize the churn we want to measure. No logging.
-	p := New(incoming, 5*time.Second, 5*time.Second, 0, 0, dialer, &testLogger{}, 0, ProxyProtocolOff, connMetrics)
+	p := New(incoming, Timeouts{Connect: 5 * time.Second, Close: 5 * time.Second}, 0, dialer, &testLogger{}, 0, ProxyProtocolOff, connMetrics)
 	go p.Accept()
 	defer func() {
 		p.Shutdown()

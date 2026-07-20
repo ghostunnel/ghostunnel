@@ -90,7 +90,7 @@ func TestNewMetricsWiring(t *testing.T) {
 	assert.Same(t, defaultMetrics, p.metrics, "nil handle must fall back to the default metrics")
 
 	nilHandles := metrics.NilMetrics()
-	nilP := New(&failingListener{}, time.Second, time.Second, time.Second, 1, nil, &testLogger{}, 0, ProxyProtocolOff, nilHandles)
+	nilP := New(&failingListener{}, Timeouts{Connect: time.Second, Close: time.Second, MaxLifetime: time.Second}, 1, nil, &testLogger{}, 0, ProxyProtocolOff, nilHandles)
 	assert.Same(t, nilHandles, nilP.metrics, "NilMetrics handles must be used verbatim")
 }
 
@@ -112,7 +112,7 @@ func TestNilMetricsProxyForwardsData(t *testing.T) {
 		return d.DialContext(ctx, "tcp", target.Addr().String())
 	}
 
-	p := New(incoming, 5*time.Second, 5*time.Second, 5*time.Second, 1, dialer, &testLogger{}, LogEverything, ProxyProtocolOff, metrics.NilMetrics())
+	p := New(incoming, Timeouts{Connect: 5 * time.Second, Close: 5 * time.Second, MaxLifetime: 5 * time.Second}, 1, dialer, &testLogger{}, LogEverything, ProxyProtocolOff, metrics.NilMetrics())
 	go p.Accept()
 	defer p.Shutdown()
 

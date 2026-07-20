@@ -64,6 +64,7 @@ type Timer interface {
 type Metrics struct {
 	OpenCounter             Counter // conn.open (gauge-like: Inc/Dec)
 	ConnTimeoutCounter      Counter // conn.timeout
+	ConnErrorCounter        Counter // conn.error
 	TotalCounter            Counter // accept.total
 	SuccessCounter          Counter // accept.success
 	ErrorCounter            Counter // accept.error
@@ -175,13 +176,14 @@ func (r *Registry) PrometheusHandler() http.Handler {
 	return promhttp.HandlerFor(r.prom, promhttp.HandlerOpts{})
 }
 
-// LiveMetrics registers the eight connection metrics under their canonical
+// LiveMetrics registers the nine connection metrics under their canonical
 // names on r and returns handles that record to them. It must be called at
 // most once per registry.
 func LiveMetrics(r *Registry) *Metrics {
 	return &Metrics{
 		OpenCounter:             r.registerOpenGauge("conn.open"),
 		ConnTimeoutCounter:      r.registerCounter("conn.timeout"),
+		ConnErrorCounter:        r.registerCounter("conn.error"),
 		TotalCounter:            r.registerCounter("accept.total"),
 		SuccessCounter:          r.registerCounter("accept.success"),
 		ErrorCounter:            r.registerCounter("accept.error"),
@@ -198,6 +200,7 @@ func NilMetrics() *Metrics {
 	return &Metrics{
 		OpenCounter:             nopCounter{},
 		ConnTimeoutCounter:      nopCounter{},
+		ConnErrorCounter:        nopCounter{},
 		TotalCounter:            nopCounter{},
 		SuccessCounter:          nopCounter{},
 		ErrorCounter:            nopCounter{},
