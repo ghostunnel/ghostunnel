@@ -417,8 +417,7 @@ func validateServerOPA(hasOPAFlags bool) error {
 
 // Decoded SPKI pins, populated by decodeSPKIPins during flag validation from
 // --allow-spki-pin / --verify-spki-pin so that malformed pins are rejected at
-// startup rather than at listen/dial time. Kept out of the flag var block above
-// since they are derived state, not kingpin flags.
+// startup rather than at listen/dial time.
 var (
 	decodedServerPins []auth.SPKIPin
 	decodedClientPins []auth.SPKIPin
@@ -426,9 +425,7 @@ var (
 
 // decodeSPKIPins parses SPKI pin flag values, tagging any parse error with the
 // flag name so the message is actionable. Used by both the server
-// (--allow-spki-pin) and client (--verify-spki-pin) validators. The returned
-// error is already fully descriptive and is meant to be returned directly, not
-// separately logged.
+// (--allow-spki-pin) and client (--verify-spki-pin) validators.
 func decodeSPKIPins(values []string, flag string) ([]auth.SPKIPin, error) {
 	pins, err := auth.ParseSPKIPins(values)
 	if err != nil {
@@ -472,11 +469,11 @@ func serverValidateFlags() error {
 	return validateCipherSuites()
 }
 
-// validateServerPin decodes --allow-spki-pin into decodedServerPins. It always
-// resets decodedServerPins first so repeated in-process validation (as unit
-// tests do) can't leak a previous run's decoded pins into a later run that
-// omits the flag or fails parsing.
+// validateServerPin decodes --allow-spki-pin into decodedServerPins.
 func validateServerPin() error {
+	// Reset decodedServerPins first so repeated in-process validation (as unit
+	// tests do) can't leak a previous run's decoded pins into a later run that
+	// omits the flag or fails parsing.
 	decodedServerPins = nil
 	if len(*serverAllowSpkiPin) == 0 {
 		return nil
@@ -546,11 +543,11 @@ func validateClientOPA() error {
 	return nil
 }
 
-// validateClientPin decodes --verify-spki-pin into decodedClientPins. It
-// always resets decodedClientPins first so repeated in-process validation (as
-// unit tests do) can't leak a previous run's decoded pins into a later run
-// that omits the flag or fails parsing.
+// validateClientPin decodes --verify-spki-pin into decodedClientPins.
 func validateClientPin() error {
+	// Reset decodedClientPins first so repeated in-process validation (as
+	// unit tests do) can't leak a previous run's decoded pins into a later run
+	// that omits the flag or fails parsing.
 	decodedClientPins = nil
 	if len(*clientVerifySpkiPin) == 0 {
 		return nil
@@ -568,9 +565,7 @@ func validateClientPin() error {
 	hasOPAFlags := len(*clientAllowPolicy) > 0 || len(*clientAllowQuery) > 0
 	// --disable-authentication is deliberately NOT a conflict here: on the client
 	// it only governs whether we present our own certificate to the server, not
-	// how we verify the server. Combining it with --verify-spki-pin is the
-	// motivating DoT-style deployment (no client cert, server authenticated by
-	// pin alone).
+	// how we verify the server.
 	if hasVerifyFlags || hasOPAFlags {
 		return errors.New("--verify-spki-pin is mutually exclusive with other verification flags")
 	}

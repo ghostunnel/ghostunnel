@@ -27,6 +27,10 @@ import (
 	pkcs11key "github.com/letsencrypt/pkcs11key/v4"
 )
 
+type pkcs11PublicKey interface {
+	Equal(x crypto.PublicKey) bool
+}
+
 type pkcs11Certificate struct {
 	baseCertificate
 	// Certificate chain corresponding to key
@@ -87,10 +91,7 @@ func (c *pkcs11Certificate) Reload() error {
 		// cached handle would publish a mismatched cert+key pair that breaks
 		// every new handshake. Verify the public keys still match; otherwise
 		// fail closed so the previous (self-consistent) state is kept.
-		type publicKey interface {
-			Equal(x crypto.PublicKey) bool
-		}
-		newPub, ok := certAndKey.Leaf.PublicKey.(publicKey)
+		newPub, ok := certAndKey.Leaf.PublicKey.(pkcs11PublicKey)
 		if !ok {
 			return fmt.Errorf("pkcs11: unsupported public key type %T in certificate %q", certAndKey.Leaf.PublicKey, c.certificatePath)
 		}
