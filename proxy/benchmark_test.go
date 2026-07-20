@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"testing"
+	"time"
 )
 
 func BenchmarkCopyData(b *testing.B) {
@@ -15,12 +16,29 @@ func BenchmarkCopyData(b *testing.B) {
 
 	for i := range 16 {
 		b.Run(fmt.Sprintf("%d bytes", 1<<i), func(b *testing.B) {
-			benchmarkCopyData(b, proxy, 1<<i)
+			benchmarkCopyData(b, proxy, 1<<i, 0)
 		})
 	}
 }
 
-func benchmarkCopyData(b *testing.B, proxy *Proxy, size int) {
+// BenchmarkCopyDataIdleTimeout guards that the watchdog activity-reporting path
+// stays cheap. Every n>0 read does one atomic store via
+// watchdog.recordActivity(), whether or not an idle timeout is configured. The
+// old two-per-read SetReadDeadline poller updates are gone. This runs the same
+// path as BenchmarkCopyData, so the two should track each other. Any divergence
+// flags an unexpected per-op cost on the copy hot path.
+func BenchmarkCopyDataIdleTimeout(b *testing.B) {
+	proxy := proxyForTest(nil, nil)
+
+	for i := range 16 {
+		b.Run(fmt.Sprintf("%d bytes", 1<<i), func(b *testing.B) {
+			benchmarkCopyData(b, proxy, 1<<i, time.Hour)
+		})
+	}
+}
+
+func benchmarkCopyData(b *testing.B, proxy *Proxy, size int, idleTimeout time.Duration) {
+	proxy.Timeouts.Idle = idleTimeout
 	b.ReportAllocs()
 	b.ResetTimer()
 
@@ -49,12 +67,13 @@ func benchmarkCopyData(b *testing.B, proxy *Proxy, size int) {
 			for err == nil {
 				_, err = dstOut.Read(buf)
 			}
-			if err != nil && err != io.EOF && !isClosedConnectionError(err) {
+			if err != io.EOF && !isClosedConnectionError(err) {
 				fmt.Fprintf(os.Stderr, "%v\n", err)
 			}
 		}()
 
-		proxy.copyData(dstIn, srcOut)
+		w := proxy.newPairWatchdog(dstIn, srcOut)
+		proxy.copyData(dstIn, srcOut, w)
 	}
 }
 

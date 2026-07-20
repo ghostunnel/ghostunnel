@@ -57,7 +57,8 @@ See [HSM/PKCS#11]({{< ref "hsm-pkcs11.md" >}}).
 | `--timed-reload DURATION` | | Reload keystores every given interval, refresh listener/client on changes. |
 | `--shutdown-timeout DURATION` | `5m` | Process shutdown timeout. Terminates after timeout even if connections are still open. |
 | `--connect-timeout DURATION` | `10s` | Timeout for establishing connections and handshakes. |
-| `--close-timeout DURATION` | `60s` | Timeout for closing connections when one side terminates. Zero means immediate closure. Default raised from `1s` to `60s` in v1.11.1. |
+| `--close-timeout DURATION` | `60s` | Inactivity timeout for closing connections when one side terminates: once a connection is half-closed, the surviving direction is closed after this much time passes with no data transferred. Active transfers are never cut off. Zero means immediate closure. |
+| `--idle-timeout DURATION` | `0s` | Close a connection when no data is transferred in either direction for this long. Any byte transferred in either direction resets the clock. Zero means no idle timeout. |
 | `--max-conn-lifetime DURATION` | `0s` | Maximum lifetime for connections post handshake. Zero means infinite. |
 | `--max-concurrent-conns N` | `0` | Maximum number of concurrent connections. Zero means infinite. |
 

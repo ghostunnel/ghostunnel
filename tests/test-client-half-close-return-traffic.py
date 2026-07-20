@@ -4,9 +4,11 @@
 Regression test for half-close return-traffic draining across a TLS connection.
 
 When one side half-closes its write direction, ghostunnel must half-close (not
-hard-close) the other side so return traffic can still flow for up to
---close-timeout. This exercises the DELAYED return case: the backend responds
-~2s after the half-close, strictly after ghostunnel's copyData teardown defer
+hard-close) the other side so return traffic can still flow. After the
+half-close, --close-timeout is an idle timeout: the surviving direction stays
+open as long as data keeps moving and is only reaped after --close-timeout of
+inactivity. This exercises the DELAYED return case: the backend responds ~2s
+after the half-close, strictly after ghostunnel's copyData teardown defer
 (closeRead/closeWrite) has run.
 
 This uses client mode with a plaintext local client on purpose: the half-close

@@ -141,10 +141,11 @@ backend = None
 root = None
 try:
     root = create_default_certs()
-    # After a half-close, the remaining in-flight return traffic drains
-    # under the --close-timeout deadline (set by copyData's teardown).
-    # The harness default of 1s is enough on an idle machine but a flake
-    # risk for 64 MiB under parallel CI load, so give it real headroom.
+    # After a half-close, --close-timeout is an idle timeout on the surviving
+    # direction: it only fires after that much time passes with no data moving.
+    # A 64 MiB transfer keeps data flowing so it is never cut off, but a stall
+    # under parallel CI load could momentarily idle the stream, so give the
+    # inactivity window real headroom over the harness default.
     ghostunnel = start_ghostunnel_server(extra_args=['--close-timeout=10s'])
 
     # Deterministic payload: generated once, hashed once, reused everywhere.
