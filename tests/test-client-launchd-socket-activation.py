@@ -8,7 +8,7 @@ import os
 import subprocess
 from common import (LISTEN_PORT, STATUS_PORT, RootCert, TcpClient,
                     print_ok, require_platform, _GHOSTUNNEL_BINARY,
-                    _COVERAGE_DIR, _WORK_DIR, _extra_port_sockets)
+                    _WORK_DIR, _extra_port_sockets, coverage_pod_dir)
 
 require_platform('Darwin')
 
@@ -20,8 +20,7 @@ LABEL = 'dev.ghostunnel.test.launchd.{0}'.format(os.getpid())
 PLIST_PATH = os.path.join(_WORK_DIR, '{0}.plist'.format(LABEL))
 UID = os.getuid()
 DOMAIN = 'gui/{0}'.format(UID)
-COVERDIR = os.path.join(_COVERAGE_DIR, 'integration')
-os.makedirs(COVERDIR, exist_ok=True)
+COVERDIR = coverage_pod_dir()
 
 PLIST = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
