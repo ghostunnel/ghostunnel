@@ -1,5 +1,5 @@
 baseURL = "https://ghostunnel.dev/"
-languageCode = "en-us"
+locale = "en-us"
 title = "Ghostunnel"
 enableRobotsTXT = true
 enableGitInfo = true

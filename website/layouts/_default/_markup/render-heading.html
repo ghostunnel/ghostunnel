@@ -1,0 +1,8 @@
+{{- /*
+  Adds a hover-visible "#" anchor link to h2–h4 headings on docs pages,
+  so readers can grab deep links to sections. Other sections (homepage,
+  releases) keep plain headings — release entries repeat heading names
+  across versions and visible anchors there would just be noise.
+*/ -}}
+{{- $anchored := and (eq .Page.Section "docs") (ge .Level 2) (le .Level 4) -}}
+<h{{ .Level }} id="{{ .Anchor | safeURL }}">{{ .Text }}{{ if $anchored }} <a class="heading-anchor" href="#{{ .Anchor | safeURL }}" aria-label="Link to this section" data-pagefind-ignore>#</a>{{ end }}</h{{ .Level }}>

@@ -115,6 +115,21 @@ h1, h2, h3, h4, h5, h6,
   font-family: var(--font-sans);
   font-weight: 600;
   color: var(--text-heading);
+  text-wrap: balance;
+}
+
+/* Smooth in-page scrolling for anchor links (docs headings, prev/next),
+   with breathing room above the scrolled-to heading. */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+.content h2,
+.content h3,
+.content h4 {
+  scroll-margin-top: 1.5rem;
 }
 
 a {
@@ -206,7 +221,7 @@ a:hover {
 .nav-links {
   list-style: none;
   display: flex;
-  gap: 1.5rem;
+  gap: 0.35rem;
 }
 
 .nav-links a {
@@ -217,15 +232,29 @@ a:hover {
   display: inline-flex;
   align-items: center;
   gap: 0.4em;
+  padding: 0.3em 0.7em;
+  border-radius: 999px;
   transform: translateZ(0);
   will-change: opacity;
-  transition: opacity 0.15s ease, color 0.15s ease;
+  transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
 }
 
 .nav-links a:hover {
   opacity: 1;
   color: #fff;
+  background: rgba(255, 255, 255, 0.06);
   text-decoration: none;
+}
+
+/* Current section (Docs, Releases, ...) */
+.nav-links a.active {
+  opacity: 1;
+  color: #fff;
+  background: rgba(63, 198, 218, 0.14);
+}
+
+.nav-links a.active .icon {
+  color: var(--accent-bright);
 }
 
 .icon {
@@ -252,7 +281,7 @@ a:hover {
   height: 2px;
   width: 1.5rem;
   position: relative;
-  transition: transform 0.2s ease;
+  transition: transform 0.2s ease, top 0.2s ease, background 0.2s ease;
 }
 
 .nav-toggle-label span::before,
@@ -269,6 +298,21 @@ a:hover {
   top: 6px;
 }
 
+/* Morph the hamburger into an X while the menu is open */
+.nav-toggle:checked ~ .nav-toggle-label span {
+  background: transparent;
+}
+
+.nav-toggle:checked ~ .nav-toggle-label span::before {
+  top: 0;
+  transform: rotate(45deg);
+}
+
+.nav-toggle:checked ~ .nav-toggle-label span::after {
+  top: 0;
+  transform: rotate(-45deg);
+}
+
 @media (max-width: 800px) {
   .nav-toggle-label {
     display: block;
@@ -283,9 +327,10 @@ a:hover {
     background: var(--nav-bg);
     flex-direction: column;
     padding: 1rem;
-    gap: 0.75rem;
+    gap: 0.5rem;
     z-index: 10;
     border-bottom: 2px solid var(--accent);
+    box-shadow: 0 12px 24px rgba(8, 22, 33, 0.35);
   }
 
   .nav-toggle:checked ~ .nav-links {
@@ -470,11 +515,28 @@ a:hover {
   display: flex;
   justify-content: center;
   flex-wrap: wrap;
-  gap: 0.5rem 2rem;
-  margin-top: 1.75rem;
+  gap: 0.5rem 1rem;
+  margin-top: 1.9rem;
   font-size: 0.85rem;
   letter-spacing: 0.02em;
   color: var(--ink-text-faint);
+}
+
+.hero-meta li {
+  display: inline-flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* Spectral dot separating the chips */
+.hero-meta li + li::before {
+  content: "";
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--accent-bright);
+  opacity: 0.55;
+  flex-shrink: 0;
 }
 
 @media (max-width: 600px) {
@@ -1053,6 +1115,8 @@ a:hover {
   font-weight: 500;
   color: var(--accent);
   border-left: 2px solid var(--accent);
+  /* Absorb the accent border so the text doesn't shift vs. inactive items */
+  padding-left: calc(0.6rem - 2px);
 }
 
 .with-sidebar .content {
@@ -1120,6 +1184,8 @@ a:hover {
 }
 
 .docs-card {
+  display: block;
+  color: var(--text);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 1.25rem;
@@ -1131,9 +1197,15 @@ a:hover {
 }
 
 .docs-card:hover {
+  color: var(--text);
+  text-decoration: none;
   border-color: var(--border-hover);
   box-shadow: var(--shadow-md);
   transform: translateY(-1px);
+}
+
+.docs-card:hover h3 {
+  color: var(--link);
 }
 
 .docs-card h3 {
@@ -1641,6 +1713,42 @@ a:hover {
   }
 }
 
+/* === Heading anchor links (docs pages) === */
+.heading-anchor {
+  margin-left: 0.4em;
+  font-weight: 400;
+  color: var(--text-muted);
+  opacity: 0;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+h2:hover .heading-anchor,
+h3:hover .heading-anchor,
+h4:hover .heading-anchor,
+.heading-anchor:focus-visible {
+  opacity: 0.7;
+}
+
+.heading-anchor:hover {
+  opacity: 1;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+/* Touch devices have no hover — keep the anchors faintly visible */
+@media (hover: none) {
+  .heading-anchor {
+    opacity: 0.35;
+  }
+}
+
+/* === Last-updated note on standalone pages === */
+.last-updated {
+  margin-top: 2rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
 /* === Page header (title + edit link) === */
 .page-header {
   display: flex;
@@ -1716,4 +1824,66 @@ a:hover {
 #search .pagefind-ui__button {
   background: var(--bg-card);
   color: var(--accent);
+}
+
+/* =============================================
+   Print
+   ============================================= */
+@media print {
+  .site-nav,
+  .sidebar,
+  .site-footer,
+  .copy-btn,
+  .prev-next,
+  .edit-page,
+  .heading-anchor,
+  .hero-mist {
+    display: none !important;
+  }
+
+  body::before,
+  body::after {
+    display: none;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  .content pre,
+  .terminal,
+  .editor,
+  .mode-card,
+  .feature-card,
+  .docs-card,
+  .release-entry {
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .content pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  /* Browsers drop background colors when printing; give the dark
+     terminal frames printable light-on-white colors instead. */
+  .terminal {
+    background: #fff;
+    border-color: #bbb;
+  }
+
+  .terminal pre.terminal-body,
+  .terminal pre.terminal-body code,
+  .t-prompt,
+  .t-flag {
+    color: #000;
+  }
+
+  .t-comment,
+  .t-cont,
+  .terminal-title {
+    color: #666;
+  }
 }

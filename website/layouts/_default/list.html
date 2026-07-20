@@ -12,10 +12,10 @@
       {{ with .Description }}<p>{{ . }}</p>{{ end }}
       <div class="docs-list">
         {{ range .RegularPages.ByWeight }}
-        <div class="docs-card">
-          <h3><a href="{{ .RelPermalink }}">{{ .Title }}</a></h3>
+        <a class="docs-card" href="{{ .RelPermalink }}">
+          <h3>{{ .Title }}</h3>
           {{ with .Description }}<p>{{ . }}</p>{{ end }}
-        </div>
+        </a>
         {{ end }}
       </div>
     </section>
@@ -23,10 +23,10 @@
     {{ else }}
     <div class="docs-list">
       {{ range .RegularPages.ByWeight }}
-      <div class="docs-card">
-        <h3><a href="{{ .RelPermalink }}">{{ .Title }}</a></h3>
+      <a class="docs-card" href="{{ .RelPermalink }}">
+        <h3>{{ .Title }}</h3>
         {{ with .Description }}<p>{{ . }}</p>{{ end }}
-      </div>
+      </a>
       {{ end }}
     </div>
     {{ end }}

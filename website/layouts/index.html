@@ -10,6 +10,11 @@
       <a class="btn btn-primary" href="{{ "docs/getting-started/quickstart/" | relURL }}">Get Started</a>
       <a class="btn btn-secondary" href="{{ .Site.Params.github }}" target="_blank" rel="noopener">{{ partial "icon-github.html" }} View on GitHub</a>
     </div>
+    {{ with .Params.hero_meta }}
+    <ul class="hero-meta">
+      {{ range . }}<li>{{ . }}</li>{{ end }}
+    </ul>
+    {{ end }}
   </div>
 </div>
 
