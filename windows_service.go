@@ -33,7 +33,7 @@ import (
 
 // errServiceNotStarted is returned when a service was installed successfully
 // but the SCM failed to start it.
-var errServiceNotStarted = errors.New("service installed but could not be started")
+var errServiceNotStarted = errors.New("service installed but unable to be started")
 
 const (
 	serviceNameFlagName = "service-name"
@@ -63,7 +63,7 @@ const (
 	// failedToStartMsg is the format string used whenever a service does not
 	// reach Running, regardless of which terminal state was observed. The
 	// Event Log is the source of truth for the underlying cause.
-	failedToStartMsg = "service %q failed to reach running state; check the Windows Event Log for details"
+	failedToStartMsg = "service %q unable to reach running state; check the Windows Event Log for details"
 )
 
 var (
@@ -288,10 +288,10 @@ startupWait:
 
 func validateServiceName(name string) error {
 	if name == "" {
-		return fmt.Errorf("service name cannot be empty")
+		return errors.New("service name cannot be empty")
 	}
 	if len(name) > 256 {
-		return fmt.Errorf("service name must be 256 characters or fewer")
+		return errors.New("service name must be 256 characters or fewer")
 	}
 	for _, c := range name {
 		if !unicode.IsLetter(c) && !unicode.IsDigit(c) && c != '-' && c != '_' && c != ' ' {
@@ -381,7 +381,7 @@ func waitForServiceRunningPoll(
 	for {
 		status, err := query()
 		if err != nil {
-			return fmt.Errorf("could not query service %q status: %w", name, err)
+			return fmt.Errorf("unable to query service %q status: %w", name, err)
 		}
 		switch status.State {
 		case svc.Running:
@@ -405,13 +405,13 @@ func waitForServiceRunningPoll(
 func stopServiceWithTimeout(s *mgr.Service, name string) error {
 	status, err := s.Query()
 	if err != nil {
-		return fmt.Errorf("could not query service %q: %w", name, err)
+		return fmt.Errorf("unable to query service %q: %w", name, err)
 	}
 	if status.State == svc.Stopped {
 		return nil
 	}
 	if _, err := s.Control(svc.Stop); err != nil {
-		return fmt.Errorf("could not stop service %q: %w", name, err)
+		return fmt.Errorf("unable to stop service %q: %w", name, err)
 	}
 	deadline := time.Now().Add(serviceStateChangeTimeout)
 	for status.State != svc.Stopped {
@@ -420,7 +420,7 @@ func stopServiceWithTimeout(s *mgr.Service, name string) error {
 		}
 		time.Sleep(serviceStatePollInterval)
 		if status, err = s.Query(); err != nil {
-			return fmt.Errorf("could not query service %q: %w", name, err)
+			return fmt.Errorf("unable to query service %q: %w", name, err)
 		}
 	}
 	return nil
@@ -431,17 +431,17 @@ func doInstallService(name string, proxyArgs []string) error {
 		return err
 	}
 	if len(proxyArgs) == 0 {
-		return fmt.Errorf("no proxy arguments provided; use: ghostunnel service install [--service-name NAME] -- server|client [ARGS...]")
+		return errors.New("no proxy arguments provided; use: ghostunnel service install [--service-name NAME] -- server|client [ARGS...]")
 	}
 
 	exepath, err := os.Executable()
 	if err != nil {
-		return fmt.Errorf("could not determine executable path: %w", err)
+		return fmt.Errorf("unable to determine executable path: %w", err)
 	}
 
 	m, err := mgr.Connect()
 	if err != nil {
-		return fmt.Errorf("could not connect to service manager: %w", err)
+		return fmt.Errorf("unable to connect to service manager: %w", err)
 	}
 	defer m.Disconnect()
 
@@ -451,7 +451,7 @@ func doInstallService(name string, proxyArgs []string) error {
 		Description: "Ghostunnel TLS proxy service.",
 	}, proxyArgs...)
 	if err != nil {
-		return fmt.Errorf("could not create service %q: %w", name, err)
+		return fmt.Errorf("unable to create service %q: %w", name, err)
 	}
 	defer s.Close()
 
@@ -462,7 +462,7 @@ func doInstallService(name string, proxyArgs []string) error {
 	eventSourceCreated := false
 	if !eventLogSourceExists(name) {
 		if err := eventlog.InstallAsEventCreate(name, eventlog.Error|eventlog.Warning|eventlog.Info); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: could not register event log source: %v\n", err)
+			fmt.Fprintf(os.Stderr, "warning: unable to register event log source: %v\n", err)
 		} else {
 			eventSourceCreated = true
 		}
@@ -475,12 +475,12 @@ func doInstallService(name string, proxyArgs []string) error {
 		registry.SET_VALUE)
 	if err != nil {
 		_ = s.Delete()
-		return fmt.Errorf("could not write registry marker for service %q: %w", name, err)
+		return fmt.Errorf("unable to write registry marker for service %q: %w", name, err)
 	}
 	if err := regKey.SetDWordValue("GhostunnelManaged", 1); err != nil {
 		regKey.Close()
 		_ = s.Delete()
-		return fmt.Errorf("could not write registry marker for service %q: %w", name, err)
+		return fmt.Errorf("unable to write registry marker for service %q: %w", name, err)
 	}
 	regKey.Close()
 
@@ -509,13 +509,13 @@ func doUninstallService(name string) error {
 
 	m, err := mgr.Connect()
 	if err != nil {
-		return fmt.Errorf("could not connect to service manager: %w", err)
+		return fmt.Errorf("unable to connect to service manager: %w", err)
 	}
 	defer m.Disconnect()
 
 	s, err := m.OpenService(name)
 	if err != nil {
-		return fmt.Errorf("could not open service %q: %w", name, err)
+		return fmt.Errorf("unable to open service %q: %w", name, err)
 	}
 	defer s.Close()
 
@@ -528,7 +528,7 @@ func doUninstallService(name string) error {
 	}
 
 	if err := s.Delete(); err != nil {
-		return fmt.Errorf("could not delete service %q: %w", name, err)
+		return fmt.Errorf("unable to delete service %q: %w", name, err)
 	}
 
 	writeEventLogInfo(name, fmt.Sprintf("ghostunnel service %q uninstalled", name))
@@ -545,13 +545,13 @@ func doStartService(name string) error {
 
 	m, err := mgr.Connect()
 	if err != nil {
-		return fmt.Errorf("could not connect to service manager: %w", err)
+		return fmt.Errorf("unable to connect to service manager: %w", err)
 	}
 	defer m.Disconnect()
 
 	s, err := m.OpenService(name)
 	if err != nil {
-		return fmt.Errorf("could not open service %q: %w", name, err)
+		return fmt.Errorf("unable to open service %q: %w", name, err)
 	}
 	defer s.Close()
 
@@ -578,13 +578,13 @@ func doStopService(name string) error {
 
 	m, err := mgr.Connect()
 	if err != nil {
-		return fmt.Errorf("could not connect to service manager: %w", err)
+		return fmt.Errorf("unable to connect to service manager: %w", err)
 	}
 	defer m.Disconnect()
 
 	s, err := m.OpenService(name)
 	if err != nil {
-		return fmt.Errorf("could not open service %q: %w", name, err)
+		return fmt.Errorf("unable to open service %q: %w", name, err)
 	}
 	defer s.Close()
 
@@ -607,7 +607,7 @@ func doStatusService(name string) error {
 
 	m, err := mgr.Connect()
 	if err != nil {
-		return fmt.Errorf("could not connect to service manager: %w", err)
+		return fmt.Errorf("unable to connect to service manager: %w", err)
 	}
 	defer m.Disconnect()
 
@@ -619,7 +619,7 @@ func doStatusService(name string) error {
 
 	status, err := s.Query()
 	if err != nil {
-		return fmt.Errorf("could not query service %q: %w", name, err)
+		return fmt.Errorf("unable to query service %q: %w", name, err)
 	}
 
 	stateStr := "unknown"

@@ -88,7 +88,7 @@ func (s *spiffeTLSConfigSource) newConfig(base *tls.Config) (*spiffeTLSConfig, e
 	}
 	source, err := spiffeApi.NewX509Source(ctx, spiffeApi.WithClient(s.client))
 	if err != nil {
-		return nil, fmt.Errorf("timed out or failed waiting for initial SPIFFE Workload API update (is the agent reachable and is there a registration entry?): %w", err)
+		return nil, fmt.Errorf("unable to obtain initial SPIFFE Workload API update (is the agent reachable and is there a registration entry?): %w", err)
 	}
 
 	return &spiffeTLSConfig{

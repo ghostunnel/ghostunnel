@@ -56,13 +56,13 @@ func (s macStore) Identities(flags int) ([]Identity, error) {
 	}
 	query := mapToCFDictionary(rawQuery)
 	if query == nilCFDictionaryRef {
-		return nil, errors.New("error creating CFDictionary")
+		return nil, errors.New("unable to create CFDictionary")
 	}
 	defer C.CFRelease(C.CFTypeRef(query))
 
 	var absResult C.CFTypeRef
 	if err := osStatusError(C.SecItemCopyMatching(query, &absResult)); err != nil {
-		if err == errSecItemNotFound {
+		if errors.Is(err, errSecItemNotFound) {
 			return []Identity{}, nil
 		}
 
@@ -101,7 +101,7 @@ func (s macStore) Import(data []byte, password string) error {
 		C.CFTypeRef(C.kSecImportExportPassphrase): C.CFTypeRef(cpass),
 	})
 	if cops == nilCFDictionaryRef {
-		return errors.New("error creating CFDictionary")
+		return errors.New("unable to create CFDictionary")
 	}
 	defer C.CFRelease(C.CFTypeRef(cops))
 
@@ -250,7 +250,7 @@ func (i *macIdentity) Delete() error {
 	itemListPtr := (*unsafe.Pointer)(unsafe.Pointer(&itemList[0]))
 	citemList := C.CFArrayCreate(nilCFAllocatorRef, itemListPtr, 1, nil)
 	if citemList == nilCFArrayRef {
-		return errors.New("error creating CFArray")
+		return errors.New("unable to create CFArray")
 	}
 	defer C.CFRelease(C.CFTypeRef(citemList))
 
@@ -259,7 +259,7 @@ func (i *macIdentity) Delete() error {
 		C.CFTypeRef(C.kSecMatchItemList): C.CFTypeRef(citemList),
 	})
 	if query == nilCFDictionaryRef {
-		return errors.New("error creating CFDictionary")
+		return errors.New("unable to create CFDictionary")
 	}
 	defer C.CFRelease(C.CFTypeRef(query))
 
@@ -471,7 +471,7 @@ func (i *macIdentity) getCertRef() (C.SecCertificateRef, error) {
 func exportCertRef(certRef C.SecCertificateRef) (*x509.Certificate, error) {
 	derRef := C.SecCertificateCopyData(certRef)
 	if derRef == nilCFDataRef {
-		return nil, errors.New("error getting certificate from identity")
+		return nil, errors.New("unable to get certificate from identity")
 	}
 	defer C.CFRelease(C.CFTypeRef(derRef))
 
@@ -529,7 +529,7 @@ func bytesToCFData(gobytes []byte) (C.CFDataRef, error) {
 
 	cdata := C.CFDataCreate(nilCFAllocatorRef, cptr, clen)
 	if cdata == nilCFDataRef {
-		return nilCFDataRef, errors.New("error creatin cfdata")
+		return nilCFDataRef, errors.New("unable to create CFData")
 	}
 
 	return cdata, nil

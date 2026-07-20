@@ -24,6 +24,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"errors"
 	"io"
 	"math/big"
 	"net"
@@ -244,7 +245,7 @@ func benchmarkConnectionChurn(b *testing.B, connMetrics *metrics.Metrics) {
 				n, err := conn.Read(buf)
 				got += n
 				if err != nil {
-					if err != io.EOF {
+					if !errors.Is(err, io.EOF) {
 						b.Error(err)
 					}
 					break
