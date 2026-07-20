@@ -50,7 +50,7 @@ func readCertificateFile(path, password, format string) ([]*pem.Block, error) {
 }
 
 // readX509 reads X.509 certificates from a PEM file. Unlike the original certigo
-// implementation, this fails fast on the first unparseable certificate block rather
+// implementation, this fails fast on the first unparsable certificate block rather
 // than accumulating errors and continuing.
 func readX509(path string) ([]*x509.Certificate, error) {
 	pemBlocks, err := readCertificateFile(path, "", "PEM")

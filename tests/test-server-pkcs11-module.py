@@ -49,7 +49,7 @@ try:
         "1: client closed -> server closed")
 
     # Trigger a reload to exercise the PKCS#11 cached-key code path
-    # (pkcs11_enabled.go: "re-using previously cached private key handle from
+    # (pkcs11_enabled.go: "reusing previously cached private key handle from
     # module"). Without waiting for the reload to actually finish, a follow-up
     # connection could race and still observe the pre-reload tls.Config. By
     # waiting on the status endpoint's last_reload timestamp we guarantee the
