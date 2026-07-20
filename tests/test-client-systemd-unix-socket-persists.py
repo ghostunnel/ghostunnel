@@ -18,7 +18,7 @@ import socket as pysocket
 import subprocess
 import tempfile
 import time
-from common import LOCALHOST, RootCert, print_ok, require_platform, _GHOSTUNNEL_BINARY, _COVERAGE_DIR
+from common import LOCALHOST, RootCert, print_ok, require_platform, _GHOSTUNNEL_BINARY, coverage_pod_dir
 
 require_platform('Linux')
 
@@ -41,9 +41,7 @@ try:
 
     # Coverage env mirrors run_ghostunnel().
     env = os.environ.copy()
-    integration_coverdir = os.path.join(_COVERAGE_DIR, 'integration')
-    os.makedirs(integration_coverdir, exist_ok=True)
-    env['GOCOVERDIR'] = integration_coverdir
+    env['GOCOVERDIR'] = coverage_pod_dir()
     env['LISTEN_FDS'] = '1'
     env['LISTEN_FDNAMES'] = 'client'
 

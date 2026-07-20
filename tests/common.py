@@ -54,6 +54,28 @@ _GHOSTUNNEL_BINARY = os.path.join(_ROOT_DIR, 'ghostunnel.cover.exe' if IS_WINDOW
 _COVERAGE_DIR = os.path.join(_ROOT_DIR, 'coverage')
 os.makedirs(_COVERAGE_DIR, exist_ok=True)
 
+# Monotonic counter used to give each ghostunnel invocation a unique
+# GOCOVERDIR pod subdirectory (see coverage_pod_dir).
+_coverage_pod = 0
+
+
+def coverage_pod_dir():
+    """Create a fresh GOCOVERDIR pod subdirectory for one ghostunnel invocation.
+
+    Each invocation gets its own pod subdirectory. All tests run the same
+    binary, so they all emit an identically-named covmeta.<hash> file via
+    write-tmp-then-rename; sharing one directory across the ~NumCPU parallel
+    test processes makes that rename race, and the runtime prints the failure
+    to stderr (which trips test-server-quiet-all-logs). Per-invocation dirs
+    give each process a private covmeta target; covdata merges the pods later.
+    """
+    global _coverage_pod
+    _coverage_pod += 1
+    pod_dir = os.path.join(
+        _COVERAGE_DIR, 'integration', '{0}-{1}'.format(os.getpid(), _coverage_pod))
+    os.makedirs(pod_dir, exist_ok=True)
+    return pod_dir
+
 _SO_REUSEPORT = getattr(socket, 'SO_REUSEPORT', None)
 
 # Holds reservation sockets for ports allocated by get_free_port()
@@ -137,9 +159,7 @@ def run_ghostunnel(args, stdout=sys.stdout.buffer, stderr=sys.stderr.buffer, pre
     # Set GOCOVERDIR for binary-format coverage data (merged by go tool covdata).
     # The binary is built with go build -cover and writes coverage counters
     # to this directory on exit (including signal-triggered exits).
-    integration_coverdir = os.path.join(_COVERAGE_DIR, 'integration')
-    os.makedirs(integration_coverdir, exist_ok=True)
-    env["GOCOVERDIR"] = integration_coverdir
+    env["GOCOVERDIR"] = coverage_pod_dir()
 
     # Run ghostunnel directly with args (binary built with go build -cover)
     cmd = [_GHOSTUNNEL_BINARY] + args
