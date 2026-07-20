@@ -693,8 +693,20 @@ func (Test) Coverage(ctx context.Context) error {
 	mg.CtxDeps(ctx, Test.Unit, Test.Integration)
 
 	// Convert integration GOCOVERDIR binary data to a text profile.
+	// Each test invocation writes to its own pod subdirectory under
+	// coverage/integration (see tests/common.py) to avoid a covmeta write
+	// race across parallel processes. covdata takes a comma-separated list
+	// of pod directories, so enumerate them here.
+	pods, err := filepath.Glob("coverage/integration/*")
+	if err != nil {
+		return fmt.Errorf("failed to enumerate coverage pods: %w", err)
+	}
+	inputs := "coverage/integration"
+	if len(pods) > 0 {
+		inputs = strings.Join(pods, ",")
+	}
 	if err := sh.Run("go", "tool", "covdata", "textfmt",
-		"-i=coverage/integration",
+		"-i="+inputs,
 		"-o=coverage/integration.profile",
 	); err != nil {
 		return fmt.Errorf("failed to convert integration coverage to text: %w", err)
