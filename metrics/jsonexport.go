@@ -97,7 +97,7 @@ func (r *Registry) StartPostLoop(url string, client *http.Client, interval time.
 		defer ticker.Stop()
 		for range ticker.C {
 			if err := r.postOnce(url, client); err != nil {
-				logger.Printf("error reporting metrics: %s", err)
+				logger.Printf("error reporting metrics: %v", err)
 			}
 		}
 	}()
