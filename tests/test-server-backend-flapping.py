@@ -74,8 +74,12 @@ root = None
 try:
     root = create_default_certs()
 
-    # no backend initially; the target port has nothing listening
-    ghostunnel = start_ghostunnel_server(extra_args=['--enable-pprof'])
+    # no backend initially; the target port has nothing listening. Use a
+    # short connect-timeout so a failed backend dial closes the tunnel well
+    # within the client recv TIMEOUT, even when the loopback silently drops
+    # the SYN (a macOS CI quirk) instead of refusing immediately.
+    ghostunnel = start_ghostunnel_server(
+        extra_args=['--enable-pprof', '--connect-timeout=1s'])
     wait_for_status(lambda info: info.get('message') == 'listening')
     baseline = goroutine_count()
     print_ok('goroutine baseline: {0}'.format(baseline))
