@@ -1147,7 +1147,6 @@ func clientBackendDialer(
 	tlsConfigSource certloader.TLSConfigSource,
 	network, address, host string,
 ) (proxy.DialFunc, policy.Policy, error) {
-
 	config, err := buildClientConfig(*enabledCipherSuites, *maxTLSVersion, *allowUnsafeCipherSuites, *alpn)
 	if err != nil {
 		return nil, nil, err
