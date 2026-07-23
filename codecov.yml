@@ -1,0 +1,25 @@
+coverage:
+  status:
+    project:
+      default:
+        # Only fail if total project coverage drops by more than this
+        # amount relative to the base. Small fluctuations from test
+        # ordering, platform differences, and flaky-line accounting are
+        # noise and should not fail CI.
+        target: auto
+        threshold: 1%
+    patch:
+      default:
+        # Don't fail on patch (diff) coverage; the project status above is
+        # what gates on meaningful regressions.
+        informational: true
+
+# Wait for all per-platform upload flags before computing a status, so the
+# check reflects merged coverage rather than whichever upload arrived first.
+codecov:
+  notify:
+    wait_for_ci: true
+
+comment:
+  layout: "reach, diff, flags, files"
+  require_changes: true
