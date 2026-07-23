@@ -44,6 +44,7 @@ func init() {
 }
 
 func withStore(t *testing.T, cb func(Store)) {
+	t.Helper()
 	logger := log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
 	store, err := Open(logger)
 	if err != nil {
@@ -55,6 +56,7 @@ func withStore(t *testing.T, cb func(Store)) {
 }
 
 func withIdentity(t *testing.T, i *identity, cb func(Identity)) {
+	t.Helper()
 	withStore(t, func(store Store) {
 		// Import an identity
 		if err := store.Import(i.PFX("asdf"), "asdf"); err != nil {

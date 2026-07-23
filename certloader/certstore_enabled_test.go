@@ -26,7 +26,7 @@ func TestCertstoreCertificateGetCertificate(t *testing.T) {
 	c.cachedCertPool.Store(pool)
 
 	cert, err := c.GetCertificate(nil)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.NotNil(t, cert)
 	assert.Equal(t, "test-cert", cert.Leaf.Subject.CommonName)
 }
@@ -43,7 +43,7 @@ func TestCertstoreCertificateGetClientCertificate(t *testing.T) {
 	c.cachedCertificate.Store(tlsCert)
 
 	cert, err := c.GetClientCertificate(nil)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.NotNil(t, cert)
 	assert.Equal(t, "test-client-cert", cert.Leaf.Subject.CommonName)
 }
@@ -89,12 +89,12 @@ func TestSerializeChain(t *testing.T) {
 	chain := []*x509.Certificate{cert1, cert2}
 	result := serializeChain(chain)
 
-	assert.Equal(t, 2, len(result))
+	assert.Len(t, result, 2)
 	assert.Equal(t, []byte("cert1-raw-bytes"), result[0])
 	assert.Equal(t, []byte("cert2-raw-bytes"), result[1])
 }
 
 func TestSerializeChainEmpty(t *testing.T) {
 	result := serializeChain([]*x509.Certificate{})
-	assert.Equal(t, 0, len(result))
+	assert.Empty(t, result)
 }

@@ -1506,6 +1506,7 @@ func TestRecoverPBEErrors(t *testing.T) {
 		return b
 	}
 	mkEPKI := func(t *testing.T, ct []byte) encryptedPrivateKeyInfo {
+		t.Helper()
 		return encryptedPrivateKeyInfo{
 			Algo: pkix.AlgorithmIdentifier{
 				Algorithm:  oidPBEWithMD5AndDES3CBC,

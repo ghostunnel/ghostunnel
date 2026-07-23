@@ -102,9 +102,9 @@ func TestNewMetricsWiring(t *testing.T) {
 func TestNilMetricsProxyForwardsData(t *testing.T) {
 	// Plain TCP listener (incoming) and backend (target).
 	incoming, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	target, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer target.Close()
 
 	dialer := func(ctx context.Context) (net.Conn, error) {
@@ -117,19 +117,19 @@ func TestNilMetricsProxyForwardsData(t *testing.T) {
 	defer p.Shutdown()
 
 	src, err := net.Dial("tcp", incoming.Addr().String())
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer src.Close()
 
 	dst, err := target.Accept()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer dst.Close()
 
 	_, err = src.Write([]byte("ping"))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	_ = dst.SetReadDeadline(time.Now().Add(5 * time.Second))
 	buf := make([]byte, 4)
 	n, err := io.ReadFull(dst, buf)
-	assert.Nil(t, err, "backend must receive forwarded data even with no-op metrics")
+	assert.NoError(t, err, "backend must receive forwarded data even with no-op metrics")
 	assert.Equal(t, "ping", string(buf[:n]))
 }
