@@ -695,6 +695,10 @@ func TestIsClosedConnectionError(t *testing.T) {
 		{name: "net.OpError write EPIPE", err: &net.OpError{Op: "write", Err: syscall.EPIPE}, expected: true},
 		{name: "raw ECONNRESET", err: syscall.ECONNRESET, expected: true},
 		{name: "raw EPIPE", err: syscall.EPIPE, expected: true},
+		// Windows surfaces a socket reset as the WSA errno (10054), which
+		// is different from syscall.ECONNRESET on Windows.
+		{name: "wrapped WSAECONNRESET", err: &net.OpError{Op: "read", Err: os.NewSyscallError("wsarecv", errWSAEConnReset)}, expected: true},
+		{name: "raw WSAECONNRESET", err: errWSAEConnReset, expected: true},
 	}
 
 	for _, tc := range tests {
