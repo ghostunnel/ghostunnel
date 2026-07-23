@@ -15,7 +15,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -43,7 +42,9 @@ type WorkloadAPI struct {
 }
 
 func New(tb testing.TB) *WorkloadAPI {
+	tb.Helper()
 	w := &WorkloadAPI{
+		tb:               tb,
 		x509Chans:        make(map[chan *workload.X509SVIDResponse]struct{}),
 		jwtBundlesChans:  make(map[chan *workload.JWTBundlesResponse]struct{}),
 		x509BundlesChans: make(map[chan *workload.X509BundlesResponse]struct{}),
@@ -108,7 +109,7 @@ func (w *WorkloadAPI) SetJWTBundles(jwtBundles ...*jwtbundle.Bundle) {
 	}
 	for _, bundle := range jwtBundles {
 		bundleBytes, err := bundle.Marshal()
-		assert.NoError(w.tb, err)
+		require.NoError(w.tb, err)
 		resp.Bundles[bundle.TrustDomain().String()] = bundleBytes
 	}
 
@@ -132,9 +133,9 @@ func (w *WorkloadAPI) SetX509Bundles(x509Bundles ...*x509bundle.Bundle) {
 	}
 	for _, bundle := range x509Bundles {
 		bundleBytes, err := bundle.Marshal()
-		assert.NoError(w.tb, err)
+		require.NoError(w.tb, err)
 		bundlePem, err := ParseCertificates(bundleBytes)
-		assert.NoError(w.tb, err)
+		require.NoError(w.tb, err)
 
 		var rawBytes []byte
 		for _, c := range bundlePem {
@@ -190,6 +191,7 @@ type X509SVIDResponse struct {
 }
 
 func (r *X509SVIDResponse) ToProto(tb testing.TB) *workload.X509SVIDResponse {
+	tb.Helper()
 	var bundle []byte
 	if r.Bundle != nil {
 		bundle = ConcatRawCertsFromCerts(r.Bundle.X509Authorities())

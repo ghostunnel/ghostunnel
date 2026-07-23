@@ -31,6 +31,13 @@ linters:
     - intrange
     - copyloopvar
     - misspell
+    # testifylint catches misused testify assertions; thelper flags test
+    # helpers missing t.Helper(); forcetypeassert flags unchecked x.(T)
+    # assertions; unparam flags unused/constant function parameters.
+    - testifylint
+    - thelper
+    - forcetypeassert
+    - unparam
   # Enable human-readable exclusion presets including std-error-handling
   # which excludes common error handling patterns like Close()
   exclusions:
@@ -48,11 +55,33 @@ linters:
       - linters:
           - forbidigo
         path: "_test\\.go"
+      # Ignore forcetypeassert and unparam in test files - both deliver their
+      # value in the production binary. In tests an unchecked assertion that
+      # panics is an acceptable loud failure, and fixture/builder helpers
+      # legitimately carry constant params and unused return values.
+      - linters:
+          - forcetypeassert
+          - unparam
+        path: "_test\\.go"
   settings:
     errcheck:
       # Additional functions to exclude from checking
       exclude-functions:
         - (*github.com/ghostunnel/ghostunnel/certloader.spiffeTLSConfigSource).Close
+    testifylint:
+      # All testifylint checks stay enabled except these two, which fire
+      # inconsistently on this codebase's test patterns:
+      #   - float-compare: the metrics tests compare integer-valued float64
+      #     metrics (nanosecond counts/means) against exact expected values,
+      #     where exact comparison is correct; the check also fires on only some
+      #     of these identical assertions, so InDelta rewrites add noise.
+      #   - require-error: fires on only some of several structurally identical
+      #     "assert then use the result" error checks (e.g. two of three in one
+      #     helper), so enforcing it yields inconsistent files rather than a
+      #     clean rule. Error assertions that must be fatal already use require.
+      disable:
+        - float-compare
+        - require-error
     errorlint:
       # Flag fmt.Errorf with %v (or %s) wrapping an error — must use %w.
       errorf: true

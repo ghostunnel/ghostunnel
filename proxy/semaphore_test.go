@@ -26,7 +26,7 @@ import (
 func TestUnlimitedSemaphoreAcquireWithBackground(t *testing.T) {
 	sem := &unlimitedSemaphore{}
 	err := sem.Acquire(context.Background(), 1)
-	assert.Nil(t, err, "Acquire should return nil for background context")
+	assert.NoError(t, err, "Acquire should return nil for background context")
 }
 
 func TestUnlimitedSemaphoreAcquireWithCanceledContext(t *testing.T) {
@@ -34,7 +34,7 @@ func TestUnlimitedSemaphoreAcquireWithCanceledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	err := sem.Acquire(ctx, 1)
-	assert.NotNil(t, err, "Acquire should return context error when canceled")
+	assert.Error(t, err, "Acquire should return context error when canceled")
 	assert.Equal(t, context.Canceled, err)
 }
 

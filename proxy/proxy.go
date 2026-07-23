@@ -468,7 +468,13 @@ func (p *Proxy) copyData(dst net.Conn, src net.Conn, w *pairWatchdog) (written i
 	}()
 
 	// Get a buffer for copy from the pool of shared buffers, to reduce allocs.
-	buf := p.pool.Get().(*[]byte)
+	// The pool's New only ever returns *[]byte; the fallback is defensive so a
+	// nil/wrong type can never reach io.CopyBuffer or be Put back.
+	buf, ok := p.pool.Get().(*[]byte)
+	if !ok {
+		b := make([]byte, 1<<15 /* 32 KiB */)
+		buf = &b
+	}
 	defer p.pool.Put(buf)
 
 	// The trackedConn shims hide WriteTo/ReadFrom (to keep our pooled buffer)

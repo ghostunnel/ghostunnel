@@ -15,6 +15,7 @@ import (
 
 // NewEC256Key returns an ECDSA key over the P256 curve
 func NewEC256Key(tb testing.TB) *ecdsa.PrivateKey {
+	tb.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(tb, err)
 	return key
@@ -22,6 +23,7 @@ func NewEC256Key(tb testing.TB) *ecdsa.PrivateKey {
 
 // NewKeyID returns a random id useful for identifying keys
 func NewKeyID(tb testing.TB) string {
+	tb.Helper()
 	choices := make([]byte, 32)
 	_, err := rand.Read(choices)
 	require.NoError(tb, err)

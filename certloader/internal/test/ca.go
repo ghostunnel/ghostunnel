@@ -50,6 +50,7 @@ func (co certificateOption) apply(c *x509.Certificate) {
 }
 
 func NewCA(tb testing.TB, td spiffeid.TrustDomain) *CA {
+	tb.Helper()
 	cert, key := CreateCACertificate(tb, nil, nil)
 	return &CA{
 		tb:     tb,
@@ -146,6 +147,7 @@ func (ca *CA) JWTBundle() *jwtbundle.Bundle {
 }
 
 func CreateCACertificate(tb testing.TB, parent *x509.Certificate, parentKey crypto.Signer, options ...CertificateOption) (*x509.Certificate, crypto.Signer) {
+	tb.Helper()
 	now := time.Now()
 	serial := NewSerial(tb)
 	key := NewEC256Key(tb)
@@ -170,6 +172,7 @@ func CreateCACertificate(tb testing.TB, parent *x509.Certificate, parentKey cryp
 }
 
 func CreateX509Certificate(tb testing.TB, parent *x509.Certificate, parentKey crypto.Signer, options ...CertificateOption) (*x509.Certificate, crypto.Signer) {
+	tb.Helper()
 	now := time.Now()
 	serial := NewSerial(tb)
 	key := NewEC256Key(tb)
@@ -189,6 +192,7 @@ func CreateX509Certificate(tb testing.TB, parent *x509.Certificate, parentKey cr
 }
 
 func CreateX509SVID(tb testing.TB, parent *x509.Certificate, parentKey crypto.Signer, id spiffeid.ID, options ...CertificateOption) (*x509.Certificate, crypto.Signer) {
+	tb.Helper()
 	serial := NewSerial(tb)
 	options = append(options,
 		WithSerial(serial),
@@ -202,6 +206,7 @@ func CreateX509SVID(tb testing.TB, parent *x509.Certificate, parentKey crypto.Si
 }
 
 func CreateCertificate(tb testing.TB, tmpl, parent *x509.Certificate, pub, priv any) *x509.Certificate {
+	tb.Helper()
 	certDER, err := x509.CreateCertificate(rand.Reader, tmpl, parent, pub, priv)
 	require.NoError(tb, err)
 	cert, err := x509.ParseCertificate(certDER)
@@ -209,10 +214,11 @@ func CreateCertificate(tb testing.TB, tmpl, parent *x509.Certificate, pub, priv 
 	return cert
 }
 
-func CreateWebCredentials(t testing.TB) (*x509.CertPool, *tls.Certificate) {
-	rootCert, rootKey := CreateCACertificate(t, nil, nil)
+func CreateWebCredentials(tb testing.TB) (*x509.CertPool, *tls.Certificate) {
+	tb.Helper()
+	rootCert, rootKey := CreateCACertificate(tb, nil, nil)
 
-	childCert, childKey := CreateX509Certificate(t, rootCert, rootKey,
+	childCert, childKey := CreateX509Certificate(tb, rootCert, rootKey,
 		WithIPAddresses(localhostIPs...))
 
 	return NewCertPool([]*x509.Certificate{rootCert}),
@@ -223,6 +229,7 @@ func CreateWebCredentials(t testing.TB) (*x509.CertPool, *tls.Certificate) {
 }
 
 func NewSerial(tb testing.TB) *big.Int {
+	tb.Helper()
 	b := make([]byte, 8)
 	_, err := rand.Read(b)
 	require.NoError(tb, err)

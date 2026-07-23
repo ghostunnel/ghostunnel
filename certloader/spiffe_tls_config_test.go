@@ -160,7 +160,7 @@ func TestWorkloadAPIUnreachableTimesOut(t *testing.T) {
 	select {
 	case gerr := <-done:
 		require.Error(t, gerr, "expected an error from unreachable Workload API")
-		require.True(t, errors.Is(gerr, context.DeadlineExceeded), "want DeadlineExceeded, got: %v", gerr)
+		require.ErrorIs(t, gerr, context.DeadlineExceeded, "want DeadlineExceeded, got: %v", gerr)
 	case <-time.After(guard):
 		t.Fatalf("GetServerConfig did not return within %s; newConfig is hanging (regression)", guard)
 	}

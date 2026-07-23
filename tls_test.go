@@ -199,9 +199,9 @@ func TestParseTLSVersion(t *testing.T) {
 	for _, test := range tests {
 		version, err := parseTLSVersion(test.version)
 		if test.shouldFail {
-			assert.NotNil(t, err, "parseTLSVersion(%s) should fail", test.version)
+			assert.Error(t, err, "parseTLSVersion(%s) should fail", test.version)
 		} else {
-			assert.Nil(t, err, "parseTLSVersion(%s) should not fail", test.version)
+			assert.NoError(t, err, "parseTLSVersion(%s) should not fail", test.version)
 			assert.Equal(t, test.expected, version, "parseTLSVersion(%s) returned wrong version", test.version)
 		}
 	}
@@ -237,63 +237,63 @@ func TestBuildConfig(t *testing.T) {
 	defer os.Remove(tmpKeystoreSeparateKey.Name())
 
 	_, err = buildConfig("", "", false)
-	assert.NotNil(t, err, "should fail to build config with no cipher suites")
+	assert.Error(t, err, "should fail to build config with no cipher suites")
 
 	conf, err := buildConfig("AES,CHACHA", "", false)
-	assert.Nil(t, err, "should be able to build TLS config")
-	assert.True(t, conf.MinVersion == tls.VersionTLS12, "must have correct TLS min version")
+	assert.NoError(t, err, "should be able to build TLS config")
+	assert.Equal(t, uint16(tls.VersionTLS12), conf.MinVersion, "must have correct TLS min version")
 	assert.Equal(t, uint16(0), conf.MaxVersion, "should not set MaxVersion when maxTLSVersion is empty")
 
 	conf, err = buildConfig("AES,CHACHA", "TLS1.3", false)
-	assert.Nil(t, err, "should be able to build TLS config")
-	assert.True(t, conf.MaxVersion == tls.VersionTLS13, "must have correct TLS max version")
+	assert.NoError(t, err, "should be able to build TLS config")
+	assert.Equal(t, uint16(tls.VersionTLS13), conf.MaxVersion, "must have correct TLS max version")
 
 	_, err = buildConfig("AES,CHACHA", "invalid", false)
-	assert.NotNil(t, err, "should fail to build config with invalid TLS version")
+	assert.Error(t, err, "should fail to build config with invalid TLS version")
 	assert.Contains(t, err.Error(), "invalid max TLS version", "error should mention invalid TLS version")
 
 	logger := log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
 	cert, err := buildCertificate("", "", "", "", tmpKeystoreSeparateCert.Name(), logger)
 	assert.NotNil(t, cert, "cert with empty keystorePath should not be nil")
-	assert.Nil(t, err, "empty keystorePath should not raise an error")
+	assert.NoError(t, err, "empty keystorePath should not raise an error")
 
 	cert, err = buildCertificate(tmpKeystore.Name(), "", "", "totes invalid", tmpKeystoreSeparateCert.Name(), logger)
 	assert.Nil(t, cert, "cert with invalid params should be nil")
-	assert.NotNil(t, err, "should reject invalid keystore pass")
+	assert.Error(t, err, "should reject invalid keystore pass")
 
 	cert, err = buildCertificate("does-not-exist", "", "", testKeystorePassword, tmpKeystoreSeparateCert.Name(), logger)
 	assert.Nil(t, cert, "cert with invalid params should be nil")
-	assert.NotNil(t, err, "should reject missing keystore (not found)")
+	assert.Error(t, err, "should reject missing keystore (not found)")
 
 	cert, err = buildCertificate(tmpKeystoreNoPrivKey.Name(), "", "", "", tmpKeystoreSeparateCert.Name(), logger)
 	assert.Nil(t, cert, "cert with invalid params should be nil")
-	assert.NotNil(t, err, "should reject invalid keystore (no private key)")
+	assert.Error(t, err, "should reject invalid keystore (no private key)")
 
 	cert, err = buildCertificate("/dev/null", "", "", "", tmpKeystoreSeparateCert.Name(), logger)
 	assert.Nil(t, cert, "cert with invalid params should be nil")
-	assert.NotNil(t, err, "should reject invalid keystore (empty)")
+	assert.Error(t, err, "should reject invalid keystore (empty)")
 
 	cert, err = buildCertificate("", tmpKeystoreSeparateCert.Name(), tmpKeystoreSeparateKey.Name(), "", tmpKeystoreSeparateCert.Name(), logger)
 	assert.NotNil(t, cert, "cert with separate key should not be nil")
-	assert.Nil(t, err, "cert with separate key should be ok")
+	assert.NoError(t, err, "cert with separate key should be ok")
 }
 
 func TestBuildClientConfig(t *testing.T) {
 	conf, err := buildClientConfig("AES,CHACHA", "", false)
-	assert.Nil(t, err, "should be able to build client TLS config")
-	assert.True(t, conf.MinVersion == tls.VersionTLS12, "must have correct TLS min version")
+	assert.NoError(t, err, "should be able to build client TLS config")
+	assert.Equal(t, uint16(tls.VersionTLS12), conf.MinVersion, "must have correct TLS min version")
 
 	conf, err = buildClientConfig("AES,CHACHA", "TLS1.2", false)
-	assert.Nil(t, err, "should be able to build client TLS config with max version")
+	assert.NoError(t, err, "should be able to build client TLS config with max version")
 	assert.Equal(t, uint16(tls.VersionTLS12), conf.MaxVersion, "must have correct max TLS version")
 
 	_, err = buildClientConfig("INVALID", "", false)
-	assert.NotNil(t, err, "should fail to build client config with invalid cipher suite")
+	assert.Error(t, err, "should fail to build client config with invalid cipher suite")
 }
 
 func TestBuildServerConfig(t *testing.T) {
 	conf, err := buildServerConfig("AES,CHACHA", "", false)
-	assert.Nil(t, err, "should be able to build server TLS config")
+	assert.NoError(t, err, "should be able to build server TLS config")
 	assert.Equal(t, tls.RequireAndVerifyClientCert, conf.ClientAuth, "server config should require client cert")
 }
 
@@ -315,7 +315,7 @@ func TestBuildCertificateKeystore(t *testing.T) {
 	// Test the keystore branch
 	cert, err := buildCertificate(tmpKeystore.Name(), "", "", testKeystorePassword, tmpCaBundle.Name(), logger)
 	assert.NotNil(t, cert, "cert from keystore should not be nil")
-	assert.Nil(t, err, "should load cert from keystore")
+	assert.NoError(t, err, "should load cert from keystore")
 }
 
 func TestBuildCertificateNoCert(t *testing.T) {
@@ -330,33 +330,33 @@ func TestBuildCertificateNoCert(t *testing.T) {
 	// Test the no-cert fallback
 	cert, err := buildCertificate("", "", "", "", tmpCaBundle.Name(), logger)
 	assert.NotNil(t, cert, "no-cert certificate should not be nil")
-	assert.Nil(t, err, "no-cert should not raise an error")
+	assert.NoError(t, err, "no-cert should not raise an error")
 }
 
 func TestCipherSuitePreference(t *testing.T) {
 	_, err := buildConfig("XYZ", "TLS1.3", false)
-	assert.NotNil(t, err, "should not be able to build TLS config with invalid cipher suite option")
+	assert.Error(t, err, "should not be able to build TLS config with invalid cipher suite option")
 
 	_, err = buildServerConfig("XYZ", "TLS1.3", false)
-	assert.NotNil(t, err, "should not be able to build server TLS config with invalid cipher suite option")
+	assert.Error(t, err, "should not be able to build server TLS config with invalid cipher suite option")
 
 	_, err = buildConfig("", "TLS1.3", false)
-	assert.NotNil(t, err, "should not be able to build TLS config without cipher suite selection")
+	assert.Error(t, err, "should not be able to build TLS config without cipher suite selection")
 
 	conf, err := buildConfig("CHACHA,AES", "TLS1.3", false)
-	assert.Nil(t, err, "should be able to build TLS config")
-	assert.True(t, conf.CipherSuites[0] == tls.TLS_CHACHA20_POLY1305_SHA256, "expecting TLS 1.3 ChaCha20")
+	assert.NoError(t, err, "should be able to build TLS config")
+	assert.Equal(t, tls.TLS_CHACHA20_POLY1305_SHA256, conf.CipherSuites[0], "expecting TLS 1.3 ChaCha20")
 
 	conf, err = buildConfig("AES,CHACHA", "TLS1.3", false)
-	assert.Nil(t, err, "should be able to build TLS config")
-	assert.True(t, conf.CipherSuites[0] == tls.TLS_AES_128_GCM_SHA256, "expecting TLS 1.3 AES")
+	assert.NoError(t, err, "should be able to build TLS config")
+	assert.Equal(t, tls.TLS_AES_128_GCM_SHA256, conf.CipherSuites[0], "expecting TLS 1.3 AES")
 
 	_, err = buildConfig("AES,CHACHA,UNSAFE-AZURE", "TLS1.3", false)
-	assert.NotNil(t, err, "should not be able to build TLS config with unsafe cipher suite without flag")
+	assert.Error(t, err, "should not be able to build TLS config with unsafe cipher suite without flag")
 
 	conf, err = buildConfig("UNSAFE-AZURE", "TLS1.3", true)
-	assert.Nil(t, err, "should be able to build TLS config")
-	assert.True(t, conf.CipherSuites[0] == tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256, "expecting AES")
+	assert.NoError(t, err, "should be able to build TLS config")
+	assert.Equal(t, tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256, conf.CipherSuites[0], "expecting AES")
 }
 
 // TestResolveCipherSuites exercises the shared helper used by both
@@ -365,36 +365,36 @@ func TestCipherSuitePreference(t *testing.T) {
 func TestResolveCipherSuites(t *testing.T) {
 	// Known safe group resolves.
 	suites, err := resolveCipherSuites("AES", false)
-	assert.Nil(t, err, "AES group should resolve without unsafe flag")
+	assert.NoError(t, err, "AES group should resolve without unsafe flag")
 	assert.NotEmpty(t, suites, "AES group should yield non-empty suite list")
 
 	// Whitespace around names is trimmed.
 	suites, err = resolveCipherSuites(" AES , CHACHA ", false)
-	assert.Nil(t, err, "names with surrounding whitespace should be trimmed")
+	assert.NoError(t, err, "names with surrounding whitespace should be trimmed")
 	assert.NotEmpty(t, suites)
 
 	// Unknown group is rejected.
 	_, err = resolveCipherSuites("XYZ", false)
-	assert.NotNil(t, err, "unknown group should be rejected")
+	assert.Error(t, err, "unknown group should be rejected")
 
 	// Empty spec yields the empty-name lookup which is rejected.
 	_, err = resolveCipherSuites("", false)
-	assert.NotNil(t, err, "empty spec should be rejected")
+	assert.Error(t, err, "empty spec should be rejected")
 
 	// Unsafe group requires the explicit allowUnsafe flag.
 	_, err = resolveCipherSuites("UNSAFE-AZURE", false)
-	assert.NotNil(t, err, "unsafe group should be rejected when allowUnsafe=false")
+	assert.Error(t, err, "unsafe group should be rejected when allowUnsafe=false")
 
 	suites, err = resolveCipherSuites("UNSAFE-AZURE", true)
-	assert.Nil(t, err, "unsafe group should resolve when allowUnsafe=true")
+	assert.NoError(t, err, "unsafe group should resolve when allowUnsafe=true")
 	assert.Equal(t, []uint16{tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256}, suites)
 
 	// Mixing safe and unsafe names: still requires the flag.
 	_, err = resolveCipherSuites("AES,UNSAFE-AZURE", false)
-	assert.NotNil(t, err, "mixed safe+unsafe should be rejected without flag")
+	assert.Error(t, err, "mixed safe+unsafe should be rejected without flag")
 
 	suites, err = resolveCipherSuites("AES,UNSAFE-AZURE", true)
-	assert.Nil(t, err, "mixed safe+unsafe should resolve with flag")
+	assert.NoError(t, err, "mixed safe+unsafe should resolve with flag")
 	assert.Contains(t, suites, tls.TLS_AES_128_GCM_SHA256)
 	assert.Contains(t, suites, tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256)
 }
@@ -457,7 +457,7 @@ func TestReload(t *testing.T) {
 
 	logger := log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
 	c, err := buildCertificate(tmpKeystore.Name(), "", "", testKeystorePassword, tmpCaBundle.Name(), logger)
-	assert.Nil(t, err, "should be able to build certificate")
+	assert.NoError(t, err, "should be able to build certificate")
 
 	c.Reload()
 }
@@ -486,7 +486,7 @@ func TestBuildCertificateHasPKCS11WithKeystorePath(t *testing.T) {
 
 	// Test PKCS#11 branch with keystorePath set (line 60-61)
 	_, err = buildCertificate("keystore.p12", "", "", "", tmpCaBundle.Name(), logger)
-	assert.NotNil(t, err, "should fail with non-existent PKCS11 module via keystorePath")
+	assert.Error(t, err, "should fail with non-existent PKCS11 module via keystorePath")
 }
 
 func TestBuildCertificateHasPKCS11WithCertPath(t *testing.T) {
@@ -519,7 +519,7 @@ func TestBuildCertificateHasPKCS11WithCertPath(t *testing.T) {
 
 	// Test PKCS#11 branch with certPath set (line 63)
 	_, err = buildCertificate("", tmpCert.Name(), "", "", tmpCaBundle.Name(), logger)
-	assert.NotNil(t, err, "should fail with non-existent PKCS11 module via certPath")
+	assert.Error(t, err, "should fail with non-existent PKCS11 module via certPath")
 }
 
 func TestBuildCertificateHasKeychainIdentityError(t *testing.T) {
@@ -559,7 +559,7 @@ func TestBuildCertificateHasKeychainIdentityError(t *testing.T) {
 
 	// Test keychain branch (line 66-68)
 	_, err = buildCertificate("", "", "", "", tmpCaBundle.Name(), logger)
-	assert.NotNil(t, err, "should fail with non-existent keychain identity")
+	assert.Error(t, err, "should fail with non-existent keychain identity")
 }
 
 func TestBuildConfigSystemRoots(t *testing.T) {
@@ -579,7 +579,7 @@ func TestBuildConfigSystemRoots(t *testing.T) {
 
 	logger := log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
 	c, err := buildCertificate(tmpKeystore.Name(), "", "", testKeystorePassword, "", logger)
-	assert.Nil(t, err, "should be able to build certificate")
+	assert.NoError(t, err, "should be able to build certificate")
 
 	c.Reload()
 }
