@@ -41,7 +41,7 @@ var discardLogger = log.New(io.Discard, "", 0)
 func TestServeHTTPJSON(t *testing.T) {
 	r, _ := fixture(t)
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/_metrics/json", nil)
+	req := httptest.NewRequest(http.MethodGet, "/_metrics/json", nil)
 	r.ServeHTTP(rec, req)
 
 	assert.Equal(t, http.StatusOK, rec.Code)

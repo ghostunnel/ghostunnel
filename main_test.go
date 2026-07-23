@@ -730,7 +730,7 @@ func TestInvalidCABundle(t *testing.T) {
 		"--listen", "localhost:8080",
 	}
 	if runtime.GOOS == "linux" {
-		// Disable landlock so we don't inadvertendly affect later unit tests.
+		// Disable landlock so we don't inadvertently affect later unit tests.
 		cmd = append(cmd, "--disable-landlock")
 	}
 	err := run(cmd)
@@ -1724,7 +1724,7 @@ func TestShutdownHandlerConcurrentPosts(t *testing.T) {
 		close(done)
 	}()
 
-	for i := 0; i < concurrent; i++ {
+	for range concurrent {
 		go func() {
 			defer wg.Done()
 			req := httptest.NewRequest(http.MethodPost, "/_shutdown", nil)

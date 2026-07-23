@@ -113,11 +113,11 @@ func TestCachedSPIFFEConfigConcurrent(t *testing.T) {
 	server := cfg.GetServerConfig()
 
 	var wg sync.WaitGroup
-	for g := 0; g < 8; g++ {
+	for range 8 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for n := 0; n < 2000; n++ {
+			for range 2000 {
 				if cfg.GetClientConfig() != client {
 					t.Error("GetClientConfig returned a different pointer")
 					return

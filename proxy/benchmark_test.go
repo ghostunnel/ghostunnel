@@ -43,7 +43,7 @@ func benchmarkCopyData(b *testing.B, proxy *Proxy, size int, idleTimeout time.Du
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		srcIn, srcOut := net.Pipe()
 		dstIn, dstOut := net.Pipe()
 		defer func() {
@@ -120,7 +120,7 @@ func BenchmarkProxyProtoHeader(b *testing.B) {
 	} {
 		b.Run(tc.name, func(b *testing.B) {
 			b.ReportAllocs()
-			for i := 0; i < b.N; i++ {
+			for range b.N {
 				_, _ = proxyProtoHeader(conn, state, tc.mode)
 			}
 		})

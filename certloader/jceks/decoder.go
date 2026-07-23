@@ -158,7 +158,7 @@ func (ks *KeyStore) parseWithOptions(r io.Reader, password []byte, options ...pa
 	if err != nil {
 		return fmt.Errorf("%w: unable to read entry count", errInvalidJCEKSData)
 	}
-	for i := 0; i < int(count); i++ {
+	for i := range count {
 		tag, err := readUint32(r)
 		if err != nil {
 			return fmt.Errorf("%w: unable to read entry %d tag", errInvalidJCEKSData, i)
@@ -200,7 +200,6 @@ func (ks *KeyStore) parseWithOptions(r io.Reader, password []byte, options ...pa
 // GetPrivateKeyAndCerts retrieves the specified private key.
 func (ks *KeyStore) GetPrivateKeyAndCerts(alias string, password []byte) (
 	key crypto.PrivateKey, certs []*x509.Certificate, err error) {
-
 	entry, ok := ks.privateKeys[alias]
 	if !ok {
 		return nil, nil, nil
@@ -284,7 +283,7 @@ func (ks *KeyStore) parsePrivateKey(r io.Reader, cfg *parseConfig) error {
 	if err != nil {
 		return fmt.Errorf("reading certificate count: %w", err)
 	}
-	for j := 0; j < int(nCerts); j++ {
+	for j := range nCerts {
 		cert, err := readCertificate(r, cfg.maxCertBytes)
 		if err != nil {
 			return fmt.Errorf("reading certificate %d: %w", j, err)

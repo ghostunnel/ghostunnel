@@ -42,11 +42,11 @@ func TestTimerConcurrentObserve(t *testing.T) {
 	const total = goroutines * perGoroutine
 
 	var wg sync.WaitGroup
-	for g := 0; g < goroutines; g++ {
+	for g := range goroutines {
 		wg.Add(1)
 		go func(g int) {
 			defer wg.Done()
-			for i := 0; i < perGoroutine; i++ {
+			for i := range perGoroutine {
 				// Values span [1, total], each observed once.
 				tm.observeNanos(int64(g*perGoroutine + i + 1))
 			}
@@ -77,7 +77,7 @@ func TestStartRuntimeCollectorConcurrent(t *testing.T) {
 
 	const goroutines = 8
 	var wg sync.WaitGroup
-	for g := 0; g < goroutines; g++ {
+	for range goroutines {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -96,20 +96,20 @@ func TestConcurrentRegisterAndSnapshot(t *testing.T) {
 	r := NewRegistry("test")
 
 	var wg sync.WaitGroup
-	for g := 0; g < 4; g++ {
+	for g := range 4 {
 		wg.Add(1)
 		go func(g int) {
 			defer wg.Done()
-			for i := 0; i < 50; i++ {
+			for i := range 50 {
 				r.registerCounter(fmt.Sprintf("reg%d.counter%d", g, i)).Inc(1)
 			}
 		}(g)
 	}
-	for g := 0; g < 4; g++ {
+	for range 4 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for i := 0; i < 50; i++ {
+			for range 50 {
 				_ = r.snapshot()
 			}
 		}()
