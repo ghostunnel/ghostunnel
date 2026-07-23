@@ -129,7 +129,6 @@ func New(
 	loggerFlags int,
 	proxyProtocol ProxyProtocolMode,
 	connMetrics *metrics.Metrics) *Proxy {
-
 	// A nil handle means "use the default registry" (the historical behavior);
 	// callers that want to skip collection pass NilMetrics explicitly.
 	if connMetrics == nil {

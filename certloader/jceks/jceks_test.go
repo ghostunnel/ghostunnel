@@ -61,7 +61,7 @@ func buildMinimalJCEKS(t *testing.T, alias string, certDER []byte, password stri
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(1)))
 
 	// Trusted cert entry tag
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(trustedCertEntryTag)))
+	require.NoError(t, binary.Write(&body, binary.BigEndian, trustedCertEntryTag))
 
 	// Alias (modified UTF-8 string with 2-byte length prefix)
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint16(len(alias))))
@@ -217,7 +217,7 @@ func buildJCEKSWithPrivateKey(t *testing.T, alias string, encryptedKeyDER []byte
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(1)))
 
 	// Private key entry tag
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(privateKeyEntryTag)))
+	require.NoError(t, binary.Write(&body, binary.BigEndian, privateKeyEntryTag))
 
 	// Alias
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint16(len(alias))))
@@ -826,7 +826,7 @@ func buildJCEKSWithPrivateKeyNoCerts(t *testing.T, alias string, encryptedKeyDER
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksMagic)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksVersion)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(1)))
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(privateKeyEntryTag)))
+	require.NoError(t, binary.Write(&body, binary.BigEndian, privateKeyEntryTag))
 
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint16(len(alias))))
 	_, err = body.WriteString(alias)
@@ -972,7 +972,7 @@ func TestParsePrivateKeyTruncatedAlias(t *testing.T) {
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksMagic)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksVersion)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(1)))
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(privateKeyEntryTag)))
+	require.NoError(t, binary.Write(&body, binary.BigEndian, privateKeyEntryTag))
 	// EOF here — no alias
 
 	h := MakeIntegrityHash(encodedPassword)
@@ -993,7 +993,7 @@ func TestParsePrivateKeyTruncatedDate(t *testing.T) {
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksMagic)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksVersion)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(1)))
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(privateKeyEntryTag)))
+	require.NoError(t, binary.Write(&body, binary.BigEndian, privateKeyEntryTag))
 	// Alias
 	alias := "a"
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint16(len(alias))))
@@ -1018,7 +1018,7 @@ func TestParseTrustedCertTruncatedDate(t *testing.T) {
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksMagic)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksVersion)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(1)))
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(trustedCertEntryTag)))
+	require.NoError(t, binary.Write(&body, binary.BigEndian, trustedCertEntryTag))
 	alias := "a"
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint16(len(alias))))
 	body.WriteString(alias)
@@ -1042,7 +1042,7 @@ func TestParseTrustedCertTruncatedCert(t *testing.T) {
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksMagic)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksVersion)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(1)))
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(trustedCertEntryTag)))
+	require.NoError(t, binary.Write(&body, binary.BigEndian, trustedCertEntryTag))
 	alias := "a"
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint16(len(alias))))
 	body.WriteString(alias)
@@ -1270,7 +1270,7 @@ func TestParseJKSMagic(t *testing.T) {
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jksMagic)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksVersion)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(1)))
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(trustedCertEntryTag)))
+	require.NoError(t, binary.Write(&body, binary.BigEndian, trustedCertEntryTag))
 	alias := "myalias"
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint16(len(alias))))
 	body.WriteString(alias)
@@ -1328,7 +1328,7 @@ func TestParsePrivateKeyTruncatedProtectedKey(t *testing.T) {
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksMagic)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksVersion)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(1)))
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(privateKeyEntryTag)))
+	require.NoError(t, binary.Write(&body, binary.BigEndian, privateKeyEntryTag))
 	alias := "a"
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint16(len(alias))))
 	body.WriteString(alias)
@@ -1353,7 +1353,7 @@ func TestParsePrivateKeyTruncatedCertCount(t *testing.T) {
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksMagic)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksVersion)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(1)))
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(privateKeyEntryTag)))
+	require.NoError(t, binary.Write(&body, binary.BigEndian, privateKeyEntryTag))
 	alias := "a"
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint16(len(alias))))
 	body.WriteString(alias)
@@ -1484,7 +1484,7 @@ func TestParseTrustedCertTruncatedAlias(t *testing.T) {
 	require.NoError(t, binary.Write(&buf, binary.BigEndian, uint32(jceksMagic)))
 	require.NoError(t, binary.Write(&buf, binary.BigEndian, uint32(jceksVersion)))
 	require.NoError(t, binary.Write(&buf, binary.BigEndian, uint32(1)))
-	require.NoError(t, binary.Write(&buf, binary.BigEndian, uint32(trustedCertEntryTag)))
+	require.NoError(t, binary.Write(&buf, binary.BigEndian, trustedCertEntryTag))
 	// EOF — readString fails reading the 2-byte length prefix.
 
 	ks := new(KeyStore)
@@ -1499,7 +1499,7 @@ func TestParsePrivateKeyTruncatedPerCert(t *testing.T) {
 	require.NoError(t, binary.Write(&buf, binary.BigEndian, uint32(jceksMagic)))
 	require.NoError(t, binary.Write(&buf, binary.BigEndian, uint32(jceksVersion)))
 	require.NoError(t, binary.Write(&buf, binary.BigEndian, uint32(1)))
-	require.NoError(t, binary.Write(&buf, binary.BigEndian, uint32(privateKeyEntryTag)))
+	require.NoError(t, binary.Write(&buf, binary.BigEndian, privateKeyEntryTag))
 	alias := "k"
 	require.NoError(t, binary.Write(&buf, binary.BigEndian, uint16(len(alias))))
 	buf.WriteString(alias)

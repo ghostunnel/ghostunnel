@@ -8,16 +8,16 @@ package certstore
 */
 import "C"
 
-// osStatusErrorFromOSStatus lets tests pass an osStatus value (alias of
-// C.OSStatus) into osStatusError without importing "C" themselves.
-func osStatusErrorFromOSStatus(s osStatus) error {
-	return osStatusError(C.OSStatus(s))
+// osStatusErrorFromOSStatus lets tests pass an osStatusError value (alias of
+// C.OSStatus) into newOSStatusError without importing "C" themselves.
+func osStatusErrorFromOSStatus(s osStatusError) error {
+	return newOSStatusError(C.OSStatus(s))
 }
 
-// osStatusErrorSuccess exercises osStatusError's success branch via the
+// osStatusErrorSuccess exercises newOSStatusError's success branch via the
 // errSecSuccess sentinel.
 func osStatusErrorSuccess() error {
-	return osStatusError(C.errSecSuccess)
+	return newOSStatusError(C.errSecSuccess)
 }
 
 // releaseCFData releases a CFDataRef returned by bytesToCFData.

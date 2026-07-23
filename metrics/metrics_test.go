@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"math"
+	"net/http"
 	"net/http/httptest"
 	"runtime"
 	"strconv"
@@ -452,7 +453,7 @@ func TestStartRuntimeCollectorIdempotentAndTracksGC(t *testing.T) {
 func renderProm(t *testing.T, r *Registry) string {
 	t.Helper()
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/_metrics/prometheus", nil)
+	req := httptest.NewRequest(http.MethodGet, "/_metrics/prometheus", nil)
 	r.PrometheusHandler().ServeHTTP(rec, req)
 	return rec.Body.String()
 }

@@ -61,14 +61,14 @@ func (s macStore) Identities(flags int) ([]Identity, error) {
 	defer C.CFRelease(C.CFTypeRef(query))
 
 	var absResult C.CFTypeRef
-	if err := osStatusError(C.SecItemCopyMatching(query, &absResult)); err != nil {
+	if err := newOSStatusError(C.SecItemCopyMatching(query, &absResult)); err != nil {
 		if errors.Is(err, errSecItemNotFound) {
 			return []Identity{}, nil
 		}
 
 		return nil, err
 	}
-	defer C.CFRelease(C.CFTypeRef(absResult))
+	defer C.CFRelease(absResult)
 
 	// don't need to release aryResult since the abstract result is released above.
 	aryResult := C.CFArrayRef(absResult)
@@ -106,7 +106,7 @@ func (s macStore) Import(data []byte, password string) error {
 	defer C.CFRelease(C.CFTypeRef(cops))
 
 	var cret C.CFArrayRef
-	if err := osStatusError(C.SecPKCS12Import(cdata, cops, &cret)); err != nil {
+	if err := newOSStatusError(C.SecPKCS12Import(cdata, cops, &cret)); err != nil {
 		return err
 	}
 	defer C.CFRelease(C.CFTypeRef(cret))
@@ -189,7 +189,7 @@ func (i *macIdentity) CertificateChain() ([]*x509.Certificate, error) {
 	defer C.CFRelease(C.CFTypeRef(policy))
 
 	var trustRef C.SecTrustRef
-	if err := osStatusError(C.SecTrustCreateWithCertificates(C.CFTypeRef(certRef), C.CFTypeRef(policy), &trustRef)); err != nil {
+	if err := newOSStatusError(C.SecTrustCreateWithCertificates(C.CFTypeRef(certRef), C.CFTypeRef(policy), &trustRef)); err != nil {
 		return nil, err
 	}
 	defer C.CFRelease(C.CFTypeRef(trustRef))
@@ -263,7 +263,7 @@ func (i *macIdentity) Delete() error {
 	}
 	defer C.CFRelease(C.CFTypeRef(query))
 
-	if err := osStatusError(C.SecItemDelete(query)); err != nil {
+	if err := newOSStatusError(C.SecItemDelete(query)); err != nil {
 		return err
 	}
 
@@ -435,7 +435,7 @@ func (i *macIdentity) getKeyRef() (C.SecKeyRef, error) {
 	}
 
 	var keyRef C.SecKeyRef
-	if err := osStatusError(C.SecIdentityCopyPrivateKey(i.ref, &keyRef)); err != nil {
+	if err := newOSStatusError(C.SecIdentityCopyPrivateKey(i.ref, &keyRef)); err != nil {
 		return nilSecKeyRef, err
 	}
 
@@ -458,7 +458,7 @@ func (i *macIdentity) getCertRef() (C.SecCertificateRef, error) {
 	}
 
 	var certRef C.SecCertificateRef
-	if err := osStatusError(C.SecIdentityCopyCertificate(i.ref, &certRef)); err != nil {
+	if err := newOSStatusError(C.SecIdentityCopyCertificate(i.ref, &certRef)); err != nil {
 		return nilSecCertificateRef, err
 	}
 
@@ -535,24 +535,24 @@ func bytesToCFData(gobytes []byte) (C.CFDataRef, error) {
 	return cdata, nil
 }
 
-// osStatus wraps a C.OSStatus
-type osStatus C.OSStatus
+// osStatusError wraps a C.OSStatus
+type osStatusError C.OSStatus
 
 const (
-	errSecItemNotFound = osStatus(C.errSecItemNotFound)
+	errSecItemNotFound = osStatusError(C.errSecItemNotFound)
 )
 
-// osStatusError returns an error for an OSStatus unless it is errSecSuccess.
-func osStatusError(s C.OSStatus) error {
+// newOSStatusError returns an error for an OSStatus unless it is errSecSuccess.
+func newOSStatusError(s C.OSStatus) error {
 	if s == C.errSecSuccess {
 		return nil
 	}
 
-	return osStatus(s)
+	return osStatusError(s)
 }
 
 // Error implements the error interface.
-func (s osStatus) Error() string {
+func (s osStatusError) Error() string {
 	return fmt.Sprintf("OSStatus %d", s)
 }
 
@@ -572,7 +572,6 @@ func cfErrorError(cerr C.CFErrorRef) error {
 
 			return fmt.Errorf("CFError %d (%s)", code, str)
 		}
-
 	}
 
 	return fmt.Errorf("CFError %d", code)

@@ -25,7 +25,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-var noIdentityError = status.Error(codes.PermissionDenied, "no identity issued")
+var errNoIdentity = status.Error(codes.PermissionDenied, "no identity issued")
 
 type WorkloadAPI struct {
 	tb               testing.TB
@@ -237,7 +237,7 @@ func (w *WorkloadAPI) fetchX509SVID(_ *workload.X509SVIDRequest, stream workload
 
 	sendResp := func(resp *workload.X509SVIDResponse) error {
 		if resp == nil {
-			return noIdentityError
+			return errNoIdentity
 		}
 		return stream.Send(resp)
 	}
@@ -275,7 +275,7 @@ func (w *WorkloadAPI) fetchX509Bundles(_ *workload.X509BundlesRequest, stream wo
 
 	sendResp := func(resp *workload.X509BundlesResponse) error {
 		if resp == nil {
-			return noIdentityError
+			return errNoIdentity
 		}
 		return stream.Send(resp)
 	}
@@ -303,7 +303,7 @@ func (w *WorkloadAPI) fetchJWTSVID(ctx context.Context, req *workload.JWTSVIDReq
 		return nil, errors.New("no audience")
 	}
 	if w.jwtResp == nil {
-		return nil, noIdentityError
+		return nil, errNoIdentity
 	}
 
 	return w.jwtResp, nil
@@ -327,7 +327,7 @@ func (w *WorkloadAPI) fetchJWTBundles(_ *workload.JWTBundlesRequest, stream work
 
 	sendResp := func(resp *workload.JWTBundlesResponse) error {
 		if resp == nil {
-			return noIdentityError
+			return errNoIdentity
 		}
 		return stream.Send(resp)
 	}
