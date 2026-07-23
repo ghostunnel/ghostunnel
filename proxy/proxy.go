@@ -524,6 +524,11 @@ func isTimeoutError(err error) bool {
 	return (errors.As(err, &netErr) && netErr.Timeout()) || errors.Is(err, context.DeadlineExceeded)
 }
 
+// errWSAEConnReset is WSAECONNRESET on Windows, the equivalent of
+// syscall.ECONNRESET on Unix systems. While syscall.ECONNRESET is defined on
+// Windows as well, it's an APPLICATION_ERROR-based value, not the WSA errno.
+const errWSAEConnReset = syscall.Errno(10054)
+
 func isClosedConnectionError(err error) bool {
 	// A nil error is not a closed-connection error. Guard here so callers can
 	// classify a copy result unconditionally (err.Error() below would panic on
@@ -543,9 +548,11 @@ func isClosedConnectionError(err error) bool {
 	// Abrupt peer termination (RST / broken pipe) is routine for a proxy —
 	// impatient clients, health checks, and idle keep-alive resets all cause
 	// it — and is not actionable, so treat it the same as an orderly close.
-	// errors.Is unwraps net.OpError, so these match whether or not the error
-	// is wrapped in one. Both errnos are defined on Unix and Windows.
-	if errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.EPIPE) {
+	// errors.Is unwraps net.OpError, so these match whether or not the error is
+	// wrapped in one. On Windows a socket reset carries the WSA errno
+	// (errWSAEConnReset) rather than the POSIX syscall.ECONNRESET, so match both.
+	if errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.EPIPE) ||
+		errors.Is(err, errWSAEConnReset) {
 		return true
 	}
 
