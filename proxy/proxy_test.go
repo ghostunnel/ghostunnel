@@ -271,12 +271,12 @@ func TestAcceptErrorNotLoggedWhenFlagDisabled(t *testing.T) {
 func TestMaxConcurrentConns(t *testing.T) {
 	// Incoming listener
 	incoming, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err, "should be able to listen on random port")
+	assert.NoError(t, err, "should be able to listen on random port")
 	defer incoming.Close()
 
 	// Target listener
 	target, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err, "should be able to listen on random port")
+	assert.NoError(t, err, "should be able to listen on random port")
 	defer target.Close()
 
 	dialer := func(_ context.Context) (net.Conn, error) {
@@ -291,23 +291,23 @@ func TestMaxConcurrentConns(t *testing.T) {
 	// Proxy multiple connections
 	// First conn
 	src0, err := net.Dial("tcp", incoming.Addr().String())
-	assert.Nil(t, err, "should be able to dial into proxy")
+	assert.NoError(t, err, "should be able to dial into proxy")
 
 	dst0, err := target.Accept()
-	assert.Nil(t, err, "should be able to receive connection on target")
+	assert.NoError(t, err, "should be able to receive connection on target")
 	defer dst0.Close()
 
 	// Second conn (while first conn still open)
 	src1, err := net.Dial("tcp", incoming.Addr().String())
-	assert.Nil(t, err, "should be able to dial into proxy")
+	assert.NoError(t, err, "should be able to dial into proxy")
 	defer src1.Close()
 
 	// Set deadline for accept
 	err = target.(*net.TCPListener).SetDeadline(time.Now().Add(1 * time.Second))
-	assert.Nil(t, err, "should be able to set deadline")
+	assert.NoError(t, err, "should be able to set deadline")
 
 	_, err = target.Accept()
-	assert.NotNil(t, err, "should not be able to receive second conn")
+	assert.Error(t, err, "should not be able to receive second conn")
 
 	src0.Close()
 	dst0.Close()
@@ -318,7 +318,7 @@ func TestMaxConcurrentConns(t *testing.T) {
 
 func TestMultipleShutdownCalls(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err, "should be able to listen on random port")
+	assert.NoError(t, err, "should be able to listen on random port")
 
 	p := proxyForTest(ln, nil)
 
@@ -331,7 +331,7 @@ func TestMultipleShutdownCalls(t *testing.T) {
 
 func TestConcurrentShutdownCalls(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err, "should be able to listen on random port")
+	assert.NoError(t, err, "should be able to listen on random port")
 
 	p := proxyForTest(ln, nil)
 
@@ -358,12 +358,12 @@ func TestConcurrentShutdownCalls(t *testing.T) {
 func TestProxySuccess(t *testing.T) {
 	// Incoming listener
 	incoming, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err, "should be able to listen on random port")
+	assert.NoError(t, err, "should be able to listen on random port")
 	defer incoming.Close()
 
 	// Target listener
 	target, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err, "should be able to listen on random port")
+	assert.NoError(t, err, "should be able to listen on random port")
 	defer target.Close()
 
 	dialer := func(ctx context.Context) (net.Conn, error) {
@@ -378,11 +378,11 @@ func TestProxySuccess(t *testing.T) {
 
 	// Proxy a connection
 	src, err := net.Dial("tcp", incoming.Addr().String())
-	assert.Nil(t, err, "should be able to dial into proxy")
+	assert.NoError(t, err, "should be able to dial into proxy")
 	defer src.Close()
 
 	dst, err := target.Accept()
-	assert.Nil(t, err, "should be able to receive connection on target")
+	assert.NoError(t, err, "should be able to receive connection on target")
 	defer dst.Close()
 
 	_, _ = src.Write([]byte("A"))
@@ -391,7 +391,7 @@ func TestProxySuccess(t *testing.T) {
 	for {
 		n, err := dst.Read(received)
 		if !errors.Is(err, io.EOF) {
-			assert.Nil(t, err, "should be able to receive data from connection on target")
+			assert.NoError(t, err, "should be able to receive data from connection on target")
 		}
 		if n == 1 {
 			break
@@ -411,11 +411,11 @@ func TestProxySuccess(t *testing.T) {
 func TestProxyProtocolSuccess(t *testing.T) {
 	// Incoming listener
 	incoming, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err, "should be able to listen on random port")
+	assert.NoError(t, err, "should be able to listen on random port")
 
 	// Target listener
 	target, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err, "should be able to listen on random port")
+	assert.NoError(t, err, "should be able to listen on random port")
 
 	dialer := func(ctx context.Context) (net.Conn, error) {
 		var d net.Dialer
@@ -429,16 +429,16 @@ func TestProxyProtocolSuccess(t *testing.T) {
 
 	// Proxy a connection
 	src, err := net.Dial("tcp", incoming.Addr().String())
-	assert.Nil(t, err, "should be able to dial into proxy")
+	assert.NoError(t, err, "should be able to dial into proxy")
 
 	dst, err := target.Accept()
-	assert.Nil(t, err, "should be able to receive connection on target")
+	assert.NoError(t, err, "should be able to receive connection on target")
 
 	header, err := proxyproto.Read(bufio.NewReaderSize(dst, 12))
-	assert.Nil(t, err, "should be able to read header")
-	assert.Equal(t, header.Version, uint8(2))
-	assert.Equal(t, header.Command, proxyproto.PROXY)
-	assert.Equal(t, header.TransportProtocol, proxyproto.TCPv4)
+	assert.NoError(t, err, "should be able to read header")
+	assert.Equal(t, uint8(2), header.Version)
+	assert.Equal(t, proxyproto.PROXY, header.Command)
+	assert.Equal(t, proxyproto.TCPv4, header.TransportProtocol)
 	assert.Equal(t, header.SourceAddr.(*net.TCPAddr).IP, net.ParseIP("127.0.0.1").To4())
 	assert.Equal(t, header.DestinationAddr.(*net.TCPAddr).IP, net.ParseIP("127.0.0.1").To4())
 	assert.Equal(t, header.SourceAddr.(*net.TCPAddr).Port, src.LocalAddr().(*net.TCPAddr).Port)
@@ -450,7 +450,7 @@ func TestProxyProtocolSuccess(t *testing.T) {
 	for {
 		n, err := dst.Read(received)
 		if !errors.Is(err, io.EOF) {
-			assert.Nil(t, err, "should be able to receive data from connection on target")
+			assert.NoError(t, err, "should be able to receive data from connection on target")
 		}
 		if n == 1 {
 			break
@@ -491,13 +491,13 @@ func TestProxyProtocolSuccessIPv6(t *testing.T) {
 	defer p.Shutdown()
 
 	src, err := net.Dial("tcp6", incoming.Addr().String())
-	assert.Nil(t, err, "should be able to dial into proxy over IPv6")
+	assert.NoError(t, err, "should be able to dial into proxy over IPv6")
 
 	dst, err := target.Accept()
-	assert.Nil(t, err, "should be able to receive connection on target")
+	assert.NoError(t, err, "should be able to receive connection on target")
 
 	header, err := proxyproto.Read(bufio.NewReaderSize(dst, 512))
-	assert.Nil(t, err, "should be able to read header")
+	assert.NoError(t, err, "should be able to read header")
 	assert.Equal(t, uint8(2), header.Version)
 	assert.Equal(t, proxyproto.PROXY, header.Command)
 	// Core assertion: transport protocol byte reports TCPv6.
@@ -519,7 +519,7 @@ func TestProxyProtocolSuccessIPv6(t *testing.T) {
 
 func TestBackendDialError(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err, "should be able to listen on random port")
+	assert.NoError(t, err, "should be able to listen on random port")
 
 	dialer := func(ctx context.Context) (net.Conn, error) {
 		return nil, errors.New("failure for test")
@@ -537,7 +537,7 @@ func TestBackendDialError(t *testing.T) {
 
 	// Open a connection, should get reset once backend dial fails
 	src, err := net.Dial("tcp", ln.Addr().String())
-	assert.Nil(t, err, "should be able to dial into proxy")
+	assert.NoError(t, err, "should be able to dial into proxy")
 	defer src.Close()
 
 	failed := false
@@ -744,7 +744,7 @@ func TestCloseWriteNonTCPConnection(t *testing.T) {
 func TestCloseReadTCPConnection(t *testing.T) {
 	// Create a TCP connection pair
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer listener.Close()
 
 	go func() {
@@ -756,7 +756,7 @@ func TestCloseReadTCPConnection(t *testing.T) {
 	}()
 
 	conn, err := net.Dial("tcp", listener.Addr().String())
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer conn.Close()
 
 	// closeRead should not panic and should work on TCP
@@ -766,7 +766,7 @@ func TestCloseReadTCPConnection(t *testing.T) {
 func TestCloseWriteTCPConnection(t *testing.T) {
 	// Create a TCP connection pair
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer listener.Close()
 
 	go func() {
@@ -778,7 +778,7 @@ func TestCloseWriteTCPConnection(t *testing.T) {
 	}()
 
 	conn, err := net.Dial("tcp", listener.Addr().String())
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer conn.Close()
 
 	// closeWrite should not panic and should work on TCP
@@ -794,7 +794,7 @@ func unixSocketPair(t *testing.T) (*net.UnixConn, *net.UnixConn, func()) {
 	addr := &net.UnixAddr{Name: dir + "/sock", Net: "unix"}
 
 	ln, err := net.ListenUnix("unix", addr)
-	assert.Nil(t, err, "should be able to listen on unix socket")
+	assert.NoError(t, err, "should be able to listen on unix socket")
 
 	type acceptResult struct {
 		conn *net.UnixConn
@@ -807,10 +807,10 @@ func unixSocketPair(t *testing.T) (*net.UnixConn, *net.UnixConn, func()) {
 	}()
 
 	client, err := net.DialUnix("unix", nil, addr)
-	assert.Nil(t, err, "should be able to dial unix socket")
+	assert.NoError(t, err, "should be able to dial unix socket")
 
 	res := <-acceptC
-	assert.Nil(t, res.err, "should accept unix connection")
+	assert.NoError(t, res.err, "should accept unix connection")
 
 	cleanup := func() {
 		_ = client.Close()
@@ -833,12 +833,12 @@ func TestCloseReadUnixConnection(t *testing.T) {
 	_ = server.SetDeadline(time.Now().Add(2 * time.Second))
 
 	n, err := client.Write([]byte("hi"))
-	assert.Nil(t, err, "client must still be able to write after closeRead")
+	assert.NoError(t, err, "client must still be able to write after closeRead")
 	assert.Equal(t, 2, n)
 
 	buf := make([]byte, 2)
 	got, err := io.ReadFull(server, buf)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, 2, got)
 	assert.Equal(t, []byte("hi"), buf)
 }
@@ -862,7 +862,7 @@ func TestCloseWriteUnixConnection(t *testing.T) {
 
 	buf := make([]byte, 5)
 	n, err := io.ReadFull(client, buf)
-	assert.Nil(t, err, "client must still be able to read after closeWrite")
+	assert.NoError(t, err, "client must still be able to read after closeWrite")
 	assert.Equal(t, 5, n)
 	assert.Equal(t, []byte("hello"), buf)
 
@@ -1022,7 +1022,7 @@ func TestCopyDataErrorClassification(t *testing.T) {
 func TestForceHandshakeNonTLSConn(t *testing.T) {
 	// Create a regular TCP connection (non-TLS)
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer listener.Close()
 
 	go func() {
@@ -1033,13 +1033,13 @@ func TestForceHandshakeNonTLSConn(t *testing.T) {
 	}()
 
 	conn, err := net.Dial("tcp", listener.Addr().String())
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer conn.Close()
 
 	// forceHandshake should be a no-op for non-TLS connections
 	ctx := context.Background()
 	err = forceHandshake(ctx, conn, defaultMetrics)
-	assert.Nil(t, err, "forceHandshake should succeed for non-TLS conn")
+	assert.NoError(t, err, "forceHandshake should succeed for non-TLS conn")
 }
 
 func TestIsACMEChallengeConn(t *testing.T) {
@@ -1087,13 +1087,13 @@ func TestACMEChallengeNotForwardedToBackend(t *testing.T) {
 	}
 
 	rawIncoming, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	incoming := tls.NewListener(rawIncoming, baseConfig)
 	defer incoming.Close()
 
 	// Backend listener: we assert it is NEVER reached during this test.
 	target, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer target.Close()
 
 	var backendHits int32
@@ -1125,7 +1125,7 @@ func TestACMEChallengeNotForwardedToBackend(t *testing.T) {
 		MinVersion:         tls.VersionTLS12,
 	}
 	tlsClient, err := tls.Dial("tcp", incoming.Addr().String(), clientConfig)
-	assert.Nil(t, err, "TLS-ALPN-01 probe handshake must succeed")
+	assert.NoError(t, err, "TLS-ALPN-01 probe handshake must succeed")
 	if err == nil {
 		assert.Equal(t, "acme-tls/1", tlsClient.ConnectionState().NegotiatedProtocol,
 			"server must negotiate acme-tls/1")
@@ -1204,7 +1204,7 @@ func (c *callbackLogger) Printf(format string, v ...any) {
 func TestTransportProtocol(t *testing.T) {
 	t.Run("IPv4", func(t *testing.T) {
 		ln, err := net.Listen("tcp4", "127.0.0.1:0")
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		defer ln.Close()
 
 		go func() {
@@ -1215,7 +1215,7 @@ func TestTransportProtocol(t *testing.T) {
 		}()
 
 		conn, err := net.Dial("tcp4", ln.Addr().String())
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		defer conn.Close()
 
 		assert.Equal(t, proxyproto.TCPv4, transportProtocol(conn))
@@ -1236,7 +1236,7 @@ func TestTransportProtocol(t *testing.T) {
 		}()
 
 		conn, err := net.Dial("tcp6", ln.Addr().String())
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		defer conn.Close()
 
 		assert.Equal(t, proxyproto.TCPv6, transportProtocol(conn))
@@ -1246,7 +1246,7 @@ func TestTransportProtocol(t *testing.T) {
 		dir := t.TempDir()
 		sockPath := filepath.Join(dir, "s.sock")
 		ln, err := net.Listen("unix", sockPath)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		defer ln.Close()
 
 		go func() {
@@ -1257,7 +1257,7 @@ func TestTransportProtocol(t *testing.T) {
 		}()
 
 		conn, err := net.Dial("unix", sockPath)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		defer conn.Close()
 
 		assert.Equal(t, proxyproto.UnixStream, transportProtocol(conn))
@@ -1272,8 +1272,8 @@ func TestTransportProtocol(t *testing.T) {
 		assert.NoError(t, err)
 		var buf bytes.Buffer
 		n, err := h.WriteTo(&buf)
-		assert.Nil(t, err, "WriteTo must not return ErrInvalidAddress for unix listener")
-		assert.True(t, n > 0, "WriteTo must write the PROXY header bytes")
+		assert.NoError(t, err, "WriteTo must not return ErrInvalidAddress for unix listener")
+		assert.Positive(t, n, "WriteTo must write the PROXY header bytes")
 	})
 
 	t.Run("unknown address fallback", func(t *testing.T) {
@@ -1290,7 +1290,7 @@ func selfSignedCert(t *testing.T) (tls.Certificate, *x509.Certificate) {
 	t.Helper()
 
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	template := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
@@ -1307,10 +1307,10 @@ func selfSignedCert(t *testing.T) (tls.Certificate, *x509.Certificate) {
 	}
 
 	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	parsedCert, err := x509.ParseCertificate(certDER)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	return tls.Certificate{
 		Certificate: [][]byte{certDER},
@@ -1323,7 +1323,7 @@ func emptyCNCert(t *testing.T) *x509.Certificate {
 	t.Helper()
 
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	template := &x509.Certificate{
 		SerialNumber: big.NewInt(2),
@@ -1338,11 +1338,11 @@ func emptyCNCert(t *testing.T) *x509.Certificate {
 	}
 
 	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	parsedCert, err := x509.ParseCertificate(certDER)
-	assert.Nil(t, err)
-	assert.Equal(t, "", parsedCert.Subject.CommonName, "test setup: parsed cert must have empty CN")
+	assert.NoError(t, err)
+	assert.Empty(t, parsedCert.Subject.CommonName, "test setup: parsed cert must have empty CN")
 
 	return parsedCert
 }
@@ -1355,11 +1355,11 @@ func TestBuildSSLTLV(t *testing.T) {
 		}
 
 		tlv, err := buildSSLTLV(state, ProxyProtocolTLSFull)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, proxyproto.PP2_TYPE_SSL, tlv.Type)
 
 		// Parse 5-byte sub-header
-		assert.True(t, len(tlv.Value) >= 5, "SSL TLV value must be at least 5 bytes")
+		assert.GreaterOrEqual(t, len(tlv.Value), 5, "SSL TLV value must be at least 5 bytes")
 		flags := tlv.Value[0]
 		verify := binary.BigEndian.Uint32(tlv.Value[1:5])
 
@@ -1368,7 +1368,7 @@ func TestBuildSSLTLV(t *testing.T) {
 
 		// Parse nested sub-TLVs
 		subTLVs, err := proxyproto.SplitTLVs(tlv.Value[5:])
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		// Should have VERSION only, not CN/CLIENT_CERT
 		typeSet := make(map[proxyproto.PP2Type][]byte)
@@ -1392,7 +1392,7 @@ func TestBuildSSLTLV(t *testing.T) {
 		}
 
 		tlv, err := buildSSLTLV(state, ProxyProtocolTLSFull)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		// Parse sub-header
 		flags := tlv.Value[0]
@@ -1400,7 +1400,7 @@ func TestBuildSSLTLV(t *testing.T) {
 
 		// Parse nested sub-TLVs
 		subTLVs, err := proxyproto.SplitTLVs(tlv.Value[5:])
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		typeSet := make(map[proxyproto.PP2Type][]byte)
 		for _, st := range subTLVs {
@@ -1422,7 +1422,7 @@ func TestBuildSSLTLV(t *testing.T) {
 		}
 
 		tlv, err := buildSSLTLV(state, ProxyProtocolTLS)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		// Parse sub-header: should only have PP2_CLIENT_SSL (no cert flags)
 		flags := tlv.Value[0]
@@ -1430,7 +1430,7 @@ func TestBuildSSLTLV(t *testing.T) {
 
 		// Parse nested sub-TLVs: should have version but no cert details
 		subTLVs, err := proxyproto.SplitTLVs(tlv.Value[5:])
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		typeSet := make(map[proxyproto.PP2Type][]byte)
 		for _, st := range subTLVs {
@@ -1454,7 +1454,7 @@ func TestBuildSSLTLV(t *testing.T) {
 		}
 
 		tlv, err := buildSSLTLV(state, ProxyProtocolTLSFull)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		// Cert flags must still be set: a cert WAS presented.
 		flags := tlv.Value[0]
@@ -1462,7 +1462,7 @@ func TestBuildSSLTLV(t *testing.T) {
 			"cert flags must be set even when CN is empty")
 
 		subTLVs, err := proxyproto.SplitTLVs(tlv.Value[5:])
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		typeSet := make(map[proxyproto.PP2Type][]byte)
 		for _, st := range subTLVs {
@@ -1490,7 +1490,7 @@ func TestBuildTLVs(t *testing.T) {
 		}
 
 		tlvs, err := buildTLVs(state, ProxyProtocolTLSFull)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		typeSet := make(map[proxyproto.PP2Type][]byte)
 		for _, tlv := range tlvs {
@@ -1509,7 +1509,7 @@ func TestBuildTLVs(t *testing.T) {
 		}
 
 		tlvs, err := buildTLVs(state, ProxyProtocolTLSFull)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		typeSet := make(map[proxyproto.PP2Type][]byte)
 		for _, tlv := range tlvs {
@@ -1530,7 +1530,7 @@ func TestBuildTLVs(t *testing.T) {
 		}
 
 		tlvs, err := buildTLVs(state, ProxyProtocolTLSFull)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		typeSet := make(map[proxyproto.PP2Type][]byte)
 		for _, tlv := range tlvs {
@@ -1553,7 +1553,7 @@ func TestBuildTLVs(t *testing.T) {
 		}
 
 		tlvs, err := buildTLVs(state, ProxyProtocolTLSFull)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		typeSet := make(map[proxyproto.PP2Type][]byte)
 		for _, tlv := range tlvs {
@@ -1579,7 +1579,7 @@ func TestBuildTLVs(t *testing.T) {
 		}
 
 		tlvs, err := buildTLVs(state, ProxyProtocolTLS)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		typeSet := make(map[proxyproto.PP2Type][]byte)
 		for _, tlv := range tlvs {
@@ -1594,7 +1594,7 @@ func TestBuildTLVs(t *testing.T) {
 		// SSL TLV should have version but no client cert sub-TLVs
 		sslValue := typeSet[proxyproto.PP2_TYPE_SSL]
 		subTLVs, err := proxyproto.SplitTLVs(sslValue[5:])
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		subTypeSet := make(map[proxyproto.PP2Type]bool)
 		for _, st := range subTLVs {
@@ -1610,7 +1610,7 @@ func TestProxyProtoHeaderWithTLS(t *testing.T) {
 	_, parsedCert := selfSignedCert(t)
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer ln.Close()
 
 	go func() {
@@ -1621,7 +1621,7 @@ func TestProxyProtoHeaderWithTLS(t *testing.T) {
 	}()
 
 	conn, err := net.Dial("tcp", ln.Addr().String())
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer conn.Close()
 
 	state := &tls.ConnectionState{
@@ -1639,8 +1639,8 @@ func TestProxyProtoHeaderWithTLS(t *testing.T) {
 
 	// Verify TLVs are present
 	tlvs, err := h.TLVs()
-	assert.Nil(t, err)
-	assert.True(t, len(tlvs) > 0, "should have TLVs when TLS state is provided")
+	assert.NoError(t, err)
+	assert.NotEmpty(t, tlvs, "should have TLVs when TLS state is provided")
 
 	typeSet := make(map[proxyproto.PP2Type]bool)
 	for _, tlv := range tlvs {
@@ -1652,7 +1652,7 @@ func TestProxyProtoHeaderWithTLS(t *testing.T) {
 
 func TestProxyProtoHeaderWithoutTLS(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer ln.Close()
 
 	go func() {
@@ -1663,7 +1663,7 @@ func TestProxyProtoHeaderWithoutTLS(t *testing.T) {
 	}()
 
 	conn, err := net.Dial("tcp", ln.Addr().String())
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer conn.Close()
 
 	h, err := proxyProtoHeader(conn, nil, ProxyProtocolTLSFull)
@@ -1672,7 +1672,7 @@ func TestProxyProtoHeaderWithoutTLS(t *testing.T) {
 
 	// Verify no TLVs when no TLS state
 	tlvs, err := h.TLVs()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Empty(t, tlvs, "should have no TLVs when TLS state is nil")
 }
 
@@ -1684,12 +1684,12 @@ func TestProxyProtocolTLSModeSuccess(t *testing.T) {
 		Certificates: []tls.Certificate{cert},
 	}
 	tcpLn, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	incoming := tls.NewListener(tcpLn, tlsCfg)
 
 	// Plain TCP target (backend)
 	target, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	dialer := func(ctx context.Context) (net.Conn, error) {
 		var d net.Dialer
@@ -1705,21 +1705,21 @@ func TestProxyProtocolTLSModeSuccess(t *testing.T) {
 		InsecureSkipVerify: true,
 		ServerName:         "example.com",
 	})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	dst, err := target.Accept()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	// Read and verify PROXY protocol header on backend
 	header, err := proxyproto.Read(bufio.NewReaderSize(dst, 512))
-	assert.Nil(t, err, "should be able to read proxy protocol header")
+	assert.NoError(t, err, "should be able to read proxy protocol header")
 	assert.Equal(t, uint8(2), header.Version)
 	assert.Equal(t, proxyproto.PROXY, header.Command)
 	assert.Equal(t, proxyproto.TCPv4, header.TransportProtocol)
 
 	// Verify TLVs contain TLS metadata
 	tlvs, err := header.TLVs()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	typeSet := make(map[proxyproto.PP2Type]bool)
 	for _, tlv := range tlvs {
@@ -1734,7 +1734,7 @@ func TestProxyProtocolTLSModeSuccess(t *testing.T) {
 	for {
 		n, err := dst.Read(received)
 		if !errors.Is(err, io.EOF) {
-			assert.Nil(t, err, "should receive data on target")
+			assert.NoError(t, err, "should receive data on target")
 		}
 		if n == 1 {
 			break
@@ -1752,7 +1752,7 @@ func TestProxyProtoHeaderConnMode(t *testing.T) {
 	_, parsedCert := selfSignedCert(t)
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer ln.Close()
 
 	go func() {
@@ -1763,7 +1763,7 @@ func TestProxyProtoHeaderConnMode(t *testing.T) {
 	}()
 
 	conn, err := net.Dial("tcp", ln.Addr().String())
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer conn.Close()
 
 	state := &tls.ConnectionState{
@@ -1780,7 +1780,7 @@ func TestProxyProtoHeaderConnMode(t *testing.T) {
 	assert.Equal(t, proxyproto.PROXY, h.Command)
 
 	tlvs, err := h.TLVs()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Empty(t, tlvs, "conn mode should have no TLVs even with TLS state")
 }
 
@@ -1788,7 +1788,7 @@ func TestProxyProtoHeaderTLVOverflowFailsClosed(t *testing.T) {
 	oversized := &x509.Certificate{Raw: make([]byte, 65600), Subject: pkix.Name{CommonName: "overflow"}}
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer ln.Close()
 	go func() {
 		if c, _ := ln.Accept(); c != nil {
@@ -1796,7 +1796,7 @@ func TestProxyProtoHeaderTLVOverflowFailsClosed(t *testing.T) {
 		}
 	}()
 	conn, err := net.Dial("tcp", ln.Addr().String())
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer conn.Close()
 
 	state := &tls.ConnectionState{Version: tls.VersionTLS13, ServerName: "example.com",
@@ -1851,7 +1851,7 @@ func TestProxyProtocolWriteFailureClosesBackend(t *testing.T) {
 
 	// Connect a client to trigger the handler
 	client, err := net.Dial("tcp", incoming.Addr().String())
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	// Wait for the handler to reach Dial, ensuring it's past the accept stage
 	<-dialCalled
@@ -1874,7 +1874,7 @@ func TestProxyProtocolWriteFailureClosesBackend(t *testing.T) {
 func tcpConnPair(t *testing.T) (net.Conn, net.Conn) {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	require.Nil(t, err, "should be able to listen on random port")
+	require.NoError(t, err, "should be able to listen on random port")
 	defer ln.Close()
 
 	type acceptResult struct {
@@ -1888,10 +1888,10 @@ func tcpConnPair(t *testing.T) (net.Conn, net.Conn) {
 	}()
 
 	dial, err := net.Dial("tcp", ln.Addr().String())
-	require.Nil(t, err, "should be able to dial the listener")
+	require.NoError(t, err, "should be able to dial the listener")
 
 	res := <-acceptC
-	require.Nil(t, res.err, "should accept the connection")
+	require.NoError(t, res.err, "should accept the connection")
 	return dial, res.conn
 }
 
@@ -1926,7 +1926,7 @@ func TestTrackedConnWriteRecordsActivity(t *testing.T) {
 
 	tc := &trackedConn{conn: &mockConn{}, watchdog: w}
 	_, err := tc.Write([]byte("data"))
-	require.Nil(t, err, "mock write should succeed")
+	require.NoError(t, err, "mock write should succeed")
 	assert.True(t, w.lastActivityTime().After(before),
 		"a successful write must reset the watchdog idle clock")
 }
@@ -1953,12 +1953,12 @@ func TestFuseReturnsPromptlyAfterCleanClose(t *testing.T) {
 
 	// Move a little data end-to-end, then close both peers cleanly.
 	_, err := clientConn.Write([]byte("ping"))
-	require.Nil(t, err, "client write should succeed")
+	require.NoError(t, err, "client write should succeed")
 	buf := make([]byte, 4)
 	_, err = io.ReadFull(backendConn, buf)
-	require.Nil(t, err, "backend should receive the client's bytes")
-	require.Nil(t, clientConn.Close(), "client close should succeed")
-	require.Nil(t, backendConn.Close(), "backend close should succeed")
+	require.NoError(t, err, "backend should receive the client's bytes")
+	require.NoError(t, clientConn.Close(), "client close should succeed")
+	require.NoError(t, backendConn.Close(), "backend close should succeed")
 
 	select {
 	case <-done:
@@ -1989,14 +1989,14 @@ func TestRollingDeadlineKeepsActiveTransferAlive(t *testing.T) {
 
 	// Client sends a request; backend receives it (both directions still open).
 	_, err := clientConn.Write([]byte("request"))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	_ = backendConn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	reqBuf := make([]byte, len("request"))
 	_, err = io.ReadFull(backendConn, reqBuf)
-	assert.Nil(t, err, "backend should receive the request")
+	assert.NoError(t, err, "backend should receive the request")
 
 	// Client half-closes its write side: this arms the teardown state.
-	assert.Nil(t, clientConn.(*net.TCPConn).CloseWrite())
+	assert.NoError(t, clientConn.(*net.TCPConn).CloseWrite())
 
 	// Backend dribbles chunks every 100ms, total ~800ms == 4x CloseTimeout.
 	const chunks = 8
@@ -2013,7 +2013,7 @@ func TestRollingDeadlineKeepsActiveTransferAlive(t *testing.T) {
 	_ = clientConn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	got := make([]byte, chunks)
 	n, err := io.ReadFull(clientConn, got)
-	assert.Nil(t, err, "rolling deadline must keep the active half-closed transfer alive")
+	assert.NoError(t, err, "rolling deadline must keep the active half-closed transfer alive")
 	assert.Equal(t, chunks, n, "client must receive all return-traffic chunks")
 
 	// Backend goes away; the idle reaper closes the pair and fuse returns.
@@ -2044,7 +2044,7 @@ func TestRollingDeadlineIdleReap(t *testing.T) {
 	}()
 
 	// Half-close the client write side; the backend stays completely silent.
-	assert.Nil(t, clientConn.(*net.TCPConn).CloseWrite())
+	assert.NoError(t, clientConn.(*net.TCPConn).CloseWrite())
 
 	select {
 	case <-done:
@@ -2089,7 +2089,7 @@ func TestRollingDeadlineReapsCounted(t *testing.T) {
 			close(done)
 		}()
 
-		assert.Nil(t, clientConn.(*net.TCPConn).CloseWrite())
+		assert.NoError(t, clientConn.(*net.TCPConn).CloseWrite())
 
 		select {
 		case <-done:
@@ -2148,7 +2148,7 @@ func TestRollingDeadlineReapsCounted(t *testing.T) {
 			close(done)
 		}()
 
-		assert.Nil(t, clientConn.(*net.TCPConn).CloseWrite())
+		assert.NoError(t, clientConn.(*net.TCPConn).CloseWrite())
 
 		select {
 		case <-done:
@@ -2182,7 +2182,7 @@ func TestRollingDeadlineClampedByMaxConnLifetime(t *testing.T) {
 	}()
 
 	// Half-close to arm, then dribble return traffic every 100ms indefinitely.
-	assert.Nil(t, clientConn.(*net.TCPConn).CloseWrite())
+	assert.NoError(t, clientConn.(*net.TCPConn).CloseWrite())
 	stop := make(chan struct{})
 	go func() {
 		for {
@@ -2231,7 +2231,7 @@ func TestZeroCloseTimeoutPromptClosure(t *testing.T) {
 		close(done)
 	}()
 
-	assert.Nil(t, clientConn.(*net.TCPConn).CloseWrite())
+	assert.NoError(t, clientConn.(*net.TCPConn).CloseWrite())
 
 	select {
 	case <-done:
@@ -2269,8 +2269,8 @@ func TestAbortiveCloseReapsPeerAfterCloseTimeout(t *testing.T) {
 	// Abort the client side with a RST (SO_LINGER 0 + Close). The backend stays
 	// idle and open, so the surviving backend->client direction is reaped after
 	// CloseTimeout of silence -- not immediately, and not only at some large cap.
-	assert.Nil(t, clientConn.(*net.TCPConn).SetLinger(0))
-	assert.Nil(t, clientConn.Close())
+	assert.NoError(t, clientConn.(*net.TCPConn).SetLinger(0))
+	assert.NoError(t, clientConn.Close())
 
 	select {
 	case <-done:
@@ -2341,11 +2341,11 @@ func TestIdleTimeoutDoesNotReapAsymmetricTransfer(t *testing.T) {
 
 	// Client sends a request; backend receives it. Both directions still open.
 	_, err := clientConn.Write([]byte("request"))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	_ = backendConn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	reqBuf := make([]byte, len("request"))
 	_, err = io.ReadFull(backendConn, reqBuf)
-	assert.Nil(t, err, "backend should receive the request")
+	assert.NoError(t, err, "backend should receive the request")
 
 	// Client now goes silent (no half-close). Backend dribbles chunks every
 	// 100ms, total ~1s == 5x IdleTimeout.
@@ -2364,7 +2364,7 @@ func TestIdleTimeoutDoesNotReapAsymmetricTransfer(t *testing.T) {
 	_ = clientConn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	got := make([]byte, chunks)
 	n, err := io.ReadFull(clientConn, got)
-	assert.Nil(t, err, "connection-wide idle timeout must keep the asymmetric transfer alive")
+	assert.NoError(t, err, "connection-wide idle timeout must keep the asymmetric transfer alive")
 	assert.Equal(t, chunks, n, "client must receive all streamed chunks")
 
 	// Both peers go away (EOF in both directions); fuse returns promptly without
@@ -2531,13 +2531,13 @@ func TestIdleTimeoutHalfCloseTransition(t *testing.T) {
 	// Exchange a little data so both directions are live, then half-close the
 	// client write side and let the backend go silent.
 	_, err := clientConn.Write([]byte("hi"))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	_ = backendConn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	_, err = io.ReadFull(backendConn, make([]byte, 2))
-	assert.Nil(t, err, "backend should receive the request")
+	assert.NoError(t, err, "backend should receive the request")
 
 	halfCloseStart := time.Now()
-	assert.Nil(t, clientConn.(*net.TCPConn).CloseWrite())
+	assert.NoError(t, clientConn.(*net.TCPConn).CloseWrite())
 
 	select {
 	case <-done:

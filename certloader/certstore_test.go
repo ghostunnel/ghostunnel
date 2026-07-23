@@ -30,7 +30,7 @@ func TestInvalidKeychainIdentity(t *testing.T) {
 	if ident != nil {
 		t.Logf("loaded invalid identity: %v", ident)
 	}
-	assert.NotNil(t, err, "should not load invalid identity")
+	assert.Error(t, err, "should not load invalid identity")
 }
 
 func TestSupportsKeychain(t *testing.T) {

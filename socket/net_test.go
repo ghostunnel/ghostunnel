@@ -70,16 +70,16 @@ func TestParseAddress(t *testing.T) {
 	}
 
 	_, _, _, err := ParseAddress("localhost", false)
-	assert.NotNil(t, err, "was able to parse invalid host/port")
+	assert.Error(t, err, "was able to parse invalid host/port")
 
 	_, _, _, err = ParseAddress("256.256.256.256:99999", false)
-	assert.NotNil(t, err, "was able to parse invalid host/port")
+	assert.Error(t, err, "was able to parse invalid host/port")
 
 	_, _, _, err = ParseAddress("launchdfoobar", false)
-	assert.NotNil(t, err, "was able to parse invalid host/port")
+	assert.Error(t, err, "was able to parse invalid host/port")
 
 	_, _, _, err = ParseAddress("systemdfoobar", false)
-	assert.NotNil(t, err, "was able to parse invalid host/port")
+	assert.Error(t, err, "was able to parse invalid host/port")
 }
 
 func TestIsDialableNetwork(t *testing.T) {
@@ -118,7 +118,7 @@ func TestParseHTTPAddress(t *testing.T) {
 
 func TestOpenTCPSocket(t *testing.T) {
 	ln, err := Open("tcp", "127.0.0.1:0")
-	assert.Nil(t, err, "should be able to open TCP socket on random port")
+	assert.NoError(t, err, "should be able to open TCP socket on random port")
 	defer func() { _ = ln.Close() }()
 	assert.NotNil(t, ln.Addr(), "listener should have an address")
 }
@@ -127,7 +127,7 @@ func TestOpenUnixSocket(t *testing.T) {
 	tmpDir := t.TempDir()
 	sockPath := filepath.Join(tmpDir, "test.sock")
 	ln, err := Open("unix", sockPath)
-	assert.Nil(t, err, "should be able to open Unix socket")
+	assert.NoError(t, err, "should be able to open Unix socket")
 	defer func() { _ = ln.Close() }()
 	assert.NotNil(t, ln.Addr(), "listener should have an address")
 }
@@ -166,7 +166,7 @@ func TestOpenUnixSocketListenError(t *testing.T) {
 	tmpDir := t.TempDir()
 	sockPath := filepath.Join(tmpDir, "missing", "test.sock")
 	ln, err := Open("unix", sockPath)
-	assert.NotNil(t, err, "should fail to open Unix socket under non-existent directory")
+	assert.Error(t, err, "should fail to open Unix socket under non-existent directory")
 	assert.Nil(t, ln, "listener should be nil on error")
 	if ln != nil {
 		_ = ln.Close()
@@ -175,7 +175,7 @@ func TestOpenUnixSocketListenError(t *testing.T) {
 
 func TestParseAndOpenTCPSuccess(t *testing.T) {
 	ln, err := ParseAndOpen("127.0.0.1:0")
-	assert.Nil(t, err, "should be able to parse and open TCP address")
+	assert.NoError(t, err, "should be able to parse and open TCP address")
 	defer func() { _ = ln.Close() }()
 }
 
@@ -183,24 +183,24 @@ func TestParseAndOpenUnixSuccess(t *testing.T) {
 	tmpDir := t.TempDir()
 	sockPath := filepath.Join(tmpDir, "test.sock")
 	ln, err := ParseAndOpen("unix:" + sockPath)
-	assert.Nil(t, err, "should be able to parse and open Unix socket")
+	assert.NoError(t, err, "should be able to parse and open Unix socket")
 	defer func() { _ = ln.Close() }()
 }
 
 func TestParseAndOpenInvalidAddress(t *testing.T) {
 	_, err := ParseAndOpen("invalid-no-port")
-	assert.NotNil(t, err, "should fail to parse invalid address")
+	assert.Error(t, err, "should fail to parse invalid address")
 }
 
 func TestParseAndOpenUnresolvable(t *testing.T) {
 	_, err := ParseAndOpen("nonexistent.invalid.domain.test:8080")
-	assert.NotNil(t, err, "should fail to resolve nonexistent domain")
+	assert.Error(t, err, "should fail to resolve nonexistent domain")
 }
 
 func TestParseAddressWithSkipResolve(t *testing.T) {
 	// With skipResolve=true, should not fail on unresolvable address
 	network, address, host, err := ParseAddress("nonexistent.invalid.domain.test:8080", true)
-	assert.Nil(t, err, "should succeed with skipResolve=true")
+	assert.NoError(t, err, "should succeed with skipResolve=true")
 	assert.Equal(t, "tcp", network)
 	assert.Equal(t, "nonexistent.invalid.domain.test:8080", address)
 	assert.Equal(t, "nonexistent.invalid.domain.test", host)
