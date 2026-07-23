@@ -38,6 +38,9 @@ linters:
     - thelper
     - forcetypeassert
     - unparam
+    # depguard bans importing math/rand — this is a TLS proxy, so randomness
+    # must come from crypto/rand (see settings.depguard for the rationale).
+    - depguard
   # Enable human-readable exclusion presets including std-error-handling
   # which excludes common error handling patterns like Close()
   exclusions:
@@ -50,11 +53,13 @@ linters:
           - errcheck
         path: "_test\\.go"
       # Ignore forbidigo in test files - tests legitimately call os.Exit (e.g.
-      # TestMain) and may tune runtime.GOMAXPROCS; the footguns the rules guard
-      # against only matter in the production binary.
+      # TestMain), may tune runtime.GOMAXPROCS, and use t/tb.Fatal; the footguns
+      # the rules guard against only matter in the production binary. The
+      # internal/test packages are test-only helpers (not _test.go suffixed), so
+      # they get the same treatment.
       - linters:
           - forbidigo
-        path: "_test\\.go"
+        path: "(_test\\.go|/internal/test/)"
       # Ignore forcetypeassert and unparam in test files - both deliver their
       # value in the production binary. In tests an unchecked assertion that
       # panics is an acceptable loud failure, and fixture/builder helpers
@@ -64,6 +69,17 @@ linters:
           - unparam
         path: "_test\\.go"
   settings:
+    depguard:
+      rules:
+        # Applies to all Go files (tests included): ghostunnel is a TLS proxy,
+        # so all randomness must come from crypto/rand. math/rand is not
+        # cryptographically secure and must never be used.
+        all:
+          deny:
+            - pkg: math/rand
+              desc: use crypto/rand; math/rand is not cryptographically secure
+            - pkg: math/rand/v2
+              desc: use crypto/rand; math/rand/v2 is not cryptographically secure
     errcheck:
       # Additional functions to exclude from checking
       exclude-functions:
@@ -113,3 +129,10 @@ linters:
             wrapped (see coverage_enabled.go) to flush coverage counters before
             the process exits, and routing exits through it keeps shutdown
             graceful. A raw os.Exit bypasses both.
+        - pattern: '\.(Fatal|Fatalf|Fatalln|Panic|Panicf|Panicln)$'
+          msg: >-
+            Do not use Fatal/Panic logging calls. log.Fatal* and
+            (*log.Logger).Fatal* call os.Exit directly, bypassing exitFunc
+            (coverage counters are lost and shutdown is not graceful), and
+            Panic* aborts the process. Return an error and let main() report it
+            once instead.
