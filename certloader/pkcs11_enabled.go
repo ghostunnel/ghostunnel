@@ -72,7 +72,7 @@ func (c *pkcs11Certificate) Reload() error {
 	// with the (fixed) private key being in an HSM/PKCS11 module.
 	certs, err := readX509(c.certificatePath)
 	if err != nil {
-		return fmt.Errorf("failed to load certificate from %q: %w", c.certificatePath, err)
+		return fmt.Errorf("unable to load certificate from %q: %w", c.certificatePath, err)
 	}
 
 	certAndKey := tls.Certificate{
@@ -98,13 +98,13 @@ func (c *pkcs11Certificate) Reload() error {
 		if old.Leaf == nil || !newPub.Equal(old.Leaf.PublicKey) {
 			return fmt.Errorf("pkcs11: refusing to reload certificate %q: its public key does not match the cached HSM private key", c.certificatePath)
 		}
-		c.logger.Printf("pkcs11: re-using previously cached private key handle from module")
+		c.logger.Printf("pkcs11: reusing previously cached private key handle from module")
 		certAndKey.PrivateKey = old.PrivateKey
 	} else {
 		c.logger.Printf("pkcs11: loading private key for given certificate from module")
 		privateKey, err := pkcs11key.New(c.modulePath, c.tokenLabel, c.pin, certAndKey.Leaf.PublicKey)
 		if err != nil {
-			return fmt.Errorf("pkcs11: failed to load private key from module %q (token %q): %w", c.modulePath, c.tokenLabel, err)
+			return fmt.Errorf("pkcs11: unable to load private key from module %q (token %q): %w", c.modulePath, c.tokenLabel, err)
 		}
 		certAndKey.PrivateKey = privateKey
 	}

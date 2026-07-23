@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -154,12 +155,12 @@ func (Go) Man(ctx context.Context) error {
 //   - CODESIGN_CERTIFICATE_PASSWORD: Password for the .p12 certificate (required if CODESIGN_CERTIFICATE is set)
 func (Apple) Codesign(ctx context.Context, binary string) error {
 	if runtime.GOOS != "darwin" {
-		return fmt.Errorf("codesigning is only supported on macOS")
+		return errors.New("codesigning is only supported on macOS")
 	}
 
 	identity := os.Getenv("CODESIGN_IDENTITY")
 	if identity == "" {
-		return fmt.Errorf("CODESIGN_IDENTITY must be set")
+		return errors.New("CODESIGN_IDENTITY must be set")
 	}
 
 	certData := os.Getenv("CODESIGN_CERTIFICATE")
@@ -200,13 +201,13 @@ func (Apple) Codesign(ctx context.Context, binary string) error {
 //   - NOTARIZE_KEY: Base64-encoded .p8 private key (optional, for CI; if not set, key must already exist)
 func (Apple) Notarize(ctx context.Context, binary string) error {
 	if runtime.GOOS != "darwin" {
-		return fmt.Errorf("notarization is only supported on macOS")
+		return errors.New("notarization is only supported on macOS")
 	}
 
 	issuerID := os.Getenv("NOTARIZE_ISSUER_ID")
 	keyID := os.Getenv("NOTARIZE_KEY_ID")
 	if issuerID == "" || keyID == "" {
-		return fmt.Errorf("NOTARIZE_ISSUER_ID and NOTARIZE_KEY_ID must be set")
+		return errors.New("NOTARIZE_ISSUER_ID and NOTARIZE_KEY_ID must be set")
 	}
 
 	// If NOTARIZE_KEY is set, write the .p8 key to a temp file for notarytool
@@ -261,10 +262,10 @@ func (Apple) Notarize(ctx context.Context, binary string) error {
 func (Github) Publish(ctx context.Context, tag string) error {
 	tag = strings.TrimPrefix(tag, "refs/tags/")
 	if tag == "" {
-		return fmt.Errorf("github:publish requires a tag argument")
+		return errors.New("github:publish requires a tag argument")
 	}
 	if os.Getenv("GITHUB_TOKEN") == "" {
-		return fmt.Errorf("GITHUB_TOKEN must be set")
+		return errors.New("GITHUB_TOKEN must be set")
 	}
 
 	assets, err := filepath.Glob("dist/ghostunnel-*")
@@ -272,7 +273,7 @@ func (Github) Publish(ctx context.Context, tag string) error {
 		return fmt.Errorf("failed to glob dist/: %w", err)
 	}
 	if len(assets) == 0 {
-		return fmt.Errorf("no release assets found in dist/")
+		return errors.New("no release assets found in dist/")
 	}
 	sort.Strings(assets)
 
@@ -306,7 +307,7 @@ func (Github) Publish(ctx context.Context, tag string) error {
 func setupCodesignKeychain(certBase64 string) (func(), error) {
 	password := os.Getenv("CODESIGN_CERTIFICATE_PASSWORD")
 	if password == "" {
-		return nil, fmt.Errorf("CODESIGN_CERTIFICATE_PASSWORD must be set when CODESIGN_CERTIFICATE is set")
+		return nil, errors.New("CODESIGN_CERTIFICATE_PASSWORD must be set when CODESIGN_CERTIFICATE is set")
 	}
 
 	// Decode certificate
@@ -944,7 +945,7 @@ func (Test) SoftHSMImport(ctx context.Context) error {
 	label := os.Getenv("GHOSTUNNEL_TEST_PKCS11_LABEL")
 	pin := os.Getenv("GHOSTUNNEL_TEST_PKCS11_PIN")
 	if label == "" || pin == "" {
-		return fmt.Errorf("GHOSTUNNEL_TEST_PKCS11_LABEL and GHOSTUNNEL_TEST_PKCS11_PIN must be set")
+		return errors.New("GHOSTUNNEL_TEST_PKCS11_LABEL and GHOSTUNNEL_TEST_PKCS11_PIN must be set")
 	}
 
 	printf("Initializing SoftHSM token with label: %s\n", label)

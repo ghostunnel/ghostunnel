@@ -747,7 +747,7 @@ func TestParseWithOptionsConfigError(t *testing.T) {
 	ks := new(KeyStore)
 	err := ks.parseWithOptions(bytes.NewReader([]byte{}), nil, errOption{})
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to configure parser")
+	assert.Contains(t, err.Error(), "unable to configure parser")
 }
 
 // --- parseWithOptions entry tag tests ---
@@ -911,7 +911,7 @@ func TestRecoverASN1UnmarshalError(t *testing.T) {
 	_, _, err = ks.GetPrivateKeyAndCerts("badkey", []byte(password))
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, errInvalidJCEKSData)
-	assert.Contains(t, err.Error(), "failed to parse private key as DER")
+	assert.Contains(t, err.Error(), "unable to parse private key as DER")
 }
 
 func TestRecoverUnsupportedKeyAlgorithm(t *testing.T) {
@@ -1099,7 +1099,7 @@ func TestReadCertificateParseError(t *testing.T) {
 
 	_, err := readCertificate(&buf, defaultMaxCertBytes)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to parse certificate")
+	assert.Contains(t, err.Error(), "unable to parse certificate")
 }
 
 // --- pbemd5des3cbc.go error path tests ---
@@ -1279,7 +1279,7 @@ func TestParseReadEntryCountError(t *testing.T) {
 	err := ks.Parse(&buf, nil)
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, errInvalidJCEKSData)
-	assert.Contains(t, err.Error(), "failed to read entry count")
+	assert.Contains(t, err.Error(), "unable to read entry count")
 }
 
 func TestParseReadEntryTagError(t *testing.T) {
@@ -1294,7 +1294,7 @@ func TestParseReadEntryTagError(t *testing.T) {
 	err := ks.Parse(&buf, nil)
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, errInvalidJCEKSData)
-	assert.Contains(t, err.Error(), "failed to read entry")
+	assert.Contains(t, err.Error(), "unable to read entry")
 }
 
 func TestParsePrivateKeyTruncatedProtectedKey(t *testing.T) {
@@ -1449,7 +1449,7 @@ func (r *errByteReader) Read([]byte) (int, error) { return 0, r.err }
 func TestReadModifiedUTF8NonEOFError(t *testing.T) {
 	_, err := readModifiedUTF8(&errByteReader{errors.New("device error")})
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to read rune byte 1")
+	assert.Contains(t, err.Error(), "unable to read rune byte 1")
 }
 
 func TestReadBytesEmptyReader(t *testing.T) {
@@ -1542,7 +1542,7 @@ func TestRecoverPBEErrors(t *testing.T) {
 
 		_, err = recoverPBEWithMD5AndDES3CBC(epki, password)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to unmarshal private key")
+		assert.Contains(t, err.Error(), "unable to unmarshal private key")
 	})
 }
 
@@ -1612,11 +1612,11 @@ func TestParseTrustedCertCorruptDER(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errInvalidJCEKSData)
 	// Wrapping chain:
-	//   parseWithOptions: "...failed to parse certificate entry 0: %w"
+	//   parseWithOptions: "...unable to parse certificate entry 0: %w"
 	//   parseTrustedCert: "reading certificate: %w"
-	//   readCertificate:  "failed to parse certificate: %w"
+	//   readCertificate:  "unable to parse certificate: %w"
 	assert.Contains(t, err.Error(), "reading certificate")
-	assert.Contains(t, err.Error(), "failed to parse certificate")
+	assert.Contains(t, err.Error(), "unable to parse certificate")
 }
 
 // TestParseWithOptionsEncodeIntegrityPasswordError covers the wrapper at
@@ -1654,7 +1654,7 @@ func TestParseWithOptionsTruncatedIntegrityTrailer(t *testing.T) {
 	_, err = LoadFromReader(bytes.NewReader(truncated), []byte("password"))
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errInvalidJCEKSData)
-	assert.Contains(t, err.Error(), "failed to read integrity checksum")
+	assert.Contains(t, err.Error(), "unable to read integrity checksum")
 }
 
 func TestRecoverJKSKeyProtectorUnsupported(t *testing.T) {

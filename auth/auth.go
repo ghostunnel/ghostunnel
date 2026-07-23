@@ -42,6 +42,11 @@ import (
 	"github.com/open-policy-agent/opa/v1/rego"
 )
 
+// errPrincipalNotAllowed is returned when the peer certificate does not match any
+// allowed principal, or when no verified chains were presented. It is repeated
+// in several code paths, so we keep it as a package-level sentinel.
+var errPrincipalNotAllowed = errors.New("unauthorized: invalid principal, or principal not allowed")
+
 // ACL represents an access control list for mutually-authenticated TLS connections.
 // These options are disjunctive, if at least one attribute matches access will be granted.
 type ACL struct {
@@ -152,7 +157,7 @@ func parseSPKIPin(s string) (SPKIPin, error) {
 	}
 	raw, err := base64.StdEncoding.DecodeString(digest)
 	if err != nil {
-		return SPKIPin{}, fmt.Errorf("invalid pin %q: base64 decode failed: %w", s, err)
+		return SPKIPin{}, fmt.Errorf("invalid pin %q: unable to decode base64: %w", s, err)
 	}
 	if len(raw) != hash.Size() {
 		return SPKIPin{}, fmt.Errorf("invalid pin %q: expected %d bytes for %s, got %d", s, hash.Size(), algo, len(raw))
@@ -185,7 +190,7 @@ func (a ACL) verifySPKIPin(rawCerts [][]byte) error {
 
 	cert, err := x509.ParseCertificate(rawCerts[0])
 	if err != nil {
-		return fmt.Errorf("unauthorized: failed to parse certificate: %w", err)
+		return fmt.Errorf("unauthorized: unable to parse certificate: %w", err)
 	}
 
 	spki := cert.RawSubjectPublicKeyInfo
@@ -197,7 +202,7 @@ func (a ACL) verifySPKIPin(rawCerts [][]byte) error {
 		}
 	}
 
-	return errors.New("unauthorized: pin verification failed")
+	return errors.New("unauthorized: unable to verify pin")
 }
 
 // VerifyPeerCertificateServer is an implementation of VerifyPeerCertificate
@@ -210,7 +215,7 @@ func (a ACL) VerifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*
 	}
 
 	if len(verifiedChains) == 0 {
-		return errors.New("unauthorized: invalid principal, or principal not allowed")
+		return errPrincipalNotAllowed
 	}
 
 	// If --allow-all has been set, a valid cert is sufficient to connect.
@@ -261,7 +266,7 @@ func (a ACL) VerifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*
 		}
 	}
 
-	return errors.New("unauthorized: invalid principal, or principal not allowed")
+	return errPrincipalNotAllowed
 }
 
 // VerifyPeerCertificateClient is an implementation of VerifyPeerCertificate
@@ -275,7 +280,7 @@ func (a ACL) VerifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*
 	}
 
 	if len(verifiedChains) == 0 {
-		return errors.New("unauthorized: invalid principal, or principal not allowed")
+		return errPrincipalNotAllowed
 	}
 
 	// If the ACL is empty, only hostname verification is performed. The hostname
@@ -327,7 +332,7 @@ func (a ACL) VerifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*
 		}
 	}
 
-	return errors.New("unauthorized: invalid principal, or principal not allowed")
+	return errPrincipalNotAllowed
 }
 
 // Returns true if at least one item from left is also contained in right.

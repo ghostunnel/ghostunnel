@@ -35,22 +35,22 @@ func readCertificateFile(path, password, format string) ([]*pem.Block, error) {
 	reader := bufio.NewReaderSize(file, 4)
 	format, err = formatForFile(reader, file.Name(), format)
 	if err != nil {
-		return nil, fmt.Errorf("failed to detect format for '%s': %w", path, err)
+		return nil, fmt.Errorf("unable to detect format for %q: %w", path, err)
 	}
 
 	pemBlocks, err := readCertsFromStream(reader, format, password)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse '%s': %w", path, err)
+		return nil, fmt.Errorf("unable to parse %q: %w", path, err)
 	}
 	if len(pemBlocks) == 0 {
-		return nil, fmt.Errorf("error reading file '%s', no certificates found", path)
+		return nil, fmt.Errorf("no certificates found in file %q", path)
 	}
 
 	return pemBlocks, nil
 }
 
 // readX509 reads X.509 certificates from a PEM file. Unlike the original certigo
-// implementation, this fails fast on the first unparseable certificate block rather
+// implementation, this fails fast on the first unparsable certificate block rather
 // than accumulating errors and continuing.
 func readX509(path string) ([]*x509.Certificate, error) {
 	pemBlocks, err := readCertificateFile(path, "", "PEM")
@@ -65,13 +65,13 @@ func readX509(path string) ([]*x509.Certificate, error) {
 		}
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
-			return nil, fmt.Errorf("error reading file '%s': %w", path, err)
+			return nil, fmt.Errorf("unable to read file %q: %w", path, err)
 		}
 		out = append(out, cert)
 	}
 
 	if len(out) == 0 {
-		return nil, fmt.Errorf("no certificates found in file '%s'", path)
+		return nil, fmt.Errorf("no certificates found in file %q", path)
 	}
 	return out, nil
 }

@@ -128,7 +128,7 @@ func setupLandlock() error {
 
 		fsRule, netRule, err := ruleFromStringAddress(*addr, landlock.BindTCP)
 		if err != nil {
-			return fmt.Errorf("error processing argument '%s' for landlock rule: %w", *addr, err)
+			return fmt.Errorf("processing argument %q for landlock rule: %w", *addr, err)
 		}
 		if fsRule != nil {
 			fsRules = append(fsRules, fsRule)
@@ -153,7 +153,7 @@ func setupLandlock() error {
 
 		fsRule, netRule, err := ruleFromStringAddress(*addr, landlock.ConnectTCP)
 		if err != nil {
-			return fmt.Errorf("error processing argument '%s' for landlock rule: %w", *addr, err)
+			return fmt.Errorf("processing argument %q for landlock rule: %w", *addr, err)
 		}
 		if fsRule != nil {
 			fsRules = append(fsRules, fsRule)
@@ -186,7 +186,7 @@ func setupLandlock() error {
 
 		rule, err := ruleFromTCPAddress(*addr, landlock.ConnectTCP)
 		if err != nil {
-			return fmt.Errorf("error processing argument '%s' for landlock rule: %w", *addr, err)
+			return fmt.Errorf("processing argument %q for landlock rule: %w", *addr, err)
 		}
 		if rule != nil {
 			netRules = append(netRules, rule)
@@ -199,7 +199,7 @@ func setupLandlock() error {
 	for _, u := range proxyURLsFromEnv() {
 		rule, err := ruleFromURL(u, landlock.ConnectTCP)
 		if err != nil {
-			return fmt.Errorf("error processing proxy env URL '%s' for landlock rule: %w", u, err)
+			return fmt.Errorf("processing proxy env URL %q for landlock rule: %w", u, err)
 		}
 		if rule != nil {
 			netRules = append(netRules, rule)
@@ -214,7 +214,7 @@ func setupLandlock() error {
 
 		rule, err := ruleFromURL(*url, landlock.ConnectTCP)
 		if err != nil {
-			return fmt.Errorf("error processing argument '%s' for landlock rule: %w", *url, err)
+			return fmt.Errorf("processing argument %q for landlock rule: %w", *url, err)
 		}
 		if rule != nil {
 			netRules = append(netRules, rule)
