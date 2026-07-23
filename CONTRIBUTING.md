@@ -143,7 +143,7 @@ unit-test profile.
 - Use lowercase (proper nouns such as Windows and SPIFFE are excepted).
 - No trailing `\n` in messages, as `log.Logger` appends one automatically.
 - Severity prefixes: only `error:`, `warning:`, or `note:`; message text after prefix stays lowercase.
-- Format error values with `%v`, not `%s`.
+- Format error values with `%v`, not `%s`. This applies only for logging, fmt.Errorf should use `%w`.
 
 ### Returned errors
 

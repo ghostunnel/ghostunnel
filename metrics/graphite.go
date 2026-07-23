@@ -85,7 +85,7 @@ func (r *Registry) StartGraphitePush(addr *net.TCPAddr, interval time.Duration, 
 		defer ticker.Stop()
 		for range ticker.C {
 			if err := r.graphiteFlush(addr); err != nil {
-				logger.Printf("error reporting metrics to graphite: %s", err)
+				logger.Printf("error reporting metrics to graphite: %v", err)
 			}
 		}
 	}()
