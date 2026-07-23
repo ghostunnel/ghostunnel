@@ -39,6 +39,7 @@ func BenchmarkCopyDataIdleTimeout(b *testing.B) {
 }
 
 func benchmarkCopyData(b *testing.B, proxy *Proxy, size int, idleTimeout time.Duration) {
+	b.Helper()
 	proxy.Timeouts.Idle = idleTimeout
 	b.ReportAllocs()
 	b.ResetTimer()

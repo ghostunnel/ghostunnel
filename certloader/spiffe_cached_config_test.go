@@ -65,10 +65,12 @@ func newCachedSPIFFEConfig(t *testing.T, clientDisableAuth bool) *spiffeTLSConfi
 func TestCachedSPIFFEConfigPointerIdentity(t *testing.T) {
 	cfg := newCachedSPIFFEConfig(t, false)
 
-	assert.Same(t, cfg.GetClientConfig(), cfg.GetClientConfig(),
-		"GetClientConfig must return the same pointer")
-	assert.Same(t, cfg.GetServerConfig(), cfg.GetServerConfig(),
-		"GetServerConfig must return the same pointer")
+	// Call each accessor twice; both calls must observe the same shared pointer.
+	client1, client2 := cfg.GetClientConfig(), cfg.GetClientConfig()
+	assert.Same(t, client1, client2, "GetClientConfig must return the same pointer")
+
+	server1, server2 := cfg.GetServerConfig(), cfg.GetServerConfig()
+	assert.Same(t, server1, server2, "GetServerConfig must return the same pointer")
 }
 
 // Steady-state Get*Config must not allocate.

@@ -60,72 +60,72 @@ const testCertificateBad = `
 
 func TestReadPEMValid(t *testing.T) {
 	cert, err := os.CreateTemp("", "ghostunnel-test")
-	assert.Nil(t, err, "temp file error")
+	assert.NoError(t, err, "temp file error")
 	defer os.Remove(cert.Name())
 
 	_, err = cert.Write([]byte(testCertificate))
-	assert.Nil(t, err, "temp file error")
+	assert.NoError(t, err, "temp file error")
 
 	blocks, err := readCertificateFile(cert.Name(), "", "PEM")
-	assert.Nil(t, err, "should read PEM file")
+	assert.NoError(t, err, "should read PEM file")
 	assert.Len(t, blocks, 1, "should find one PEM block")
 }
 
 func TestReadPEMInvalid(t *testing.T) {
 	cert, err := os.CreateTemp("", "ghostunnel-test")
-	assert.Nil(t, err, "temp file error")
+	assert.NoError(t, err, "temp file error")
 	defer os.Remove(cert.Name())
 
 	_, err = cert.Write([]byte("invalid"))
-	assert.Nil(t, err, "temp file error")
+	assert.NoError(t, err, "temp file error")
 
 	blocks, err := readCertificateFile(cert.Name(), "", "PEM")
-	assert.NotNil(t, err, "should not parse invalid file")
-	assert.Len(t, blocks, 0, "should not return PEM blocks")
+	assert.Error(t, err, "should not parse invalid file")
+	assert.Empty(t, blocks, "should not return PEM blocks")
 
 	blocks, err = readCertificateFile("does-not-exist", "", "PEM")
-	assert.NotNil(t, err, "should not parse invalid file")
-	assert.Len(t, blocks, 0, "should not return PEM blocks")
+	assert.Error(t, err, "should not parse invalid file")
+	assert.Empty(t, blocks, "should not return PEM blocks")
 }
 
 func TestReadX509Valid(t *testing.T) {
 	cert, err := os.CreateTemp("", "ghostunnel-test")
-	assert.Nil(t, err, "temp file error")
+	assert.NoError(t, err, "temp file error")
 	defer os.Remove(cert.Name())
 
 	_, err = cert.Write([]byte(testCertificate))
-	assert.Nil(t, err, "temp file error")
+	assert.NoError(t, err, "temp file error")
 
 	certs, err := readX509(cert.Name())
-	assert.Nil(t, err, "should parse certificate from PEM file")
+	assert.NoError(t, err, "should parse certificate from PEM file")
 	assert.Len(t, certs, 1, "should find one certificate")
 }
 
 func TestReadX509Invalid(t *testing.T) {
 	cert0, err := os.CreateTemp("", "ghostunnel-test")
-	assert.Nil(t, err, "temp file error")
+	assert.NoError(t, err, "temp file error")
 	defer os.Remove(cert0.Name())
 
 	cert1, err := os.CreateTemp("", "ghostunnel-test")
-	assert.Nil(t, err, "temp file error")
+	assert.NoError(t, err, "temp file error")
 	defer os.Remove(cert1.Name())
 
 	_, err = cert0.Write([]byte("invalid"))
-	assert.Nil(t, err, "temp file error")
+	assert.NoError(t, err, "temp file error")
 	_, err = cert1.Write([]byte(testCertificateBad))
-	assert.Nil(t, err, "temp file error")
+	assert.NoError(t, err, "temp file error")
 
 	certs, err := readX509(cert0.Name())
-	assert.NotNil(t, err, "should not parse invalid file")
-	assert.Len(t, certs, 0, "should not parse invalid file")
+	assert.Error(t, err, "should not parse invalid file")
+	assert.Empty(t, certs, "should not parse invalid file")
 
 	certs, err = readX509(cert1.Name())
-	assert.NotNil(t, err, "should not parse invalid file")
-	assert.Len(t, certs, 0, "should not parse invalid file")
+	assert.Error(t, err, "should not parse invalid file")
+	assert.Empty(t, certs, "should not parse invalid file")
 
 	certs, err = readX509("does-not-exist")
-	assert.NotNil(t, err, "should not parse invalid file")
-	assert.Len(t, certs, 0, "should not parse invalid file")
+	assert.Error(t, err, "should not parse invalid file")
+	assert.Empty(t, certs, "should not parse invalid file")
 }
 
 func TestReadPEMFormatError(t *testing.T) {
@@ -239,34 +239,34 @@ func TestLoadTrustStoreSystemRoots(t *testing.T) {
 	}
 
 	_, err := LoadTrustStore("")
-	assert.Nil(t, err, "should load system trust store if empty string given")
+	assert.NoError(t, err, "should load system trust store if empty string given")
 }
 
 func TestLoadTrustStorePEM(t *testing.T) {
 	cert, err := os.CreateTemp("", "ghostunnel-test")
-	assert.Nil(t, err, "temp file error")
+	assert.NoError(t, err, "temp file error")
 	defer os.Remove(cert.Name())
 
 	_, err = cert.Write([]byte(testCertificate))
-	assert.Nil(t, err, "temp file error")
+	assert.NoError(t, err, "temp file error")
 
 	_, err = LoadTrustStore(cert.Name())
-	assert.Nil(t, err, "should read PEM file trust store")
+	assert.NoError(t, err, "should read PEM file trust store")
 }
 
 func TestLoadTrustStoreInvalid(t *testing.T) {
 	cert, err := os.CreateTemp("", "ghostunnel-test")
-	assert.Nil(t, err, "temp file error")
+	assert.NoError(t, err, "temp file error")
 	defer os.Remove(cert.Name())
 
 	_, err = cert.Write([]byte("this-is-not-a-cert"))
-	assert.Nil(t, err, "temp file error")
+	assert.NoError(t, err, "temp file error")
 
 	_, err = LoadTrustStore("file-that-does-not-exist")
-	assert.NotNil(t, err, "should not read non-existent file")
+	assert.Error(t, err, "should not read non-existent file")
 
 	_, err = LoadTrustStore(cert.Name())
-	assert.NotNil(t, err, "should not read non-existent file")
+	assert.Error(t, err, "should not read non-existent file")
 }
 
 func TestKeystoreCertificateReloadBadCABundle(t *testing.T) {

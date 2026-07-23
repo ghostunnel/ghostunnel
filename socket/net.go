@@ -114,7 +114,11 @@ func Open(network, address string) (net.Listener, error) {
 		if err != nil {
 			return nil, err
 		}
-		listener.(*net.UnixListener).SetUnlinkOnClose(true)
+		// net.Listen on a unix network always returns a *net.UnixListener; the
+		// check is defensive so a future/unexpected type degrades gracefully.
+		if unixListener, ok := listener.(*net.UnixListener); ok {
+			unixListener.SetUnlinkOnClose(true)
+		}
 		return listener, nil
 	default:
 		return reuseport.NewReusablePortListener(network, address)

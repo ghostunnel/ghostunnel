@@ -129,6 +129,7 @@ func BenchmarkConnMetricsBookkeeping(b *testing.B) {
 	// A fresh registry for the live case so it never touches the package
 	// default registry (and so repeated runs don't accumulate state).
 	run := func(b *testing.B, m *metrics.Metrics) {
+		b.Helper()
 		b.ReportAllocs()
 		b.ResetTimer()
 		b.RunParallel(func(pb *testing.PB) {
@@ -152,6 +153,7 @@ func BenchmarkConnMetricsBookkeeping(b *testing.B) {
 // benchmarks; connMetrics selects which metric handles the proxy records to
 // (nil → default registry, NilMetrics → no-op).
 func benchmarkConnectionChurn(b *testing.B, connMetrics *metrics.Metrics) {
+	b.Helper()
 	serverCert, leaf := benchSelfSignedCert(b)
 
 	pool := x509.NewCertPool()

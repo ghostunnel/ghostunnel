@@ -25,7 +25,7 @@ import (
 func TestGenerateManPage(t *testing.T) {
 	exitFunc = func(ret int) {}
 	context, err := app.ParseContext(nil)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	err = generateManPage(context)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }

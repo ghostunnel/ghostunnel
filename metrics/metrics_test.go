@@ -330,7 +330,7 @@ func TestNZClampsNaNAndInf(t *testing.T) {
 	assert.EqualValues(t, 0, nz(math.NaN()))
 	assert.EqualValues(t, 0, nz(math.Inf(1)))
 	assert.EqualValues(t, 0, nz(math.Inf(-1)))
-	assert.EqualValues(t, 12.5, nz(12.5), "finite values pass through unchanged")
+	assert.Equal(t, 12.5, nz(12.5), "finite values pass through unchanged")
 }
 
 // mkBucket builds a gathered cumulative bucket with the given upper bound and

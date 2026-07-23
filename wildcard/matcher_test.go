@@ -48,6 +48,7 @@ func ExampleCompile_doubleWildcard() {
 }
 
 func testMatches(t *testing.T, pattern string, matches []string, invalids []string) {
+	t.Helper()
 	matcher, err := Compile(pattern)
 	if err != nil {
 		t.Fatalf("bad pattern: '%s' (%s)", pattern, err)
