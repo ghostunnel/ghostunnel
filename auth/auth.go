@@ -259,7 +259,7 @@ func (a ACL) VerifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*
 		}
 		results, err := a.AllowOPAQuery.Eval(ctx, rego.EvalInput(input))
 		if err != nil {
-			return fmt.Errorf("unauthorized: policy returned error: %w", err)
+			return fmt.Errorf("unauthorized: unable to evaluate policy: %w", err)
 		}
 		if results.Allowed() {
 			return nil
@@ -325,7 +325,7 @@ func (a ACL) VerifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*
 		}
 		results, err := a.AllowOPAQuery.Eval(ctx, rego.EvalInput(input))
 		if err != nil {
-			return fmt.Errorf("unauthorized: policy returned error: %w", err)
+			return fmt.Errorf("unauthorized: unable to evaluate policy: %w", err)
 		}
 		if results.Allowed() {
 			return nil

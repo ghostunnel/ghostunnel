@@ -726,8 +726,8 @@ func TestAuthorizeOPAEvalError(t *testing.T) {
 	}
 	err = testACL.VerifyPeerCertificateServer(nil, fakeChains)
 	assert.Error(t, err, "Rego eval error should surface as an unauthorized error")
-	assert.Contains(t, err.Error(), "unauthorized: policy returned error:",
-		"server should wrap eval error with policy-returned-error prefix")
+	assert.Contains(t, err.Error(), "unauthorized: unable to evaluate policy:",
+		"server should wrap eval error with unable-to-evaluate-policy prefix")
 }
 
 func TestVerifyOPAEvalError(t *testing.T) {
@@ -751,6 +751,6 @@ func TestVerifyOPAEvalError(t *testing.T) {
 	}
 	err = testACL.VerifyPeerCertificateClient(nil, fakeChains)
 	assert.Error(t, err, "Rego eval error should surface as an unauthorized error")
-	assert.Contains(t, err.Error(), "unauthorized: policy returned error:",
-		"client should wrap eval error with policy-returned-error prefix")
+	assert.Contains(t, err.Error(), "unauthorized: unable to evaluate policy:",
+		"client should wrap eval error with unable-to-evaluate-policy prefix")
 }
