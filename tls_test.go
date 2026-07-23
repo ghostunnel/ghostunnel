@@ -395,8 +395,8 @@ func TestResolveCipherSuites(t *testing.T) {
 
 	suites, err = resolveCipherSuites("AES,UNSAFE-AZURE", true)
 	assert.Nil(t, err, "mixed safe+unsafe should resolve with flag")
-	assert.Contains(t, suites, uint16(tls.TLS_AES_128_GCM_SHA256))
-	assert.Contains(t, suites, uint16(tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256))
+	assert.Contains(t, suites, tls.TLS_AES_128_GCM_SHA256)
+	assert.Contains(t, suites, tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256)
 }
 
 // TestValidateCipherSuitesMatchesBuildConfig pins the invariant that

@@ -458,7 +458,6 @@ func TestCompileWithSeparatorMetaChars(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			matcher, err := CompileWithSeparator(tc.pattern, tc.separator)
 			if err != nil {
@@ -663,7 +662,6 @@ func TestTrailingSeparatorEquivalence(t *testing.T) {
 		"",
 	}
 	for _, p := range pairs {
-		p := p
 		t.Run(p.a+"_vs_"+p.b, func(t *testing.T) {
 			ma, err := Compile(p.a)
 			if err != nil {

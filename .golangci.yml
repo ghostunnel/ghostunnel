@@ -8,10 +8,29 @@ linters:
   # errorlint enforces errors.Is comparisons and %w wrapping — the core
   # rules from the logging/error-message conventions.
   # perfsprint catches fmt.Errorf with no format args (use errors.New instead).
+  # errname reinforces the sentinel-error naming convention (errXxx / XxxError).
+  # The remaining linters are correctness guards (nilerr, bodyclose,
+  # durationcheck, makezero, reassign, predeclared, wastedassign) and small
+  # modernization/cleanup checks (usestdlibvars, unconvert, whitespace,
+  # intrange, copyloopvar, misspell), most of which are currently clean.
   enable:
     - forbidigo
     - errorlint
     - perfsprint
+    - errname
+    - usestdlibvars
+    - nilerr
+    - bodyclose
+    - durationcheck
+    - makezero
+    - reassign
+    - predeclared
+    - wastedassign
+    - unconvert
+    - whitespace
+    - intrange
+    - copyloopvar
+    - misspell
   # Enable human-readable exclusion presets including std-error-handling
   # which excludes common error handling patterns like Close()
   exclusions:

@@ -118,7 +118,7 @@ func derivePBEParams(password []byte, salt []byte, iterations uint) (key []byte,
 
 	hashChain := func(state []byte) []byte {
 		h := md5.New()
-		for i := uint(0); i < iterations; i++ {
+		for range iterations {
 			h.Write(state)
 			h.Write(password)
 			state = h.Sum(state[:0])

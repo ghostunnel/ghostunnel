@@ -437,8 +437,8 @@ func TestProxyProtocolSuccess(t *testing.T) {
 	header, err := proxyproto.Read(bufio.NewReaderSize(dst, 12))
 	assert.Nil(t, err, "should be able to read header")
 	assert.Equal(t, header.Version, uint8(2))
-	assert.Equal(t, header.Command, proxyproto.ProtocolVersionAndCommand(proxyproto.PROXY))
-	assert.Equal(t, header.TransportProtocol, proxyproto.AddressFamilyAndProtocol(proxyproto.TCPv4))
+	assert.Equal(t, header.Command, proxyproto.PROXY)
+	assert.Equal(t, header.TransportProtocol, proxyproto.TCPv4)
 	assert.Equal(t, header.SourceAddr.(*net.TCPAddr).IP, net.ParseIP("127.0.0.1").To4())
 	assert.Equal(t, header.DestinationAddr.(*net.TCPAddr).IP, net.ParseIP("127.0.0.1").To4())
 	assert.Equal(t, header.SourceAddr.(*net.TCPAddr).Port, src.LocalAddr().(*net.TCPAddr).Port)
@@ -499,9 +499,9 @@ func TestProxyProtocolSuccessIPv6(t *testing.T) {
 	header, err := proxyproto.Read(bufio.NewReaderSize(dst, 512))
 	assert.Nil(t, err, "should be able to read header")
 	assert.Equal(t, uint8(2), header.Version)
-	assert.Equal(t, proxyproto.ProtocolVersionAndCommand(proxyproto.PROXY), header.Command)
+	assert.Equal(t, proxyproto.PROXY, header.Command)
 	// Core assertion: transport protocol byte reports TCPv6.
-	assert.Equal(t, proxyproto.AddressFamilyAndProtocol(proxyproto.TCPv6), header.TransportProtocol,
+	assert.Equal(t, proxyproto.TCPv6, header.TransportProtocol,
 		"PROXY header must report TCPv6 for an IPv6 client")
 	// Source/dest addresses should be IPv6 loopback.
 	assert.True(t, header.SourceAddr.(*net.TCPAddr).IP.Equal(net.IPv6loopback),
@@ -909,12 +909,12 @@ func (r *readErrConn) Read(p []byte) (int, error) {
 	return 0, r.err
 }
 
-// fakeTimeoutErr is a net.Error with Timeout()==true; not a closed-conn error.
-type fakeTimeoutErr struct{}
+// fakeTimeoutError is a net.Error with Timeout()==true; not a closed-conn error.
+type fakeTimeoutError struct{}
 
-func (fakeTimeoutErr) Error() string   { return "i/o timeout (simulated)" }
-func (fakeTimeoutErr) Timeout() bool   { return true }
-func (fakeTimeoutErr) Temporary() bool { return false }
+func (fakeTimeoutError) Error() string   { return "i/o timeout (simulated)" }
+func (fakeTimeoutError) Timeout() bool   { return true }
+func (fakeTimeoutError) Temporary() bool { return false }
 
 func TestCopyDataErrorClassification(t *testing.T) {
 	type logEntry struct {
@@ -985,7 +985,7 @@ func TestCopyDataErrorClassification(t *testing.T) {
 		// error. It is counted as conn.error and logged as "error during copy",
 		// NOT as a timeout. Timeout counting is covered end-to-end by
 		// TestIdleTimeoutReapLoggedNotErrored and the max-conn-lifetime tests.
-		src := &readErrConn{err: fakeTimeoutErr{}}
+		src := &readErrConn{err: fakeTimeoutError{}}
 		dst := newDiscardConn()
 		defer dst.Close()
 
@@ -1634,8 +1634,8 @@ func TestProxyProtoHeaderWithTLS(t *testing.T) {
 	h, err := proxyProtoHeader(conn, state, ProxyProtocolTLSFull)
 	assert.NoError(t, err)
 	assert.Equal(t, uint8(2), h.Version)
-	assert.Equal(t, proxyproto.PROXY, proxyproto.ProtocolVersionAndCommand(h.Command))
-	assert.Equal(t, proxyproto.TCPv4, proxyproto.AddressFamilyAndProtocol(h.TransportProtocol))
+	assert.Equal(t, proxyproto.PROXY, h.Command)
+	assert.Equal(t, proxyproto.TCPv4, h.TransportProtocol)
 
 	// Verify TLVs are present
 	tlvs, err := h.TLVs()
@@ -1714,8 +1714,8 @@ func TestProxyProtocolTLSModeSuccess(t *testing.T) {
 	header, err := proxyproto.Read(bufio.NewReaderSize(dst, 512))
 	assert.Nil(t, err, "should be able to read proxy protocol header")
 	assert.Equal(t, uint8(2), header.Version)
-	assert.Equal(t, proxyproto.PROXY, proxyproto.ProtocolVersionAndCommand(header.Command))
-	assert.Equal(t, proxyproto.TCPv4, proxyproto.AddressFamilyAndProtocol(header.TransportProtocol))
+	assert.Equal(t, proxyproto.PROXY, header.Command)
+	assert.Equal(t, proxyproto.TCPv4, header.TransportProtocol)
 
 	// Verify TLVs contain TLS metadata
 	tlvs, err := header.TLVs()
@@ -1777,7 +1777,7 @@ func TestProxyProtoHeaderConnMode(t *testing.T) {
 	h, err := proxyProtoHeader(conn, state, ProxyProtocolConn)
 	assert.NoError(t, err)
 	assert.Equal(t, uint8(2), h.Version)
-	assert.Equal(t, proxyproto.PROXY, proxyproto.ProtocolVersionAndCommand(h.Command))
+	assert.Equal(t, proxyproto.PROXY, h.Command)
 
 	tlvs, err := h.TLVs()
 	assert.Nil(t, err)
