@@ -35,11 +35,77 @@ give us; the main proxy path never touches the relevant knobs.
 
 The three work items below (1) expose client-side resumption as an opt-in
 flag, (2) make server-side ticket keys survive reloads consistently across
-cert sources (SPIFFE parity), and (3) move ACL enforcement from
-`VerifyPeerCertificate` to `VerifyConnection` so access control runs on
-*every* handshake, resumed or full. Item 3 is what makes item 2 safe: with it,
-a resumed session after a CA-bundle or policy change is still subject to a
-fresh authorization decision.
+cert sources (SPIFFE parity), and (3) move enforcement from
+`VerifyPeerCertificate` to `VerifyConnection` so that *every* handshake,
+resumed or full, gets a complete, current verification: chain validation
+against the live trust store plus the ACL/policy/pin decision. Item 3 is
+what makes item 2 safe — with it, a resumed session is security-equivalent
+to a full handshake, so keeping tickets alive across reloads costs nothing.
+
+## Design overview: the VerifyConnection pipeline
+
+The core design is a two-layer `VerifyConnection` on every authenticated
+config:
+
+1. **Source layer (certloader).** Each TLS config source installs a wrapper
+   that guarantees `cs.VerifiedChains` reflects verification against the
+   *current* trust material before anything else runs. On full handshakes in
+   the standard modes Go already did this; on resumed handshakes the restored
+   chains are stale, so the wrapper re-verifies `cs.PeerCertificates` from
+   scratch. The wrapper owns the trust store, which is exactly why this layer
+   lives in certloader and not in `auth`.
+2. **ACL layer (auth).** Strict `VerifyConnectionServer` /
+   `VerifyConnectionClient` callbacks evaluate the leaf of
+   `cs.VerifiedChains` (or the pin against `cs.PeerCertificates` in pin
+   mode) and fail closed when chains are absent. No knobs, no trust
+   bypasses: the earlier idea of a `TrustExternallyVerifiedChains` escape
+   hatch on `ACL` is rejected — it would let any caller silently disable
+   chain validation with one boolean, and the invariant that makes such a
+   bypass sound lives in a different package. The `auth` API stays safe by
+   construction.
+
+Per-source behavior of the source layer:
+
+* **Cert/keystore/PKCS#11/keychain and ACME (server):** when
+  `cs.DidResume`, re-verify the restored peer chain against the current
+  `ClientCAs` pool (`x509.Verify` with client-auth EKU, intermediates from
+  `cs.PeerCertificates[1:]`), replace `cs.VerifiedChains` with the fresh
+  result, and fail the handshake on error. Full handshakes pass through
+  untouched. This closes the gap where a CA-bundle rotation would not reach
+  resumed sessions — including under `--allow-all`, where the chain check
+  *is* the entire authorization decision. Without this, items 2+3 combined
+  would be a regression for `--allow-all` users, whose evicted clients could
+  keep resuming for up to 7 days; with it, CA rotation takes effect on the
+  next handshake of any kind, as today.
+* **Client side, same sources:** symmetric wrapper re-verifying the server
+  chain (server-auth EKU) against the current `RootCAs` on resumed dials.
+  Hostname re-verification is not re-run (the session cache is keyed by
+  target address/SNI, so the peer cannot change identity within a cache
+  entry); document this.
+* **SPIFFE (both sides):** consolidate verification into the
+  `VerifyConnection` wrapper instead of go-spiffe's
+  `WrapVerifyPeerCertificate`. In SPIFFE mode Go's chains are always empty
+  (`InsecureSkipVerify` / `RequireAnyClientCert`), so the wrapper runs
+  `x509svid.ParseAndVerify` against the live bundle source on *every*
+  handshake, populates `cs.VerifiedChains` from the result, then delegates
+  to the ACL. This is strictly better than today: SVID chain verification
+  now also runs on resumed handshakes (today it is skipped for them), and
+  there is a single verification path instead of two callbacks with
+  different coverage. Go aborts the handshake with an alert on
+  `VerifyConnection` failure, so verification still completes before the
+  handshake does. Update `spiffe_tls_config.go` comments and the tests that
+  count `VerifyPeerCertificate` invocations.
+* **SPKI pin mode (both sides):** no chain verification exists by design;
+  the wrapper passes through and the ACL pin check runs against
+  `cs.PeerCertificates[0]` on every handshake, resumed included.
+* **ACME relaxed probe handshake: must clear `VerifyConnection`.** Unlike
+  `VerifyPeerCertificate` (only invoked when a certificate message is
+  processed, so never on the certless probe), Go calls `VerifyConnection`
+  unconditionally on every handshake. The relaxed config is cloned from the
+  main config and would inherit the ACL, see zero peer certificates, fail
+  closed, and reject the CA's validator — breaking issuance/renewal. The
+  relaxed-path builder must nil out `VerifyConnection` alongside
+  `ClientAuth`/`ClientCAs`, with a regression test pinning this.
 
 ## Item 1: client-mode flag to enable session resumption
 
@@ -57,120 +123,130 @@ Client mode only; server mode keeps resumption enabled with no flag.
   `--no-session-resumption` if the default ever flips.
 
 * **Wiring** (`clientBackendDialer` in `main.go`): when the flag is set,
-  assign `config.ClientSessionCache = tls.NewLRUClientSessionCache(32)` after
-  `buildClientConfig`. No certloader changes needed: all client sources clone
-  the base config and `Clone()` carries the cache *pointer*, so one shared
-  cache survives trust-store rebuilds and resumption keeps working across
-  reloads.
+  assign `config.ClientSessionCache = tls.NewLRUClientSessionCache(32)`
+  after `buildClientConfig`. All client sources clone the base config and
+  `Clone()` carries the cache *pointer*, so the cache is shared across
+  config rebuilds.
 
-* With item 3 in place, the `--verify-*` / policy / pin checks run on resumed
-  dials too, so the flag needs no "verification is skipped on resumption"
-  caveat.
+* **Identity freshness: flush the session cache on reload.** A resumed dial
+  presents the session established under the *old* client certificate; if
+  the cache survived a cert reload, a rotated client would keep presenting
+  its stale identity until the ticket ages out or the server rejects it —
+  surprising for the short-lived-cert use case ghostunnel targets. When a
+  client config rebuild is triggered by a reload (trust-store pointer swap
+  in `certTLSConfig.GetClientConfig`), install a *fresh* LRU cache on the
+  rebuilt config. Trade-off, documented: client-side resumption does not
+  persist across reloads (the window equals the reload interval); on the
+  client side, presenting the current identity wins over resumption
+  persistence. SPIFFE clients have no rebuild hook, so their cache persists
+  across SVID rotation — the server-side re-verification from item 3 plus
+  Go's expiry check bound this; document it as a known limitation.
+
+* With item 3 in place, the `--verify-*` / policy / pin checks run on
+  resumed dials too, so the flag needs no "verification is skipped on
+  resumption" caveat.
 
 ## Item 2: server ticket keys survive reloads (SPIFFE parity)
 
 Make file-based sources behave like SPIFFE: reloads must not rotate session
-ticket keys. Key enabler: `tls.Config.Clone()` copies the auto-managed ticket
-keys along with their creation timestamps, so Go's rotation schedule (new key
-every 24h, old keys honored for 7 days) continues uninterrupted across
-rebuilds.
+ticket keys.
 
-* **`certloader/certtlsconfig.go`** (`GetServerConfig`): when a previous
-  cached config exists, rebuild by cloning it instead of the pristine base:
-  `config := prev.config.Clone()`, then re-apply only the trust-store-derived
-  field (`ClientCAs = pool`, still skipped under `RequireAnyClientCert` pin
-  mode). The base never changes after startup, so `prev.Clone()` is
-  equivalent to `base.Clone()` plus callbacks plus ticket keys. First build
-  is unchanged. Update the `cachedTLSConfig` doc comment, which currently
-  describes rebuild-from-base semantics. `GetClientConfig` is unchanged.
-* **`certloader/acmetlsconfig.go`** (`buildServerConfig`): same carry-forward,
-  with two ACME-specific cares: rebuild `NextProtos` from `a.base` (cloning
-  the previous config would double-append `acme-tls/1`), and rebind the
-  `GetConfigForClient` closure to the newly built config. The relaxed-probe
-  path keeps its unconditional `SessionTicketsDisabled = true`.
-* **`certloader/spiffe_tls_config.go`**: no change; it is the reference
-  behavior.
-* The HTTPS status listener uses its own source-built config and inherits the
-  fix automatically.
+**Chosen mechanism: an explicit ticket-key manager in certloader.** A small
+shared `ticketKeyManager` owns the key material: it lazily generates and
+rotates 32-byte keys on Go's own schedule (new key every 24h, old keys
+retained 7 days), and each `GetServerConfig()` call applies the current key
+set to the served config via `SetSessionTicketKeys` (first key encrypts new
+tickets, all keys decrypt). Cheap generation-counter check per call so the
+mutex-protected `SetSessionTicketKeys` only runs when the set actually
+changed; rotation therefore propagates even if no reload ever rebuilds the
+config. Used by the cert and ACME sources; SPIFFE keeps Go's auto-managed
+keys (its config never rebuilds, so auto-rotation already works — behavior
+is identical either way).
 
-**Semantic change to call out in the PR:** a CA-bundle reload no longer
-invalidates outstanding tickets. With item 3, resumed sessions still get a
-fresh ACL/policy/pin decision on every handshake; what a resumed session does
-*not* get is chain re-verification against the updated CA bundle (bounded by
-the 7-day ticket window and Go's cert-expiry check on resumption). Process
-restart remains the hard invalidation for all tickets. A possible follow-up
-(out of scope here) is re-verifying `cs.PeerCertificates` against the current
-trust store inside `VerifyConnection`, which would close that remaining gap.
+**Rejected alternative: rebuild-by-cloning-the-previous-config.** `Clone()`
+does carry the auto ticket keys, but rebuild-from-previous inverts the
+maintenance invariant from "base is the clean slate" to "every derived field
+must be explicitly re-set, forever" — the ACME path already needs two
+exceptions (`NextProtos` re-derivation, `GetConfigForClient` closure
+rebinding), and a future trust-derived field that someone forgets to re-set
+becomes a silent stale-config bug. The key manager keeps rebuild-from-base
+untouched and confines the new state to one purpose-built, clock-injectable,
+independently testable object.
 
-## Item 3: switch ACL enforcement from VerifyPeerCertificate to VerifyConnection
+* **`certloader/certtlsconfig.go` / `acmetlsconfig.go`:** each server-config
+  source holds a `ticketKeyManager` (created with the source) and applies it
+  in `GetServerConfig()`. Rebuild logic itself is unchanged.
+* The ACME relaxed-probe path keeps its unconditional
+  `SessionTicketsDisabled = true`, which fully disables ticket issuance for
+  that handshake regardless of manager-installed keys.
+* The HTTPS status listener serves from the same sources and inherits key
+  persistence automatically.
+
+**Semantics after items 2+3 together:** outstanding tickets survive reloads,
+and a resumed session is security-equivalent to a full handshake — chain
+verified against the current CA bundle, ACL/policy/pins evaluated, cert
+expiry enforced. Process restart still invalidates all tickets (keys are
+in-memory only). Multi-instance SO_REUSEPORT deployments still cannot resume
+across instances (per-process keys); unchanged from today, document it.
+
+## Item 3: switch enforcement from VerifyPeerCertificate to VerifyConnection
 
 `VerifyConnection` is invoked by Go on both full and resumed handshakes, on
 both client and server (verified against Go 1.25.1: `handshake_server.go`,
 `handshake_server_tls13.go`, `handshake_client.go`,
-`handshake_client_tls13.go` — all call it on the resumption paths). Moving
-the ACL there means every connection gets a live authorization decision.
+`handshake_client_tls13.go` — all call it on the resumption paths). The
+two-layer pipeline in the design overview is implemented as:
 
 ### auth package (`auth/auth.go`)
 
 * Add `VerifyConnectionServer(cs tls.ConnectionState) error` and
   `VerifyConnectionClient(cs tls.ConnectionState) error` on `ACL`, sharing
   the existing check logic (CN/OU/SAN/URI matching, OPA evaluation, SPKI
-  pins).
-* Leaf selection: use `cs.VerifiedChains[0][0]` when chains are present. On
-  resumed connections Go restores `VerifiedChains` from the session state, so
-  the standard (non-SPIFFE, non-pin) paths always have chains, full or
-  resumed. Empty chains keep failing closed on the server side, as today.
-* Pin mode: `verifySPKIPin` currently parses `rawCerts[0]`; refactor it to
-  take an `*x509.Certificate` and feed it `cs.PeerCertificates[0]`
-  (`RawSubjectPublicKeyInfo` is already parsed). No pin semantics change.
-* **SPIFFE composition (the subtle part).** In SPIFFE mode the transport uses
-  `InsecureSkipVerify` / `RequireAnyClientCert` and delegates chain building
-  to go-spiffe: `WrapVerifyPeerCertificate` runs `x509svid.ParseAndVerify`
-  and passes its *own* verified chains to the wrapped callback, discarding
-  Go's (empty) ones. Consequently `cs.VerifiedChains` is empty in SPIFFE mode
-  and the new callbacks cannot rely on it there. Plan: add an explicit ACL
-  field (e.g. `TrustExternallyVerifiedChains bool`, exact name at
-  implementation time) that permits falling back to `cs.PeerCertificates[0]`
-  when chains are absent. Only the SPIFFE path sets it, on the grounds that
-  go-spiffe verifies the chain on full handshakes and a resumed session's
-  peer certs were verified when the ticket was issued. All other modes keep
-  strict fail-closed behavior on empty chains.
-  * `certloader/spiffe_tls_config.go` keeps wrapping
-    `VerifyPeerCertificate` for SVID chain verification
-    (`WrapVerifyPeerCertificate(nil, ...)` degrades cleanly to
-    `VerifyPeerCertificate(bundle, authorizer)` when the base callback is
-    nil), while the ACL rides on `VerifyConnection` cloned from the base.
-    Update the comment blocks that currently describe the ACL being wrapped.
-  * Known limitation to document: on SPIFFE *resumed* handshakes the SVID
-    chain verification itself is skipped (as it is today); the ACL check
-    still runs against the restored leaf.
+  pins). Strict: leaf comes from `cs.VerifiedChains[0][0]`; empty chains
+  fail closed (server) / fail closed unless pin mode handles it (client),
+  exactly mirroring today's semantics. No bypass fields.
+* Pin mode: refactor `verifySPKIPin` to take an `*x509.Certificate` and feed
+  it `cs.PeerCertificates[0]` (`RawSubjectPublicKeyInfo` is already parsed).
+  No pin semantics change.
 * Keep `VerifyPeerCertificateServer`/`VerifyPeerCertificateClient` as thin
   deprecated wrappers over the shared internals — `auth` is an exported
-  package with documented examples, so removing them would break importers.
-  Update `auth/doc_test.go` examples and the `PinningEnabled` doc comment to
-  reference the new methods.
+  package with documented examples. The deprecation notice must state the
+  *reason*: these callbacks are not invoked on resumed handshakes, so
+  resumption-enabled servers using them do not re-check access control.
+  Update `auth/doc_test.go` examples and the `PinningEnabled` doc comment.
+
+### certloader
+
+* Implement the source-layer wrapper (re-verification on resumed handshakes
+  against live trust material; SPIFFE `ParseAndVerify` consolidation; pin
+  passthrough) as described in the design overview. The wrapper composes
+  with whatever `VerifyConnection` the base config carries, so `main.go`
+  stays the single place that decides *policy* and certloader decides
+  *verification freshness*.
+* ACME: clear `VerifyConnection` in the relaxed-probe config (see design
+  overview; regression test required).
 
 ### main.go
 
 * `serverListen`: replace
-  `config.VerifyPeerCertificate = serverACL.VerifyPeerCertificateServer` with
-  `config.VerifyConnection = serverACL.VerifyConnectionServer`.
+  `config.VerifyPeerCertificate = serverACL.VerifyPeerCertificateServer`
+  with `config.VerifyConnection = serverACL.VerifyConnectionServer`.
 * `clientBackendDialer`: likewise switch to
   `config.VerifyConnection = clientACL.VerifyConnectionClient`.
 * Status listener is unauthenticated (`NoClientCert`) and stays untouched.
 
 ### Behavior notes
 
-* OPA policies, ACL flags, and pins are now re-evaluated on every resumed
+* OPA policies, ACL flags, and pins are re-evaluated on every resumed
   connection — authorization changes take effect for resuming clients
-  immediately, not only after ticket expiry. OPA evaluation cost now also
-  applies per resumed handshake (still cheap relative to a full handshake,
-  and it is the point of the change).
-* Handshake failures from `VerifyConnection` surface as handshake errors just
-  like `VerifyPeerCertificate` failures; integration tests that assert
-  auth-rejection behavior must be re-run to confirm no fixed log strings
-  changed (per the CLAUDE.md fixed-strings list, `"error on TLS handshake"`
-  must keep appearing for rejects).
+  immediately. OPA evaluation (bounded by `OPAQueryTimeout`, up to
+  `--connect-timeout`) now also gates resumed handshakes that used to be
+  nearly free; a latency note for OPA users belongs in the release notes.
+* Clients holding now-unauthorized tickets get a handshake failure on the
+  resume attempt (alert) rather than a full-handshake rejection — same
+  outcome, slightly different timing. Confirm existing integration tests
+  still match; per the CLAUDE.md fixed-strings list,
+  `"error on TLS handshake"` must keep appearing for rejects.
 
 ## Observability (small enabler, shared by all items)
 
@@ -178,8 +254,11 @@ Add a resumption marker to the TLS state description in `proxy/str.go` using
 `ConnectionState().DidResume`. Rationale: operators currently cannot tell
 whether resumption happens at all, and the integration tests for client-mode
 resumption need it — CPython only exposes `session_reused` on client-side
-sockets, and in client mode ghostunnel *is* the TLS client. This adds a new
-log substring that tests will match; code and tests must land in lockstep.
+sockets, and in client mode ghostunnel *is* the TLS client. Two caveats to
+handle: this changes connection log lines that operators may be parsing
+(call it out in release notes), and it becomes a new fixed log substring
+that Python tests match — add it to the CLAUDE.md fixed-strings list and
+land code and tests in lockstep.
 
 ## Tests
 
@@ -187,25 +266,33 @@ Go unit tests:
 
 * `auth/auth_test.go`: port the ACL matrix to the `VerifyConnection`
   callbacks (build `tls.ConnectionState` fixtures); add cases for empty
-  chains fail-closed, the SPIFFE fallback knob, and pins via
-  `PeerCertificates`. Keep coverage on the deprecated wrappers.
-* `certloader/certtlsconfig_test.go`: behavioral test — serve TLS from a cert
-  source, connect with a session-cache-equipped test client, `Reload()` (the
-  trust-store pointer swaps), reconnect with the same cache, assert
-  `DidResume`. Existing pointer-based cache-invalidation tests must still
-  pass (the config pointer still rotates; only ticket keys persist).
-* `certloader/acmetlsconfig_test.go`: same resumption-across-rebuild
-  assertion; `NextProtos` contains exactly one `acme-tls/1` after repeated
-  rebuilds; the existing relaxed-config `SessionTicketsDisabled` test keeps
-  passing.
-* `main` tests: flag defaults to false; when set, the dialer config carries a
-  non-nil `ClientSessionCache`; server and client configs set
-  `VerifyConnection` (and no longer set `VerifyPeerCertificate` outside
-  SPIFFE mode).
-* End-to-end resumption + authz test: server with a restrictive ACL, client
-  resumes, assert the resumed connection is accepted; flip the ACL (e.g. OPA
-  policy reload) and assert a resumed connection is now rejected — the core
-  guarantee of item 3.
+  chains fail-closed and pins via `PeerCertificates`. Keep coverage on the
+  deprecated wrappers.
+* `certloader` wrapper tests: resumed-handshake re-verification — original
+  handshake succeeds, trust store swapped to a pool that no longer contains
+  the peer's CA, resumed handshake must *fail*; and the mirror case where
+  the CA is still present, resumed handshake must succeed. SPIFFE: verify
+  `ParseAndVerify` runs (and chains populate) on both full and resumed
+  handshakes.
+* `certloader` ticket-key manager tests: with an injected clock — key set
+  stable within 24h, new encryption key after 24h, keys dropped after 7d;
+  resumption works across a `Reload()` (behavioral test: serve TLS from a
+  cert source, connect with a session-cache-equipped client, reload,
+  reconnect, assert `DidResume`). Existing pointer-based cache-invalidation
+  tests must still pass. **TLS 1.3 timing care:** `NewSessionTicket` arrives
+  after the handshake, so tests must do a read/round-trip before reusing the
+  session (or pin TLS 1.2), else they flake.
+* `certloader/acmetlsconfig_test.go`: relaxed config has nil
+  `VerifyConnection` (the renewal-breakage regression test) and keeps
+  `SessionTicketsDisabled`; ticket persistence across trust-store rebuilds.
+* `main` tests: flag defaults to false; when set, the dialer config carries
+  a non-nil `ClientSessionCache`; server and client configs set
+  `VerifyConnection` and no longer set `VerifyPeerCertificate` (any mode).
+* End-to-end authorization-freshness test: server with a restrictive ACL,
+  client resumes, resumed connection accepted; flip the OPA policy/ACL and
+  assert a resumed connection is now rejected — the core guarantee of
+  item 3. Companion test for the `--allow-all` + CA-rotation case: rotate
+  the CA bundle, assert resumed connections from the old CA's clients fail.
 
 Integration tests (`tests/`, Python):
 
@@ -216,9 +303,15 @@ Integration tests (`tests/`, Python):
 * `test-server-resumption-acl-enforced.py`: resumed connection against a
   server whose OPA policy/ACL no longer allows the client is rejected at
   handshake.
+* `test-server-resumption-ca-rotation.py`: `--allow-all` server; rotate CA
+  bundle + reload; resumed connection from a client of the old CA fails.
 * `test-client-session-resumption.py`: ghostunnel client with the flag dials
   twice; assert the resumption marker appears in logs on the second
   connection, and does not appear without the flag.
+* ACME renewal path: extend existing ACME integration coverage (or unit
+  coverage if no live-ACME harness exists) to prove the validator probe
+  still completes with an ACL configured — guarding against the
+  `VerifyConnection` inheritance bug.
 * Re-run the full suite (`go tool mage test:all`) — the VerifyConnection
   switch touches every authenticated handshake path, so the existing
   allow/deny tests are the main regression net. Also `go tool mage go:lint`.
@@ -233,40 +326,51 @@ Integration tests (`tests/`, Python):
    page regenerates in CI/dev containers; the Darwin page needs a macOS run
    or a mechanical copy of the flag text.
 3. **`docs/certificates/reloading.md`** — new subsection ("Session
-   resumption and reloads") under "What Gets Reloaded": reloads do not rotate
-   session-ticket keys; resumed sessions remain resumable across CA-bundle
-   changes for up to the 7-day ticket window (24h key rotation, cert expiry
-   still enforced); access control is re-evaluated on every handshake
-   including resumed ones (item 3); restart the process to hard-invalidate
-   all tickets. This documents the deliberate semantic shift of item 2.
+   resumption and reloads") under "What Gets Reloaded": server-side reloads
+   do not rotate session-ticket keys; resumed sessions remain resumable for
+   up to the 7-day ticket window, and every resumed handshake re-verifies
+   the peer chain against the current CA bundle and re-runs access control,
+   so reloading trust material takes effect immediately for all handshakes;
+   client-side, a reload flushes the session cache so the new identity is
+   presented on the next dial; restart the process to hard-invalidate all
+   server tickets.
 4. **`docs/security/general.md`** — section on session resumption semantics:
-   server-side tickets are on by default; access control (`--allow-*`,
-   policies, pins) is enforced on all handshakes including resumed ones via
-   `VerifyConnection`; what resumption does *not* re-check (chain validation
-   against the current CA bundle, SPIFFE SVID chain verification on resumed
-   handshakes); client-side resumption is opt-in via `--session-resumption`;
-   ACME validation-probe handshakes always have resumption disabled
-   (cross-reference `acme.md`, which already documents that and needs no
-   change).
-5. **`docs/security/access-flags.md`** — note that ACL evaluation happens per
-   handshake (full and resumed) and that OPA policies are consulted on each
-   connection.
+   server-side tickets on by default; verification and access control run on
+   every handshake including resumed ones (chain vs. current trust store,
+   ACL/policies/pins, cert expiry); SPIFFE SVID verification now also runs
+   on resumed handshakes; client-side resumption is opt-in via
+   `--session-resumption`; hostname verification on resumed client dials is
+   bound by the session-cache key rather than re-run; ACME validation-probe
+   handshakes always have resumption disabled and carry no access-control
+   callback (cross-reference `acme.md`).
+5. **`docs/security/access-flags.md`** — note that ACL evaluation happens
+   per handshake (full and resumed) and that OPA policies are consulted on
+   each connection, including resumed ones.
 6. **`README.md`** — likely no change (it defers flag detail to the docs
    site); optionally one line in the client-mode overview.
-7. **Release notes** (`releases/`) — entry for the next release covering the
-   new flag, the ticket-persistence change, and the VerifyConnection
-   migration, following the existing notes format.
+7. **`CLAUDE.md` / `AGENTS.md`** — add the new resumption log marker to the
+   fixed-log-strings list.
+8. **Release notes** (`releases/`) — entry covering the new flag, the
+   ticket-persistence change, the VerifyConnection migration (including the
+   OPA-on-resumed-handshakes latency note and the connection-log format
+   change), following the existing notes format.
 
 ## Suggested commit sequence
 
-1. auth: add `VerifyConnection{Server,Client}`, refactor pin check, deprecate
-   old callbacks (with tests).
-2. main: switch server/client wiring to `VerifyConnection`; SPIFFE
-   composition changes in certloader (with tests).
-3. certloader: ticket-key carry-forward across rebuilds for cert + ACME
-   sources (with tests).
-4. main: `--session-resumption` client flag + LRU session cache (with tests).
-5. proxy: resumption marker in connection log strings + integration tests.
-6. Docs + release notes.
+1. auth: add strict `VerifyConnection{Server,Client}`, refactor pin check,
+   deprecate old callbacks with reasoned notices (with tests).
+2. certloader: source-layer `VerifyConnection` wrappers — resumed-handshake
+   chain re-verification for cert/ACME, SPIFFE `ParseAndVerify`
+   consolidation, ACME relaxed-config `VerifyConnection` clear (with tests,
+   including the ACME regression test).
+3. main: switch server/client wiring to `VerifyConnection` (with tests).
+4. certloader: `ticketKeyManager` + wiring into cert/ACME server configs
+   (with clock-injected unit tests and the resumption-across-reload
+   behavioral test).
+5. main: `--session-resumption` client flag + LRU session cache + flush on
+   reload (with tests).
+6. proxy: resumption marker in connection log strings + integration tests +
+   CLAUDE.md fixed-strings update.
+7. Docs + release notes.
 
 Each step keeps `go tool mage test:all` green on its own.
