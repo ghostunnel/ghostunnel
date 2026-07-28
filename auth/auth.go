@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/subtle"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"errors"
@@ -46,6 +47,10 @@ import (
 // allowed principal, or when no verified chains were presented. It is repeated
 // in several code paths, so we keep it as a package-level sentinel.
 var errPrincipalNotAllowed = errors.New("unauthorized: invalid principal, or principal not allowed")
+
+// errNoCertificatePresented is returned by pin verification when the peer sent
+// no certificate at all.
+var errNoCertificatePresented = errors.New("unauthorized: no certificate presented")
 
 // ACL represents an access control list for mutually-authenticated TLS connections.
 // These options are disjunctive, if at least one attribute matches access will be granted.
@@ -169,31 +174,26 @@ func parseSPKIPin(s string) (SPKIPin, error) {
 // (see AllowedPins). It is the single source of truth for pin mode: when it returns
 // true, the transport MUST disable normal certificate verification
 // (InsecureSkipVerify on clients, RequireAnyClientCert on servers) so that
-// verifySPKIPin becomes the sole authentication check, and VerifyPeerCertificate{Server,Client}
+// verifySPKIPin becomes the sole authentication check, and VerifyConnection{Server,Client}
 // enforce the pin. Keeping both decisions derived from this one predicate
 // prevents the transport and the verifier from drifting out of sync.
 func (a ACL) PinningEnabled() bool {
 	return len(a.AllowedPins) > 0
 }
 
-// verifySPKIPin checks whether the leaf certificate in rawCerts matches one of the
-// configured SPKI pins. It is called when pinning is enabled, bypassing all
-// chain-based verification. Each pin's hash is computed independently of the
+// verifySPKIPin checks whether the leaf of the peer's certificates matches one
+// of the configured SPKI pins. It is called when pinning is enabled, bypassing
+// all chain-based verification. Each pin's hash is computed independently of the
 // others, so multiple pins configured with different algorithms are all
 // evaluated. The pin set is scanned sequentially and short-circuits on the
 // first match; the pin set is operator configuration (not a secret), so only
 // the individual digest comparison is constant-time (via subtle.ConstantTimeCompare).
-func (a ACL) verifySPKIPin(rawCerts [][]byte) error {
-	if len(rawCerts) == 0 {
-		return errors.New("unauthorized: no certificate presented")
+func (a ACL) verifySPKIPin(certs []*x509.Certificate) error {
+	if len(certs) == 0 {
+		return errNoCertificatePresented
 	}
 
-	cert, err := x509.ParseCertificate(rawCerts[0])
-	if err != nil {
-		return fmt.Errorf("unauthorized: unable to parse certificate: %w", err)
-	}
-
-	spki := cert.RawSubjectPublicKeyInfo
+	spki := certs[0].RawSubjectPublicKeyInfo
 	for _, pin := range a.AllowedPins {
 		h := pin.hash.New()
 		h.Write(spki)
@@ -205,15 +205,26 @@ func (a ACL) verifySPKIPin(rawCerts [][]byte) error {
 	return errors.New("unauthorized: unable to verify pin")
 }
 
-// VerifyPeerCertificateServer is an implementation of VerifyPeerCertificate
-// for crypto/tls.Config for servers terminating TLS connections that will
-// enforce access controls based on the given ACL. If the given ACL is empty,
-// no clients will be allowed (fails closed).
-func (a ACL) VerifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+// VerifyConnectionServer is an implementation of VerifyConnection for
+// crypto/tls.Config for servers terminating TLS connections that will enforce
+// access controls based on the given ACL. If the given ACL is empty, no clients
+// will be allowed (fails closed).
+//
+// This deliberately hooks VerifyConnection rather than VerifyPeerCertificate:
+// crypto/tls skips VerifyPeerCertificate on resumed connections, but runs
+// VerifyConnection on every handshake. Only the latter re-checks a client that
+// presents a session ticket, so that a change to the ACL or to the OPA policy
+// takes effect on resumed connections too.
+//
+// Note that crypto/tls calls VerifyConnection even when no client certificate
+// was requested, so callers must not install this on a listener that runs with
+// ClientAuth set to NoClientCert.
+func (a ACL) VerifyConnectionServer(state tls.ConnectionState) error {
 	if a.PinningEnabled() {
-		return a.verifySPKIPin(rawCerts)
+		return a.verifySPKIPin(state.PeerCertificates)
 	}
 
+	verifiedChains := state.VerifiedChains
 	if len(verifiedChains) == 0 {
 		return errPrincipalNotAllowed
 	}
@@ -269,16 +280,20 @@ func (a ACL) VerifyPeerCertificateServer(rawCerts [][]byte, verifiedChains [][]*
 	return errPrincipalNotAllowed
 }
 
-// VerifyPeerCertificateClient is an implementation of VerifyPeerCertificate
-// for crypto/tls.Config for clients initiating TLS connections that will
-// validate the server certificate based on the given ACL. If the ACL is empty,
-// all servers will be allowed (this function assumes that DNS name verification
-// has already taken place, and therefore fails open).
-func (a ACL) VerifyPeerCertificateClient(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+// VerifyConnectionClient is an implementation of VerifyConnection for
+// crypto/tls.Config for clients initiating TLS connections that will validate
+// the server certificate based on the given ACL. If the ACL is empty, all
+// servers will be allowed (this function assumes that DNS name verification has
+// already taken place, and therefore fails open).
+//
+// As with VerifyConnectionServer, this hooks VerifyConnection so that resumed
+// connections are checked too.
+func (a ACL) VerifyConnectionClient(state tls.ConnectionState) error {
 	if a.PinningEnabled() {
-		return a.verifySPKIPin(rawCerts)
+		return a.verifySPKIPin(state.PeerCertificates)
 	}
 
+	verifiedChains := state.VerifiedChains
 	if len(verifiedChains) == 0 {
 		return errPrincipalNotAllowed
 	}

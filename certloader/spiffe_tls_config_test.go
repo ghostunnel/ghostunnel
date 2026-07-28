@@ -49,7 +49,7 @@ func TestWorkloadAPIClientDisableAuth(t *testing.T) {
 
 	var clientVerifyCallCount int32
 	clientBase := &tls.Config{
-		VerifyPeerCertificate: countVerifyPeerCertificate(&clientVerifyCallCount),
+		VerifyConnection: countVerifyConnection(&clientVerifyCallCount),
 	}
 	clientConfig, err := source.GetClientConfig(clientBase)
 	require.NoError(t, err)
@@ -80,7 +80,7 @@ func TestWorkloadAPITLSConfigSource(t *testing.T) {
 	// set up server configuration
 	var serverVerifyCallCount int32
 	serverBase := &tls.Config{
-		VerifyPeerCertificate: countVerifyPeerCertificate(&serverVerifyCallCount),
+		VerifyConnection: countVerifyConnection(&serverVerifyCallCount),
 	}
 	serverConfig, err := source.GetServerConfig(serverBase)
 	require.NoError(t, err)
@@ -88,7 +88,7 @@ func TestWorkloadAPITLSConfigSource(t *testing.T) {
 	// set up client configuration
 	var clientVerifyCallCount int32
 	clientBase := &tls.Config{
-		VerifyPeerCertificate: countVerifyPeerCertificate(&clientVerifyCallCount),
+		VerifyConnection: countVerifyConnection(&clientVerifyCallCount),
 	}
 	clientConfig, err := source.GetClientConfig(clientBase)
 	require.NoError(t, err)
@@ -226,12 +226,18 @@ func TestWorkloadAPIServerConfigDisableAuth(t *testing.T) {
 		"ClientAuth should not require client certs when auth is disabled")
 }
 
-func countVerifyPeerCertificate(callCount *int32) func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
-	return func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
-		if len(rawCerts) == 0 {
-			return errors.New("raw certs were not passed through")
+// countVerifyConnection stands in for the access control callback that
+// ghostunnel layers on top of the SPIFFE config. It asserts that the peer
+// certificates and the SPIFFE-verified chains are both handed through: SPIFFE
+// sets InsecureSkipVerify, so crypto/tls records no chains of its own and an
+// ACL would reject every peer if our callback didn't substitute the chains
+// SPIFFE verified.
+func countVerifyConnection(callCount *int32) func(tls.ConnectionState) error {
+	return func(state tls.ConnectionState) error {
+		if len(state.PeerCertificates) == 0 {
+			return errors.New("peer certificates were not passed through")
 		}
-		if len(verifiedChains) == 0 {
+		if len(state.VerifiedChains) == 0 {
 			return errors.New("verified chains were not passed through")
 		}
 		atomic.AddInt32(callCount, 1)
@@ -410,4 +416,203 @@ func TestWorkloadAPISVIDRotation(t *testing.T) {
 		"server certificate serial should change after SVID rotation")
 	require.Equal(t, svid2.Certificates[0].SerialNumber.String(), cert2.SerialNumber.String(),
 		"server should present the rotated SVID")
+}
+
+// With peer authentication disabled the server does not ask for a client
+// certificate, and crypto/tls runs VerifyConnection regardless. Installing the
+// SPIFFE check anyway would reject every client for presenting nothing, so it
+// must be left off in that mode.
+func TestWorkloadAPIServerConfigDisableAuthSkipsVerifyConnection(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := spiffetest.NewCA(t, td)
+	svid := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/foo"))
+
+	workloadAPI := spiffetest.New(t)
+	workloadAPI.SetX509SVIDResponse(&spiffetest.X509SVIDResponse{
+		Bundle: ca.X509Bundle(),
+		SVIDs:  []*x509svid.SVID{svid},
+	})
+	defer workloadAPI.Stop()
+
+	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), true, 10*time.Second, log.Default())
+	require.NoError(t, err)
+	defer source.(*spiffeTLSConfigSource).Close()
+
+	serverConfig, err := source.GetServerConfig(&tls.Config{MinVersion: tls.VersionTLS12})
+	require.NoError(t, err)
+	require.Nil(t, serverConfig.GetServerConfig().VerifyConnection,
+		"SPIFFE authentication must not be installed when no client certificate is requested")
+}
+
+// The SPIFFE check must be installed as VerifyConnection, not
+// VerifyPeerCertificate: crypto/tls skips the latter on resumed connections, so
+// a peer holding a session ticket would never be re-authenticated against the
+// current trust bundle.
+func TestWorkloadAPIUsesVerifyConnection(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := spiffetest.NewCA(t, td)
+	svid := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/foo"))
+
+	workloadAPI := spiffetest.New(t)
+	workloadAPI.SetX509SVIDResponse(&spiffetest.X509SVIDResponse{
+		Bundle: ca.X509Bundle(),
+		SVIDs:  []*x509svid.SVID{svid},
+	})
+	defer workloadAPI.Stop()
+
+	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), false, 10*time.Second, log.Default())
+	require.NoError(t, err)
+	defer source.(*spiffeTLSConfigSource).Close()
+
+	base := &tls.Config{MinVersion: tls.VersionTLS12}
+
+	serverConfig, err := source.GetServerConfig(base)
+	require.NoError(t, err)
+	server := serverConfig.GetServerConfig()
+	require.NotNil(t, server.VerifyConnection, "server config must authenticate via VerifyConnection")
+	require.Nil(t, server.VerifyPeerCertificate, "server config must not rely on VerifyPeerCertificate")
+
+	clientConfig, err := source.GetClientConfig(base)
+	require.NoError(t, err)
+	client := clientConfig.GetClientConfig()
+	require.NotNil(t, client.VerifyConnection, "client config must authenticate via VerifyConnection")
+	require.Nil(t, client.VerifyPeerCertificate, "client config must not rely on VerifyPeerCertificate")
+}
+
+// A resumed connection is not re-verified: the peer's SVID was verified against
+// the trust bundle when the session was established. Access control still runs
+// on it and needs an identity to evaluate, so the certificates restored from the
+// session are handed through as the chain -- crypto/tls records none of its own
+// in SPIFFE mode, where the server builds no chain under RequireAnyClientCert.
+//
+// A bundle rotation therefore takes effect for every new session, while
+// outstanding ones keep their access until the SVID they carry expires, which
+// crypto/tls enforces on resumption.
+func TestWorkloadAPIResumedConnectionIsNotReverified(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := spiffetest.NewCA(t, td)
+	serverSVID := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/server"))
+
+	// Give each side its own Workload API, so the server's trust bundle can be
+	// rotated without also breaking the client's view of the server. Any
+	// rejection is then attributable to the server authenticating the peer.
+	serverAPI := spiffetest.New(t)
+	serverAPI.SetX509SVIDResponse(&spiffetest.X509SVIDResponse{
+		Bundle: ca.X509Bundle(),
+		SVIDs:  []*x509svid.SVID{serverSVID},
+	})
+	defer serverAPI.Stop()
+
+	clientAPI := spiffetest.New(t)
+	clientAPI.SetX509SVIDResponse(&spiffetest.X509SVIDResponse{
+		Bundle: ca.X509Bundle(),
+		SVIDs:  []*x509svid.SVID{ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/client"))},
+	})
+	defer clientAPI.Stop()
+
+	serverSource, err := TLSConfigSourceFromWorkloadAPI(serverAPI.Addr(), false, 10*time.Second, log.Default())
+	require.NoError(t, err)
+	defer func() { _ = serverSource.(*spiffeTLSConfigSource).Close() }()
+
+	clientSource, err := TLSConfigSourceFromWorkloadAPI(clientAPI.Addr(), false, 10*time.Second, log.Default())
+	require.NoError(t, err)
+	defer func() { _ = clientSource.(*spiffeTLSConfigSource).Close() }()
+
+	// Stands in for the access control ghostunnel layers on top. It records
+	// what it was handed so we can assert it can still identify the peer.
+	var accessControlCalls, accessControlResumed int32
+	serverBase := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		VerifyConnection: func(state tls.ConnectionState) error {
+			if len(state.VerifiedChains) == 0 || len(state.VerifiedChains[0]) == 0 {
+				return errors.New("access control has no peer identity to evaluate")
+			}
+			atomic.AddInt32(&accessControlCalls, 1)
+			if state.DidResume {
+				atomic.AddInt32(&accessControlResumed, 1)
+			}
+			return nil
+		},
+	}
+
+	serverConfig, err := serverSource.GetServerConfig(serverBase)
+	require.NoError(t, err)
+	clientConfig, err := clientSource.GetClientConfig(&tls.Config{
+		MinVersion:         tls.VersionTLS12,
+		ClientSessionCache: tls.NewLRUClientSessionCache(8),
+	})
+	require.NoError(t, err)
+
+	listener, err := tls.Listen("tcp", "localhost:0", serverConfig.GetServerConfig())
+	require.NoError(t, err)
+	defer listener.Close()
+
+	go func() {
+		for {
+			conn, acceptErr := listener.Accept()
+			if acceptErr != nil {
+				return
+			}
+			go func(c net.Conn) {
+				defer c.Close()
+				_, _ = fmt.Fprintln(c, "OK")
+			}(conn)
+		}
+	}()
+
+	// dial reports whether the session was resumed. Reading first makes sure a
+	// TLS 1.3 ticket has landed in the session cache.
+	dial := func(config *tls.Config) (bool, error) {
+		conn, dialErr := tls.Dial(listener.Addr().Network(), listener.Addr().String(), config)
+		if dialErr != nil {
+			return false, dialErr
+		}
+		defer conn.Close()
+		if _, readErr := conn.Read(make([]byte, 1)); readErr != nil {
+			return false, readErr
+		}
+		return conn.ConnectionState().DidResume, nil
+	}
+
+	resumed, err := dial(clientConfig.GetClientConfig())
+	require.NoError(t, err, "initial handshake should succeed")
+	require.False(t, resumed, "first connection cannot resume")
+
+	resumed, err = dial(clientConfig.GetClientConfig())
+	require.NoError(t, err, "second handshake should succeed")
+	require.True(t, resumed, "second connection should resume (the test is meaningless otherwise)")
+	require.Equal(t, int32(1), atomic.LoadInt32(&accessControlResumed),
+		"access control must run on the resumed connection, with an identity to evaluate")
+
+	// Rotate the roots the server trusts, while it keeps serving its original
+	// SVID so the client still accepts it. The client's SVID now chains to
+	// nothing the server trusts.
+	rotated := spiffetest.NewCA(t, td)
+	serverAPI.SetX509SVIDResponse(&spiffetest.X509SVIDResponse{
+		Bundle: rotated.X509Bundle(),
+		SVIDs:  []*x509svid.SVID{serverSVID},
+	})
+
+	// A new session is verified against the rotated bundle and rejected. The
+	// X509Source picks the update up asynchronously, so poll for it.
+	fresh := clientConfig.GetClientConfig().Clone()
+	fresh.ClientSessionCache = nil
+	var freshErr error
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, freshErr = dial(fresh); freshErr != nil {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	require.Error(t, freshErr, "a full handshake must be verified against the rotated trust bundle")
+
+	// The established session keeps working: it is not re-verified, and access
+	// control still runs on it.
+	before := atomic.LoadInt32(&accessControlResumed)
+	resumed, err = dial(clientConfig.GetClientConfig())
+	require.NoError(t, err, "a resumed connection must not be re-verified against the rotated bundle")
+	require.True(t, resumed, "the session should still resume after the bundle rotated")
+	require.Greater(t, atomic.LoadInt32(&accessControlResumed), before,
+		"access control must keep running on resumed connections")
 }

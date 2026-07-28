@@ -30,13 +30,15 @@ func ExampleACL_server() {
 
 	// Example tls.Config for a TLS server.
 	_ = tls.Config{
-		// Set VerifyPeerCertificate on our tls.Config to point to our access
-		// control list. When accepting connections on a TLS listener with this
-		// config, Go will call our verify function and pass the peer certificates
-		// as an argument. The ACL implementation will check that the peer has one
-		// of the attributes configured in the ACL before allowing the connection
-		// to proceed.
-		VerifyPeerCertificate: acl.VerifyPeerCertificateServer,
+		// Set VerifyConnection on our tls.Config to point to our access control
+		// list. When accepting connections on a TLS listener with this config,
+		// Go will call our verify function and pass the connection state as an
+		// argument. The ACL implementation will check that the peer has one of
+		// the attributes configured in the ACL before allowing the connection to
+		// proceed. Note that Go calls VerifyConnection on resumed connections as
+		// well, so a client presenting a session ticket is checked against the
+		// current ACL rather than the one in force when the ticket was issued.
+		VerifyConnection: acl.VerifyConnectionServer,
 	}
 }
 
@@ -50,14 +52,14 @@ func ExampleACL_client() {
 		},
 	}
 
-	// Example tls.Config for a TLS server.
+	// Example tls.Config for a TLS client.
 	_ = tls.Config{
-		// Set VerifyPeerCertificate on our tls.Config to point to our access
-		// control list. When initiating connections to a TLS server with this
-		// config, Go will call our verify function and pass the peer certificates
-		// as an argument. The ACL implementation will check that the peer has one
-		// of the attributes configured in the ACL before allowing the connection
-		// to proceed.
-		VerifyPeerCertificate: acl.VerifyPeerCertificateClient,
+		// Set VerifyConnection on our tls.Config to point to our access control
+		// list. When initiating connections to a TLS server with this config, Go
+		// will call our verify function and pass the connection state as an
+		// argument. The ACL implementation will check that the peer has one of
+		// the attributes configured in the ACL before allowing the connection to
+		// proceed.
+		VerifyConnection: acl.VerifyConnectionClient,
 	}
 }

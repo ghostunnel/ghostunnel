@@ -370,7 +370,7 @@ func validateServerAccessControl(hasAccessFlags, hasPinFlag, hasOPAFlags bool) e
 		return errors.New("--allow-spki-pin is mutually exclusive with other access control flags")
 	}
 	// The SPIFFE Workload API source independently disables normal verification
-	// and wraps VerifyPeerCertificate, which would conflict with pin-only auth.
+	// and wraps VerifyConnection, which would conflict with pin-only auth.
 	if hasPinFlag && *useWorkloadAPI {
 		return errors.New("--allow-spki-pin is mutually exclusive with --use-workload-api")
 	}
@@ -552,7 +552,7 @@ func validateClientPin() error {
 		return nil
 	}
 	// The SPIFFE Workload API source independently disables normal verification
-	// and wraps VerifyPeerCertificate, which would conflict with pin-only auth.
+	// and wraps VerifyConnection, which would conflict with pin-only auth.
 	if *useWorkloadAPI {
 		return errors.New("--verify-spki-pin is mutually exclusive with --use-workload-api")
 	}
@@ -908,7 +908,10 @@ func serverListen(env *Environment, regoPolicy policy.Policy) error {
 			// validation. The ACL callback verifies the SPKI hash instead.
 			config.ClientAuth = tls.RequireAnyClientCert
 		}
-		config.VerifyPeerCertificate = serverACL.VerifyPeerCertificateServer
+		// VerifyConnection rather than VerifyPeerCertificate: crypto/tls skips
+		// the latter on resumed connections, so a client holding a session
+		// ticket would keep its access after the ACL or the OPA policy changed.
+		config.VerifyConnection = serverACL.VerifyConnectionServer
 	}
 
 	listener, err := socket.ParseAndOpen(*serverListenAddress)
@@ -1159,7 +1162,9 @@ func clientBackendDialer(
 		config.InsecureSkipVerify = true
 	}
 
-	config.VerifyPeerCertificate = clientACL.VerifyPeerCertificateClient
+	// See the note in serverListen: VerifyConnection also runs on resumed
+	// connections, VerifyPeerCertificate does not.
+	config.VerifyConnection = clientACL.VerifyConnectionClient
 
 	var dialer netproxy.ContextDialer = &net.Dialer{Timeout: *connectTimeout}
 

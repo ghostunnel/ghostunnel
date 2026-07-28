@@ -19,6 +19,7 @@ package certloader
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"os"
 	"testing"
 
@@ -382,6 +383,11 @@ func TestACMETLSConfigRelaxesClientAuthForACMEChallenge(t *testing.T) {
 		MinVersion: tls.VersionTLS12,
 		ClientAuth: tls.RequireAndVerifyClientCert,
 		NextProtos: []string{"h2", "http/1.1"},
+		// Stands in for the access control callback ghostunnel installs, which
+		// would reject the certificate-less validator handshake.
+		VerifyConnection: func(tls.ConnectionState) error {
+			return errors.New("unauthorized")
+		},
 	}
 
 	serverConfig, err := source.GetServerConfig(base)
@@ -389,6 +395,7 @@ func TestACMETLSConfigRelaxesClientAuthForACMEChallenge(t *testing.T) {
 
 	tlsConfig := serverConfig.GetServerConfig()
 	require.NotNil(t, tlsConfig.GetConfigForClient, "GetConfigForClient must be installed")
+	require.NotNil(t, tlsConfig.VerifyConnection, "base VerifyConnection must be preserved for real clients")
 	assert.Equal(t, tls.RequireAndVerifyClientCert, tlsConfig.ClientAuth,
 		"base ClientAuth must still require client cert for real clients")
 
@@ -408,6 +415,8 @@ func TestACMETLSConfigRelaxesClientAuthForACMEChallenge(t *testing.T) {
 		"NextProtos must be restricted to acme-tls/1 on the relaxed config to prevent ALPN downgrade")
 	assert.True(t, relaxed.SessionTicketsDisabled,
 		"SessionTicketsDisabled must be true on the relaxed config to prevent ticket-based mTLS bypass")
+	assert.Nil(t, relaxed.VerifyConnection,
+		"VerifyConnection must be cleared on the relaxed config: crypto/tls runs it even under NoClientCert, so an access control callback would reject the ACME validator and break renewal")
 
 	// Empty-SNI probe: RFC 8737 requires the validator to set SNI; certmagic
 	// refuses to serve a challenge cert without it. Mirror that gate.

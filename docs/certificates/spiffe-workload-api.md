@@ -92,6 +92,21 @@ bundle. When the SPIFFE provider (e.g. SPIRE) rotates certificates or
 updates the trust bundle, Ghostunnel picks up the changes without requiring
 a manual reload or restart.
 
+Ghostunnel verifies a peer's X509-SVID against the current trust bundle when
+a TLS session is established, and does not verify it again when that session
+is resumed. An updated bundle therefore governs every new session at once,
+while a peer that already has a session keeps it until the SVID stored in
+that session expires; Ghostunnel will not resume past that point. This is
+the same window that applies to any SVID that has been issued but should no
+longer be trusted.
+
+Since v1.12.0, the authorization layered on top of SPIFFE authentication
+(`--allow-uri`/`--verify-uri`, the other access control flags, or an OPA
+policy) is enforced on resumed connections too, so a policy reload takes
+effect for peers holding a session ticket. Earlier versions checked it only
+on full handshakes. See
+[Certificate Reloading]({{< ref "reloading.md" >}}).
+
 ## Demo
 
 See the [end-to-end demo](https://github.com/ghostunnel/ghostunnel/tree/master/docs/spiffe-workload-api-demo) for an example

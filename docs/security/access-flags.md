@@ -208,7 +208,10 @@ flags and are OR'd together with them; likewise in client mode,
 `--verify-policy`/`--verify-query` may be combined with other verification flags.
 In both cases we recommend expressing all access control logic in the policy
 itself. Policy bundles reload at runtime via `--timed-reload` or `SIGHUP`, just
-like certificates.
+like certificates. Since v1.12.0, a reloaded policy applies to every connection
+made after the reload, including clients that resume an earlier TLS session, so
+revoking access takes effect immediately. See
+[Certificate Reloading]({{< ref "reloading.md" >}}).
 
 [opa]: https://www.openpolicyagent.org/
 [opa-bundles]: https://www.openpolicyagent.org/docs/latest/management-bundles/

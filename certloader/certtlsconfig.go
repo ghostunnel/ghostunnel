@@ -17,8 +17,13 @@ import (
 // publishing. The certificate is served through a callback that reads its own
 // atomic pointer, so a cert reload needs no rebuild. The trust store has no such
 // callback, so its pointer is the cache key: a reload swaps in a new pool, and
-// the next call sees the mismatch and rebuilds. Two callers racing a reload may
-// each rebuild once, which is harmless.
+// the next call sees the mismatch and rebuilds.
+//
+// Two callers racing a reload may each rebuild once. Only one of the two
+// configs ends up cached, and each carries its own session ticket keys, so a
+// connection served by the discarded one hands out a ticket that nothing will
+// decrypt later. That client falls back to a full handshake on its next
+// connection, which is the same thing every other client does after a reload.
 type cachedTLSConfig struct {
 	pool   *x509.CertPool
 	config *tls.Config

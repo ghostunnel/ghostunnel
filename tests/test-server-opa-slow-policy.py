@@ -8,7 +8,7 @@ longer than 1 second, starts ghostunnel with --connect-timeout 1s, and
 verifies that:
 
   1. A client handshake is rejected within a couple of seconds (the
-     OPAQueryTimeout context, plumbed through VerifyPeerCertificateServer,
+     OPAQueryTimeout context, plumbed through VerifyConnectionServer,
      cancels the in-flight rego.Eval).
   2. The ghostunnel process remains alive and its /_status endpoint keeps
      responding while the pathological policy is loaded.

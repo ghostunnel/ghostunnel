@@ -306,6 +306,10 @@ func (a *acmeTLSConfig) buildServerConfig(pool *x509.CertPool) *tls.Config {
 	//     be resumed by a real client to skip mTLS. (tls.Config has no
 	//     server-side session cache field; SessionTicketsDisabled is the
 	//     full server-side disable.)
+	//   - Drop VerifyConnection. Unlike VerifyPeerCertificate, crypto/tls runs
+	//     it even when no client certificate was requested, so leaving the
+	//     access-control callback in place would reject the validator for
+	//     presenting no certificate and silently break renewal.
 	config.GetConfigForClient = func(chi *tls.ClientHelloInfo) (*tls.Config, error) {
 		if chi.ServerName == "" ||
 			len(chi.SupportedProtos) != 1 ||
@@ -317,6 +321,7 @@ func (a *acmeTLSConfig) buildServerConfig(pool *x509.CertPool) *tls.Config {
 		c.ClientCAs = nil
 		c.NextProtos = []string{acmez.ACMETLS1Protocol}
 		c.SessionTicketsDisabled = true
+		c.VerifyConnection = nil
 		return c, nil
 	}
 

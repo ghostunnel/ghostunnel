@@ -43,6 +43,43 @@ A reload re-reads from disk:
   See [SPIFFE Workload API]({{< ref "spiffe-workload-api.md" >}}).
 * **ACME**: certmagic renews certificates automatically in the background;
   a reload only refreshes the CA bundle. See [ACME]({{< ref "acme.md" >}}).
+* **System trust store**: without `--cacert`, peers are verified against the
+  system trust store, which a reload cannot refresh. On Linux and the BSDs,
+  Go reads the system roots once per process (honoring `SSL_CERT_FILE` and
+  `SSL_CERT_DIR`), so a change made while Ghostunnel runs (by
+  `update-ca-certificates`, say) is picked up only on restart. Pass
+  `--cacert` explicitly if you need those roots to be reloadable. On macOS
+  and Windows, verification goes through the platform verifier, which always
+  consults the current system store, so changes there take effect without a
+  reload. Note that Ghostunnel built with Go 1.27 or later also honors
+  `SSL_CERT_FILE` and `SSL_CERT_DIR` on macOS and Windows: when either is
+  set, roots are read from disk and verified by Go rather than by the
+  platform, which brings back the restart requirement above.
+  `GODEBUG=x509sslcertoverrideplatform=0` restores the platform verifier.
+
+## Session Resumption
+
+A client may be given a session ticket that lets it skip a full handshake on
+its next connection. Two rules govern what a reload means for those clients:
+
+* **Access control is enforced on resumed connections** (*since v1.12.0*).
+  A client reconnecting with a session ticket is checked against the access
+  control flags and OPA policy in force at that moment, so revoking access
+  through a policy reload takes effect immediately. Before v1.12.0 these
+  checks ran only on full handshakes, and a client holding a ticket kept the
+  access it had when the ticket was issued.
+* **A reload invalidates outstanding session tickets.** Clients fall back to
+  a full handshake on their next connection, which is how a rotated
+  certificate reaches them: a resumed handshake carries no certificate at
+  all. Connections already established are unaffected. The cost is one extra
+  full handshake per client per reload, so a short `--timed-reload` interval
+  largely disables resumption.
+
+Certificates are not re-verified on a resumed connection; that happened when
+the session was established. Only the access control decision is re-made.
+Under the SPIFFE Workload API nothing is reloaded from disk, so a reload does
+not invalidate tickets there; see
+[SPIFFE Workload API]({{< ref "spiffe-workload-api.md" >}}).
 
 ## Zero-Downtime Binary Replacement
 

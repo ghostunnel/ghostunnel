@@ -19,12 +19,14 @@ package certloader
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"log"
 	"sync/atomic"
 	"time"
 
 	spiffeConfig "github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
+	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	spiffeApi "github.com/spiffe/go-spiffe/v2/workloadapi"
 )
 
@@ -106,8 +108,82 @@ type spiffeTLSConfig struct {
 	// Cached configs. SPIFFE has no reloadable trust store (the X509Source
 	// maintains itself via the Workload API and certificates are served through
 	// a callback), so the built config never changes: build once, cache forever.
+	//
+	// Nothing in the built config goes stale when the Workload API pushes an
+	// update. No pool is baked into it (RootCAs/ClientCAs stay nil): the
+	// certificate is served through a callback, and the trust bundle is read
+	// from the source at verification time, so every full handshake uses the
+	// material current at that moment. Unlike the certificate- and ACME-backed
+	// sources, this config is therefore never rebuilt, and outstanding session
+	// tickets survive a bundle rotation, bounded by the expiry of the SVID each
+	// one carries. See verifyPeer.
 	cachedClient atomic.Pointer[tls.Config]
 	cachedServer atomic.Pointer[tls.Config]
+}
+
+// verifyConnection returns a VerifyConnection callback that authenticates the
+// peer's X509-SVID, then hands off to the base callback (if any) with the
+// resulting chains in place.
+//
+// This is installed as VerifyConnection rather than VerifyPeerCertificate so
+// that it runs on resumed connections too. crypto/tls skips
+// VerifyPeerCertificate when a session is resumed, which would leave the access
+// control layered on top of us unenforced: an ACL or an OPA policy can change
+// while a client's session ticket is outstanding, and that client must be held
+// to the current one.
+//
+// The peer's certificates are only verified when a session is established, not
+// again when it is resumed; see verifyPeer.
+func (c *spiffeTLSConfig) verifyConnection(base func(tls.ConnectionState) error) func(tls.ConnectionState) error {
+	authorizer := spiffeConfig.AuthorizeAny()
+	return func(state tls.ConnectionState) error {
+		chains, err := c.verifyPeer(state, authorizer)
+		if err != nil {
+			return err
+		}
+		if base == nil {
+			return nil
+		}
+		// The Go TLS stack verified nothing of its own: InsecureSkipVerify is
+		// set, and a server under RequireAnyClientCert builds no chain either,
+		// so state.VerifiedChains is empty and an ACL layered on top would
+		// reject every peer. Substitute the chains we authenticated the peer
+		// with. state is a copy, so this is local to the callback.
+		state.VerifiedChains = chains
+		return base(state)
+	}
+}
+
+// verifyPeer authenticates the peer and returns the chains that describe it.
+//
+// A resumed connection is not re-verified. Its certificates were verified
+// against the trust bundle when the session was established, and crypto/tls
+// restores them from the session; checking them again would only repeat that
+// work. They are returned as-is so that access control still has an identity to
+// evaluate, which is the part that does have to run on every connection.
+//
+// A resumed session cannot outlive the identity inside it: crypto/tls refuses
+// to resume once the stored leaf has expired. A peer whose trust bundle rotated
+// out from under it therefore keeps access until its SVID expires, which for
+// the short-lived SVIDs the Workload API issues is the same window that already
+// applies to revoking a workload: an SVID that has been issued stays usable
+// until it expires, on a full handshake just as much as on a resumed one.
+func (c *spiffeTLSConfig) verifyPeer(state tls.ConnectionState, authorizer spiffeConfig.Authorizer) ([][]*x509.Certificate, error) {
+	if state.DidResume {
+		if len(state.PeerCertificates) == 0 {
+			return nil, ErrNoPeerCertificate
+		}
+		return [][]*x509.Certificate{state.PeerCertificates}, nil
+	}
+
+	id, chains, err := x509svid.Verify(state.PeerCertificates, c.source)
+	if err != nil {
+		return nil, err
+	}
+	if err := authorizer(id, chains); err != nil {
+		return nil, err
+	}
+	return chains, nil
 }
 
 func (c *spiffeTLSConfig) GetClientConfig() *tls.Config {
@@ -124,12 +200,11 @@ func (c *spiffeTLSConfig) buildClientConfig() *tls.Config {
 	// Go TLS stack will do hostname validation which is not a part of SPIFFE
 	// authentication. Unfortunately there is no way to just skip hostname
 	// validation without having to turn off all verification. This is still
-	// safe since Go will still invoke the VerifyPeerCertificate callback,
-	// albeit with an empty set of verified chains. The VerifyPeerCertificate
-	// callback provided by the SPIFFE library will perform SPIFFE
-	// authentication against the raw certificates.
+	// safe since Go will still invoke the VerifyConnection callback, albeit
+	// with an empty set of verified chains. Our callback performs SPIFFE
+	// authentication against the peer certificates (see verifyConnection).
 	config.InsecureSkipVerify = true
-	config.VerifyPeerCertificate = spiffeConfig.WrapVerifyPeerCertificate(config.VerifyPeerCertificate, c.source, spiffeConfig.AuthorizeAny())
+	config.VerifyConnection = c.verifyConnection(config.VerifyConnection)
 	if !c.clientDisableAuth {
 		// If auth is disabled on the client side we need to not set
 		// the GetCertificate callback, because if we do it'll cause
@@ -160,12 +235,20 @@ func (c *spiffeTLSConfig) buildServerConfig() *tls.Config {
 	// Go TLS stack will do hostname validation which is not a part of SPIFFE
 	// authentication. Unfortunately there is no way to just skip hostname
 	// validation without having to turn off all verification. This is still
-	// safe since Go will still invoke the VerifyPeerCertificate callback,
-	// albeit with an empty set of verified chains. The VerifyPeerCertificate
-	// callback provided by the SPIFFE library will perform SPIFFE
-	// authentication against the raw certificates.
+	// safe since Go will still invoke the VerifyConnection callback, albeit
+	// with an empty set of verified chains. Our callback performs SPIFFE
+	// authentication against the peer certificates (see verifyConnection).
 	config.InsecureSkipVerify = true
-	config.VerifyPeerCertificate = spiffeConfig.WrapVerifyPeerCertificate(config.VerifyPeerCertificate, c.source, spiffeConfig.AuthorizeAny())
+	if c.clientDisableAuth {
+		// No client certificate is requested, so there is no peer to
+		// authenticate. crypto/tls runs VerifyConnection even under
+		// NoClientCert, so anything inherited from the base config would be
+		// called with no peer certificates and no verified chains; drop it
+		// rather than leave it to fail closed on every connection.
+		config.VerifyConnection = nil
+	} else {
+		config.VerifyConnection = c.verifyConnection(config.VerifyConnection)
+	}
 	config.GetCertificate = spiffeConfig.GetCertificate(c.source)
 	return config
 }
