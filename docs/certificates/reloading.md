@@ -43,19 +43,6 @@ A reload re-reads from disk:
   See [SPIFFE Workload API]({{< ref "spiffe-workload-api.md" >}}).
 * **ACME**: certmagic renews certificates automatically in the background;
   a reload only refreshes the CA bundle. See [ACME]({{< ref "acme.md" >}}).
-* **System trust store**: without `--cacert`, peers are verified against the
-  system trust store, which a reload cannot refresh. On Linux and the BSDs,
-  Go reads the system roots once per process (honoring `SSL_CERT_FILE` and
-  `SSL_CERT_DIR`), so a change made while Ghostunnel runs (by
-  `update-ca-certificates`, say) is picked up only on restart. Pass
-  `--cacert` explicitly if you need those roots to be reloadable. On macOS
-  and Windows, verification goes through the platform verifier, which always
-  consults the current system store, so changes there take effect without a
-  reload. Note that Ghostunnel built with Go 1.27 or later also honors
-  `SSL_CERT_FILE` and `SSL_CERT_DIR` on macOS and Windows: when either is
-  set, roots are read from disk and verified by Go rather than by the
-  platform, which brings back the restart requirement above.
-  `GODEBUG=x509sslcertoverrideplatform=0` restores the platform verifier.
 
 ## Session Resumption
 
