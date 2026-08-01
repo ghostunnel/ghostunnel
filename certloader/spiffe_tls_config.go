@@ -19,7 +19,6 @@ package certloader
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"log"
 	"sync/atomic"
@@ -111,34 +110,40 @@ type spiffeTLSConfig struct {
 	//
 	// Nothing in the built config goes stale when the Workload API pushes an
 	// update. No pool is baked into it (RootCAs/ClientCAs stay nil): the
-	// certificate is served through a callback, and the trust bundle is read
-	// from the source at verification time, so every full handshake uses the
-	// material current at that moment. Unlike the certificate- and ACME-backed
-	// sources, this config is therefore never rebuilt, and outstanding session
-	// tickets survive a bundle rotation, bounded by the expiry of the SVID each
-	// one carries. See verifyPeer.
+	// certificate is served through a callback, and the peer is verified
+	// against the trust bundle read from the source at verification time, on
+	// every connection (see verifyConnection). Unlike the certificate- and
+	// ACME-backed sources, this config is therefore never rebuilt. Outstanding
+	// session tickets survive a bundle rotation, but a peer resuming with one
+	// is re-verified against the rotated bundle all the same.
 	cachedClient atomic.Pointer[tls.Config]
 	cachedServer atomic.Pointer[tls.Config]
 }
 
 // verifyConnection returns a VerifyConnection callback that authenticates the
-// peer's X509-SVID, then hands off to the base callback (if any) with the
-// resulting chains in place.
+// peer's X509-SVID against the current trust bundle, then hands off to the
+// base callback (if any) with the resulting chains in place.
 //
 // This is installed as VerifyConnection rather than VerifyPeerCertificate so
 // that it runs on resumed connections too. crypto/tls skips
-// VerifyPeerCertificate when a session is resumed, which would leave the access
-// control layered on top of us unenforced: an ACL or an OPA policy can change
-// while a client's session ticket is outstanding, and that client must be held
-// to the current one.
+// VerifyPeerCertificate when a session is resumed, which would leave both the
+// SVID verification and the access control layered on top of us unenforced
+// there: the trust bundle can rotate, and an ACL or an OPA policy can change,
+// while a peer's session ticket is outstanding, and that peer must be held to
+// the current ones.
 //
-// The peer's certificates are only verified when a session is established, not
-// again when it is resumed; see verifyPeer.
+// A resumed connection is verified like any other. crypto/tls restores the
+// peer's certificates from the session, so verifying them against the bundle
+// works the same as on a full handshake, and a bundle rotation takes effect
+// for every connection at once, resumed or not.
 func (c *spiffeTLSConfig) verifyConnection(base func(tls.ConnectionState) error) func(tls.ConnectionState) error {
 	authorizer := spiffeConfig.AuthorizeAny()
 	return func(state tls.ConnectionState) error {
-		chains, err := c.verifyPeer(state, authorizer)
+		id, chains, err := x509svid.Verify(state.PeerCertificates, c.source)
 		if err != nil {
+			return err
+		}
+		if err := authorizer(id, chains); err != nil {
 			return err
 		}
 		if base == nil {
@@ -152,38 +157,6 @@ func (c *spiffeTLSConfig) verifyConnection(base func(tls.ConnectionState) error)
 		state.VerifiedChains = chains
 		return base(state)
 	}
-}
-
-// verifyPeer authenticates the peer and returns the chains that describe it.
-//
-// A resumed connection is not re-verified. Its certificates were verified
-// against the trust bundle when the session was established, and crypto/tls
-// restores them from the session; checking them again would only repeat that
-// work. They are returned as-is so that access control still has an identity to
-// evaluate, which is the part that does have to run on every connection.
-//
-// A resumed session cannot outlive the identity inside it: crypto/tls refuses
-// to resume once the stored leaf has expired. A peer whose trust bundle rotated
-// out from under it therefore keeps access until its SVID expires, which for
-// the short-lived SVIDs the Workload API issues is the same window that already
-// applies to revoking a workload: an SVID that has been issued stays usable
-// until it expires, on a full handshake just as much as on a resumed one.
-func (c *spiffeTLSConfig) verifyPeer(state tls.ConnectionState, authorizer spiffeConfig.Authorizer) ([][]*x509.Certificate, error) {
-	if state.DidResume {
-		if len(state.PeerCertificates) == 0 {
-			return nil, ErrNoPeerCertificate
-		}
-		return [][]*x509.Certificate{state.PeerCertificates}, nil
-	}
-
-	id, chains, err := x509svid.Verify(state.PeerCertificates, c.source)
-	if err != nil {
-		return nil, err
-	}
-	if err := authorizer(id, chains); err != nil {
-		return nil, err
-	}
-	return chains, nil
 }
 
 func (c *spiffeTLSConfig) GetClientConfig() *tls.Config {

@@ -479,16 +479,17 @@ func TestWorkloadAPIUsesVerifyConnection(t *testing.T) {
 	require.Nil(t, client.VerifyPeerCertificate, "client config must not rely on VerifyPeerCertificate")
 }
 
-// A resumed connection is not re-verified: the peer's SVID was verified against
-// the trust bundle when the session was established. Access control still runs
-// on it and needs an identity to evaluate, so the certificates restored from the
-// session are handed through as the chain -- crypto/tls records none of its own
-// in SPIFFE mode, where the server builds no chain under RequireAnyClientCert.
+// A resumed connection is verified against the current trust bundle just like
+// a full handshake: crypto/tls restores the peer's certificates from the
+// session, and our VerifyConnection callback re-verifies them. Access control
+// layered on top gets the resulting chains as its identity to evaluate --
+// crypto/tls records no chains of its own in SPIFFE mode, where the server
+// builds none under RequireAnyClientCert.
 //
-// A bundle rotation therefore takes effect for every new session, while
-// outstanding ones keep their access until the SVID they carry expires, which
-// crypto/tls enforces on resumption.
-func TestWorkloadAPIResumedConnectionIsNotReverified(t *testing.T) {
+// A bundle rotation therefore takes effect for every connection at once: a
+// peer whose SVID no longer chains to the current bundle is rejected whether
+// it presents a session ticket or performs a full handshake.
+func TestWorkloadAPIResumedConnectionIsReverified(t *testing.T) {
 	td := spiffeid.RequireTrustDomainFromString("example.org")
 	ca := spiffetest.NewCA(t, td)
 	serverSVID := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/server"))
@@ -607,12 +608,9 @@ func TestWorkloadAPIResumedConnectionIsNotReverified(t *testing.T) {
 	}
 	require.Error(t, freshErr, "a full handshake must be verified against the rotated trust bundle")
 
-	// The established session keeps working: it is not re-verified, and access
-	// control still runs on it.
-	before := atomic.LoadInt32(&accessControlResumed)
-	resumed, err = dial(clientConfig.GetClientConfig())
-	require.NoError(t, err, "a resumed connection must not be re-verified against the rotated bundle")
-	require.True(t, resumed, "the session should still resume after the bundle rotated")
-	require.Greater(t, atomic.LoadInt32(&accessControlResumed), before,
-		"access control must keep running on resumed connections")
+	// The outstanding session is held to the rotated bundle too: the client
+	// still offers its ticket, but the certificates restored from the session
+	// no longer chain to a root the server trusts.
+	_, err = dial(clientConfig.GetClientConfig())
+	require.Error(t, err, "a resumed connection must be re-verified against the rotated trust bundle")
 }

@@ -20,8 +20,4 @@ var (
 	// ErrACMECertUnavailable is returned when the ACME certificate is not
 	// yet available.
 	ErrACMECertUnavailable = errors.New("ACME certificate currently unavailable")
-
-	// ErrNoPeerCertificate is returned when a peer presented no certificate
-	// where one is required to authenticate it.
-	ErrNoPeerCertificate = errors.New("unable to authenticate peer: no certificate presented")
 )

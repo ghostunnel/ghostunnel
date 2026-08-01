@@ -77,9 +77,10 @@ its next connection. Two rules govern what a reload means for those clients:
 
 Certificates are not re-verified on a resumed connection; that happened when
 the session was established. Only the access control decision is re-made.
-Under the SPIFFE Workload API nothing is reloaded from disk, so a reload does
-not invalidate tickets there; see
-[SPIFFE Workload API]({{< ref "spiffe-workload-api.md" >}}).
+The exception is the SPIFFE Workload API: nothing is reloaded from disk
+there, so a reload does not invalidate tickets, and peers are instead
+re-verified against the current trust bundle on every connection, resumed or
+not; see [SPIFFE Workload API]({{< ref "spiffe-workload-api.md" >}}).
 
 ## Zero-Downtime Binary Replacement
 
