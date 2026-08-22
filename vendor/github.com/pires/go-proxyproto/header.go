@@ -1,5 +1,5 @@
 // Package proxyproto implements Proxy Protocol (v1 and v2) parser and writer, as per specification:
-// https://www.haproxy.org/download/2.3/doc/proxy-protocol.txt
+// https://www.haproxy.org/download/3.4/doc/proxy-protocol.txt
 package proxyproto
 
 import (
@@ -214,8 +214,17 @@ func (header *Header) EqualsTo(otherHeader *Header) bool {
 	if header.Command == LOCAL {
 		return true
 	}
-	return header.SourceAddr.String() == otherHeader.SourceAddr.String() &&
-		header.DestinationAddr.String() == otherHeader.DestinationAddr.String()
+	return addrsEqual(header.SourceAddr, otherHeader.SourceAddr) &&
+		addrsEqual(header.DestinationAddr, otherHeader.DestinationAddr)
+}
+
+// addrsEqual compares two net.Addr by their rendered form, without panicking
+// when either side is nil (hand-built PROXY headers may lack addresses).
+func addrsEqual(a, b net.Addr) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return a.String() == b.String()
 }
 
 // WriteTo renders a proxy protocol header in a format and writes it to an io.Writer.

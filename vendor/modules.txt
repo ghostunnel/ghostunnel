@@ -972,7 +972,7 @@ github.com/pelletier/go-toml/v2/unstable
 ## explicit
 github.com/pierrec/lz4
 github.com/pierrec/lz4/internal/xxh32
-# github.com/pires/go-proxyproto v0.14.0
+# github.com/pires/go-proxyproto v0.15.0
 ## explicit; go 1.25.0
 github.com/pires/go-proxyproto
 # github.com/pkg/errors v0.9.1

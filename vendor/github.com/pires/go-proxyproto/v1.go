@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"math"
 	"net"
 	"net/netip"
 	"strconv"
@@ -20,6 +21,21 @@ const (
 	v1ProtoTCP4 = "TCP4"
 	v1ProtoTCP6 = "TCP6"
 )
+
+// V1AcceptIPv4InTCP6 permits plain IPv4 literals in the address fields of a v1
+// TCP6 line, promoting them to v4-mapped IPv6 (::ffff:x.x.x.x). Some proxies
+// (notably the nginx OSS stream module) emit such lines when the client and
+// backend address families differ. The spec forbids them — "the advertised
+// protocol family dictates what format to use" — so this compatibility mode is
+// disabled by default.
+//
+// Note the promotion is lossy: round-trip serialization renders the address as
+// "::ffff:x.x.x.x" rather than the original "x.x.x.x".
+//
+// Like DefaultReadHeaderTimeout, this is a package-level variable to keep it
+// easy to override. Set it at program init; it must not be modified
+// concurrently with parsing.
+var V1AcceptIPv4InTCP6 = false
 
 func initVersion1() *Header {
 	header := new(Header)
@@ -101,8 +117,15 @@ func parseVersion1(reader *bufio.Reader) (*Header, error) {
 		return nil, ErrLineMustEndWithCrlf
 	}
 
-	// Check full signature.
+	// Check full signature. Read dispatches to this parser after peeking only
+	// the first 5 bytes ("PROXY"), so the first token must still be checked to
+	// be exactly "PROXY": per spec the line starts with "PROXY" followed by
+	// exactly one space, and anything else (e.g. "PROXYjunk TCP4 ...") is not a
+	// v1 header.
 	tokens := strings.Split(string(buf[:len(buf)-2]), separator)
+	if tokens[0] != "PROXY" {
+		return nil, ErrCantReadVersion1Header
+	}
 
 	// Expect at least 2 tokens: "PROXY" and the transport protocol.
 	if len(tokens) < 2 {
@@ -122,8 +145,11 @@ func parseVersion1(reader *bufio.Reader) (*Header, error) {
 		return nil, ErrCantReadAddressFamilyAndProtocol
 	}
 
-	// Expect 6 tokens only when UNKNOWN is not present.
-	if transportProtocol != UNSPEC && len(tokens) < 6 {
+	// Expect exactly 6 tokens when UNKNOWN is not present. The spec's TCP4/TCP6
+	// line is "PROXY <proto> <src> <dst> <sport> <dport>"; trailing tokens are
+	// not permitted. (UNKNOWN is handled leniently below, per spec: the receiver
+	// must ignore anything up to the CRLF.)
+	if transportProtocol != UNSPEC && len(tokens) != 6 {
 		return nil, ErrCantReadAddressFamilyAndProtocol
 	}
 
@@ -190,6 +216,13 @@ func (header *Header) formatVersion1() ([]byte, error) {
 		return nil, ErrInvalidAddress
 	}
 
+	// A hand-built header can carry any int; the spec requires ports in the
+	// decimal range 0..65535, so validate before serializing (mirrors the v2
+	// port check in formatVersion2).
+	if sourceAddr.Port < 0 || sourceAddr.Port > math.MaxUint16 || destAddr.Port < 0 || destAddr.Port > math.MaxUint16 {
+		return nil, ErrInvalidPortNumber
+	}
+
 	// netip.Addr (not net.IP) is used here so String() honors the address family
 	// declared by TransportProtocol. AddrFromSlice reports ok=false when the slice
 	// is nil (e.g. To4() on an IPv6-only address), which the guard below rejects.
@@ -233,20 +266,33 @@ func (header *Header) formatVersion1() ([]byte, error) {
 }
 
 func parseV1PortNumber(portStr string) (int, error) {
-	port, err := strconv.Atoi(portStr)
+	// Per spec, a v1 port is 1..5 decimal digits in the range 0..65535, with no
+	// leading zero and no sign. ParseUint with bitSize 16 enforces all of that
+	// (it rejects empty strings, signs, non-digits, and values above 65535)
+	// except the leading zero ("080"), which the spec forbids and which creates
+	// ambiguity for anything downstream that re-parses the address.
+	if len(portStr) > 1 && portStr[0] == '0' {
+		return 0, ErrInvalidPortNumber
+	}
+	port, err := strconv.ParseUint(portStr, 10, 16)
 	if err != nil {
 		return 0, fmt.Errorf("%w: %w", ErrInvalidPortNumber, err)
 	}
-	if port < 0 || port > 65535 {
-		return 0, ErrInvalidPortNumber
-	}
-	return port, nil
+	return int(port), nil
 }
 
 func parseV1IPAddress(protocol AddressFamilyAndProtocol, addrStr string) (net.IP, error) {
 	addr, err := netip.ParseAddr(addrStr)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidAddress, err)
+	}
+	// netip accepts zoned literals ("fe80::1%eth0"). The spec's address grammar
+	// does not (hex digits and colons only), and net.IP cannot carry a zone, so
+	// accepting one would silently forward an address the sender never wrote.
+	// Per spec, "any sequence which does not exactly match the protocol must be
+	// discarded".
+	if addr.Zone() != "" {
+		return nil, ErrInvalidAddress
 	}
 
 	switch protocol {
@@ -255,18 +301,12 @@ func parseV1IPAddress(protocol AddressFamilyAndProtocol, addrStr string) (net.IP
 			return net.IP(addr.AsSlice()), nil
 		}
 	case TCPv6:
-		// Some proxies (notably nginx OSS stream module) emit plain IPv4
-		// addresses in TCP6 headers when the backend is IPv4 but the client
-		// is IPv6. Promote to IPv4-mapped IPv6 for interoperability.
-		//
-		// This is an intentional departure from the PROXY protocol v1 spec,
-		// which states that addresses in a TCP6 line must be in IPv6 format.
 		if addr.Is6() || addr.Is4In6() {
 			return net.IP(addr.AsSlice()), nil
 		}
-		// ATTENTION: this is a lossy conversion — round-trip serialization will
-		// render the address as "::ffff:x.x.x.x" rather than the original "x.x.x.x".
-		if addr.Is4() {
+		// Plain IPv4 in a TCP6 line is spec-invalid but emitted by some proxies;
+		// see V1AcceptIPv4InTCP6 for the compatibility trade-off.
+		if V1AcceptIPv4InTCP6 && addr.Is4() {
 			mapped := netip.AddrFrom16(addr.As16())
 			return net.IP(mapped.AsSlice()), nil
 		}
