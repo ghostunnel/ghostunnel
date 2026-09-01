@@ -8,6 +8,7 @@ type abiInfo struct {
 	supportedAccessNet     AccessNetSet
 	supportedScoped        ScopedSet
 	supportedRestrictFlags restrictFlagsSet
+	supportsQuiet          bool
 }
 
 var abiInfos = []abiInfo{
@@ -63,6 +64,14 @@ var abiInfos = []abiInfo{
 		supportedAccessNet:     (1 << 2) - 1,
 		supportedScoped:        (1 << 2) - 1,
 		supportedRestrictFlags: (1 << 4) - 1,
+	},
+	{
+		version:                10,
+		supportedAccessFS:      (1 << 17) - 1,
+		supportedAccessNet:     (1 << 4) - 1,
+		supportedScoped:        (1 << 2) - 1,
+		supportedRestrictFlags: (1 << 4) - 1,
+		supportsQuiet:          true,
 	},
 }
 

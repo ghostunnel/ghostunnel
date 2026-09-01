@@ -61,11 +61,7 @@ func restrict(c Config, rules ...Rule) error {
 		return nil // Success: Nothing to restrict.
 	}
 
-	rulesetAttr := ll.RulesetAttr{
-		HandledAccessFS:  uint64(c.handledAccessFS),
-		HandledAccessNet: uint64(c.handledAccessNet),
-		Scoped:           uint64(c.scoped),
-	}
+	rulesetAttr := c.rulesetAttr()
 	fd, err := ll.LandlockCreateRuleset(&rulesetAttr, 0)
 	if err != nil {
 		if errors.Is(err, syscall.ENOSYS) || errors.Is(err, syscall.EOPNOTSUPP) {

@@ -45,6 +45,8 @@ const (
 const (
 	AccessNetBindTCP = 1 << iota
 	AccessNetConnectTCP
+	AccessNetBindUDP
+	AccessNetConnectSendUDP
 )
 
 // Landlock scope flags.
@@ -67,6 +69,14 @@ const (
 	FlagRestrictSelfTSync
 )
 
+// Flags for [LandlockAddPathBeneathRule] and [LandlockAddNetPortRule].
+//
+// Please see full documentation at
+// https://docs.kernel.org/userspace-api/landlock.html#adding-a-new-rule-to-a-ruleset
+const (
+	FlagAddRuleQuiet = 1 << 0
+)
+
 // RulesetAttr is the Landlock ruleset definition.
 //
 // Argument of LandlockCreateRuleset(). This structure can grow in future versions of Landlock.
@@ -76,6 +86,20 @@ type RulesetAttr struct {
 	HandledAccessFS  uint64
 	HandledAccessNet uint64
 	Scoped           uint64
+
+	// QuietAccessFS, QuietAccessNet and QuietScoped are the
+	// bitmasks of actions whose denial may be kept out of the
+	// audit log.  They must be subsets of HandledAccessFS,
+	// HandledAccessNet and Scoped respectively.
+	//
+	// For filesystem and network actions, the objects also need
+	// to be marked with [FlagAddRuleQuiet].  Scoped actions do not
+	// need to be marked.
+	//
+	// These fields are available since Landlock ABI version 10.
+	QuietAccessFS  uint64
+	QuietAccessNet uint64
+	QuietScoped    uint64
 }
 
 // PathBeneathAttr references a file hierarchy and defines the desired
