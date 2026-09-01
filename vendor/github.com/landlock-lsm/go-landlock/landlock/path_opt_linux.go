@@ -21,18 +21,34 @@ func (r FSRule) addToRuleset(rulesetFD int, c Config) error {
 		// and result in an error.
 		return nil
 	}
-	for _, path := range r.paths {
-		if err := addPath(rulesetFD, path, effectiveAccessFS); err != nil {
-			if r.ignoreMissing && errors.Is(err, unix.ENOENT) {
+	return addPaths(rulesetFD, r.paths, effectiveAccessFS, 0, r.ignoreMissing)
+}
+
+func (r QuietFSRule) addToRuleset(rulesetFD int, c Config) error {
+	flags := r.addRuleFlags(c)
+	if flags == 0 {
+		// Quieting is unavailable under this configuration.
+		// Adding a rule without access rights and without the
+		// quiet flag would result in an error.
+		return nil
+	}
+	return addPaths(rulesetFD, r.paths, 0, flags, r.ignoreMissing)
+}
+
+// addPaths adds one "path beneath" rule per path to the ruleset.
+func addPaths(rulesetFd int, paths []string, access AccessFSSet, flags int, ignoreMissing bool) error {
+	for _, path := range paths {
+		if err := addPath(rulesetFd, path, access, flags); err != nil {
+			if ignoreMissing && errors.Is(err, unix.ENOENT) {
 				continue // Skip this path.
 			}
-			return fmt.Errorf("populating ruleset for %q with access %v: %w", path, effectiveAccessFS, err)
+			return fmt.Errorf("populating ruleset for %q with access %v: %w", path, access, err)
 		}
 	}
 	return nil
 }
 
-func addPath(rulesetFd int, path string, access AccessFSSet) error {
+func addPath(rulesetFd int, path string, access AccessFSSet, flags int) error {
 	fd, err := syscall.Open(path, unix.O_PATH|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return fmt.Errorf("open: %w", err)
@@ -43,7 +59,7 @@ func addPath(rulesetFd int, path string, access AccessFSSet) error {
 		ParentFd:      fd,
 		AllowedAccess: uint64(access),
 	}
-	err = ll.LandlockAddPathBeneathRule(rulesetFd, &pathBeneath, 0)
+	err = ll.LandlockAddPathBeneathRule(rulesetFd, &pathBeneath, flags)
 	if err != nil {
 		if errors.Is(err, syscall.EINVAL) {
 			// The ruleset access permissions must be a superset of the ones we restrict to.
