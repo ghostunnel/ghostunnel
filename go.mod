@@ -13,7 +13,7 @@ require (
 	github.com/letsencrypt/pkcs11key/v4 v4.0.1
 	github.com/magefile/mage v1.17.2
 	github.com/mholt/acmez/v3 v3.1.6
-	github.com/open-policy-agent/opa v1.19.1
+	github.com/open-policy-agent/opa v1.20.1
 	github.com/pires/go-proxyproto v0.15.0
 	github.com/prometheus/client_golang v1.24.1
 	github.com/rcrowley/go-metrics v0.0.0-20250401214520-65e299d6c5c9
