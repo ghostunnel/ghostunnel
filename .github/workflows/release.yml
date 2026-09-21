@@ -151,6 +151,14 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      - name: Install syft
+        uses: anchore/sbom-action/download-syft@v0.24.2
+        with:
+          syft-version: v1.52.0
+      - name: Generate SBOMs
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: go tool mage -v sbom:generate dist
       - name: Create draft release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
