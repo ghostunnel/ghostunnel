@@ -1,0 +1,23 @@
+{{- /*
+  Hides a block of documentation until the release that ships it. Use it for
+  paragraphs about an unreleased feature on a page that is otherwise released;
+  to hide a whole page, give the page a "since" front matter field instead.
+
+  Note the {{% ... %}} delimiters, which let Hugo render the enclosed Markdown
+  as part of the surrounding page:
+
+    {{% since "v1.12.0" %}}
+    This paragraph appears once v1.12.0 has been released.
+    {{% /since %}}
+*/ -}}
+{{- $since := .Get 0 -}}
+{{- if not $since -}}
+  {{- errorf "since shortcode in %s: expected a release tag argument, e.g. {{%% since \"v1.12.0\" %%}}" .Page.Path -}}
+{{- end -}}
+{{- $releasedThrough := site.Params.releasedThrough -}}
+{{- if not $releasedThrough -}}
+  {{- errorf "since shortcode: site parameter releasedThrough is unset, build the site with 'go tool mage website:build'" -}}
+{{- end -}}
+{{- if le (partial "version-key.html" $since) $releasedThrough -}}
+{{ .Inner }}
+{{- end -}}

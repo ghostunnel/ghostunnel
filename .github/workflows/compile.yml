@@ -64,6 +64,14 @@ jobs:
           mv ghostunnel ghostunnel-linux-amd64
           CGO_ENABLED=1 GOARCH=arm64 CC=aarch64-linux-gnu-gcc ./mage-bin -v go:build
           mv ghostunnel ghostunnel-linux-arm64
+      - name: Install syft
+        uses: anchore/sbom-action/download-syft@v0.24.2
+        with:
+          syft-version: v1.52.0
+      - name: Generate SBOMs
+        run: |
+          ./mage-bin -v sbom:generate ghostunnel-linux-amd64
+          ./mage-bin -v sbom:generate ghostunnel-linux-arm64
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:

@@ -9,10 +9,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
@@ -22,6 +24,7 @@ import (
 
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
+	"golang.org/x/mod/semver"
 )
 
 type Go mg.Namespace
@@ -31,6 +34,7 @@ type Test mg.Namespace
 type Docker mg.Namespace
 type Website mg.Namespace
 type Github mg.Namespace
+type Sbom mg.Namespace
 
 var Default = Go.Build
 
@@ -251,7 +255,9 @@ func (Apple) Notarize(ctx context.Context, binary string) error {
 }
 
 // Publish creates a draft prerelease for the given tag and uploads
-// binaries to Github.
+// binaries (and their SBOMs, if present) to Github. Every file in dist/
+// matching ghostunnel-* is attached, so SBOMs written by sbom:generate
+// into dist/ are picked up automatically.
 //
 // Required environment:
 //   - GITHUB_TOKEN: token used by gh to authenticate
@@ -297,6 +303,140 @@ func (Github) Publish(ctx context.Context, tag string) error {
 
 	printf("Creating draft release %s with %d asset(s)\n", tag, len(assets))
 	return sh.Run("gh", args...)
+}
+
+// Generate creates SBOMs (software bills of materials) for release binaries
+// using syft. PATH may be a single binary or a directory; for a directory,
+// every regular file matching ghostunnel-* that is not already an SBOM is
+// processed. For each binary BIN, writes BIN.spdx.json (SPDX 2.3 JSON) and
+// BIN.cdx.json (CycloneDX JSON) next to it.
+//
+// Requires syft on PATH (https://github.com/anchore/syft, e.g. `brew install syft`).
+//
+// Optional environment:
+//   - VERSION: recorded as the source version in the SBOM (defaults to git describe)
+func (Sbom) Generate(ctx context.Context, path string) error {
+	if _, err := exec.LookPath("syft"); err != nil {
+		return fmt.Errorf("syft not found on PATH; install it from https://github.com/anchore/syft (e.g. brew install syft)")
+	}
+
+	binaries, err := sbomTargets(path)
+	if err != nil {
+		return err
+	}
+
+	for _, binary := range binaries {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("context cancelled: %w", err)
+		}
+		if err := generateSbom(binary); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// sbomTargets returns the list of binaries to generate SBOMs for. If path is
+// a regular file it is returned as-is; if it is a directory, all regular
+// files matching ghostunnel-* that are not SBOM files are returned, sorted.
+func sbomTargets(path string) ([]string, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to stat %s: %w", path, err)
+	}
+	if !info.IsDir() {
+		return []string{path}, nil
+	}
+
+	matches, err := filepath.Glob(filepath.Join(path, "ghostunnel-*"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to glob %s: %w", path, err)
+	}
+
+	var binaries []string
+	for _, match := range matches {
+		if isSbomFile(match) {
+			continue
+		}
+		fi, err := os.Stat(match)
+		if err != nil || !fi.Mode().IsRegular() {
+			continue
+		}
+		binaries = append(binaries, match)
+	}
+	if len(binaries) == 0 {
+		return nil, fmt.Errorf("no binaries matching ghostunnel-* found in %s", path)
+	}
+	sort.Strings(binaries)
+	return binaries, nil
+}
+
+// isSbomFile reports whether name is an SBOM produced by sbom:generate.
+func isSbomFile(name string) bool {
+	return strings.HasSuffix(name, ".spdx.json") || strings.HasSuffix(name, ".cdx.json")
+}
+
+// generateSbom runs syft on a single binary, writing SPDX and CycloneDX
+// documents next to it, and then sanity-checks the SPDX output.
+func generateSbom(binary string) error {
+	version := os.Getenv("VERSION")
+	if version == "" {
+		version = getVersion()
+	}
+
+	spdxOut := binary + ".spdx.json"
+	cdxOut := binary + ".cdx.json"
+
+	printf("Generating SBOM for %s\n", binary)
+	env := map[string]string{
+		// Avoid network calls and log noise from syft's self-update check.
+		"SYFT_CHECK_FOR_APP_UPDATE": "false",
+	}
+	err := sh.RunWith(env, "syft", "scan", "file:"+binary,
+		"--source-name", "ghostunnel",
+		"--source-version", version,
+		"-o", "spdx-json="+spdxOut,
+		"-o", "cyclonedx-json="+cdxOut,
+	)
+	if err != nil {
+		return fmt.Errorf("syft failed for %s: %w", binary, err)
+	}
+
+	return verifySbom(spdxOut)
+}
+
+// verifySbom sanity-checks a generated SPDX document. It must list the
+// ghostunnel main module and the Go standard library; their presence proves
+// that syft actually read the Go build info embedded in the binary.
+func verifySbom(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("failed to read %s: %w", path, err)
+	}
+
+	var doc struct {
+		Packages []struct {
+			Name        string `json:"name"`
+			VersionInfo string `json:"versionInfo"`
+		} `json:"packages"`
+	}
+	if err := json.Unmarshal(data, &doc); err != nil {
+		return fmt.Errorf("failed to parse %s: %w", path, err)
+	}
+
+	found := map[string]string{}
+	for _, pkg := range doc.Packages {
+		found[pkg.Name] = pkg.VersionInfo
+	}
+	for _, want := range []string{"github.com/ghostunnel/ghostunnel", "stdlib"} {
+		if _, ok := found[want]; !ok {
+			return fmt.Errorf("%s: SBOM does not list package %q; syft may not have read the Go build info", path, want)
+		}
+	}
+
+	printf("Verified %s (%d packages, ghostunnel %s, %s)\n",
+		path, len(doc.Packages), found["github.com/ghostunnel/ghostunnel"], found["stdlib"])
+	return nil
 }
 
 // setupCodesignKeychain creates a temporary keychain, imports the signing
@@ -1042,7 +1182,10 @@ func buildDockerImage(dockerfile string, tags []string, push bool) error {
 		args = append(args, "--quiet")
 	}
 	if push {
-		args = append(args, "--push")
+		// Attach an SBOM attestation (SPDX, generated by BuildKit's built-in
+		// syft scanner) to the pushed image index, next to the provenance
+		// attestation buildx already adds by default when pushing.
+		args = append(args, "--sbom=true", "--push")
 	}
 
 	// Add build context & run
@@ -1355,11 +1498,184 @@ func (Website) Contrib(ctx context.Context) error {
 	return nil
 }
 
+// Documentation for unreleased features is kept out of the published site by
+// declaring the release that ships it, so that no manual step is needed when
+// that release is cut. A page declares `since: v1.12.0` in its front matter;
+// an individual paragraph uses the `since` shortcode (see
+// website/layouts/shortcodes/since.html). Both are compared against the newest
+// release notes in releases/.
+const (
+	docsDir     = "docs"
+	releasesDir = "releases"
+
+	// hugoConfigFiles are passed to Hugo as a single --config argument, with
+	// later files overriding earlier ones. The overlay is generated by
+	// writeHugoConfig and is not checked in.
+	hugoOverlayConfig = "hugo.generated.toml"
+	hugoConfigFiles   = "hugo.toml," + hugoOverlayConfig
+
+	// docsPreviewEnv builds the site with unreleased documentation included.
+	docsPreviewEnv = "GHOSTUNNEL_DOCS_PREVIEW"
+)
+
+// latestRelease returns the newest version with release notes in releases/,
+// ignoring release candidates. Release notes are named after their tag.
+func latestRelease() (string, error) {
+	entries, err := os.ReadDir(releasesDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to read %s: %w", releasesDir, err)
+	}
+
+	latest := ""
+	for _, entry := range entries {
+		version := strings.TrimSuffix(entry.Name(), ".md")
+		if !semver.IsValid(version) || semver.Prerelease(version) != "" {
+			continue
+		}
+		if latest == "" || semver.Compare(version, latest) > 0 {
+			latest = version
+		}
+	}
+
+	if latest == "" {
+		return "", fmt.Errorf("no release notes found in %s", releasesDir)
+	}
+	return latest, nil
+}
+
+// versionKey turns a version tag into a sortable integer, so that templates
+// can compare versions without reimplementing semver. Keep this in sync with
+// website/layouts/partials/version-key.html.
+func versionKey(version string) int {
+	var major, minor, patch int
+	fmt.Sscanf(strings.TrimPrefix(semver.Canonical(version), "v"), "%d.%d.%d", &major, &minor, &patch)
+	return major*1000000 + minor*1000 + patch
+}
+
+// docsSince returns the version declared in a page's `since` front matter
+// field, or an empty string if the page does not declare one.
+func docsSince(path string) (string, error) {
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to read %s: %w", path, err)
+	}
+
+	lines := strings.Split(string(contents), "\n")
+	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
+		return "", nil
+	}
+
+	for _, line := range lines[1:] {
+		if strings.TrimSpace(line) == "---" {
+			break
+		}
+		value, found := strings.CutPrefix(line, "since:")
+		if !found {
+			continue
+		}
+		return strings.Trim(strings.TrimSpace(value), `"'`), nil
+	}
+
+	return "", nil
+}
+
+// unreleasedDocs returns the documentation pages whose `since` version is
+// newer than the given release, as paths relative to the repository root.
+func unreleasedDocs(latest string) ([]string, error) {
+	var unreleased []string
+	err := filepath.WalkDir(docsDir, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || filepath.Ext(path) != ".md" {
+			return nil
+		}
+
+		since, err := docsSince(path)
+		if err != nil || since == "" {
+			return err
+		}
+		if !semver.IsValid(since) {
+			return fmt.Errorf("%s: invalid since version %q, want a release tag such as v1.12.0", path, since)
+		}
+		if semver.Compare(since, latest) > 0 {
+			unreleased = append(unreleased, filepath.ToSlash(path))
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	sort.Strings(unreleased)
+	return unreleased, nil
+}
+
+// writeHugoConfig generates the Hugo config overlay that hides documentation
+// for features which have not shipped yet. Unreleased pages are dropped from
+// the build entirely, so they stay out of the sidebar, the section listings
+// and the search index as well. The latest release is also exposed to
+// templates, for the `since` shortcode.
+func writeHugoConfig() error {
+	latest, err := latestRelease()
+	if err != nil {
+		return err
+	}
+
+	unreleased, err := unreleasedDocs(latest)
+	if err != nil {
+		return err
+	}
+
+	// In preview mode every page is built and every `since` block renders, so
+	// that unreleased documentation can be reviewed before its release.
+	releasedThrough := versionKey(latest)
+	if os.Getenv(docsPreviewEnv) != "" {
+		fmt.Printf("Including unreleased documentation (%s is set)\n", docsPreviewEnv)
+		unreleased = nil
+		releasedThrough = versionKey("v9999.0.0")
+	}
+
+	patterns := make([]string, 0, len(unreleased))
+	for _, path := range unreleased {
+		fmt.Printf("Hiding %s: not released yet (latest release is %s)\n", path, latest)
+		// Hugo matches ignoreFiles against the path of the source file, which
+		// for mounted directories still ends in the repository-relative path.
+		patterns = append(patterns, fmt.Sprintf("'(^|/)%s$'", regexp.QuoteMeta(path)))
+	}
+
+	config := fmt.Sprintf(`# Generated by 'go tool mage website:build'. Do not edit.
+#
+# Documentation for unreleased features, hidden until its release is cut. See
+# the "Unreleased documentation" section in website/README.md.
+
+ignoreFiles = [%s]
+
+[params]
+  latestRelease = %q
+  releasedThrough = %d
+`, strings.Join(patterns, ", "), latest, releasedThrough)
+
+	path := filepath.Join("website", hugoOverlayConfig)
+	if err := os.WriteFile(path, []byte(config), 0644); err != nil {
+		return fmt.Errorf("failed to write %s: %w", path, err)
+	}
+
+	printf("Generated Hugo config overlay: latest release %s, %d page(s) hidden\n", latest, len(unreleased))
+	return nil
+}
+
 // Build generates the contributors page and builds the Hugo site.
 // Requires Hugo to be installed.
 func (Website) Build(ctx context.Context) error {
 	mg.CtxDeps(ctx, Website.Contrib)
-	return sh.Run("hugo", "--source", "website", "--minify")
+	if err := writeHugoConfig(); err != nil {
+		return err
+	}
+	// The destination is cleaned so that a page which has just been hidden
+	// does not linger in the output from an earlier build.
+	return sh.Run("hugo", "--source", "website", "--config", hugoConfigFiles,
+		"--cleanDestinationDir", "--minify")
 }
 
 // Serve generates the contributors page, builds a Pagefind search index, and
@@ -1374,5 +1690,5 @@ func (Website) Serve(ctx context.Context) error {
 		"--output-path", "website/static/pagefind"); err != nil {
 		return err
 	}
-	return sh.RunV("hugo", "server", "--source", "website")
+	return sh.RunV("hugo", "server", "--source", "website", "--config", hugoConfigFiles)
 }

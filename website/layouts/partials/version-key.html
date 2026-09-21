@@ -1,0 +1,17 @@
+{{- /*
+  Turns a release tag such as "v1.12.0" into a sortable integer, so that
+  templates can compare versions without reimplementing semver. Keep this in
+  sync with versionKey() in magefile.go.
+
+  Usage: {{ partial "version-key.html" "v1.12.0" }}
+*/ -}}
+{{- $version := index (split (strings.TrimPrefix "v" .) "-") 0 -}}
+{{- $parts := split $version "." -}}
+{{- $key := mul (int (index $parts 0)) 1000000 -}}
+{{- if ge (len $parts) 2 -}}
+  {{- $key = add $key (mul (int (index $parts 1)) 1000) -}}
+{{- end -}}
+{{- if ge (len $parts) 3 -}}
+  {{- $key = add $key (int (index $parts 2)) -}}
+{{- end -}}
+{{- return $key -}}
