@@ -47,6 +47,7 @@ go tool mage test:integration      # Python integration tests only
 go tool mage test:docker           # Full suite in Docker (includes PKCS#11/SoftHSM)
 go tool mage test:keys             # Generate test certificates in test-keys/
 go tool mage docker:build          # Build Docker images
+go tool mage sbom:generate PATH     # Generate SPDX/CycloneDX SBOMs for a binary or dist/ dir (needs syft)
 go tool mage -l                    # List all available targets
 ```
 
