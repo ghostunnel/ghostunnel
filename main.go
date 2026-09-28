@@ -227,6 +227,13 @@ type Environment struct {
 	proxyMetrics    *proxy.Metrics
 	tlsConfigSource certloader.TLSConfigSource
 	regoPolicy      policy.Policy
+	// sessionGeneration bounds how long a resumed TLS connection may keep
+	// reusing the access control decision from its original full handshake. It
+	// is advanced on every reload, which invalidates all outstanding sessions.
+	// A value rather than a pointer so it cannot be left uninitialized: an
+	// Environment built without it would silently never invalidate anything.
+	// Only the server listener reads it; client mode advances it harmlessly.
+	sessionGeneration certloader.SessionGeneration
 }
 
 // Global logger instance
@@ -936,8 +943,20 @@ func serverListen(env *Environment, regoPolicy policy.Policy) error {
 		return err
 	}
 
+	// crypto/tls skips VerifyPeerCertificate, and with it the ACL above, on a
+	// resumed connection. Bind sessions to the reload generation so that a
+	// reload is the outer bound on how long a client can keep resuming into a
+	// decision made against configuration we have since replaced. This covers
+	// every certificate source, including the SPIFFE Workload API, whose
+	// configuration is otherwise built once and never rebuilt.
+	//
+	// The status listener is deliberately left unwrapped: it uses NoClientCert
+	// and has no ACL, and in ACME mode WithoutACMEChallenge clones on every
+	// call, which would defeat the wrapper's per-generation cache.
+	tunnelConfig := certloader.BindSessionsToGeneration(serverConfig, &env.sessionGeneration)
+
 	p := proxy.New(
-		certloader.NewListener(listener, serverConfig),
+		certloader.NewListener(listener, tunnelConfig),
 		*connectTimeout,
 		*closeTimeout,
 		*maxConnLifetime,

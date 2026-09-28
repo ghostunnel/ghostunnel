@@ -112,6 +112,25 @@ func (env *Environment) reloadHandler(interval time.Duration) {
 	}
 }
 
+// reload re-reads the certificate, trust store and OPA policy, then starts a
+// new session generation so that no client can resume into the configuration
+// we just replaced.
+//
+// The ordering matters in both directions:
+//
+//   - The generation is advanced after both reloads, so a connection accepted
+//     on the new generation is guaranteed to have been evaluated against the
+//     reloaded policy. A connection accepted while a reload is in flight may
+//     still be evaluated against the old policy, but its ticket then belongs to
+//     the old generation and stops resuming as soon as this returns.
+//   - It is advanced before the status goes back to listening, so tests and
+//     operators can treat a listening status as "the new generation is in
+//     effect".
+//
+// It is advanced whether or not either reload succeeded. A reload that fails
+// leaves the old certificate and trust store in place, which is the point of
+// failing softly, but it must not also leave clients resuming sessions whose
+// access decision predates a policy that did reload.
 func (env *Environment) reload() {
 	env.status.Reloading()
 	if err := env.tlsConfigSource.Reload(); err != nil {
@@ -122,6 +141,7 @@ func (env *Environment) reload() {
 			logger.Printf("error reloading OPA policy: %s", err)
 		}
 	}
+	env.sessionGeneration.Advance()
 	logger.Printf("reloading configuration complete")
 	env.status.Listening()
 }

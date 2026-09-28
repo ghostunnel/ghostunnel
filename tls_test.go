@@ -327,6 +327,17 @@ func TestBuildClientConfig(t *testing.T) {
 	assert.NotNil(t, err, "should fail to build client config with invalid cipher suite")
 }
 
+// Client mode sets no ClientSessionCache, so its connections never resume and
+// VerifyPeerCertificateClient runs on every one of them. If a session cache is
+// ever added, this test fails and forces a decision about what should happen to
+// the verification that resumption would then skip — the server side answers
+// that with certloader.BindSessionsToGeneration.
+func TestClientConfigHasNoSessionCache(t *testing.T) {
+	conf, err := buildClientConfig("AES,CHACHA", "", false, "")
+	assert.Nil(t, err, "should be able to build client TLS config")
+	assert.Nil(t, conf.ClientSessionCache, "client config must not cache sessions")
+}
+
 func TestBuildServerConfig(t *testing.T) {
 	conf, err := buildServerConfig("AES,CHACHA", "", false, "")
 	assert.Nil(t, err, "should be able to build server TLS config")
