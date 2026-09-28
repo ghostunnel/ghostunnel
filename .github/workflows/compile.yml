@@ -34,6 +34,10 @@ jobs:
         run: go tool mage -v docker:build
         env:
           GITHUB_REF: ${{ github.ref }}
+          # Exercise the SBOM attestation path on every pull request. The
+          # release workflow gets it for free by pushing; here it has to be
+          # asked for, and it needs the docker-container driver set up above.
+          DOCKER_SBOM: "1"
 
   build-linux:
     name: Build (Linux)
@@ -64,6 +68,18 @@ jobs:
           mv ghostunnel ghostunnel-linux-amd64
           CGO_ENABLED=1 GOARCH=arm64 CC=aarch64-linux-gnu-gcc ./mage-bin -v go:build
           mv ghostunnel ghostunnel-linux-arm64
+      - name: Install syft
+        uses: anchore/sbom-action/download-syft@v0.24.2
+        with:
+          syft-version: v1.52.0
+      # A smoke test for the sbom:generate target, so a broken syft invocation
+      # surfaces on a pull request instead of during a release. The documents
+      # are deliberately not uploaded; the release workflow generates the ones
+      # that ship.
+      - name: Verify SBOM generation
+        run: |
+          ./mage-bin -v sbom:generate ghostunnel-linux-amd64
+          ./mage-bin -v sbom:generate ghostunnel-linux-arm64
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:

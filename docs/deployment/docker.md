@@ -19,6 +19,11 @@ The `latest` tags always point to the most recent release. The bare
 `ghostunnel/ghostunnel:latest` and `ghostunnel/ghostunnel:v1.x.x` tags are
 aliases for the Alpine variant.
 
+{{% since "v1.11.4" %}}
+Every published image carries an SBOM attestation; see the
+[Software Bill of Materials](../../security/sbom/) page for how to inspect it.
+{{% /since %}}
+
 ## Pulling an Image
 
 ```bash
