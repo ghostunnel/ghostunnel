@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"sync/atomic"
@@ -410,4 +411,84 @@ func TestWorkloadAPISVIDRotation(t *testing.T) {
 		"server certificate serial should change after SVID rotation")
 	require.Equal(t, svid2.Certificates[0].SerialNumber.String(), cert2.SerialNumber.String(),
 		"server should present the rotated SVID")
+}
+
+// TestWorkloadAPISessionInvalidatedOnAdvance: the Workload API source has no
+// reloadable configuration of its own, so it builds its config once and caches
+// it forever. Nothing about a reload rebuilds it, and under
+// RequireAnyClientCert crypto/tls re-checks nothing on resumption either, so
+// without help a client holding a ticket would keep the SPIFFE and access
+// control decision from its original handshake until the ticket or its SVID
+// expired. BindSessionsToGeneration is what bounds that, for this source as
+// much as for the file-based ones.
+func TestWorkloadAPISessionInvalidatedOnAdvance(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := spiffetest.NewCA(t, td)
+	svid := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/foo"))
+
+	workloadAPI := spiffetest.New(t)
+	workloadAPI.SetX509SVIDResponse(&spiffetest.X509SVIDResponse{
+		Bundle: ca.X509Bundle(),
+		SVIDs:  []*x509svid.SVID{svid},
+	})
+	defer workloadAPI.Stop()
+
+	source, err := TLSConfigSourceFromWorkloadAPI(workloadAPI.Addr(), false, 10*time.Second, log.Default())
+	require.NoError(t, err)
+	defer func() { _ = source.(*spiffeTLSConfigSource).Close() }()
+
+	serverConfig, err := source.GetServerConfig(&tls.Config{MinVersion: tls.VersionTLS12})
+	require.NoError(t, err)
+
+	generation := &SessionGeneration{}
+	raw, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	listener := NewListener(raw, BindSessionsToGeneration(serverConfig, generation))
+	defer listener.Close()
+
+	go func() {
+		for {
+			conn, acceptErr := listener.Accept()
+			if acceptErr != nil {
+				return
+			}
+			go func(c net.Conn) {
+				defer c.Close()
+				if hsErr := c.(*tls.Conn).Handshake(); hsErr != nil {
+					return
+				}
+				if _, wErr := c.Write([]byte("x")); wErr != nil {
+					return
+				}
+				_, _ = io.Copy(io.Discard, c)
+			}(conn)
+		}
+	}()
+
+	clientConfig, err := source.GetClientConfig(&tls.Config{MinVersion: tls.VersionTLS12})
+	require.NoError(t, err)
+	// The cached client config is shared, so retain tickets on a copy of it.
+	dialConfig := clientConfig.GetClientConfig().Clone()
+	dialConfig.ClientSessionCache = tls.NewLRUClientSessionCache(8)
+
+	// dial reports whether the session was resumed. It reads a byte first so a
+	// TLS 1.3 ticket lands in the session cache before the connection goes away.
+	dial := func() bool {
+		conn, dialErr := tls.Dial("tcp", listener.Addr().String(), dialConfig)
+		require.NoError(t, dialErr)
+		defer conn.Close()
+		_, readErr := conn.Read(make([]byte, 1))
+		require.NoError(t, readErr)
+		return conn.ConnectionState().DidResume
+	}
+
+	require.False(t, dial(), "first connection cannot resume")
+	require.True(t, dial(), "second connection should resume (the test is meaningless otherwise)")
+
+	// A reload of the Workload API source is a no-op, so the config it serves is
+	// unchanged; only the generation moves.
+	require.NoError(t, source.Reload())
+	generation.Advance()
+
+	require.False(t, dial(), "a Workload API session must not survive a reload")
 }

@@ -24,6 +24,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"io"
 	"log"
 	"math/big"
@@ -49,6 +50,21 @@ import (
 //     where they are verified against the current roots, served the current
 //     certificate, and run through access control again.
 
+// resumptionOptions tunes the fixture built by newResumptionFixture.
+type resumptionOptions struct {
+	// wrap, if set, wraps the server config before the listener serves it.
+	// Used to put BindSessionsToGeneration in the path.
+	wrap func(TLSServerConfig) TLSServerConfig
+
+	// version, if set, pins both ends to a single TLS version. TLS 1.2 and
+	// TLS 1.3 resume in different ways, so tests cover them separately.
+	version uint16
+
+	// sessionTicketKeys, if set, is installed on the base config, which makes
+	// every config cloned from it share one set of session ticket keys.
+	sessionTicketKeys [][32]byte
+}
+
 // resumptionFixture is a running TLS server backed by a reloadable
 // certificate, plus a client config that retains session tickets.
 type resumptionFixture struct {
@@ -59,9 +75,12 @@ type resumptionFixture struct {
 	// verifyCalls counts VerifyPeerCertificate invocations on the server,
 	// standing in for the access control callback ghostunnel installs there.
 	verifyCalls atomic.Int32
+	// deny makes the server's VerifyPeerCertificate reject the handshake,
+	// standing in for an access decision that changed under a reload.
+	deny atomic.Bool
 }
 
-func newResumptionFixture(t *testing.T) *resumptionFixture {
+func newResumptionFixture(t *testing.T, opts resumptionOptions) *resumptionFixture {
 	t.Helper()
 
 	dir := t.TempDir()
@@ -82,16 +101,29 @@ func newResumptionFixture(t *testing.T) *resumptionFixture {
 
 	base := &tls.Config{
 		MinVersion: tls.VersionTLS12,
+		MaxVersion: opts.version,
 		ClientAuth: tls.RequireAndVerifyClientCert,
 		VerifyPeerCertificate: func(_ [][]byte, _ [][]*x509.Certificate) error {
 			f.verifyCalls.Add(1)
+			if f.deny.Load() {
+				return errors.New("test access control: denied")
+			}
 			return nil
 		},
+	}
+	if opts.version != 0 {
+		base.MinVersion = opts.version
+	}
+	if len(opts.sessionTicketKeys) > 0 {
+		base.SetSessionTicketKeys(opts.sessionTicketKeys)
 	}
 
 	source := TLSConfigSourceFromCertificate(cert, log.New(io.Discard, "", 0))
 	f.config, err = source.GetServerConfig(base)
 	require.NoError(t, err)
+	if opts.wrap != nil {
+		f.config = opts.wrap(f.config)
+	}
 
 	listener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
@@ -107,9 +139,21 @@ func newResumptionFixture(t *testing.T) *resumptionFixture {
 			// A TLS 1.3 ticket is only delivered after the handshake, so the
 			// client has to read something before it can resume. Give it a
 			// byte to read.
+			//
+			// Handshake explicitly and then drain until the client hangs up,
+			// rather than writing and closing straight away: closing the
+			// connection out from under a client that hasn't read yet loses
+			// the byte, which on a resumed TLS 1.2 connection shows up as an
+			// unexplained EOF on the client side.
 			go func() {
 				defer conn.Close()
-				_, _ = conn.Write([]byte("x"))
+				if err := conn.(*tls.Conn).Handshake(); err != nil {
+					return
+				}
+				if _, err := conn.Write([]byte("x")); err != nil {
+					return
+				}
+				_, _ = io.Copy(io.Discard, conn)
 			}()
 		}
 	}()
@@ -120,11 +164,15 @@ func newResumptionFixture(t *testing.T) *resumptionFixture {
 
 	f.client = &tls.Config{
 		MinVersion:   tls.VersionTLS12,
+		MaxVersion:   opts.version,
 		Certificates: []tls.Certificate{clientCert},
 		// The client side of this test is not what's under test; skip
 		// verification of the server rather than wiring up a second trust path.
 		InsecureSkipVerify: true,
 		ClientSessionCache: tls.NewLRUClientSessionCache(8),
+	}
+	if opts.version != 0 {
+		f.client.MinVersion = opts.version
 	}
 
 	return f
@@ -151,7 +199,7 @@ func (f *resumptionFixture) dial(t *testing.T) (bool, error) {
 // full handshake: crypto/tls does not call VerifyPeerCertificate on resumption.
 // This pins the performance property that the reload behavior below relies on.
 func TestResumedConnectionSkipsVerifyPeerCertificate(t *testing.T) {
-	f := newResumptionFixture(t)
+	f := newResumptionFixture(t, resumptionOptions{})
 
 	resumed, err := f.dial(t)
 	require.NoError(t, err, "initial handshake should succeed")
@@ -170,7 +218,7 @@ func TestResumedConnectionSkipsVerifyPeerCertificate(t *testing.T) {
 // handshake, where the current certificate is presented, the current roots
 // are used to verify them, and access control runs again.
 func TestReloadDropsSessions(t *testing.T) {
-	f := newResumptionFixture(t)
+	f := newResumptionFixture(t, resumptionOptions{})
 
 	_, err := f.dial(t)
 	require.NoError(t, err)
