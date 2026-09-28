@@ -44,6 +44,25 @@ A reload re-reads from disk:
 * **ACME**: certmagic renews certificates automatically in the background;
   a reload only refreshes the CA bundle. See [ACME]({{< ref "acme.md" >}}).
 
+## Session Resumption
+
+Ghostunnel supports TLS session resumption. A client that resumes a session
+skips the full handshake, and reuses the access control decision made when
+the session was first established: `--allow-*` flags and `--allow-policy`
+are not re-evaluated on a resumed connection.
+
+A reload invalidates outstanding session tickets for the file-based
+certificate sources (`--cert`/`--key`, `--keystore`, PKCS#11, keychain and
+ACME). Each client's next connection is a full handshake against the
+reloaded certificate, CA bundle and policy, so a policy change takes effect
+for resuming clients once the reload completes. Connections already
+established are unaffected. The cost is one extra full handshake per client
+per reload, so a short `--timed-reload` interval largely disables resumption.
+
+The SPIFFE Workload API source has no reloadable configuration, so a reload
+does not invalidate its sessions; a resumed session there keeps its original
+decision until the ticket or the client SVID expires.
+
 ## Zero-Downtime Binary Replacement
 
 Reloading covers credentials, not the binary itself. To replace a running
