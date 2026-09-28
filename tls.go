@@ -79,7 +79,10 @@ func buildCertificate(keystorePath, certPath, keyPath, keystorePass, caBundlePat
 	return certloader.NoCertificate(caBundlePath)
 }
 
-// Build reloadable certificate for proxy authentication
+// Build reloadable certificate for authenticating to an HTTPS proxy. Unlike
+// buildCertificate, only file-based sources are supported; PKCS#11, keychain
+// and SPIFFE credentials are reserved for the target. Without a configured
+// source the result carries only the trust bundle used to verify the proxy.
 func buildProxyCertificate(keystorePath, certPath, keyPath, keystorePass, caBundlePath string, logger *log.Logger) (certloader.Certificate, error) {
 	if keyPath != "" && certPath != "" {
 		logger.Printf("using cert/key files on disk as proxy certificate source")
@@ -89,7 +92,8 @@ func buildProxyCertificate(keystorePath, certPath, keyPath, keystorePass, caBund
 		logger.Printf("using keystore file on disk as proxy certificate source")
 		return certloader.CertificateFromKeystore(keystorePath, keystorePass, caBundlePath)
 	}
-	return nil, nil
+	logger.Printf("no proxy cert source configured -- connecting to proxy without client certificate")
+	return certloader.NoCertificate(caBundlePath)
 }
 
 func buildCertificateFromPKCS11(certificatePath, caBundlePath string, logger *log.Logger) (certloader.Certificate, error) {

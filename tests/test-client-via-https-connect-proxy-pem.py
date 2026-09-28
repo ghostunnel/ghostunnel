@@ -61,13 +61,17 @@ class FakeHttpsConnectProxyHandler(http.server.BaseHTTPRequestHandler):
 ghostunnel = None
 httpd = None
 try:
-    # create certs
+    # create certs. The proxy and its clients use a separate PKI from the
+    # tunnel target, so that --proxy-cacert is exercised independently of
+    # --cacert.
     root = RootCert('root')
     root.create_signed_cert('server', san='DNS:{}'.format(FAKE_TARGET))
     root.create_signed_cert('client')
-    root.create_signed_cert('proxy', san='DNS:localhost,IP:127.0.0.1')
-    root.create_signed_cert('proxy_client', p12_password=None)
-    root.create_signed_cert('new_proxy_client', p12_password=None)
+
+    proxy_root = RootCert('proxy_root')
+    proxy_root.create_signed_cert('proxy', san='DNS:localhost,IP:127.0.0.1')
+    proxy_root.create_signed_cert('proxy_client', p12_password=None)
+    proxy_root.create_signed_cert('new_proxy_client', p12_password=None)
 
     proxy_port = get_free_port(release=True)
     httpd = http.server.HTTPServer(
@@ -76,7 +80,7 @@ try:
     # configure mTLS on proxy server
     ssl_ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
     ssl_ctx.load_cert_chain(certfile='proxy.crt', keyfile='proxy.key')
-    ssl_ctx.load_verify_locations(cafile='root.crt')
+    ssl_ctx.load_verify_locations(cafile='proxy_root.crt')
     ssl_ctx.verify_mode = ssl.CERT_REQUIRED
     httpd.socket = ssl_ctx.wrap_socket(httpd.socket, server_side=True)
 
@@ -93,6 +97,7 @@ try:
                                  '--proxy=https://{0}:{1}'.format(LOCALHOST, proxy_port),
                                  '--proxy-cert=proxy_client.crt',
                                  '--proxy-key=proxy_client.key',
+                                 '--proxy-cacert=proxy_root.crt',
                                  '--connect-timeout=30s',
                                  '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)]
                                 + reload_args())
