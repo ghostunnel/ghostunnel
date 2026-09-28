@@ -1,6 +1,6 @@
 ---
 title: Networking & Integration
-description: PROXY protocol, graceful draining, and metrics.
+description: PROXY protocol, outbound proxies, graceful draining, and metrics.
 weight: 40
 ---
 

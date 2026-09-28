@@ -311,6 +311,7 @@ func TestClientFlagValidation(t *testing.T) {
 		*clientProxyStorePass = ""
 		*clientProxyCertPath = ""
 		*clientProxyKeyPath = ""
+		*clientProxyCABundlePath = ""
 	}
 	defer reset()
 
@@ -1219,7 +1220,7 @@ func TestClientBackendDialerWithServerNameOverride(t *testing.T) {
 	*certPath = certFile
 	*keyPath = keyFile
 	*caBundlePath = caFile
-	*clientServerName = "custom-server-name"
+	*clientServerName = "override.example.com"
 	*clientAllowedURIs = nil
 	*clientAllowPolicy = ""
 	*clientAllowQuery = ""
@@ -1829,6 +1830,8 @@ default allow := true
 }
 
 func TestClientProxyFlagValidation(t *testing.T) {
+	// reset establishes a fully valid client config (see TestClientFlagValidation)
+	// with no proxy, so each case toggles only the proxy-related flags.
 	reset := func() {
 		*keystorePath = "file"
 		*certPath = ""
@@ -1850,105 +1853,93 @@ func TestClientProxyFlagValidation(t *testing.T) {
 		*clientProxyStorePass = ""
 		*clientProxyCertPath = ""
 		*clientProxyKeyPath = ""
+		*clientProxyCABundlePath = ""
 	}
 	defer reset()
-
-	// Baseline is valid
-	reset()
-	assert.Nil(t, clientValidateFlags())
 
 	httpsURL, _ := url.Parse("https://proxy.example.com:8443")
 	httpURL, _ := url.Parse("http://proxy.example.com:8080")
 	socksURL, _ := url.Parse("socks5://proxy.example.com:1080")
 
-	// --proxy-cert without --proxy-key
-	reset()
-	*clientProxy = httpsURL
-	*clientProxyCertPath = "cert.pem"
-	err := clientValidateFlags()
-	assert.NotNil(t, err)
-	assert.Contains(t, err.Error(), "--proxy-cert/--proxy-key must be set together")
+	tests := []struct {
+		name    string
+		proxy   *url.URL
+		flags   func()
+		wantErr string
+	}{
+		{name: "no proxy", proxy: nil, flags: func() {}},
+		{name: "http proxy without proxy TLS flags", proxy: httpURL, flags: func() {}},
+		{name: "https proxy without proxy TLS flags", proxy: httpsURL, flags: func() {}},
+		{name: "https proxy with cert/key", proxy: httpsURL, flags: func() {
+			*clientProxyCertPath = "cert.pem"
+			*clientProxyKeyPath = "key.pem"
+		}},
+		{name: "https proxy with keystore", proxy: httpsURL, flags: func() {
+			*clientProxyKeystorePath = "keystore.p12"
+		}},
+		{name: "https proxy with keystore and password", proxy: httpsURL, flags: func() {
+			*clientProxyKeystorePath = "keystore.p12"
+			*clientProxyStorePass = "secret"
+		}},
+		{name: "https proxy with cacert only", proxy: httpsURL, flags: func() {
+			*clientProxyCABundlePath = "proxy-ca.pem"
+		}},
+		{name: "https proxy with keystore and cacert", proxy: httpsURL, flags: func() {
+			*clientProxyKeystorePath = "keystore.p12"
+			*clientProxyCABundlePath = "proxy-ca.pem"
+		}},
+		{name: "cert without key", proxy: httpsURL, flags: func() {
+			*clientProxyCertPath = "cert.pem"
+		}, wantErr: "--proxy-cert and --proxy-key must be set together"},
+		{name: "key without cert", proxy: httpsURL, flags: func() {
+			*clientProxyKeyPath = "key.pem"
+		}, wantErr: "--proxy-cert and --proxy-key must be set together"},
+		{name: "keystore with cert", proxy: httpsURL, flags: func() {
+			*clientProxyKeystorePath = "keystore.p12"
+			*clientProxyCertPath = "cert.pem"
+		}, wantErr: "--proxy-keystore and --proxy-cert/--proxy-key are mutually exclusive"},
+		{name: "keystore with key", proxy: httpsURL, flags: func() {
+			*clientProxyKeystorePath = "keystore.p12"
+			*clientProxyKeyPath = "key.pem"
+		}, wantErr: "--proxy-keystore and --proxy-cert/--proxy-key are mutually exclusive"},
+		{name: "cert/key without proxy", proxy: nil, flags: func() {
+			*clientProxyCertPath = "cert.pem"
+			*clientProxyKeyPath = "key.pem"
+		}, wantErr: "require --proxy"},
+		{name: "keystore without proxy", proxy: nil, flags: func() {
+			*clientProxyKeystorePath = "keystore.p12"
+		}, wantErr: "require --proxy"},
+		{name: "cacert without proxy", proxy: nil, flags: func() {
+			*clientProxyCABundlePath = "proxy-ca.pem"
+		}, wantErr: "require --proxy"},
+		{name: "cert/key with http proxy", proxy: httpURL, flags: func() {
+			*clientProxyCertPath = "cert.pem"
+			*clientProxyKeyPath = "key.pem"
+		}, wantErr: "require an HTTPS proxy, but --proxy scheme is http"},
+		{name: "keystore with socks5 proxy", proxy: socksURL, flags: func() {
+			*clientProxyKeystorePath = "keystore.p12"
+		}, wantErr: "require an HTTPS proxy, but --proxy scheme is socks5"},
+		{name: "cacert with http proxy", proxy: httpURL, flags: func() {
+			*clientProxyCABundlePath = "proxy-ca.pem"
+		}, wantErr: "require an HTTPS proxy, but --proxy scheme is http"},
+	}
 
-	// --proxy-key without --proxy-cert
-	reset()
-	*clientProxy = httpsURL
-	*clientProxyKeyPath = "key.pem"
-	err = clientValidateFlags()
-	assert.NotNil(t, err)
-	assert.Contains(t, err.Error(), "--proxy-cert/--proxy-key must be set together")
-
-	// --proxy-keystore with --proxy-cert
-	reset()
-	*clientProxy = httpsURL
-	*clientProxyKeystorePath = "keystore.p12"
-	*clientProxyCertPath = "cert.pem"
-	err = clientValidateFlags()
-	assert.NotNil(t, err)
-	assert.Contains(t, err.Error(), "--proxy-keystore and --proxy-cert/--proxy-key are mutually exclusive")
-
-	// --proxy-keystore with --proxy-key
-	reset()
-	*clientProxy = httpsURL
-	*clientProxyKeystorePath = "keystore.p12"
-	*clientProxyKeyPath = "key.pem"
-	err = clientValidateFlags()
-	assert.NotNil(t, err)
-	assert.Contains(t, err.Error(), "--proxy-keystore and --proxy-cert/--proxy-key are mutually exclusive")
-
-	// --proxy-cert/--proxy-key without --proxy
-	reset()
-	*clientProxyCertPath = "cert.pem"
-	*clientProxyKeyPath = "key.pem"
-	err = clientValidateFlags()
-	assert.NotNil(t, err)
-	assert.Contains(t, err.Error(), "--proxy-cert/--proxy-key/--proxy-keystore requires --proxy or --connect-proxy")
-
-	// --proxy-keystore without --proxy
-	reset()
-	*clientProxyKeystorePath = "keystore.p12"
-	err = clientValidateFlags()
-	assert.NotNil(t, err)
-	assert.Contains(t, err.Error(), "--proxy-cert/--proxy-key/--proxy-keystore requires --proxy or --connect-proxy")
-
-	// --proxy-cert/--proxy-key with http proxy
-	reset()
-	*clientProxy = httpURL
-	*clientProxyCertPath = "cert.pem"
-	*clientProxyKeyPath = "key.pem"
-	err = clientValidateFlags()
-	assert.NotNil(t, err)
-	assert.Contains(t, err.Error(), "requires HTTPS proxy, but --proxy scheme is http")
-
-	// --proxy-keystore with socks5 proxy
-	reset()
-	*clientProxy = socksURL
-	*clientProxyKeystorePath = "keystore.p12"
-	err = clientValidateFlags()
-	assert.NotNil(t, err)
-	assert.Contains(t, err.Error(), "requires HTTPS proxy, but --proxy scheme is socks5")
-
-	// Valid combinations with https proxy
-	reset()
-	*clientProxy = httpsURL
-	*clientProxyCertPath = "cert.pem"
-	*clientProxyKeyPath = "key.pem"
-	assert.Nil(t, clientValidateFlags())
-
-	reset()
-	*clientProxy = httpsURL
-	*clientProxyKeystorePath = "keystore.p12"
-	assert.Nil(t, clientValidateFlags())
-
-	reset()
-	*clientProxy = httpsURL
-	*clientProxyKeystorePath = "keystore.p12"
-	*clientProxyStorePass = "secret"
-	assert.Nil(t, clientValidateFlags())
-
-	// https proxy without client credentials is also valid
-	reset()
-	*clientProxy = httpsURL
-	assert.Nil(t, clientValidateFlags())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reset()
+			*clientProxy = tt.proxy
+			tt.flags()
+			err := clientValidateFlags()
+			if tt.wantErr == "" {
+				assert.NoError(t, err)
+				return
+			}
+			assert.Error(t, err)
+			if err != nil {
+				assert.Contains(t, err.Error(), tt.wantErr)
+			}
+		})
+	}
 }
 
 func TestBuildProxyCertificate(t *testing.T) {
@@ -1963,10 +1954,16 @@ func TestBuildProxyCertificate(t *testing.T) {
 	caFile := writeTempFile(t, "test-proxy-ca-*.pem", []byte(testCertificate))
 	defer os.Remove(caFile)
 
-	// Neither cert nor keystore
+	// Neither cert nor keystore: trust bundle only, no client certificate
 	cert, err := buildProxyCertificate("", "", "", "", caFile, logger)
 	assert.NoError(t, err)
-	assert.Nil(t, cert)
+	assert.NotNil(t, cert)
+	assert.Equal(t, "", cert.GetIdentifier())
+	assert.NotNil(t, cert.GetTrustStore())
+
+	// Neither cert nor keystore, with an unreadable CA bundle
+	_, err = buildProxyCertificate("", "", "", "", "/nonexistent/ca.pem", logger)
+	assert.Error(t, err)
 
 	// Cert and key PEM files
 	cert, err = buildProxyCertificate("", certFile, keyFile, "", caFile, logger)
@@ -1998,6 +1995,7 @@ func TestClientBackendDialerWithHTTPSProxy(t *testing.T) {
 	origClientProxyStorePass := *clientProxyStorePass
 	origClientProxyCertPath := *clientProxyCertPath
 	origClientProxyKeyPath := *clientProxyKeyPath
+	origClientProxyCABundlePath := *clientProxyCABundlePath
 	origConnectTimeout := *connectTimeout
 	origEnabledCipherSuites := *enabledCipherSuites
 	t.Cleanup(func() {
@@ -2010,6 +2008,7 @@ func TestClientBackendDialerWithHTTPSProxy(t *testing.T) {
 		*clientProxyStorePass = origClientProxyStorePass
 		*clientProxyCertPath = origClientProxyCertPath
 		*clientProxyKeyPath = origClientProxyKeyPath
+		*clientProxyCABundlePath = origClientProxyCABundlePath
 		*connectTimeout = origConnectTimeout
 		*enabledCipherSuites = origEnabledCipherSuites
 	})
@@ -2029,20 +2028,50 @@ func TestClientBackendDialerWithHTTPSProxy(t *testing.T) {
 	proxyURL, err := url.Parse("https://127.0.0.1:8443")
 	assert.NoError(t, err)
 	*clientProxy = proxyURL
-	*clientProxyKeystorePath = ksFile
-	*clientProxyStorePass = testKeystorePassword
 
 	source, err := getTLSConfigSource(false)
 	assert.NoError(t, err)
+
+	// HTTPS proxy with a keystore credential
+	*clientProxyKeystorePath = ksFile
+	*clientProxyStorePass = testKeystorePassword
+	*clientProxyCABundlePath = ""
 
 	dial, policy, proxySource, err := clientBackendDialer(source, "tcp", "localhost:8443", "localhost")
 	assert.NoError(t, err)
 	assert.NotNil(t, dial)
 	assert.Nil(t, policy)
 	assert.NotNil(t, proxySource)
-
-	// Test reload on proxySource
 	assert.NoError(t, proxySource.Reload())
+
+	// HTTPS proxy without a credential still gets a reloadable trust bundle
+	*clientProxyKeystorePath = ""
+	*clientProxyStorePass = ""
+
+	_, _, proxySource, err = clientBackendDialer(source, "tcp", "localhost:8443", "localhost")
+	assert.NoError(t, err)
+	assert.NotNil(t, proxySource)
+	assert.False(t, proxySource.CanServe(), "trust bundle only source should not be able to serve")
+
+	// A separate --proxy-cacert is honored, and a bad one fails at startup
+	*clientProxyCABundlePath = caFile
+	_, _, proxySource, err = clientBackendDialer(source, "tcp", "localhost:8443", "localhost")
+	assert.NoError(t, err)
+	assert.NotNil(t, proxySource)
+
+	*clientProxyCABundlePath = "/nonexistent/proxy-ca.pem"
+	_, _, _, err = clientBackendDialer(source, "tcp", "localhost:8443", "localhost")
+	assert.Error(t, err)
+
+	// Plain HTTP proxy: no TLS to the proxy, so no proxy TLS config source
+	*clientProxyCABundlePath = ""
+	httpProxyURL, err := url.Parse("http://127.0.0.1:8080")
+	assert.NoError(t, err)
+	*clientProxy = httpProxyURL
+
+	_, _, proxySource, err = clientBackendDialer(source, "tcp", "localhost:8443", "localhost")
+	assert.NoError(t, err)
+	assert.Nil(t, proxySource)
 }
 
 func TestEnvironmentReloadProxyTLSConfigSource(t *testing.T) {

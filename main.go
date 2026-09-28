@@ -26,6 +26,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"net/url"
 	"os"
 	"runtime"
 	"slices"
@@ -110,7 +111,7 @@ var (
 	clientForwardAddress = clientCommand.Flag("target", "Address to forward connections to (can be HOST:PORT or unix:PATH).").PlaceHolder("ADDR").Required().String()
 	clientUnsafeListen   = clientCommand.Flag("unsafe-listen", "If set, does not limit listen to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
 	clientServerName     = clientCommand.Flag("override-server-name", "If set, overrides the server name used for hostname verification.").PlaceHolder("NAME").String()
-	clientProxy          = clientCommand.Flag("proxy", "If set, connect to target over given proxy (HTTP CONNECT or SOCKS5). Must be a proxy URL.").PlaceHolder("URL").URL()
+	clientProxy          = clientCommand.Flag("proxy", "If set, connect to target over given proxy (HTTP CONNECT, HTTPS CONNECT or SOCKS5). Must be a proxy URL.").PlaceHolder("URL").URL()
 	clientAllowedCNs     = clientCommand.Flag("verify-cn", "Allow servers with given common name (can be repeated).").PlaceHolder("CN").Strings()
 	clientAllowedOUs     = clientCommand.Flag("verify-ou", "Allow servers with given organizational unit name (can be repeated).").PlaceHolder("OU").Strings()
 	clientAllowedDNSs    = clientCommand.Flag("verify-dns", "Allow servers with given DNS subject alternative name (can be repeated).").PlaceHolder("DNS").Strings()
@@ -121,11 +122,14 @@ var (
 	clientAllowQuery     = clientCommand.Flag("verify-query", "Rego query to evaluate against the server certificate and the policy.").PlaceHolder("QUERY").String()
 	clientDisableAuth    = clientCommand.Flag("disable-authentication", "Disable client authentication, no certificate will be provided to the server.").Default("false").Bool()
 
-	// Proxy authentication flags
-	clientProxyKeystorePath = clientCommand.Flag("proxy-keystore", "Path to proxy keystore (combined PEM with cert/key, or PKCS12 keystore).").PlaceHolder("PATH").Envar("PROXY_KEYSTORE_PATH").String()
-	clientProxyStorePass    = clientCommand.Flag("proxy-storepass", "Password for proxy keystore (PKCS#12; optional).").PlaceHolder("PASS").Envar("PROXY_STOREPASS").String()
-	clientProxyCertPath     = clientCommand.Flag("proxy-cert", "Path to proxy certificate (PEM with certificate chain).").PlaceHolder("PATH").Envar("PROXY_CERT_PATH").String()
-	clientProxyKeyPath      = clientCommand.Flag("proxy-key", "Path to proxy certificate private key (PEM with private key).").PlaceHolder("PATH").Envar("PROXY_KEY_PATH").String()
+	// Proxy TLS options (HTTPS CONNECT proxies only). These mirror the global
+	// --keystore/--cert/--key/--storepass/--cacert flags, but apply to the TLS
+	// connection to the proxy rather than to the target.
+	clientProxyKeystorePath = clientCommand.Flag("proxy-keystore", "Path to keystore with client certificate for authenticating to an HTTPS proxy (combined PEM with cert/key, or PKCS12 keystore).").PlaceHolder("PATH").Envar("PROXY_KEYSTORE_PATH").String()
+	clientProxyCertPath     = clientCommand.Flag("proxy-cert", "Path to client certificate for authenticating to an HTTPS proxy (PEM with certificate chain).").PlaceHolder("PATH").Envar("PROXY_CERT_PATH").String()
+	clientProxyKeyPath      = clientCommand.Flag("proxy-key", "Path to private key for the proxy client certificate (PEM with private key).").PlaceHolder("PATH").Envar("PROXY_KEY_PATH").String()
+	clientProxyStorePass    = clientCommand.Flag("proxy-storepass", "Password for proxy keystore (PKCS#12 or JCEKS; optional for PKCS#12).").PlaceHolder("PASS").Envar("PROXY_KEYSTORE_PASS").String()
+	clientProxyCABundlePath = clientCommand.Flag("proxy-cacert", "Path to CA bundle file (PEM/X509) for verifying an HTTPS proxy. Uses --cacert by default.").PlaceHolder("PATH").Envar("PROXY_CACERT_PATH").String()
 
 	// TLS options
 	keystorePath          = app.Flag("keystore", "Path to keystore (combined PEM with cert/key, or PKCS12 keystore).").PlaceHolder("PATH").Envar("KEYSTORE_PATH").String()
@@ -604,26 +608,34 @@ func validateClientPin() error {
 	return nil
 }
 
+// hasProxyAuth returns true if a client certificate for authenticating to the
+// proxy (--proxy-keystore or --proxy-cert/--proxy-key) was configured.
 func hasProxyAuth() bool {
 	return *clientProxyKeystorePath != "" || *clientProxyCertPath != "" || *clientProxyKeyPath != ""
 }
 
+// Validate proxy TLS flags: a proxy client certificate and a proxy CA bundle
+// only apply to the TLS connection to an HTTPS proxy.
 func validateClientProxyFlags() error {
 	hasCert := *clientProxyCertPath != ""
 	hasKey := *clientProxyKeyPath != ""
 	hasKeystore := *clientProxyKeystorePath != ""
+	hasCABundle := *clientProxyCABundlePath != ""
 
 	if hasKeystore && (hasCert || hasKey) {
 		return errors.New("--proxy-keystore and --proxy-cert/--proxy-key are mutually exclusive")
 	}
-	if (hasKey && !hasCert) || (hasCert && !hasKey) {
-		return errors.New("--proxy-cert/--proxy-key must be set together")
+	if hasCert != hasKey {
+		return errors.New("--proxy-cert and --proxy-key must be set together")
 	}
-	if hasProxyAuth() && *clientProxy == nil {
-		return errors.New("--proxy-cert/--proxy-key/--proxy-keystore requires --proxy or --connect-proxy")
+	if !hasProxyAuth() && !hasCABundle {
+		return nil
 	}
-	if hasProxyAuth() && *clientProxy != nil && (*clientProxy).Scheme != "https" {
-		return fmt.Errorf("--proxy-cert/--proxy-key/--proxy-keystore requires HTTPS proxy, but --proxy scheme is %s", (*clientProxy).Scheme)
+	if *clientProxy == nil {
+		return errors.New("--proxy-keystore, --proxy-cert/--proxy-key and --proxy-cacert require --proxy")
+	}
+	if (*clientProxy).Scheme != "https" {
+		return fmt.Errorf("--proxy-keystore, --proxy-cert/--proxy-key and --proxy-cacert require an HTTPS proxy, but --proxy scheme is %s", (*clientProxy).Scheme)
 	}
 	return nil
 }
@@ -1225,50 +1237,10 @@ func clientBackendDialer(
 	var proxyTLSConfigSource certloader.TLSConfigSource
 
 	if *clientProxy != nil {
-		logger.Printf("using proxy %s", (*clientProxy).String())
-
-		var forwardDialer certloader.ContextDialer = &net.Dialer{Timeout: *connectTimeout}
-		if (*clientProxy).Scheme == "https" {
-			proxyTLSConfig, err := buildClientConfig(*enabledCipherSuites, *maxTLSVersion, *allowUnsafeCipherSuites, "")
-			if err != nil {
-				return nil, nil, nil, err
-			}
-			proxyTLSConfig.ServerName = (*clientProxy).Hostname()
-
-			proxyCert, err := buildProxyCertificate(*clientProxyKeystorePath, *clientProxyCertPath, *clientProxyKeyPath, *clientProxyStorePass, *caBundlePath, logger)
-			if err != nil {
-				logger.Printf("error: unable to load proxy certificates: %s\n", err)
-				return nil, nil, nil, err
-			}
-			if proxyCert == nil {
-				proxyCert, err = certloader.NoCertificate(*caBundlePath)
-				if err != nil {
-					logger.Printf("error: unable to load proxy CA bundle: %s\n", err)
-					return nil, nil, nil, err
-				}
-			}
-
-			proxySource := certloader.TLSConfigSourceFromCertificate(proxyCert, logger)
-			proxyTLSConfigSource = proxySource
-
-			proxyClientConfig, err := getClientConfig(proxySource, proxyTLSConfig)
-			if err != nil {
-				return nil, nil, nil, fmt.Errorf("unable to get proxy client TLS config: %w", err)
-			}
-			forwardDialer = certloader.DialerWithCertificate(proxyClientConfig, *connectTimeout, &net.Dialer{Timeout: *connectTimeout})
-		}
-
-		proxyDialer, err := netproxy.FromURL(*clientProxy, forwardDialer)
+		logger.Printf("using proxy %s", (*clientProxy).Redacted())
+		dialer, proxyTLSConfigSource, err = clientProxyDialer(*clientProxy)
 		if err != nil {
-			logger.Printf("error: error configuring proxy: %s\n", err)
 			return nil, nil, nil, err
-		}
-
-		var ok bool
-		dialer, ok = proxyDialer.(netproxy.ContextDialer)
-		if !ok {
-			logger.Printf("unexpected: proxy dialer scheme did not implement context dialing, aborting")
-			return nil, nil, nil, errors.New("unexpected: proxy dialer scheme did not implement context dialing, aborting")
 		}
 	}
 
@@ -1283,6 +1255,58 @@ func clientBackendDialer(
 		regoPolicy,
 		proxyTLSConfigSource,
 		nil
+}
+
+// clientProxyDialer builds the dialer that reaches the target through the
+// proxy given by --proxy. For http:// and socks5:// proxies the connection to
+// the proxy is plain TCP. For https:// proxies it is wrapped in TLS: the
+// proxy is verified against --proxy-cacert (falling back to --cacert) and, if
+// configured, the proxy client certificate is presented. The returned
+// TLSConfigSource is nil unless the proxy connection uses TLS; the caller must
+// reload it alongside the main certificate so proxy credentials can rotate.
+func clientProxyDialer(proxyURL *url.URL) (netproxy.ContextDialer, certloader.TLSConfigSource, error) {
+	var forward certloader.ContextDialer = &net.Dialer{Timeout: *connectTimeout}
+	var proxyTLSConfigSource certloader.TLSConfigSource
+
+	if proxyURL.Scheme == "https" {
+		// ALPN is deliberately left unset here: --alpn is negotiated with
+		// the target inside the tunnel, not with the proxy.
+		config, err := buildClientConfig(*enabledCipherSuites, *maxTLSVersion, *allowUnsafeCipherSuites, "")
+		if err != nil {
+			return nil, nil, err
+		}
+		config.ServerName = proxyURL.Hostname()
+
+		caBundle := *clientProxyCABundlePath
+		if caBundle == "" {
+			caBundle = *caBundlePath
+		}
+		cert, err := buildProxyCertificate(*clientProxyKeystorePath, *clientProxyCertPath, *clientProxyKeyPath, *clientProxyStorePass, caBundle, logger)
+		if err != nil {
+			logger.Printf("error: unable to load proxy certificates: %s\n", err)
+			return nil, nil, err
+		}
+		proxyTLSConfigSource = certloader.TLSConfigSourceFromCertificate(cert, logger)
+
+		clientConfig, err := getClientConfig(proxyTLSConfigSource, config)
+		if err != nil {
+			return nil, nil, fmt.Errorf("unable to get proxy client TLS config: %w", err)
+		}
+		forward = certloader.DialerWithCertificate(clientConfig, *connectTimeout, &net.Dialer{Timeout: *connectTimeout})
+	}
+
+	proxyDialer, err := netproxy.FromURL(proxyURL, forward)
+	if err != nil {
+		logger.Printf("error: error configuring proxy: %s\n", err)
+		return nil, nil, err
+	}
+
+	dialer, ok := proxyDialer.(netproxy.ContextDialer)
+	if !ok {
+		logger.Printf("unexpected: proxy dialer scheme did not implement context dialing, aborting")
+		return nil, nil, errors.New("unexpected: proxy dialer scheme did not implement context dialing, aborting")
+	}
+	return dialer, proxyTLSConfigSource, nil
 }
 
 func proxyLoggerFlags(flags []string) int {

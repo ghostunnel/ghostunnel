@@ -401,8 +401,8 @@ unix:PATH).
 **--override-server-name=NAME** If set, overrides the server name used
 for hostname verification.
 
-**--proxy=URL** If set, connect to target over given proxy (HTTP CONNECT
-or SOCKS5). Must be a proxy URL.
+**--proxy=URL** If set, connect to target over given proxy (HTTP
+CONNECT, HTTPS CONNECT or SOCKS5). Must be a proxy URL.
 
 **--verify-cn=CN** Allow servers with given common name (can be
 repeated).
@@ -429,6 +429,22 @@ certificate and the policy.
 
 **--disable-authentication** Disable client authentication, no
 certificate will be provided to the server.
+
+**--proxy-keystore=PATH** Path to keystore with client certificate for
+authenticating to an HTTPS proxy (combined PEM with cert/key, or PKCS12
+keystore).
+
+**--proxy-cert=PATH** Path to client certificate for authenticating to
+an HTTPS proxy (PEM with certificate chain).
+
+**--proxy-key=PATH** Path to private key for the proxy client
+certificate (PEM with private key).
+
+**--proxy-storepass=PASS** Password for proxy keystore (PKCS#12 or
+JCEKS; optional for PKCS#12).
+
+**--proxy-cacert=PATH** Path to CA bundle file (PEM/X509) for verifying
+an HTTPS proxy. Uses --cacert by default.
 
 # SIGNALS
 
