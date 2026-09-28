@@ -3,6 +3,7 @@ from subprocess import call, check_call, check_output, Popen, DEVNULL
 from tempfile import mkstemp, mkdtemp
 import atexit
 import base64
+import io
 import json
 import hashlib
 import shutil
@@ -15,6 +16,7 @@ import os
 import platform
 import signal
 import struct
+import tarfile
 import urllib.error
 import urllib.request
 
@@ -787,6 +789,35 @@ def trigger_reload(ghostunnel):
         import signal as _signal
         ghostunnel.send_signal(_signal.SIGUSR1)
 
+def reload_and_wait(ghostunnel, timeout=10):
+    """Trigger a reload and wait for it to finish.
+
+    Waiting for last_reload to change is not enough on its own: it is stamped
+    when the reload starts (see statusHandler.Reloading). Wait for the status
+    to return to 'listening' as well, which happens once the reloaded
+    configuration is in effect and outstanding TLS sessions have been
+    invalidated."""
+    pre = status_info()
+    pre_reload = pre.get('last_reload') if pre else None
+    trigger_reload(ghostunnel)
+    return wait_for_status(
+        lambda info: info.get('last_reload') != pre_reload and
+        info.get('message') == 'listening',
+        timeout=timeout)
+
+def write_opa_bundle(path, rego):
+    """Write an OPA bundle (tar.gz) containing a single policy module."""
+    def add(tar, name, content):
+        info = tarfile.TarInfo(name)
+        info.size = len(content)
+        tar.addfile(info, io.BytesIO(content))
+
+    with tarfile.open(path, 'w:gz') as tar:
+        add(tar, '/.manifest', json.dumps(
+            {"revision": "", "roots": [""], "rego_version": 1}).encode())
+        add(tar, '/data.json', b'{}')
+        add(tar, '/policy/policy.rego', rego.encode())
+
 def convert_p12_to_jceks(p12_name, jceks_name, password):
     """Convert a PKCS#12 keystore to JCEKS format using keytool.
     Skips the test (sys.exit(2)) if the conversion fails."""
@@ -961,6 +992,58 @@ class TlsClient(MySocket):
 
         raise Exception("connection failed after {0} attempts".format(
             attempts)) from last_error
+
+
+def resumable_client_context(cert, ca, version=None):
+    """Build an ssl.SSLContext for use with ResumableTlsClient.
+
+    The context is deliberately created once and reused across connections:
+    CPython only accepts a session on a socket created from the context that
+    produced it. Pass an ssl.TLSVersion as `version` to pin the handshake to a
+    single TLS version."""
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ctx.verify_mode = ssl.CERT_REQUIRED
+    ctx.load_verify_locations(cafile=ca + '.crt')
+    ctx.load_cert_chain(cert + '.crt', cert + '.key')
+    ctx.minimum_version = version if version is not None else ssl.TLSVersion.TLSv1_2
+    if version is not None:
+        ctx.maximum_version = version
+    return ctx
+
+
+class ResumableTlsClient(MySocket):
+    """TLS client that can replay a saved TLS session on a later connection,
+    so the server sees a resumed handshake instead of a full one.
+
+    The caller supplies (and reuses) the ssl.SSLContext, see
+    resumable_client_context. Read session_reused after connecting to find out
+    whether the server accepted the session; call save_session to capture the
+    session for the next connection."""
+
+    def __init__(self, ctx, session=None, port=None):
+        super().__init__()
+        self.ctx = ctx
+        self.port = port if port is not None else LISTEN_PORT
+        self.session = session
+        self.session_reused = None
+
+    def connect(self, attempts=1, peer=None):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(TIMEOUT)
+        self.socket = self.ctx.wrap_socket(
+            sock, server_hostname=peer if peer else LOCALHOST,
+            session=self.session)
+        self.socket.connect((LOCALHOST, self.port))
+        self.session_reused = self.socket.session_reused
+
+    def save_session(self):
+        """Capture the session so a later client can resume it.
+
+        Under TLS 1.2 the ticket arrives during the handshake, but under TLS
+        1.3 it is sent afterwards, so callers must exchange data (and read from
+        the connection) before calling this."""
+        self.session = self.socket.session
+        return self.session
 
 
 class TlsServer(MySocket):
