@@ -27,8 +27,8 @@ Steps, for each of TLS 1.2 and TLS 1.3:
      recovers.
 """
 
-from common import LOCALHOST, LISTEN_PORT, TARGET_PORT, STATUS_PORT, \
-    ResumableTlsClient, RootCert, SocketPair, TcpServer, \
+from common import IS_WINDOWS, LOCALHOST, LISTEN_PORT, TARGET_PORT, \
+    STATUS_PORT, ResumableTlsClient, RootCert, SocketPair, TcpServer, \
     assert_connection_rejected, print_ok, reload_and_wait, \
     resumable_client_context, reload_args, run_ghostunnel, terminate, \
     write_opa_bundle
@@ -128,9 +128,16 @@ try:
 
         client = connect(ctx, client.session,
                          '{0}: resumed connection works'.format(label))
-        if not client.session_reused:
+        if client.session_reused:
+            print_ok('{0}: session resumed'.format(label))
+        elif IS_WINDOWS:
+            # On Windows the only way to trigger a reload is --timed-reload=1s,
+            # so a reload may land between these two connections and drop the
+            # session legitimately. The invalidation checks below still hold.
+            print_ok('{0}: session not resumed, a timed reload likely '
+                     'intervened'.format(label))
+        else:
             raise Exception('session was not resumed')
-        print_ok('{0}: session resumed'.format(label))
 
         # (2) break the CA bundle and revoke access, then reload. Reloading the
         # TLS configuration fails, so the trust store and certificate in use
