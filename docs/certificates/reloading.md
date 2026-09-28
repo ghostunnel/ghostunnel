@@ -40,7 +40,10 @@ A reload re-reads from disk:
   [Keychain]({{< ref "keychain.md" >}}).
 * **SPIFFE Workload API**: certificates and trust bundles are pushed by the
   SPIFFE provider and picked up automatically; no manual reload is needed.
-  See [SPIFFE Workload API]({{< ref "spiffe-workload-api.md" >}}).
+  The rotations the provider pushes apply to new full handshakes, so a resumed
+  session keeps the decision from its original handshake until the next reload
+  (see [Session Resumption](#session-resumption)) or until the client SVID
+  expires. See [SPIFFE Workload API]({{< ref "spiffe-workload-api.md" >}}).
 * **ACME**: certmagic renews certificates automatically in the background;
   a reload only refreshes the CA bundle. See [ACME]({{< ref "acme.md" >}}).
 
@@ -49,19 +52,20 @@ A reload re-reads from disk:
 Ghostunnel supports TLS session resumption. A client that resumes a session
 skips the full handshake, and reuses the access control decision made when
 the session was first established: `--allow-*` flags and `--allow-policy`
-are not re-evaluated on a resumed connection.
+are not re-evaluated on a resumed connection. This is what makes resumption
+cheap.
 
-A reload invalidates outstanding session tickets for the file-based
-certificate sources (`--cert`/`--key`, `--keystore`, PKCS#11, keychain and
-ACME). Each client's next connection is a full handshake against the
-reloaded certificate, CA bundle and policy, so a policy change takes effect
-for resuming clients once the reload completes. Connections already
-established are unaffected. The cost is one extra full handshake per client
-per reload, so a short `--timed-reload` interval largely disables resumption.
+Every reload invalidates all existing sessions. This holds for every
+certificate source, including the SPIFFE Workload API, whether the reload was
+triggered by a signal or by `--timed-reload`, and whether or not it succeeded.
+Each client's next connection is therefore a full handshake against the
+reloaded certificate, CA bundle and policy, and a policy change takes effect
+for resuming clients as soon as the reload completes (the `/_status` endpoint
+reports `listening` again). Connections already established are unaffected.
 
-The SPIFFE Workload API source has no reloadable configuration, so a reload
-does not invalidate its sessions; a resumed session there keeps its original
-decision until the ticket or the client SVID expires.
+The cost is one extra full handshake per client per reload, so a short
+`--timed-reload` interval reduces the benefit of resumption. Resumption is
+also refused once the client certificate in the session has expired.
 
 ## Zero-Downtime Binary Replacement
 

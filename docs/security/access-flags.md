@@ -210,6 +210,11 @@ In both cases we recommend expressing all access control logic in the policy
 itself. Policy bundles reload at runtime via `--timed-reload` or `SIGHUP`, just
 like certificates.
 
+Policies are evaluated during full handshakes, not on connections that resume a
+TLS session. A reload invalidates outstanding sessions, which is what makes a
+policy change reach clients that would otherwise resume; see
+[Session Resumption]({{< ref "reloading.md#session-resumption" >}}).
+
 [opa]: https://www.openpolicyagent.org/
 [opa-bundles]: https://www.openpolicyagent.org/docs/latest/management-bundles/
 

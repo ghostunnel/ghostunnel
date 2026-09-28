@@ -119,6 +119,12 @@ Note that `conn.open` is registered as a counter that is incremented and
 decremented as connections open and close, so it behaves like a gauge of
 currently open connections.
 
+`conn.handshake` covers resumed handshakes as well as full ones. A resumed
+handshake is considerably cheaper, since it skips certificate verification and
+access control, so a reload — which invalidates outstanding sessions, see
+[Session Resumption]({{< ref "reloading.md#session-resumption" >}}) — shows up
+as a burst of slower handshakes.
+
 The `--metrics-prefix` flag (default: `ghostunnel`) is prepended to all metric
 names. How the prefix and metric names are formatted depends on the output
 format (see below).
