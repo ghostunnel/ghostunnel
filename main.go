@@ -927,7 +927,7 @@ func serverListen(env *Environment, regoPolicy policy.Policy) error {
 			// validation. The ACL callback verifies the SPKI hash instead.
 			config.ClientAuth = tls.RequireAnyClientCert
 		}
-		config.VerifyPeerCertificate = serverACL.VerifyPeerCertificateServer
+		config.VerifyPeerCertificate = serverACL.VerifyPeerCertificateServer //nolint:gosec // G123: intentional. A resumed connection reuses the access control decision from its original full handshake; certloader.BindSessionsToGeneration bounds that by invalidating every session on reload.
 	}
 
 	listener, err := socket.ParseAndOpen(*serverListenAddress)
@@ -1202,7 +1202,7 @@ func clientBackendDialer(
 		config.InsecureSkipVerify = true
 	}
 
-	config.VerifyPeerCertificate = clientACL.VerifyPeerCertificateClient
+	config.VerifyPeerCertificate = clientACL.VerifyPeerCertificateClient //nolint:gosec // G123: client configs set no ClientSessionCache, so these connections never resume and the check always runs.
 
 	var dialer netproxy.ContextDialer = &net.Dialer{Timeout: *connectTimeout}
 

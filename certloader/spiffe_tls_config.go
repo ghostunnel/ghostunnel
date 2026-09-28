@@ -136,7 +136,7 @@ func (c *spiffeTLSConfig) buildClientConfig() *tls.Config {
 	// callback provided by the SPIFFE library will perform SPIFFE
 	// authentication against the raw certificates.
 	config.InsecureSkipVerify = true
-	config.VerifyPeerCertificate = spiffeConfig.WrapVerifyPeerCertificate(config.VerifyPeerCertificate, c.source, spiffeConfig.AuthorizeAny())
+	config.VerifyPeerCertificate = spiffeConfig.WrapVerifyPeerCertificate(config.VerifyPeerCertificate, c.source, spiffeConfig.AuthorizeAny()) //nolint:gosec // G123: client configs set no ClientSessionCache, so these connections never resume and the check always runs.
 	if !c.clientDisableAuth {
 		// If auth is disabled on the client side we need to not set
 		// the GetCertificate callback, because if we do it'll cause
@@ -172,7 +172,7 @@ func (c *spiffeTLSConfig) buildServerConfig() *tls.Config {
 	// callback provided by the SPIFFE library will perform SPIFFE
 	// authentication against the raw certificates.
 	config.InsecureSkipVerify = true
-	config.VerifyPeerCertificate = spiffeConfig.WrapVerifyPeerCertificate(config.VerifyPeerCertificate, c.source, spiffeConfig.AuthorizeAny())
+	config.VerifyPeerCertificate = spiffeConfig.WrapVerifyPeerCertificate(config.VerifyPeerCertificate, c.source, spiffeConfig.AuthorizeAny()) //nolint:gosec // G123: intentional. A resumed connection reuses the access control decision from its original full handshake; certloader.BindSessionsToGeneration bounds that by invalidating every session on reload.
 	config.GetCertificate = spiffeConfig.GetCertificate(c.source)
 	return config
 }

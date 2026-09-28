@@ -5,8 +5,16 @@ linters:
   default: standard
   # forbidigo bans a couple of project-specific footgun calls; see the
   # per-pattern messages under settings.forbidigo for the rationale.
+  # gosec is limited to G123, which flags a tls.Config that sets
+  # VerifyPeerCertificate without also setting VerifyConnection or disabling
+  # session tickets — i.e. a config where a resumed connection skips the
+  # verification. Ghostunnel does that on purpose and bounds it by invalidating
+  # sessions on every reload (see certloader.BindSessionsToGeneration), so the
+  # existing sites are annotated with that reason. The point of enabling it is
+  # that a *new* site has to make the same decision explicitly.
   enable:
     - forbidigo
+    - gosec
   # Enable human-readable exclusion presets including std-error-handling
   # which excludes common error handling patterns like Close()
   exclusions:
@@ -24,7 +32,15 @@ linters:
       - linters:
           - forbidigo
         path: "_test\\.go"
+      # Ignore gosec in test files - tests build tls.Configs to exercise
+      # handshakes, where G123's question about resumption doesn't apply.
+      - linters:
+          - gosec
+        path: "_test\\.go"
   settings:
+    gosec:
+      includes:
+        - G123
     errcheck:
       # Additional functions to exclude from checking
       exclude-functions:
