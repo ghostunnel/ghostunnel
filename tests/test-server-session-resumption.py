@@ -24,8 +24,8 @@ where the TLS configuration fails to load while the policy reloads.
 
 from common import IS_WINDOWS, LOCALHOST, LISTEN_PORT, TARGET_PORT, \
     STATUS_PORT, ResumableTlsClient, RootCert, SocketPair, TcpServer, \
-    assert_connection_rejected, print_ok, reload_and_wait, \
-    resumable_client_context, reload_args, run_ghostunnel, terminate, \
+    assert_connection_rejected, idle_backend, print_ok, reload_and_wait, \
+    reload_args, resumable_client_context, run_ghostunnel, terminate, \
     write_opa_bundle
 
 from tempfile import mkdtemp
@@ -123,7 +123,8 @@ try:
 
         # (2) a reload drops the session, so clients re-handshake against the
         # reloaded configuration
-        reload_and_wait(ghostunnel)
+        with idle_backend():
+            reload_and_wait(ghostunnel)
         client = connect(ctx, client.session,
                          '{0}: connection works after reload'.format(label))
         if client.session_reused:
@@ -134,7 +135,8 @@ try:
         # session from before the reload; it must not get in with it.
         session = client.session
         write_opa_bundle(bundle, DENY_POLICY)
-        reload_and_wait(ghostunnel)
+        with idle_backend():
+            reload_and_wait(ghostunnel)
 
         assert_connection_rejected(
             ResumableTlsClient(ctx, session), TcpServer(TARGET_PORT),
@@ -147,7 +149,8 @@ try:
 
         # restore access for the next round
         write_opa_bundle(bundle, ALLOW_POLICY)
-        reload_and_wait(ghostunnel)
+        with idle_backend():
+            reload_and_wait(ghostunnel)
 
     print_ok('OK')
 finally:

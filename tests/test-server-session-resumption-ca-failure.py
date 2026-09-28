@@ -29,8 +29,8 @@ Steps, for each of TLS 1.2 and TLS 1.3:
 
 from common import IS_WINDOWS, LOCALHOST, LISTEN_PORT, TARGET_PORT, \
     STATUS_PORT, ResumableTlsClient, RootCert, SocketPair, TcpServer, \
-    assert_connection_rejected, print_ok, reload_and_wait, \
-    resumable_client_context, reload_args, run_ghostunnel, terminate, \
+    assert_connection_rejected, idle_backend, print_ok, reload_and_wait, \
+    reload_args, resumable_client_context, run_ghostunnel, terminate, \
     write_opa_bundle
 
 from tempfile import mkdtemp
@@ -146,7 +146,8 @@ try:
         with open(ca_bundle, 'wb') as f:
             f.write(INVALID_CA)
         write_opa_bundle(bundle, DENY_POLICY)
-        reload_and_wait(ghostunnel)
+        with idle_backend():
+            reload_and_wait(ghostunnel)
 
         if not log_contains('error reloading TLS configuration'):
             raise Exception('expected the TLS configuration reload to fail')
@@ -166,7 +167,8 @@ try:
         # (4) put everything back and check the tunnel recovers
         shutil.copyfile('root.crt', ca_bundle)
         write_opa_bundle(bundle, ALLOW_POLICY)
-        reload_and_wait(ghostunnel)
+        with idle_backend():
+            reload_and_wait(ghostunnel)
 
         connect(ctx, None, '{0}: connection works after recovery'.format(label))
 

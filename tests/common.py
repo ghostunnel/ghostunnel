@@ -3,6 +3,7 @@ from subprocess import call, check_call, check_output, Popen, DEVNULL
 from tempfile import mkstemp, mkdtemp
 import atexit
 import base64
+import contextlib
 import io
 import json
 import hashlib
@@ -788,6 +789,29 @@ def trigger_reload(ghostunnel):
     else:
         import signal as _signal
         ghostunnel.send_signal(_signal.SIGUSR1)
+
+@contextlib.contextmanager
+def idle_backend(port=None):
+    """Hold a listening socket on the backend port without accepting anything.
+
+    The /_status backend check dials the target port. Between connections no
+    test backend is listening there, and get_free_port keeps a reservation
+    socket bound to it, so the SYN is dropped rather than refused and the check
+    waits out a TCP connect timeout instead — around eight seconds per status
+    request on macOS. Tests that poll the status endpoint while no backend is
+    up, such as around a reload, can wrap that in this helper to keep the check
+    prompt. Connections land in the accept backlog and are dropped when the
+    socket closes."""
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    if _SO_REUSEPORT is not None:
+        listener.setsockopt(socket.SOL_SOCKET, _SO_REUSEPORT, 1)
+    try:
+        listener.bind((LOCALHOST, port if port is not None else TARGET_PORT))
+        listener.listen(16)
+        yield
+    finally:
+        listener.close()
 
 def reload_and_wait(ghostunnel, timeout=10):
     """Trigger a reload and wait for it to finish.
