@@ -4,6 +4,7 @@ from common import LOCALHOST, RootCert, STATUS_PORT, SocketPair, TcpClient, TlsS
 import http.server
 import threading
 import select
+import socket
 import ssl
 import os
 import time
@@ -13,6 +14,7 @@ seen_proxy_clients = []
 
 class FakeHttpsConnectProxyHandler(http.server.BaseHTTPRequestHandler):
     def do_CONNECT(self):
+        remote = None
         try:
             peercert = self.connection.getpeercert()
             subject = dict(x[0] for x in peercert['subject'])
@@ -25,15 +27,23 @@ class FakeHttpsConnectProxyHandler(http.server.BaseHTTPRequestHandler):
                 raise Exception(
                     'proxy target must be fake target, but was: ' + self.path)
             print_ok("got proxy request, with proxy target: " + self.path)
-            socket = TcpClient(int(port))
-            socket.connect(attempts=5)
+            remote = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            remote.settimeout(10)
+            try:
+                remote.connect((LOCALHOST, int(port)))
+            except Exception:
+                # Target is not listening (e.g. during background status check between pair1 and pair2)
+                remote.close()
+                remote = None
+                self.send_error(502, "Bad Gateway")
+                return
+
             self.wfile.write(
                 bytearray("HTTP/1.1 200 Connection established\r\n", "utf-8"))
             self.wfile.write(
                 bytearray(
                     "Proxy-agent: FakeHttpsConnectProxyHandler\r\n\r\n",
                     "utf-8"))
-            remote = socket.get_socket()
             rlist = [self.connection, remote]
             for _ in range(1000):
                 reads, _, errs = select.select(rlist, [], rlist, 10)
@@ -47,8 +57,8 @@ class FakeHttpsConnectProxyHandler(http.server.BaseHTTPRequestHandler):
         finally:
             print_ok("connect proxy is done")
             try:
-                socket.get_socket().shutdown()
-                socket.cleanup()
+                if remote:
+                    remote.close()
                 self.connection.close()
             except Exception:
                 pass  # best-effort cleanup of proxy sockets
@@ -106,8 +116,8 @@ try:
     pair1.validate_closing_client_closes_server('closing client 1')
     pair1.cleanup()
 
-    if len(seen_proxy_clients) != 1 or seen_proxy_clients[0] != 'proxy_client':
-        raise Exception('expected proxy to see proxy_client, got: ' + str(seen_proxy_clients))
+    if not seen_proxy_clients or any(cn != 'proxy_client' for cn in seen_proxy_clients):
+        raise Exception('expected proxy to see only proxy_client, got: ' + str(seen_proxy_clients))
 
     print_ok("first connection verified with proxy_client cert")
 
@@ -124,8 +134,13 @@ try:
     pair2.validate_closing_client_closes_server('closing client 2')
     pair2.cleanup()
 
-    if len(seen_proxy_clients) != 2 or seen_proxy_clients[1] != 'new_proxy_client':
+    if 'new_proxy_client' not in seen_proxy_clients:
         raise Exception('expected proxy to see new_proxy_client after reload, got: ' + str(seen_proxy_clients))
+
+    first_new = seen_proxy_clients.index('new_proxy_client')
+    if any(cn != 'proxy_client' for cn in seen_proxy_clients[:first_new]) or \
+       any(cn != 'new_proxy_client' for cn in seen_proxy_clients[first_new:]):
+        raise Exception('unexpected sequence of client certs seen by proxy: ' + str(seen_proxy_clients))
 
     print_ok("second connection verified with reloaded new_proxy_client cert")
     print_ok("OK")
