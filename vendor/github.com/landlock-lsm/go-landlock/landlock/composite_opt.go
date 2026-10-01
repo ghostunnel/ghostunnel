@@ -1,7 +1,20 @@
 package landlock
 
+import (
+	"fmt"
+	"strings"
+)
+
 type compositeRule struct {
 	rules []Rule
+}
+
+func (c *compositeRule) String() string {
+	descriptions := make([]string, 0, len(c.rules))
+	for _, r := range c.rules {
+		descriptions = append(descriptions, fmt.Sprintf("%v", r))
+	}
+	return strings.Join(descriptions, ", ")
 }
 
 func (c *compositeRule) compatibleWithConfig(cfg Config) bool {

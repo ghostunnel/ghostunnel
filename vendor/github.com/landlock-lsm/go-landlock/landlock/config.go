@@ -127,6 +127,28 @@ const (
 // access right automatically, but you can ask for the access right
 // explicitly using [FSRule.WithResolveUnix].
 //
+// # Upgrading to V10
+//
+// When upgrading from V9 to V10, if you use [Config.Restrict] or
+// [Config.RestrictNet], UDP sockets are now restricted as well:
+//
+//   - [BindUDP] permits setting the local port of a UDP socket.
+//   - [ConnectSendUDP] permits setting the remote port of a UDP
+//     socket with connect(2), and sending datagrams to that remote
+//     port with e.g. sendto(2).
+//
+// Note that the kernel implicitly binds ("autobinds") an unbound UDP
+// socket to an ephemeral local port when a remote peer is set or the
+// first datagram is sent.  Programs which restrict [BindUDP] and use
+// UDP sockets that were not bound before enforcement need to permit
+// this explicitly, most easily with [BindUDP](0).  Please refer to the
+// [BindUDP] documentation for the details.
+//
+// ABI V10 also makes it possible to keep selected Landlock denials out
+// of the audit log, using [Config.QuietAll] together with the
+// [QuietPaths] and [QuietPorts] rules.  Upgrading to V10 does not
+// enable any quieting by itself.
+//
 // [Kernel Documentation about Access Rights]: https://www.kernel.org/doc/html/latest/userspace-api/landlock.html#access-rights
 var (
 	// Landlock V1 support (basic file operations).
@@ -149,6 +171,9 @@ var (
 	// Landlock V9 support (V8 + restricting connect(2) and sendmsg(2)
 	// on pathname UNIX domain sockets)
 	V9 = abiInfos[9].asConfig()
+	// Landlock V10 support (V9 + restricting bind(2), connect(2) and
+	// send*(2) on UDP sockets, + quieting audit logs)
+	V10 = abiInfos[10].asConfig()
 )
 
 // v0 denotes "no Landlock support". Only used internally.
@@ -159,14 +184,19 @@ var v0 = Config{}
 // (e.g., best effort mode).
 //
 // It is recommended to use one of the preset configurations such as
-// [landlock.V9], which restrict the full set of access rights
+// [landlock.V10], which restrict the full set of access rights
 // available at this Landlock ABI version.
 type Config struct {
-	handledAccessFS  AccessFSSet
-	handledAccessNet AccessNetSet
-	scoped           ScopedSet
-	flags            restrictFlagsSet
-	bestEffort       bool
+	// HandledAccessFS is the set of filesystem access rights to restrict.
+	HandledAccessFS AccessFSSet
+	// HandledAccessNet is the set of network access rights to restrict.
+	HandledAccessNet AccessNetSet
+	// Scoped is the set of IPC scopes to restrict.
+	Scoped ScopedSet
+
+	flags      restrictFlagsSet
+	quietAll   bool
+	bestEffort bool
 }
 
 // NewConfig creates a new Landlock configuration with the given parameters.
@@ -185,35 +215,34 @@ func NewConfig(args ...any) (*Config, error) {
 	// extensibility in mind. Only specific types are supported as
 	// input, but in the future more might be added.
 	//
-	// This constructor ensures that callers can't construct
-	// invalid Config values.
+	// This constructor rejects invalid Config values early.
 	var c Config
 	for _, arg := range args {
 		switch arg := arg.(type) {
 		case AccessFSSet:
-			if !c.handledAccessFS.isEmpty() {
+			if !c.HandledAccessFS.isEmpty() {
 				return nil, errors.New("only one AccessFSSet may be provided")
 			}
 			if !arg.valid() {
 				return nil, errors.New("unsupported AccessFSSet value; upgrade go-landlock?")
 			}
-			c.handledAccessFS = arg
+			c.HandledAccessFS = arg
 		case AccessNetSet:
-			if !c.handledAccessNet.isEmpty() {
+			if !c.HandledAccessNet.isEmpty() {
 				return nil, errors.New("only one AccessNetSet may be provided")
 			}
 			if !arg.valid() {
 				return nil, errors.New("unsupported AccessNetSet value; upgrade go-landlock?")
 			}
-			c.handledAccessNet = arg
+			c.HandledAccessNet = arg
 		case ScopedSet:
-			if !c.scoped.isEmpty() {
+			if !c.Scoped.isEmpty() {
 				return nil, errors.New("only one ScopedSet may be provided")
 			}
 			if !arg.valid() {
 				return nil, errors.New("unsupported ScopedSet value; upgrade go-landlock?")
 			}
-			c.scoped = arg
+			c.Scoped = arg
 		default:
 			return nil, fmt.Errorf("unknown argument %v; only AccessFSSet-type argument is supported", arg)
 		}
@@ -240,24 +269,27 @@ func (c Config) String() string {
 		}
 	}
 
-	fsDesc := c.handledAccessFS.String()
-	if abi.supportedAccessFS == c.handledAccessFS && c.handledAccessFS != 0 {
+	fsDesc := c.HandledAccessFS.String()
+	if abi.supportedAccessFS == c.HandledAccessFS && c.HandledAccessFS != 0 {
 		fsDesc = "all"
 	}
 
-	netDesc := c.handledAccessNet.String()
-	if abi.supportedAccessNet == c.handledAccessNet && c.handledAccessNet != 0 {
+	netDesc := c.HandledAccessNet.String()
+	if abi.supportedAccessNet == c.HandledAccessNet && c.HandledAccessNet != 0 {
 		netDesc = "all"
 	}
 
-	scopedDesc := c.scoped.String()
-	if abi.supportedScoped == c.scoped && c.scoped != 0 {
+	scopedDesc := c.Scoped.String()
+	if abi.supportedScoped == c.Scoped && c.Scoped != 0 {
 		scopedDesc = "all"
 	}
 
 	extra := ""
 	if c.flags != 0 {
 		extra += fmt.Sprintf(" (flags: %s)", c.flags.String())
+	}
+	if c.quietAll {
+		extra += " (quiet)"
 	}
 	if c.bestEffort {
 		extra += " (best effort)"
@@ -279,6 +311,8 @@ func (c Config) String() string {
 //
 // Warning: A best-effort call to RestrictPaths() will succeed without
 // error even when Landlock is not available at all on the current kernel.
+//
+// Access rights unknown to Go-Landlock are still rejected.
 func (c Config) BestEffort() Config {
 	cfg := c
 	cfg.bestEffort = true
@@ -344,6 +378,28 @@ func (c Config) DisableLoggingForSubdomains() Config {
 	return cfg
 }
 
+// QuietAll permits Landlock to keep denials out of the audit log, as
+// far as the kernel's "quiet" feature permits it:
+//
+//   - Filesystem and network denials are only quieted for the objects
+//     which are marked with the [QuietPaths] and [QuietPorts] rules.
+//     Without such a rule, QuietAll has no effect on them.
+//   - IPC scope denials do not need to be marked and are quieted
+//     outright: after QuietAll, denials for the scopes restricted by
+//     this Config are not logged at all.
+//
+// Quieting only affects audit logging.  The affected accesses are
+// still denied.
+//
+// Requires a Linux kernel that supports Landlock ABI V10 or higher.
+// In combination with [Config.BestEffort], quieting is omitted on
+// older kernels and does not result in an error.
+func (c Config) QuietAll() Config {
+	cfg := c
+	cfg.quietAll = true
+	return cfg
+}
+
 // RestrictPaths restricts all goroutines to only "see" the files
 // provided as inputs. After this call successfully returns, the
 // goroutines will only be able to use files in the ways as they were
@@ -353,12 +409,12 @@ func (c Config) DisableLoggingForSubdomains() Config {
 // that they can only read from /usr, /bin and /tmp, and only write to
 // /tmp:
 //
-//	err := landlock.V9.RestrictPaths(
+//	err := landlock.V10.RestrictPaths(
 //	    landlock.RODirs("/usr", "/bin"),
 //	    landlock.RWDirs("/tmp"),
 //	)
 //	if err != nil {
-//	    log.Fatalf("landlock.V9.RestrictPaths(): %v", err)
+//	    log.Fatalf("landlock.V10.RestrictPaths(): %v", err)
 //	}
 //
 // RestrictPaths returns an error if any of the given paths does not
@@ -441,8 +497,9 @@ func (c Config) DisableLoggingForSubdomains() Config {
 func (c Config) RestrictPaths(rules ...Rule) error {
 	// clear out everything but filesystem access
 	c = Config{
-		handledAccessFS: c.handledAccessFS,
+		HandledAccessFS: c.HandledAccessFS,
 		flags:           c.flags,
+		quietAll:        c.quietAll,
 		bestEffort:      c.bestEffort,
 	}
 	return restrict(c, rules...)
@@ -457,6 +514,13 @@ func (c Config) RestrictPaths(rules ...Rule) error {
 //   - [ConnectTCP] permits connect(2) operations to a given TCP port.
 //   - [BindTCP] permits bind(2) operations on a given TCP port.
 //
+// Using Landlock V10, the equivalent operations on UDP sockets are
+// restricted as well:
+//
+//   - [BindUDP] permits setting the local port of a UDP socket.
+//   - [ConnectSendUDP] permits setting the remote port of a UDP
+//     socket, and sending datagrams to that remote port.
+//
 // These network access rights are documented in more depth in the
 // [Kernel Documentation about Network flags].
 //
@@ -465,7 +529,7 @@ func (c Config) RestrictPaths(rules ...Rule) error {
 // the package-level documentation.
 //
 // Landlock's network sandboxing support is still incomplete as of
-// Landlock ABI v9 and we recommend using additional sandboxing
+// Landlock ABI v10 and we recommend using additional sandboxing
 // mechanisms to augment it.
 //
 // To restrict multiple types of access rights at the same time, use
@@ -475,8 +539,9 @@ func (c Config) RestrictPaths(rules ...Rule) error {
 func (c Config) RestrictNet(rules ...Rule) error {
 	// clear out everything but network access
 	c = Config{
-		handledAccessNet: c.handledAccessNet,
+		HandledAccessNet: c.HandledAccessNet,
 		flags:            c.flags,
+		quietAll:         c.quietAll,
 		bestEffort:       c.bestEffort,
 	}
 	return restrict(c, rules...)
@@ -493,8 +558,9 @@ func (c Config) RestrictNet(rules ...Rule) error {
 func (c Config) RestrictScoped() error {
 	// clear out everything but scoped operations
 	c = Config{
-		scoped:     c.scoped,
+		Scoped:     c.Scoped,
 		flags:      c.flags,
+		quietAll:   c.quietAll,
 		bestEffort: c.bestEffort,
 	}
 	return restrict(c)
@@ -503,7 +569,7 @@ func (c Config) RestrictScoped() error {
 // Restrict restricts all types of access rights which are
 // restrictable with the Config.
 //
-// Using Landlock V9, this is equivalent to calling all of
+// Using Landlock V10, this is equivalent to calling all of
 // [Config.RestrictPaths], [Config.RestrictNet] and
 // [Config.RestrictScoped] with the respective subset of rule
 // arguments that apply to them.
@@ -520,21 +586,73 @@ func (c Config) Restrict(rules ...Rule) error {
 // compatibility and will disappear with the next major release.
 type PathOpt = Rule
 
+// valid is true if c only uses access rights known to Go-Landlock.
+func (c Config) valid() bool {
+	return c.HandledAccessFS.valid() && c.HandledAccessNet.valid() && c.Scoped.valid()
+}
+
 // compatibleWith is true if c is compatible to work at the given Landlock ABI level.
 func (c Config) compatibleWithABI(abi abiInfo) bool {
-	return (c.handledAccessFS.isSubset(abi.supportedAccessFS) &&
-		c.handledAccessNet.isSubset(abi.supportedAccessNet) &&
-		c.scoped.isSubset(abi.supportedScoped)) &&
-		c.flags.isSubset(abi.supportedRestrictFlags)
+	return (c.HandledAccessFS.isSubset(abi.supportedAccessFS) &&
+		c.HandledAccessNet.isSubset(abi.supportedAccessNet) &&
+		c.Scoped.isSubset(abi.supportedScoped)) &&
+		c.flags.isSubset(abi.supportedRestrictFlags) &&
+		(!c.quietAll || abi.supportsQuiet)
+}
+
+// quietAccessFS returns the set of filesystem access rights whose
+// denial may be kept out of the audit log, for the file hierarchies
+// which are marked with [QuietPaths].
+func (c Config) quietAccessFS() AccessFSSet {
+	if !c.quietAll {
+		return 0
+	}
+	return c.HandledAccessFS
+}
+
+// quietAccessNet returns the set of network access rights whose
+// denial may be kept out of the audit log, for the ports which are
+// marked with [QuietPorts].
+func (c Config) quietAccessNet() AccessNetSet {
+	if !c.quietAll {
+		return 0
+	}
+	return c.HandledAccessNet
+}
+
+// quietScoped returns the set of IPC scopes whose denial is kept out
+// of the audit log.  Unlike the filesystem and network access rights,
+// these do not need to be marked with a rule.
+func (c Config) quietScoped() ScopedSet {
+	if !c.quietAll {
+		return 0
+	}
+	return c.Scoped
+}
+
+// rulesetAttr returns the Landlock ruleset attributes for enforcing c.
+//
+// The quiet masks are derived from the handled access rights, so that
+// they are a subset of these, as the kernel requires.
+func (c Config) rulesetAttr() ll.RulesetAttr {
+	return ll.RulesetAttr{
+		HandledAccessFS:  uint64(c.HandledAccessFS),
+		HandledAccessNet: uint64(c.HandledAccessNet),
+		Scoped:           uint64(c.Scoped),
+		QuietAccessFS:    uint64(c.quietAccessFS()),
+		QuietAccessNet:   uint64(c.quietAccessNet()),
+		QuietScoped:      uint64(c.quietScoped()),
+	}
 }
 
 // restrictTo returns a config that is a subset of c and which is compatible with the given ABI.
 func (c Config) restrictTo(abi abiInfo) Config {
 	return Config{
-		handledAccessFS:  c.handledAccessFS.intersect(abi.supportedAccessFS),
-		handledAccessNet: c.handledAccessNet.intersect(abi.supportedAccessNet),
-		scoped:           c.scoped.intersect(abi.supportedScoped),
+		HandledAccessFS:  c.HandledAccessFS.intersect(abi.supportedAccessFS),
+		HandledAccessNet: c.HandledAccessNet.intersect(abi.supportedAccessNet),
+		Scoped:           c.Scoped.intersect(abi.supportedScoped),
 		flags:            c.flags.intersect(abi.supportedRestrictFlags),
+		quietAll:         c.quietAll && abi.supportsQuiet,
 		bestEffort:       true,
 	}
 }
