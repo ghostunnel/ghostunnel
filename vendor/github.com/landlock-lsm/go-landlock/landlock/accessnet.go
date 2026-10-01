@@ -6,6 +6,8 @@ type AccessNetSet uint64
 var accessNetNames = []string{
 	"bind_tcp",
 	"connect_tcp",
+	"bind_udp",
+	"connect_send_udp",
 }
 
 var supportedAccessNet = AccessNetSet((1 << len(accessNetNames)) - 1)
