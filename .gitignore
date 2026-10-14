@@ -33,3 +33,4 @@ public/
 .hugo_build.lock
 *.cdx.json
 *.spdx.json
+tools/bin/

@@ -79,8 +79,22 @@ func (Go) Build(ctx context.Context) error {
 }
 
 // Lint runs golangci-lint on the codebase.
+//
+// golangci-lint is declared in its own module (tools/go.mod) rather than
+// as a tool dependency of the main module, so that its large dependency
+// graph is kept separate from ghostunnel's and cannot conflict with it.
+// We build the binary from that module and run it from the repo root.
 func (Go) Lint(ctx context.Context) error {
-	cmd := exec.CommandContext(ctx, "go", "tool", "golangci-lint", "run")
+	bin := filepath.Join("tools", "bin", "golangci-lint")
+	if runtime.GOOS == "windows" {
+		bin += ".exe"
+	}
+	if err := sh.Run("go", "-C", "tools", "build", "-o", filepath.Join("bin", filepath.Base(bin)),
+		"github.com/golangci/golangci-lint/v2/cmd/golangci-lint"); err != nil {
+		return fmt.Errorf("failed to build golangci-lint: %w", err)
+	}
+
+	cmd := exec.CommandContext(ctx, bin, "run")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		os.Stdout.Write(output)
