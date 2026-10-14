@@ -1,2 +1,6 @@
-Note: These files were copied from github.com/spiffe/go-spiffe for the purposes
-of testing the SPIFFE Workload API support.
+Note: These files were copied from github.com/spiffe/go-spiffe (internal/test)
+for the purposes of testing the SPIFFE Workload API support.
+
+The copy is trimmed to what ghostunnel's tests use. Helpers from upstream
+that nothing here calls (child CAs, JWT-SVIDs, JWT bundles, lifetime
+options) have been removed, so expect it to differ from upstream.

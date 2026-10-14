@@ -244,19 +244,6 @@ def wait_for_status(predicate, timeout=30):
         iteration += 1
     raise TimeoutError("status check timed out after {0}s".format(timeout))
 
-def dump_goroutines():
-    """Attempt to dump goroutines via status port/pprof"""
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-    try:
-        sys.stderr.buffer.write(urllib.request.urlopen(
-            "https://{0}:{1}/debug/pprof/goroutine?debug=1".format(
-                LOCALHOST, STATUS_PORT),
-            context=ctx).read())
-    except Exception as e:
-        print('unable to dump goroutines:', e)
-
 def get_metrics():
     """Fetch metrics from the status port as a {name: value} dict.
 
