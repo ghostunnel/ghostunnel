@@ -1268,13 +1268,6 @@ a:hover {
   margin-bottom: 0.5rem;
 }
 
-.release-changelog {
-  margin-top: 1rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--border);
-  font-size: 0.85rem;
-}
-
 /* =============================================
    Show all releases
    ============================================= */
