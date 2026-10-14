@@ -1,0 +1,9 @@
+# Copyright IBM Corp. 2016, 2026
+# SPDX-License-Identifier: MIT
+
+version: "2"
+linters:
+  enable:
+    - errcheck
+    - modernize
+    - staticcheck

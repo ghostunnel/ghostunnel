@@ -1,3 +1,6 @@
+// Copyright IBM Corp. 2016, 2026
+// SPDX-License-Identifier: MIT
+
 // +build windows plan9 nacl
 
 package gsyslog

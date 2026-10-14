@@ -1,4 +1,7 @@
-// +build linux darwin dragonfly freebsd netbsd openbsd solaris
+// Copyright IBM Corp. 2016, 2026
+// SPDX-License-Identifier: MIT
+
+//go:build linux || darwin || dragonfly || freebsd || netbsd || openbsd || solaris || aix
 
 package gsyslog
 
@@ -67,7 +70,7 @@ func (b *builtinLogger) WriteLevel(p Priority, buf []byte) error {
 	case LOG_DEBUG:
 		_, err = b.writeAndRetry(syslog.LOG_DEBUG, m)
 	default:
-		err = fmt.Errorf("Unknown priority: %v", p)
+		err = fmt.Errorf("Unknown priority: %v", p) //nolint: staticcheck
 	}
 	return err
 }

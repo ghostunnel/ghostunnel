@@ -63,6 +63,8 @@ object types:
     error:
       message: 'OBJECT InvalidObject2: must define one or more fields.'
       locations: [{line: 6, column: 6}]
+      as:
+        - 'github.com/vektah/gqlparser/v2/validator.EmptyDefinitionError'
   - name: check reserved names on type name
     input: |
       type __FooBar {
@@ -160,6 +162,8 @@ interfaces:
     error:
       message: 'INTERFACE InvalidInterface2: must define one or more fields.'
       locations: [{line: 6, column: 11}]
+      as:
+        - 'github.com/vektah/gqlparser/v2/validator.EmptyDefinitionError'
 
   - name: check reserved names on type name
     input: |
@@ -352,6 +356,8 @@ inputs:
     error:
       message: 'INPUT_OBJECT InvalidInput2: must define one or more input fields.'
       locations: [{line: 6, column: 7}]
+      as:
+        - 'github.com/vektah/gqlparser/v2/validator.EmptyDefinitionError'
   - name: check reserved names on type name
     input: |
       input __FooBar {
@@ -385,6 +391,116 @@ inputs:
     error:
       message: 'UNION a: field must be one of SCALAR, ENUM, INPUT_OBJECT.'
       locations: [{line: 3, column: 13}]
+
+  - name: cannot reference itself through a non-null field
+    input: |
+      input T {
+        self: T!
+      }
+    error:
+      message: 'Cannot reference Input Object "T" within itself through a series of non-null fields: "self".'
+      locations: [{line: 2, column: 3}]
+
+  - name: cannot reference itself through a chain of non-null fields
+    input: |
+      input A {
+        startLoop: B!
+      }
+      input B {
+        nextInLoop: C!
+      }
+      input C {
+        closeLoop: A!
+      }
+    error:
+      message: 'Cannot reference Input Object "A" within itself through a series of non-null fields: "startLoop.nextInLoop.closeLoop".'
+      locations: [{line: 2, column: 3}]
+
+  - name: cannot reference itself through a non-null field added by an extension
+    input: |
+      input T {
+        id: ID
+      }
+      extend input T {
+        self: T!
+      }
+    error:
+      message: 'Cannot reference Input Object "T" within itself through a series of non-null fields: "self".'
+      locations: [{line: 5, column: 3}]
+
+  - name: cannot reference itself through a non-null field on a nested cycle
+    input: |
+      input Outer {
+        inner: Inner!
+      }
+      input Inner {
+        self: Inner!
+      }
+    error:
+      message: 'Cannot reference Input Object "Inner" within itself through a series of non-null fields: "self".'
+      locations: [{line: 5, column: 3}]
+
+  - name: cannot reference itself when an earlier input object is cycle free
+    input: |
+      input Entry {
+        maybe: Loop
+      }
+      input Loop {
+        self: Loop!
+      }
+    error:
+      message: 'Cannot reference Input Object "Loop" within itself through a series of non-null fields: "self".'
+      locations: [{line: 5, column: 3}]
+
+  - name: can reference itself through a nullable field
+    input: |
+      input T {
+        self: T
+      }
+
+  - name: can reference itself through a list field
+    input: |
+      input T {
+        a: [T!]!
+        b: [T]!
+        c: [T!]
+        d: [T]
+        e: [[T!]!]!
+      }
+
+  - name: can reference itself when the chain is broken by a list
+    input: |
+      input A {
+        startLoop: B!
+      }
+      input B {
+        loopBack: [A!]!
+      }
+
+  - name: can reference itself when the chain is broken by a nullable field
+    input: |
+      input A {
+        startLoop: B!
+      }
+      input B {
+        nextInLoop: C
+      }
+      input C {
+        closeLoop: A!
+      }
+
+  - name: can reference the same input object twice without a cycle
+    input: |
+      input A {
+        b: B!
+        c: C!
+      }
+      input B {
+        c: C!
+      }
+      input C {
+        id: ID!
+      }
 
 args:
   - name: Valid arg types
@@ -425,6 +541,31 @@ args:
       message: 'cannot use Interface as argument a because INTERFACE is not a valid input type'
       locations: [{line: 2, column: 16}]
 
+  - name: cannot be duplicated on an object field
+    input: |
+      type Query {
+        f(id: ID, name: String, id: String): Boolean
+      }
+    error:
+      message: 'Argument Query.f(id:) can only be defined once.'
+      locations: [{line: 2, column: 27}]
+
+  - name: cannot be duplicated on an interface field
+    input: |
+      interface Node {
+        f(id: ID, id: ID): Boolean
+      }
+    error:
+      message: 'Argument Node.f(id:) can only be defined once.'
+      locations: [{line: 2, column: 13}]
+
+  - name: same name can be used on different fields
+    input: |
+      type Query {
+        a(id: ID): Boolean
+        b(id: ID): Boolean
+      }
+
 enums:
   - name: must define one or more unique enum values
     input: |
@@ -445,6 +586,8 @@ enums:
     error:
       message: 'ENUM InvalidEnum2: must define one or more unique enum values.'
       locations: [{line: 6, column: 6}]
+      as:
+        - 'github.com/vektah/gqlparser/v2/validator.EmptyDefinitionError'
   - name: cannot be duplicated enum value at same definition
     input: |
       enum A {
@@ -702,6 +845,18 @@ directives:
     error:
       message: 'cannot use Interface as argument a because INTERFACE is not a valid input type'
       locations: [{line: 2, column: 14}]
+
+  - name: arguments cannot be duplicated
+    input: |
+      directive @A(id: ID, id: String) on FIELD_DEFINITION
+    error:
+      message: 'Argument @A(id:) can only be defined once.'
+      locations: [{line: 1, column: 22}]
+
+  - name: same argument name can be used on different directives
+    input: |
+      directive @A(id: ID) on FIELD_DEFINITION
+      directive @B(id: ID) on FIELD_DEFINITION
 
   - name: Invalid location usage not allowed
     input: |

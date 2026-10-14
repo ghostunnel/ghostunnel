@@ -1,3 +1,6 @@
+// Copyright IBM Corp. 2016, 2026
+// SPDX-License-Identifier: MIT
+
 package gsyslog
 
 // Priority maps to the syslog priority levels

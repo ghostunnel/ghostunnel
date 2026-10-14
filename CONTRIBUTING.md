@@ -68,6 +68,15 @@ The project uses golangci-lint with configuration in `.golangci.yml`:
 go tool mage go:lint
 ```
 
+golangci-lint is declared in a separate Go module under `tools/` (not in the
+main `go.mod`) so that its large dependency graph cannot conflict with
+ghostunnel's own dependencies. The lint target builds it from that module
+into `tools/bin/` and runs it from the repository root. To bump golangci-lint:
+
+```bash
+cd tools && go get -tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest && go mod tidy
+```
+
 ### Viewing Coverage
 
 ```bash
