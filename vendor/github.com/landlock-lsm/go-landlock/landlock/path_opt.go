@@ -10,7 +10,7 @@ import (
 type FSRule struct {
 	accessFS      AccessFSSet
 	paths         []string
-	enforceSubset bool // enforce that accessFS is a subset of cfg.handledAccessFS
+	enforceSubset bool // enforce that accessFS is a subset of cfg.HandledAccessFS
 	ignoreMissing bool // ignore missing paths
 }
 
@@ -91,14 +91,14 @@ func (r FSRule) compatibleWithConfig(c Config) bool {
 		// for the "refer" flag, which should still get checked though.
 		a = a.intersect(ll.AccessFSRefer)
 	}
-	return a.isSubset(c.handledAccessFS)
+	return a.isSubset(c.HandledAccessFS)
 }
 
 // downgrade calculates the actual ruleset to be enforced given the
 // current config (and assuming that the config is going to work under
 // the running kernel).
 //
-// It establishes that rule.accessFS ⊆ c.handledAccessFS.
+// It establishes that rule.accessFS ⊆ c.HandledAccessFS.
 //
 // If ok is false, downgrade is impossible and we need to fall back to doing nothing.
 func (r FSRule) downgrade(c Config) (out Rule, ok bool) {
@@ -106,10 +106,10 @@ func (r FSRule) downgrade(c Config) (out Rule, ok bool) {
 	// require Landlock V2+, or we have to downgrade to V0.
 	// You can't get the refer capability with V1, but linking/
 	// renaming files is always implicitly restricted.
-	if hasRefer(r.accessFS) && !hasRefer(c.handledAccessFS) {
+	if hasRefer(r.accessFS) && !hasRefer(c.HandledAccessFS) {
 		return FSRule{}, false
 	}
-	return r.intersectRights(c.handledAccessFS), true
+	return r.intersectRights(c.HandledAccessFS), true
 }
 
 func hasRefer(a AccessFSSet) bool {
@@ -207,4 +207,69 @@ func RWFiles(paths ...string) FSRule {
 		paths:         paths,
 		enforceSubset: false,
 	}
+}
+
+// QuietFSRule is a Rule which marks file hierarchies as "quiet", so
+// that denials below them are kept out of the audit log.
+//
+// Unlike [FSRule], it does not grant any access rights, and it can not
+// be combined with access rights.
+type QuietFSRule struct {
+	paths         []string
+	ignoreMissing bool
+}
+
+// QuietPaths is a [Rule] which marks the file hierarchies under the
+// given paths as "quiet": Denials below these paths are kept out of
+// the audit log.
+//
+// QuietPaths does not grant any access rights, and it only has an
+// effect in combination with [Config.QuietAll].  Using it without
+// [Config.QuietAll] is an error.
+//
+// Quieting only affects audit logging.  The affected accesses are
+// still denied.
+//
+// This rule is available since Landlock V10.
+func QuietPaths(paths ...string) QuietFSRule {
+	return QuietFSRule{paths: paths}
+}
+
+// IgnoreIfMissing gracefully ignores missing paths.
+//
+// It works like [FSRule.IgnoreIfMissing].
+func (r QuietFSRule) IgnoreIfMissing() QuietFSRule {
+	r.ignoreMissing = true
+	return r
+}
+
+func (r QuietFSRule) String() string {
+	return fmt.Sprintf("QUIET for paths %v", r.paths)
+}
+
+// compatibleWithConfig returns true if the given rule is compatible
+// for use with the config c.
+func (r QuietFSRule) compatibleWithConfig(c Config) bool {
+	// Quieting needs to be enabled with Config.QuietAll().
+	return c.quietAll
+}
+
+// addRuleFlags returns the flags for the landlock_add_rule(2)
+// invocations which add this rule to a ruleset.
+//
+// It returns 0 if the ruleset has no quiet filesystem access rights:
+// The kernel rejects the quiet flag with EINVAL in that case, and the
+// rule needs to be left out instead.
+func (r QuietFSRule) addRuleFlags(c Config) int {
+	if c.quietAccessFS().isEmpty() {
+		return 0
+	}
+	return ll.FlagAddRuleQuiet
+}
+
+// downgrade returns the rule unchanged: A quiet rule has no access
+// rights to restrict.  If the Config does not support quieting, the
+// rule turns into a no-op when it is added to the ruleset.
+func (r QuietFSRule) downgrade(c Config) (out Rule, ok bool) {
+	return r, true
 }

@@ -18,7 +18,7 @@ import (
 // return a success.
 func maybeWorkaroundBug39(c Config, rules []Rule) []Rule {
 	const readDir = syscall.AccessFSReadDir
-	if c.handledAccessFS.intersect(readDir).isEmpty() {
+	if c.HandledAccessFS.intersect(readDir).isEmpty() {
 		return rules
 	}
 	path := fmt.Sprintf("/proc/%v/task", os.Getpid())

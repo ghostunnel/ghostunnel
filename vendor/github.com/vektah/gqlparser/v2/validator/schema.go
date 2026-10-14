@@ -189,6 +189,10 @@ func ValidateSchemaDocument(sd *SchemaDocument) (*Schema, error) {
 		return nil, err
 	}
 
+	if err := validateInputObjectCircularRefs(&schema); err != nil {
+		return nil, err
+	}
+
 	if err := validateDirectiveDefinitions(&schema); err != nil {
 		return nil, err
 	}
@@ -245,6 +249,75 @@ func validateTypeDefinitions(schema *Schema) *gqlerror.Error {
 	return nil
 }
 
+// validateInputObjectCircularRefs rejects input object cycles of non-null fields.
+// https://spec.graphql.org/October2021/#sec-Input-Objects.Circular-References
+func validateInputObjectCircularRefs(schema *Schema) *gqlerror.Error {
+	types := make([]string, 0, len(schema.Types))
+	for typ := range schema.Types {
+		types = append(types, typ)
+	}
+	sort.Strings(types)
+
+	// A type still on fieldPath means a cycle. A visited type was already checked.
+	visited := make(map[string]bool, len(schema.Types))
+	fieldPath := make([]*FieldDefinition, 0, len(schema.Types))
+	fieldPathIndexByTypeName := make(map[string]int, len(schema.Types))
+
+	var detectCycle func(def *Definition) *gqlerror.Error
+	detectCycle = func(def *Definition) *gqlerror.Error {
+		if visited[def.Name] {
+			return nil
+		}
+		visited[def.Name] = true
+		fieldPathIndexByTypeName[def.Name] = len(fieldPath)
+
+		for _, field := range def.Fields {
+			// A nullable field or any list breaks the chain.
+			if !field.Type.NonNull || field.Type.NamedType == "" {
+				continue
+			}
+			fieldType := schema.Types[field.Type.NamedType]
+			if fieldType == nil || fieldType.Kind != InputObject {
+				continue
+			}
+
+			fieldPath = append(fieldPath, field)
+			if cycleIndex, ok := fieldPathIndexByTypeName[fieldType.Name]; ok {
+				cyclePath := fieldPath[cycleIndex:]
+				fieldNames := make([]string, len(cyclePath))
+				for i, cycleField := range cyclePath {
+					fieldNames[i] = cycleField.Name
+				}
+				return gqlerror.ErrorPosf(
+					cyclePath[0].Position,
+					"Cannot reference Input Object %s within itself through "+
+						"a series of non-null fields: %s.",
+					strconv.Quote(fieldType.Name),
+					strconv.Quote(strings.Join(fieldNames, ".")),
+				)
+			}
+			if err := detectCycle(fieldType); err != nil {
+				return err
+			}
+			fieldPath = fieldPath[:len(fieldPath)-1]
+		}
+
+		delete(fieldPathIndexByTypeName, def.Name)
+		return nil
+	}
+
+	for _, typ := range types {
+		def := schema.Types[typ]
+		if def.Kind != InputObject {
+			continue
+		}
+		if err := detectCycle(def); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func validateDirectiveDefinitions(schema *Schema) *gqlerror.Error {
 	directives := make([]string, 0, len(schema.Directives))
 	for directive := range schema.Directives {
@@ -265,6 +338,14 @@ func validateDirective(schema *Schema, def *DirectiveDefinition) *gqlerror.Error
 		// now, GraphQL spec doesn't have reserved directive name
 		return err
 	}
+	if dup := duplicateArg(def.Arguments); dup != nil {
+		return gqlerror.ErrorPosf(
+			dup.Position,
+			"Argument @%s(%s:) can only be defined once.",
+			def.Name,
+			dup.Name,
+		)
+	}
 
 	return validateArgs(schema, def.Arguments, def)
 }
@@ -277,6 +358,15 @@ func validateDefinition(schema *Schema, def *Definition) *gqlerror.Error {
 		}
 		if err := validateTypeRef(schema, field.Type); err != nil {
 			return err
+		}
+		if dup := duplicateArg(field.Arguments); dup != nil {
+			return gqlerror.ErrorPosf(
+				dup.Position,
+				"Argument %s.%s(%s:) can only be defined once.",
+				def.Name,
+				field.Name,
+				dup.Name,
+			)
 		}
 		if err := validateArgs(schema, field.Arguments, nil); err != nil {
 			return err
@@ -321,11 +411,11 @@ func validateDefinition(schema *Schema, def *Definition) *gqlerror.Error {
 	switch def.Kind {
 	case Object, Interface:
 		if len(def.Fields) == 0 {
-			return gqlerror.ErrorPosf(
+			return gqlerror.WrapPos(
 				def.Position,
-				"%s %s: must define one or more fields.",
-				def.Kind,
-				def.Name,
+				&EmptyDefinitionError{
+					Definition: def,
+				},
 			)
 		}
 		for _, field := range def.Fields {
@@ -343,11 +433,11 @@ func validateDefinition(schema *Schema, def *Definition) *gqlerror.Error {
 		}
 	case Enum:
 		if len(def.EnumValues) == 0 {
-			return gqlerror.ErrorPosf(
+			return gqlerror.WrapPos(
 				def.Position,
-				"%s %s: must define one or more unique enum values.",
-				def.Kind,
-				def.Name,
+				&EmptyDefinitionError{
+					Definition: def,
+				},
 			)
 		}
 		for _, value := range def.EnumValues {
@@ -374,11 +464,11 @@ func validateDefinition(schema *Schema, def *Definition) *gqlerror.Error {
 		}
 	case InputObject:
 		if len(def.Fields) == 0 {
-			return gqlerror.ErrorPosf(
+			return gqlerror.WrapPos(
 				def.Position,
-				"%s %s: must define one or more input fields.",
-				def.Kind,
-				def.Name,
+				&EmptyDefinitionError{
+					Definition: def,
+				},
 			)
 		}
 		for _, field := range def.Fields {
@@ -461,6 +551,20 @@ func validateDefinition(schema *Schema, def *Definition) *gqlerror.Error {
 func validateTypeRef(schema *Schema, typ *Type) *gqlerror.Error {
 	if schema.Types[typ.Name()] == nil {
 		return gqlerror.ErrorPosf(typ.Position, "Undefined type %s.", typ.Name())
+	}
+	return nil
+}
+
+// duplicateArg returns the first argument whose name repeats an earlier one in
+// args, or nil if every name is unique. Callers build the error message only on
+// a hit, so the common no-duplicate path does not allocate.
+func duplicateArg(args ArgumentDefinitionList) *ArgumentDefinition {
+	for idx, arg1 := range args {
+		for _, arg2 := range args[idx+1:] {
+			if arg1.Name == arg2.Name {
+				return arg2
+			}
+		}
 	}
 	return nil
 }

@@ -1,8 +1,11 @@
+// Copyright IBM Corp. 2016, 2026
+// SPDX-License-Identifier: MIT
+
 // This file is taken from the log/syslog in the standard lib.
 // However, there is a bug with overwhelming syslog that causes writes
 // to block indefinitely. This is fixed by adding a write deadline.
 //
-// +build !windows,!nacl,!plan9
+//go:build !windows && !nacl && !plan9
 
 package gsyslog
 
@@ -95,7 +98,7 @@ func dialBuiltin(network, raddr string, priority syslog.Priority, tag string) (*
 func (w *builtinWriter) connect() (err error) {
 	if w.conn != nil {
 		// ignore err from close, it makes sense to continue anyway
-		w.conn.close()
+		_ = w.conn.close()
 		w.conn = nil
 	}
 
@@ -177,14 +180,18 @@ func (n *netConn) writeString(p syslog.Priority, hostname, tag, msg, nl string) 
 		//	1. Use time.Stamp instead of time.RFC3339.
 		//	2. Drop the hostname field from the Fprintf.
 		timestamp := time.Now().Format(time.Stamp)
-		n.conn.SetWriteDeadline(time.Now().Add(localDeadline))
+		if err := n.conn.SetWriteDeadline(time.Now().Add(localDeadline)); err != nil {
+			return fmt.Errorf("failed to set write deadline: %w", err)
+		}
 		_, err := fmt.Fprintf(n.conn, "<%d>%s %s[%d]: %s%s",
 			p, timestamp,
 			tag, os.Getpid(), msg, nl)
 		return err
 	}
 	timestamp := time.Now().Format(time.RFC3339)
-	n.conn.SetWriteDeadline(time.Now().Add(remoteDeadline))
+	if err := n.conn.SetWriteDeadline(time.Now().Add(remoteDeadline)); err != nil {
+		return fmt.Errorf("failed to set write deadline: %w", err)
+	}
 	_, err := fmt.Fprintf(n.conn, "<%d>%s %s %s[%d]: %s%s",
 		p, timestamp, hostname,
 		tag, os.Getpid(), msg, nl)
@@ -210,5 +217,5 @@ func unixSyslog() (conn serverConn, err error) {
 			}
 		}
 	}
-	return nil, errors.New("Unix syslog delivery error")
+	return nil, errors.New("Unix syslog delivery error") //nolint: staticcheck
 }
