@@ -1,25 +1,40 @@
 {{- /*
   Renders the static "Downloads" bar for a featured release.
 
-  Context: the release page (uses .Title for the release tag and
-  hugo.Data.binaries for the binary matrix).
+  Context: the release page (uses .Title for the release tag,
+  .Params.prerelease to decide whether to link container images, and
+  hugo.Data.binaries for the asset matrix).
 
   Entries in data/binaries.yaml are ordered oldest-first, and each entry
-  applies from its "from" version onward. Featured releases are always
-  the newest, so the last entry's asset list applies here.
+  applies from its "from" version onward, so the last entry whose "from" is
+  not newer than this release is the one that applies.
 
-  Note: intentionally no data-tag attribute — static/js/release-downloads.js
-  only rewrites ".release-downloads[data-tag]" containers.
+  SBOMs get a single, deliberately quiet link to the GitHub release they are
+  attached to, so they never compete with the binaries for attention.
 */ -}}
-{{- $binaries := hugo.Data.binaries -}}
-{{- $latest := index $binaries (sub (len $binaries) 1) -}}
+{{- $tag := .Title -}}
+{{- $key := partial "version-key.html" $tag -}}
+{{- $entry := dict -}}
+{{- range hugo.Data.binaries -}}
+  {{- if le (partial "version-key.html" .from) $key -}}
+    {{- $entry = . -}}
+  {{- end -}}
+{{- end -}}
+{{- with $entry -}}
 <div class="release-downloads">
   <div class="download-bar">
     <span class="download-label">Downloads</span>
     <span class="download-items">
-      {{- range $latest.assets }}
-      <a class="download-link" href="https://github.com/ghostunnel/ghostunnel/releases/download/{{ $.Title }}/{{ .file }}"><span class="download-os">{{ .os }}</span> <span class="download-arch">{{ .arch }}</span></a>
+      {{- range .assets }}
+      <a class="download-link" href="https://github.com/ghostunnel/ghostunnel/releases/download/{{ $tag }}/{{ .file }}"><span class="download-os">{{ .os }}</span> <span class="download-arch">{{ .arch }}</span></a>
+      {{- end }}
+      {{- if not $.Params.prerelease }}
+      <a class="download-link" href="https://hub.docker.com/r/ghostunnel/ghostunnel/tags?name={{ $tag }}">{{ partial "icon-docker.html" }} <span class="download-os">Container</span> <span class="download-arch">Docker Hub</span></a>
       {{- end }}
     </span>
+    {{- if .sbom }}
+    <a class="download-sbom" href="https://github.com/ghostunnel/ghostunnel/releases/tag/{{ $tag }}" title="SPDX and CycloneDX SBOMs for each binary are attached to the GitHub release">SBOMs</a>
+    {{- end }}
   </div>
 </div>
+{{- end }}

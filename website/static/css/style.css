@@ -1351,11 +1351,31 @@ a:hover {
   color: var(--text-muted);
 }
 
+/* Quiet pointer to the SBOMs on the GitHub release, kept out of the way of
+   the binaries by sitting at the far end of the bar. */
+.download-sbom {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  text-decoration: underline dotted;
+  text-underline-offset: 0.2em;
+}
+
+.download-sbom:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
 @media (max-width: 600px) {
   .download-bar {
     flex-direction: column;
     align-items: flex-start;
     gap: 0.4rem;
+  }
+
+  .download-sbom {
+    margin-left: 0;
   }
 }
 
