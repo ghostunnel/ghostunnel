@@ -13,14 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-jose/go-jose/v4"
-	"github.com/go-jose/go-jose/v4/cryptosigner"
-	"github.com/go-jose/go-jose/v4/jwt"
-	"github.com/spiffe/go-spiffe/v2/bundle/jwtbundle"
-	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/stretchr/testify/require"
 )
@@ -35,8 +29,6 @@ type CA struct {
 	parent *CA
 	cert   *x509.Certificate
 	key    crypto.Signer
-	jwtKey crypto.Signer
-	jwtKid string
 }
 
 type CertificateOption interface {
@@ -52,24 +44,10 @@ func (co certificateOption) apply(c *x509.Certificate) {
 func NewCA(tb testing.TB, td spiffeid.TrustDomain) *CA {
 	cert, key := CreateCACertificate(tb, nil, nil)
 	return &CA{
-		tb:     tb,
-		td:     td,
-		cert:   cert,
-		key:    key,
-		jwtKey: NewEC256Key(tb),
-		jwtKid: NewKeyID(tb),
-	}
-}
-
-func (ca *CA) ChildCA(options ...CertificateOption) *CA {
-	cert, key := CreateCACertificate(ca.tb, ca.cert, ca.key, options...)
-	return &CA{
-		tb:     ca.tb,
-		parent: ca,
-		cert:   cert,
-		key:    key,
-		jwtKey: NewEC256Key(ca.tb),
-		jwtKid: NewKeyID(ca.tb),
+		tb:   tb,
+		td:   td,
+		cert: cert,
+		key:  key,
 	}
 }
 
@@ -82,40 +60,6 @@ func (ca *CA) CreateX509SVID(id spiffeid.ID, options ...CertificateOption) *x509
 	}
 }
 
-func (ca *CA) CreateX509Certificate(options ...CertificateOption) ([]*x509.Certificate, crypto.Signer) {
-	cert, key := CreateX509Certificate(ca.tb, ca.cert, ca.key, options...)
-	return append([]*x509.Certificate{cert}, ca.chain(false)...), key
-}
-
-func (ca *CA) CreateJWTSVID(id spiffeid.ID, audience []string) *jwtsvid.SVID {
-	claims := jwt.Claims{
-		Subject:  id.String(),
-		Issuer:   "FAKECA",
-		Audience: audience,
-		IssuedAt: jwt.NewNumericDate(time.Now()),
-		Expiry:   jwt.NewNumericDate(time.Now().Add(time.Hour)),
-	}
-
-	jwtSigner, err := jose.NewSigner(
-		jose.SigningKey{
-			Algorithm: jose.ES256,
-			Key: jose.JSONWebKey{
-				Key:   cryptosigner.Opaque(ca.jwtKey),
-				KeyID: ca.jwtKid,
-			},
-		},
-		new(jose.SignerOptions).WithType("JWT"),
-	)
-	require.NoError(ca.tb, err)
-
-	signedToken, err := jwt.Signed(jwtSigner).Claims(claims).Serialize()
-	require.NoError(ca.tb, err)
-
-	svid, err := jwtsvid.ParseInsecure(signedToken, audience)
-	require.NoError(ca.tb, err)
-	return svid
-}
-
 func (ca *CA) X509Authorities() []*x509.Certificate {
 	root := ca
 	for root.parent != nil {
@@ -124,25 +68,8 @@ func (ca *CA) X509Authorities() []*x509.Certificate {
 	return []*x509.Certificate{root.cert}
 }
 
-func (ca *CA) JWTAuthorities() map[string]crypto.PublicKey {
-	return map[string]crypto.PublicKey{
-		ca.jwtKid: ca.jwtKey.Public(),
-	}
-}
-
-func (ca *CA) Bundle() *spiffebundle.Bundle {
-	bundle := spiffebundle.New(ca.td)
-	bundle.SetX509Authorities(ca.X509Authorities())
-	bundle.SetJWTAuthorities(ca.JWTAuthorities())
-	return bundle
-}
-
 func (ca *CA) X509Bundle() *x509bundle.Bundle {
 	return x509bundle.FromX509Authorities(ca.td, ca.X509Authorities())
-}
-
-func (ca *CA) JWTBundle() *jwtbundle.Bundle {
-	return jwtbundle.FromJWTAuthorities(ca.td, ca.JWTAuthorities())
 }
 
 func CreateCACertificate(tb testing.TB, parent *x509.Certificate, parentKey crypto.Signer, options ...CertificateOption) (*x509.Certificate, crypto.Signer) {
@@ -238,13 +165,6 @@ func WithSerial(serial *big.Int) CertificateOption {
 func WithKeyUsage(keyUsage x509.KeyUsage) CertificateOption {
 	return certificateOption(func(c *x509.Certificate) {
 		c.KeyUsage = keyUsage
-	})
-}
-
-func WithLifetime(notBefore, notAfter time.Time) CertificateOption {
-	return certificateOption(func(c *x509.Certificate) {
-		c.NotBefore = notBefore
-		c.NotAfter = notAfter
 	})
 }
 

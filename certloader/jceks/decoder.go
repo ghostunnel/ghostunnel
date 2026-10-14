@@ -82,14 +82,6 @@ type parseOption interface {
 	applyParseOption(cfg *parseConfig) error
 }
 
-type simpleParseOptionFunc func(cfg *parseConfig)
-
-func (f simpleParseOptionFunc) applyParseOption(cfg *parseConfig) error {
-	f(cfg)
-
-	return nil
-}
-
 func makeParseConfig(opts ...parseOption) (*parseConfig, error) {
 	var cfg parseConfig
 	for _, opt := range opts {
@@ -107,18 +99,6 @@ func makeParseConfig(opts ...parseOption) (*parseConfig, error) {
 	}
 
 	return &cfg, nil
-}
-
-func withMaxCertificateBytes(maxBytes uint) parseOption {
-	return simpleParseOptionFunc(func(cfg *parseConfig) {
-		cfg.maxCertBytes = maxBytes
-	})
-}
-
-func withMaxPrivateKeyBytes(maxBytes uint) parseOption {
-	return simpleParseOptionFunc(func(cfg *parseConfig) {
-		cfg.maxPrivateKeyBytes = maxBytes
-	})
 }
 
 // Parse parses the key store from the specified reader using default settings.
