@@ -79,6 +79,19 @@ func buildCertificate(keystorePath, certPath, keyPath, keystorePass, caBundlePat
 	return certloader.NoCertificate(caBundlePath)
 }
 
+// Build reloadable certificate for proxy authentication
+func buildProxyCertificate(keystorePath, certPath, keyPath, keystorePass, caBundlePath string, logger *log.Logger) (certloader.Certificate, error) {
+	if keyPath != "" && certPath != "" {
+		logger.Printf("using cert/key files on disk as proxy certificate source")
+		return certloader.CertificateFromPEMFiles(certPath, keyPath, caBundlePath)
+	}
+	if keystorePath != "" {
+		logger.Printf("using keystore file on disk as proxy certificate source")
+		return certloader.CertificateFromKeystore(keystorePath, keystorePass, caBundlePath)
+	}
+	return nil, nil
+}
+
 func buildCertificateFromPKCS11(certificatePath, caBundlePath string, logger *log.Logger) (certloader.Certificate, error) {
 	return certloader.CertificateFromPKCS11Module(certificatePath, caBundlePath, *pkcs11Module, *pkcs11TokenLabel, *pkcs11PIN, logger)
 }

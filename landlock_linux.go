@@ -171,6 +171,9 @@ func setupLandlock() error {
 		certPath,
 		keyPath,
 		caBundlePath,
+		clientProxyKeystorePath,
+		clientProxyCertPath,
+		clientProxyKeyPath,
 	} {
 		if path == nil || len(*path) == 0 {
 			continue

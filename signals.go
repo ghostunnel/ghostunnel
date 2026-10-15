@@ -117,6 +117,11 @@ func (env *Environment) reload() {
 	if err := env.tlsConfigSource.Reload(); err != nil {
 		logger.Printf("error reloading TLS configuration: %s", err)
 	}
+	if env.proxyTLSConfigSource != nil {
+		if err := env.proxyTLSConfigSource.Reload(); err != nil {
+			logger.Printf("error reloading proxy TLS configuration: %s", err)
+		}
+	}
 	if env.regoPolicy != nil {
 		if err := env.regoPolicy.Reload(); err != nil {
 			logger.Printf("error reloading OPA policy: %s", err)
