@@ -2,7 +2,7 @@
 title: Outbound Proxies
 description: Reach the target through an HTTP CONNECT, HTTPS CONNECT, or SOCKS5 proxy in client mode, including client certificate authentication to the proxy.
 weight: 20
-since: v1.11.4
+since: v1.12.0
 ---
 
 In client mode, Ghostunnel normally opens a direct TCP connection to
@@ -34,6 +34,11 @@ resolving `--target` on startup whenever `--proxy` is set, as if
 `--skip-resolve` were given. Hostname verification of the target still uses
 the hostname from `--target` (or `--override-server-name`).
 
+Credentials embedded in the proxy URL (`http://user:pass@proxy`) are only
+honored for SOCKS5 proxies. HTTP CONNECT proxies that require
+authentication must use client certificates over `https://` as described
+below.
+
 ## HTTPS Proxies
 
 With an `https://` proxy URL, Ghostunnel first performs a TLS handshake with
@@ -42,7 +47,15 @@ proxy's certificate is verified against `--proxy-cacert`, or against
 `--cacert` when `--proxy-cacert` is not set, using the hostname from the
 proxy URL. Set `--proxy-cacert` when the proxy and the target are issued by
 different CAs, for example a proxy with a publicly trusted certificate in
-front of a private PKI.
+front of a private PKI. If neither flag is set, which can be the case with
+SPIFFE or keychain credentials, the proxy is verified against the system
+trust store.
+
+Only the proxy's certificate chain and hostname are verified. The
+`--verify-*` flags, `--verify-policy`, and `--override-server-name` apply to
+the target at the other end of the tunnel, not to the proxy. A proxy that
+fails verification is never sent a `CONNECT` request, and the failure shows
+up as a backend error on the [status endpoint]({{< ref "metrics.md" >}}).
 
 ### Authenticating to the Proxy
 

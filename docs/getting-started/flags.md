@@ -188,12 +188,16 @@ for `systemd:NAME` and `launchd:NAME` addresses.
 |------|-------------|
 | `--unsafe-listen` | Do not limit listen to localhost, `127.0.0.1`, `[::1]`, or UNIX sockets. See [Security]({{< ref "general.md" >}}). |
 | `--override-server-name NAME` | Override the server name used for hostname verification. |
-| `--proxy URL` | Connect to target over given proxy (HTTP CONNECT, HTTPS CONNECT, or SOCKS5). Must be a proxy URL. See [Outbound Proxies]({{< ref "outbound-proxy.md" >}}). |
+| `--proxy URL` | Connect to target over given proxy (HTTP CONNECT or SOCKS5). Must be a proxy URL. |
 | `--disable-authentication` | Disable client authentication, no certificate will be provided to the server. |
 
+{{% since "v1.12.0" %}}
 ### Proxy TLS
 
-Only used with an `https://` proxy URL. See [Outbound Proxies]({{< ref "outbound-proxy.md" >}}).
+`--proxy` also accepts `https://` URLs, for HTTP CONNECT proxies reached
+over TLS. These flags configure that TLS connection and are only used with
+an `https://` proxy URL. See
+[Outbound Proxies](../../networking/outbound-proxy/).
 
 | Flag | Description |
 |------|-------------|
@@ -202,6 +206,7 @@ Only used with an `https://` proxy URL. See [Outbound Proxies]({{< ref "outbound
 | `--proxy-key PATH` | Path to private key for the proxy client certificate (PEM with private key). |
 | `--proxy-storepass PASS` | Password for proxy keystore (PKCS#12 or JCEKS; optional for PKCS#12). |
 | `--proxy-cacert PATH` | Path to CA bundle file (PEM/X509) for verifying the proxy. Uses `--cacert` by default. |
+{{% /since %}}
 
 ### Server Verification
 
@@ -261,12 +266,20 @@ Several flags can also be set via environment variables.
 | `KEY_PATH` | `--key` |
 | `KEYSTORE_PASS` | `--storepass` |
 | `CACERT_PATH` | `--cacert` |
+| `SPIFFE_ENDPOINT_SOCKET` | `--use-workload-api-addr` |
+| `PKCS11_MODULE` | `--pkcs11-module` |
+| `PKCS11_TOKEN_LABEL` | `--pkcs11-token-label` |
+| `PKCS11_PIN` | `--pkcs11-pin` |
+
+{{% since "v1.12.0" %}}
+The [proxy TLS flags](#proxy-tls) for an `https://` proxy can also be set
+via environment variables:
+
+| Variable | Flag |
+|----------|------|
 | `PROXY_KEYSTORE_PATH` | `--proxy-keystore` |
 | `PROXY_CERT_PATH` | `--proxy-cert` |
 | `PROXY_KEY_PATH` | `--proxy-key` |
 | `PROXY_KEYSTORE_PASS` | `--proxy-storepass` |
 | `PROXY_CACERT_PATH` | `--proxy-cacert` |
-| `SPIFFE_ENDPOINT_SOCKET` | `--use-workload-api-addr` |
-| `PKCS11_MODULE` | `--pkcs11-module` |
-| `PKCS11_TOKEN_LABEL` | `--pkcs11-token-label` |
-| `PKCS11_PIN` | `--pkcs11-pin` |
+{{% /since %}}

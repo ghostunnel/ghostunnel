@@ -46,8 +46,8 @@ Linux, Landlock sandboxing is enabled by default to limit process privileges.
 and Prometheus metrics endpoints, plus optional pprof profiling.
 
 Ghostunnel also supports UNIX domain sockets, PROXY protocol v2, outbound
-HTTP CONNECT and SOCKS5 proxies, systemd/launchd socket activation, Windows
-service management (SCM), and more.
+HTTP/HTTPS CONNECT and SOCKS5 proxies, systemd/launchd socket activation,
+Windows service management (SCM), and more.
 
 Getting Started
 ===============
