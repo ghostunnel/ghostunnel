@@ -17,9 +17,16 @@
 package main
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/base64"
+	"encoding/pem"
 	"errors"
+	"math/big"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -2175,17 +2182,41 @@ func TestClientBackendDialerWithHTTPSProxy(t *testing.T) {
 	assert.Nil(t, proxySource)
 }
 
+// writeSelfSignedPEM generates a self-signed certificate with the given
+// common name and writes it and its private key to temporary PEM files.
+func writeSelfSignedPEM(t *testing.T, cn string) (certFile, keyFile string) {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	assert.NoError(t, err)
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: cn},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+	}
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	assert.NoError(t, err)
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	assert.NoError(t, err)
+	certFile = writeTempFile(t, "test-cert-*.pem", pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}))
+	keyFile = writeTempFile(t, "test-key-*.pem", pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}))
+	return certFile, keyFile
+}
+
 func TestEnvironmentReloadProxyTLSConfigSource(t *testing.T) {
 	caFile := writeTempFile(t, "test-ca-*.pem", []byte(testCertificate))
-	certFile := writeTempFile(t, "test-cert-*.pem", []byte(testKeystoreCertOnly))
-	keyFile := writeTempFile(t, "test-key-*.pem", []byte(testKeystoreKeyPath))
+	mainCertFile := writeTempFile(t, "test-cert-*.pem", []byte(testKeystoreCertOnly))
+	mainKeyFile := writeTempFile(t, "test-key-*.pem", []byte(testKeystoreKeyPath))
 
-	mainCert, err := certloader.CertificateFromPEMFiles(certFile, keyFile, caFile)
+	mainCert, err := certloader.CertificateFromPEMFiles(mainCertFile, mainKeyFile, caFile)
 	assert.NoError(t, err)
 	mainSource := certloader.TLSConfigSourceFromCertificate(mainCert, logger)
 
-	proxyCert, err := certloader.CertificateFromPEMFiles(certFile, keyFile, caFile)
+	proxyCertFile, proxyKeyFile := writeSelfSignedPEM(t, "proxy-client-1")
+	proxyCert, err := certloader.CertificateFromPEMFiles(proxyCertFile, proxyKeyFile, caFile)
 	assert.NoError(t, err)
+	assert.Equal(t, "CN=proxy-client-1", proxyCert.GetIdentifier())
 	proxySource := certloader.TLSConfigSourceFromCertificate(proxyCert, logger)
 
 	status := newStatusHandler(nil, "client", "localhost:8080", "localhost:8443", "")
@@ -2195,7 +2226,22 @@ func TestEnvironmentReloadProxyTLSConfigSource(t *testing.T) {
 		proxyTLSConfigSource: proxySource,
 	}
 
-	// reload() should reload both main and proxy TLS config sources without error
+	// Replace the proxy credential on disk: reload() must pick it up.
+	newCertFile, newKeyFile := writeSelfSignedPEM(t, "proxy-client-2")
+	for _, f := range [][2]string{{newCertFile, proxyCertFile}, {newKeyFile, proxyKeyFile}} {
+		content, err := os.ReadFile(f[0])
+		assert.NoError(t, err)
+		assert.NoError(t, os.WriteFile(f[1], content, 0600))
+	}
 	env.reload()
-	assert.Equal(t, "CN=fluent-bit-forward-ca,O=cert-manager", proxyCert.GetIdentifier())
+	assert.Equal(t, "CN=proxy-client-2", proxyCert.GetIdentifier())
+	assert.Equal(t, "CN=fluent-bit-forward-ca,O=cert-manager", mainCert.GetIdentifier())
+
+	// A broken proxy credential on disk must not replace the loaded one, and
+	// must not prevent the rest of the reload from completing.
+	assert.NoError(t, os.WriteFile(proxyCertFile, []byte("not a certificate"), 0600))
+	env.reload()
+	assert.Equal(t, "CN=proxy-client-2", proxyCert.GetIdentifier())
+	assert.True(t, status.listening, "status should be back to listening after reload")
+	assert.False(t, status.reloading, "status should not be stuck in reloading")
 }
