@@ -117,8 +117,14 @@ type generationBoundConfig struct {
 }
 
 func (c *generationBoundTLSConfig) GetServerConfig() *tls.Config {
-	inner := c.inner.GetServerConfig()
+	// Read the generation before the inner config. A reload swaps the inner
+	// config before it advances the generation, so in this order a reload
+	// landing between the two reads pairs the new config with the old
+	// generation, whose tickets stop resuming once the advance lands. The
+	// other order could pair the old config with the new generation and mint
+	// tickets that stay resumable after the reload.
 	generation := c.gen.Current()
+	inner := c.inner.GetServerConfig()
 	if cached := c.cached.Load(); cached != nil && cached.inner == inner && cached.generation == generation {
 		return cached.config
 	}

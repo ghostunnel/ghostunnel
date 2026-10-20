@@ -18,6 +18,8 @@ package certloader
 
 import (
 	"crypto/tls"
+	"crypto/x509"
+	"net"
 	"sync/atomic"
 	"testing"
 
@@ -258,4 +260,81 @@ func TestSessionGenerationPreservesACMEChallengeHook(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Nil(t, normal, "a normal ClientHello must fall through to the wrapped config")
+}
+
+// reloadingServerConfig hands out its current config and then reloads, the
+// way serverListen's reload does: swap the config, then advance the
+// generation. It simulates a reload landing in the middle of
+// generationBoundTLSConfig.GetServerConfig.
+type reloadingServerConfig struct {
+	gen      *SessionGeneration
+	current  atomic.Pointer[tls.Config]
+	next     *tls.Config
+	reloaded atomic.Bool
+}
+
+func (r *reloadingServerConfig) GetServerConfig() *tls.Config {
+	config := r.current.Load()
+	if r.reloaded.CompareAndSwap(false, true) {
+		r.current.Store(r.next)
+		r.gen.Advance()
+	}
+	return config
+}
+
+// A reload that lands while the wrapper is building a config must not pair
+// the old config with the new generation: a handshake on that config would
+// mint a ticket that stays resumable after the reload, even though it was
+// issued under configuration the reload replaced. Ticket keys are shared, so
+// only the generation tag stands in the way.
+func TestSessionGenerationReloadDuringGetServerConfig(t *testing.T) {
+	ca := newTestCA(t, "Reload Race Test CA")
+	certPEM, keyPEM := ca.issue(t, "server", x509.ExtKeyUsageServerAuth)
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	require.NoError(t, err)
+
+	newConfig := func() *tls.Config {
+		config := &tls.Config{
+			MinVersion:   tls.VersionTLS12,
+			MaxVersion:   tls.VersionTLS12,
+			Certificates: []tls.Certificate{cert},
+		}
+		config.SetSessionTicketKeys([][32]byte{{'g', 'h', 'o', 's', 't'}})
+		return config
+	}
+
+	gen := &SessionGeneration{}
+	inner := &reloadingServerConfig{gen: gen, next: newConfig()}
+	inner.current.Store(newConfig())
+	wrapped := BindSessionsToGeneration(inner, gen)
+
+	// The reload happens during this call.
+	racing := wrapped.GetServerConfig()
+	require.EqualValues(t, 1, gen.Current(), "the reload should have advanced the generation")
+
+	// Complete a handshake on the config handed out during the reload and keep
+	// the ticket it issues. TLS 1.2 delivers the ticket during the handshake.
+	recorder := &ticketRecorder{ClientSessionCache: tls.NewLRUClientSessionCache(1)}
+	clientConn, serverConn := net.Pipe()
+	defer clientConn.Close()
+	defer serverConn.Close()
+	serverErr := make(chan error, 1)
+	go func() { serverErr <- tls.Server(serverConn, racing).Handshake() }()
+	client := tls.Client(clientConn, &tls.Config{
+		MinVersion:         tls.VersionTLS12,
+		MaxVersion:         tls.VersionTLS12,
+		InsecureSkipVerify: true,
+		ServerName:         "localhost",
+		ClientSessionCache: recorder,
+	})
+	require.NoError(t, client.Handshake())
+	require.NoError(t, <-serverErr)
+	ticket := recorder.last.Load()
+	require.NotNil(t, ticket, "expected to capture a session ticket")
+
+	// Once the reload is over, that ticket must not resume.
+	current := wrapped.GetServerConfig()
+	state, err := current.UnwrapSession(*ticket, tls.ConnectionState{})
+	require.NoError(t, err)
+	assert.Nil(t, state, "a ticket issued during a reload must not resume after it")
 }
