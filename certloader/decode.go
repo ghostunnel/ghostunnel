@@ -165,7 +165,7 @@ func readPKCS12Blocks(reader io.Reader, password string) ([]*pem.Block, error) {
 
 	privateKey, certificate, caCerts, err := pkcs12.DecodeChain(data, password)
 	if err != nil {
-		return nil, fmt.Errorf("unable to read keystore: %w", err)
+		return nil, fmt.Errorf("unable to parse keystore: %w", err)
 	}
 
 	var blocks []*pem.Block

@@ -136,12 +136,12 @@ func (ks *KeyStore) parseWithOptions(r io.Reader, password []byte, options ...pa
 
 	count, err := readInt32(r)
 	if err != nil {
-		return fmt.Errorf("%w: unable to read entry count", errInvalidJCEKSData)
+		return fmt.Errorf("%w: unable to read entry count: %w", errInvalidJCEKSData, err)
 	}
 	for i := range count {
 		tag, err := readUint32(r)
 		if err != nil {
-			return fmt.Errorf("%w: unable to read entry %d tag", errInvalidJCEKSData, i)
+			return fmt.Errorf("%w: unable to read entry %d tag: %w", errInvalidJCEKSData, i, err)
 		}
 		switch tag {
 		case privateKeyEntryTag:

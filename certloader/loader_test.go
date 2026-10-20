@@ -198,7 +198,7 @@ func TestReadX509ParseCertificateError(t *testing.T) {
 
 	_, err = readX509(tmp.Name())
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "unable to read file")
+	assert.Contains(t, err.Error(), "unable to parse certificate in")
 }
 
 func TestReadX509MultipleCerts(t *testing.T) {

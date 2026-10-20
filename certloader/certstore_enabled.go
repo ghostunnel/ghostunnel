@@ -184,7 +184,7 @@ func (c *certstoreCertificate) Reload() error {
 
 	bundle, err := LoadTrustStore(c.caBundlePath)
 	if err != nil {
-		return err
+		return fmt.Errorf("loading trust store: %w", err)
 	}
 
 	// Retain the chosen identity so the deferred cleanup does not close it.

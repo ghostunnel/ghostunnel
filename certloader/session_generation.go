@@ -89,9 +89,10 @@ func hasSessionGenerationTag(state *tls.SessionState, tag []byte) bool {
 // clone per connection.
 //
 // Do not clone the configs it returns. The session hooks installed on them
-// encrypt and decrypt tickets with the ticket keys of the config they were
-// built for, so a clone would keep minting tickets for the generation it was
-// cloned from.
+// close over the config they were built for, encrypting and decrypting tickets
+// with its ticket keys, and over the generation tag captured at build time. A
+// clone would carry the same hooks, so it would use the original's ticket keys
+// and stay bound to the original's generation after the wrapper moved on.
 func BindSessionsToGeneration(inner TLSServerConfig, gen *SessionGeneration) TLSServerConfig {
 	return &generationBoundTLSConfig{inner: inner, gen: gen}
 }

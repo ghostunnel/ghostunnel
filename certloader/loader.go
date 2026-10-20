@@ -65,7 +65,7 @@ func readX509(path string) ([]*x509.Certificate, error) {
 		}
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
-			return nil, fmt.Errorf("unable to read file %q: %w", path, err)
+			return nil, fmt.Errorf("unable to parse certificate in %q: %w", path, err)
 		}
 		out = append(out, cert)
 	}
@@ -77,6 +77,7 @@ func readX509(path string) ([]*x509.Certificate, error) {
 }
 
 // LoadTrustStore loads a CA bundle from the given path, or returns the system cert pool if empty.
+// Errors identify the path, so callers should not add it again.
 func LoadTrustStore(caBundlePath string) (*x509.CertPool, error) {
 	if caBundlePath == "" {
 		return x509.SystemCertPool()
@@ -90,7 +91,7 @@ func LoadTrustStore(caBundlePath string) (*x509.CertPool, error) {
 	bundle := x509.NewCertPool()
 	ok := bundle.AppendCertsFromPEM(caBundleBytes)
 	if !ok {
-		return nil, ErrNoCACerts
+		return nil, fmt.Errorf("%w %q", ErrNoCACerts, caBundlePath)
 	}
 
 	return bundle, nil

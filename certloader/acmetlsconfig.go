@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"log"
 	"sync/atomic"
 	"time"
@@ -78,8 +79,9 @@ type ACMEConfig struct {
 	AltTLSALPNPort int
 
 	// Logger is used for retry messages during initial certificate issuance.
-	// If nil, log.Default() is used so the message routes through the standard
-	// logger rather than escaping to stderr with wrong flags under --syslog.
+	// Callers should pass ghostunnel's logger so these messages honor
+	// --syslog and --quiet. If nil, log.Default() is used, which writes to
+	// stderr regardless of those flags.
 	Logger *log.Logger
 }
 
@@ -184,7 +186,7 @@ func newCertmagicConfig(renewCheckInterval time.Duration) *certmagic.Config {
 func newACMETLSConfigSource(magicConfig *certmagic.Config, acme *ACMEConfig) (*acmeTLSConfigSource, error) {
 	trustStore, err := LoadTrustStore(acme.CABundlePath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("loading trust store: %w", err)
 	}
 
 	source := &acmeTLSConfigSource{
@@ -210,7 +212,7 @@ func (a *acmeTLSConfigSource) Reload() error {
 	// reload the trust store (CA bundle) from disk.
 	bundle, err := LoadTrustStore(a.caBundlePath)
 	if err != nil {
-		return err
+		return fmt.Errorf("loading trust store: %w", err)
 	}
 
 	a.cachedTrustStore.Store(bundle)

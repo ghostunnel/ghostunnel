@@ -45,10 +45,13 @@ import (
 //   - A resumed connection skips VerifyPeerCertificate, and with it the access
 //     control decision made during the original full handshake. That is the
 //     point of resumption, and it is what keeps resumed connections cheap.
-//   - A reload rebuilds the server config, which mints new session ticket keys
-//     and so drops outstanding tickets. Clients fall back to a full handshake,
-//     where they are verified against the current roots, served the current
-//     certificate, and run through access control again.
+//   - A successful reload of a file-based source rebuilds the server config,
+//     which mints new session ticket keys and so drops outstanding tickets.
+//     Clients fall back to a full handshake, where they are verified against
+//     the current roots, served the current certificate, and run through
+//     access control again. Key rotation is a side effect, not the guarantee:
+//     a failed reload rebuilds nothing and SPIFFE never rebuilds, so
+//     BindSessionsToGeneration is what bounds resumption across reloads.
 
 // resumptionOptions tunes the fixture built by newResumptionFixture.
 type resumptionOptions struct {
@@ -212,11 +215,12 @@ func TestResumedConnectionSkipsVerifyPeerCertificate(t *testing.T) {
 	assert.EqualValues(t, 1, f.verifyCalls.Load(), "resumed connection must not run VerifyPeerCertificate")
 }
 
-// A reload rebuilds the server config, which mints fresh session ticket keys,
-// so outstanding tickets stop decrypting. That is what guarantees a reload
-// reaches clients that would otherwise resume: they fall back to a full
-// handshake, where the current certificate is presented, the current roots
-// are used to verify them, and access control runs again.
+// A successful reload rebuilds the server config, which mints fresh session
+// ticket keys, so outstanding tickets stop decrypting and clients fall back to
+// a full handshake, where the current certificate is presented, the current
+// roots are used to verify them, and access control runs again. This is a side
+// effect of the rebuild rather than the guarantee that a reload reaches
+// clients; that comes from BindSessionsToGeneration (see session_generation.go).
 func TestReloadDropsSessions(t *testing.T) {
 	f := newResumptionFixture(t, resumptionOptions{})
 

@@ -8,8 +8,9 @@ package certstore
 */
 import "C"
 
-// osStatusErrorFromOSStatus lets tests pass an osStatusError value (alias of
-// C.OSStatus) into newOSStatusError without importing "C" themselves.
+// osStatusErrorFromOSStatus lets tests pass an osStatusError value (a defined
+// type whose underlying type is C.OSStatus) into newOSStatusError without
+// importing "C" themselves.
 func osStatusErrorFromOSStatus(s osStatusError) error {
 	return newOSStatusError(C.OSStatus(s))
 }

@@ -263,7 +263,7 @@ func TestSessionGenerationPreservesACMEChallengeHook(t *testing.T) {
 }
 
 // reloadingServerConfig hands out its current config and then reloads, the
-// way serverListen's reload does: swap the config, then advance the
+// way Environment.reload in signals.go does: swap the config, then advance the
 // generation. It simulates a reload landing in the middle of
 // generationBoundTLSConfig.GetServerConfig.
 type reloadingServerConfig struct {

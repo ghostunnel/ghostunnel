@@ -85,8 +85,7 @@ func openStore(logger *log.Logger) (*winStore, error) {
 
 	userStore := C.CertOpenStore(CERT_STORE_PROV_SYSTEM_W, 0, 0, C.CERT_SYSTEM_STORE_CURRENT_USER, storeName)
 	if userStore == nil {
-		logger.Printf("certstore: unable to open key store 'CURRENT_USER', aborting")
-		return nil, lastError("unable to open system cert store")
+		return nil, lastError(fmt.Sprintf("unable to open system cert store %q", "CURRENT_USER"))
 	}
 
 	ret := &winStore{

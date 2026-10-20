@@ -368,7 +368,7 @@ func TestFormatDetectionUnknownMagic(t *testing.T) {
 func TestReadPKCS12BlocksInvalidData(t *testing.T) {
 	_, err := readPKCS12Blocks(bytes.NewReader([]byte("not-valid-pkcs12")), "password")
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "unable to read keystore")
+	assert.Contains(t, err.Error(), "unable to parse keystore")
 }
 
 func TestReadPKCS12BlocksWithCACerts(t *testing.T) {

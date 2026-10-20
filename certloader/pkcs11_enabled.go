@@ -72,7 +72,7 @@ func (c *pkcs11Certificate) Reload() error {
 	// with the (fixed) private key being in an HSM/PKCS11 module.
 	certs, err := readX509(c.certificatePath)
 	if err != nil {
-		return fmt.Errorf("unable to load certificate from %q: %w", c.certificatePath, err)
+		return fmt.Errorf("loading certificate: %w", err)
 	}
 
 	certAndKey := tls.Certificate{
@@ -111,7 +111,7 @@ func (c *pkcs11Certificate) Reload() error {
 
 	bundle, err := LoadTrustStore(c.caBundlePath)
 	if err != nil {
-		return fmt.Errorf("loading trust store %q: %w", c.caBundlePath, err)
+		return fmt.Errorf("loading trust store: %w", err)
 	}
 
 	c.cachedCertificate.Store(&certAndKey)
