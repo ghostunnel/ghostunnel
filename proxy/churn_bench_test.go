@@ -84,7 +84,7 @@ func benchSelfSignedCert(tb testing.TB) (tls.Certificate, *x509.Certificate) {
 // Unlike BenchmarkCopyData (which uses net.Pipe and measures only the
 // steady-state copy loop), this benchmark exercises real sockets and a
 // *tls.Conn, so it observes the real per-connection accept path (handshake,
-// metric bookkeeping, deadlines at close, the single accept goroutine). The
+// metric bookkeeping, the per-pair watchdog, the single accept goroutine). The
 // incoming listener uses plain tls.NewListener; the certloader per-connection
 // tls.Config clone is measured separately by BenchmarkGetServerConfig in the
 // certloader package.

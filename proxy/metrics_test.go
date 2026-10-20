@@ -29,10 +29,9 @@ import (
 
 // TestNilMetricsAreNoOps verifies that the no-op metrics handles record
 // nothing. This is what makes skipping collection (when no sink is configured)
-// free on the connection hot path: updates land on no-op handles. Critically, a
-// no-op Timer must still not swallow work — but since we never route the
-// connection handler through Timer.Time (we use UpdateSince), all that matters
-// here is that updates are observably no-ops.
+// free on the connection hot path: updates land on no-op handles. The connection
+// handler records its lifetime with UpdateSince rather than wrapping work in the
+// timer, so all that matters here is that updates are observably no-ops.
 func TestNilMetricsAreNoOps(t *testing.T) {
 	m := metrics.NilMetrics()
 
@@ -94,11 +93,9 @@ func TestNewMetricsWiring(t *testing.T) {
 	assert.Same(t, nilHandles, nilP.metrics, "NilMetrics handles must be used verbatim")
 }
 
-// TestNilMetricsProxyForwardsData is the regression guard for the hot-path
-// restructure: the connection handler used to be wrapped in connTimer.Time(fn),
-// but a no-op Timer's Time() never runs fn — so with NilMetrics that would have
-// silently dropped every connection. This proves a NilMetrics proxy still
-// forwards bytes end-to-end.
+// TestNilMetricsProxyForwardsData proves a NilMetrics proxy still forwards
+// bytes end-to-end: connection handling must never depend on the metrics
+// handles doing any work.
 func TestNilMetricsProxyForwardsData(t *testing.T) {
 	// Plain TCP listener (incoming) and backend (target).
 	incoming, err := net.Listen("tcp", "127.0.0.1:0")

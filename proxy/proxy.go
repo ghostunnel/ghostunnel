@@ -60,12 +60,13 @@ type Logger interface {
 // DialFunc represents a function that can dial a backend/destination for forwarding connections.
 type DialFunc func(context.Context) (net.Conn, error)
 
-// Timeouts is the timeout policy applied to proxied connections. Every field
-// may be zero: for Connect, Idle and MaxLifetime zero disables that timeout,
-// while a zero Close closes the surviving direction of a half-closed
-// connection immediately.
+// Timeouts is the timeout policy applied to proxied connections. Connect must
+// be positive. A zero Idle or MaxLifetime disables that timeout, while a zero
+// Close closes the surviving direction of a half-closed connection
+// immediately.
 type Timeouts struct {
-	// Connect limits the time to establish a connection/handshake.
+	// Connect limits the time to establish a connection/handshake. It must be
+	// positive: a zero value would fail every connection.
 	Connect time.Duration
 	// Close is the idle (inactivity) timeout applied to the surviving
 	// direction once a connection is half-closed: the surviving direction is
@@ -97,8 +98,8 @@ type Proxy struct {
 
 	// Logging flags
 	loggerFlags int
-	// Enable HAproxy's PROXY protocol
-	// see: https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt
+	// PROXY protocol v2 mode (HAProxy's PROXY protocol) for backend connections.
+	// See: https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt
 	proxyProtocol ProxyProtocolMode
 	// Internal wait group to keep track of outstanding handlers.
 	handlers *sync.WaitGroup
@@ -232,7 +233,7 @@ func (p *Proxy) Accept() {
 
 			p.metrics.ErrorCounter.Inc(1)
 			p.connSemaphore.Release(1)
-			p.logConditional(LogConnectionErrors, "error accepting connection: %s", err)
+			p.logConditional(LogConnectionErrors, "error accepting connection: %v", err)
 
 			// Back off before retrying so we don't spin at 100% CPU on
 			// persistent accept errors (e.g. fd exhaustion).
@@ -253,11 +254,9 @@ func (p *Proxy) Accept() {
 
 		// Handler slot reserved above; the handler's cleanup defer calls Done().
 		go func() {
-			// Record the connection lifetime explicitly rather than via
-			// Timer.Time: a no-op timer's Time() would not run the closure at
-			// all, which would skip connection handling when metrics are off.
-			// UpdateSince is deferred first so it fires last (after the close
-			// defer below), matching Timer.Time's "measure the whole handler".
+			// Record the connection lifetime with UpdateSince. It is deferred
+			// first so it fires last (after the close defer below), so the
+			// timer measures the whole handler, including teardown.
 			startTime := time.Now()
 			defer p.metrics.ConnTimer.UpdateSince(startTime)
 
@@ -277,7 +276,7 @@ func (p *Proxy) Accept() {
 			err := forceHandshake(ctx, conn, p.metrics)
 			if err != nil {
 				p.metrics.ErrorCounter.Inc(1)
-				p.logConditional(LogHandshakeErrors, "error on TLS handshake from %s: %s", conn.RemoteAddr(), err)
+				p.logConditional(LogHandshakeErrors, "error on TLS handshake from %s: %v", conn.RemoteAddr(), err)
 				return
 			}
 
@@ -294,7 +293,7 @@ func (p *Proxy) Accept() {
 			backend, err := p.Dial(ctx)
 			if err != nil {
 				p.metrics.ErrorCounter.Inc(1)
-				p.logConditional(LogConnectionErrors, "error on dial: %s", err)
+				p.logConditional(LogConnectionErrors, "error on dial: %v", err)
 				return
 			}
 
@@ -307,13 +306,13 @@ func (p *Proxy) Accept() {
 				h, err := proxyProtoHeader(conn, tlsState, p.proxyProtocol)
 				if err != nil {
 					p.metrics.ErrorCounter.Inc(1)
-					p.logConditional(LogConnectionErrors, "error building proxy header: %s", err)
+					p.logConditional(LogConnectionErrors, "error building proxy header: %v", err)
 					backend.Close()
 					return
 				}
 				if _, err = h.WriteTo(backend); err != nil {
 					p.metrics.ErrorCounter.Inc(1)
-					p.logConditional(LogConnectionErrors, "error writing proxy header: %s", err)
+					p.logConditional(LogConnectionErrors, "error writing proxy header: %v", err)
 					backend.Close()
 					return
 				}
@@ -454,10 +453,11 @@ func (p *Proxy) copyData(dst net.Conn, src net.Conn, w *pairWatchdog) (written i
 	// case where a client has only half-closed the connection.
 	//
 	// directionFinished then reports this direction's end to the watchdog: the
-	// first call switches it to the CloseTimeout regime, granting the surviving
-	// direction a fresh window. The watchdog (not a socket deadline) bounds that
-	// direction from here on: it is reaped after CloseTimeout of silence
-	// (clamped to MaxConnLifetime), but an active transfer is never cut off.
+	// first call switches it to the Timeouts.Close regime, granting the
+	// surviving direction a fresh window. The watchdog (not a socket deadline)
+	// bounds that direction from here on: it is reaped after Timeouts.Close of
+	// silence (clamped to Timeouts.MaxLifetime). An active transfer is not
+	// reaped for inactivity, but Timeouts.MaxLifetime still applies.
 	// Without this bound a misbehaving peer could keep the connection open
 	// forever, tying up the other copyData Go routine. The second call tells
 	// the watchdog the pair is done, so it stops guarding and lets fuse return.
@@ -486,10 +486,10 @@ func (p *Proxy) copyData(dst net.Conn, src net.Conn, w *pairWatchdog) (written i
 
 	// A watchdog reap surfaces here as a closed-connection error (silent). Only
 	// genuine peer I/O errors are counted and logged; the watchdog owns timeout
-	// counting/logging, so copyData no longer classifies timeouts itself.
+	// counting and logging.
 	if err != nil && !isClosedConnectionError(err) {
 		p.metrics.ConnErrorCounter.Inc(1)
-		p.logConditional(LogConnectionErrors, "error during copy: %s", err)
+		p.logConditional(LogConnectionErrors, "error during copy: %v", err)
 	}
 
 	return written
@@ -539,8 +539,7 @@ func isClosedConnectionError(err error) bool {
 
 	// A watchdog reap closes the conn concurrently with an in-flight Read/Write,
 	// which surfaces as net.ErrClosed (possibly wrapped). Match it structurally
-	// so classification of a reap doesn't depend on error strings. String
-	// matching was never exercised on this concurrent-close path for tls.Conn.
+	// so classification of a reap doesn't depend on error strings.
 	if errors.Is(err, net.ErrClosed) {
 		return true
 	}
@@ -570,7 +569,7 @@ func closeRead(conn net.Conn) {
 	case *tls.Conn:
 		// tls.Conn has no CloseRead(): we can't shut down only the read
 		// side without tearing down the whole connection. Do nothing here
-		// and let the watchdog reap the pair after CloseTimeout of silence
+		// and let the watchdog reap the pair after Timeouts.Close of silence
 		// (the surviving direction's activity keeps the pair alive until then).
 		// Closing it here would kill the opposite (still-live) write direction,
 		// dropping in-flight return traffic.

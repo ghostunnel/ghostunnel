@@ -2219,9 +2219,18 @@ func TestRollingDeadlineClampedByMaxConnLifetime(t *testing.T) {
 
 // TestZeroCloseTimeoutPromptClosure guards the documented flag behavior: with
 // --close-timeout=0, the surviving direction is closed immediately once the
-// peer half-closes.
+// peer half-closes. That immediate close is the configured teardown, not a
+// timeout, so it must not increment conn.timeout or log a timeout message.
 func TestZeroCloseTimeoutPromptClosure(t *testing.T) {
-	p := rollingProxy(0, 0, &testLogger{}, LogEverything)
+	var mu sync.Mutex
+	var logs []string
+	lg := &callbackLogger{callback: func(format string, v ...any) {
+		mu.Lock()
+		logs = append(logs, format)
+		mu.Unlock()
+	}}
+	p := rollingProxy(0, 0, lg, LogEverything)
+	before := connTimeoutCount()
 
 	clientConn, proxyClient := tcpConnPair(t)
 	proxyBackend, backendConn := tcpConnPair(t)
@@ -2244,6 +2253,83 @@ func TestZeroCloseTimeoutPromptClosure(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("zero close-timeout did not promptly close the connection")
 	}
+
+	// The survivor must actually have been closed: the client sees EOF.
+	_ = clientConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	n, err := clientConn.Read(make([]byte, 1))
+	assert.Equal(t, 0, n, "client must not receive data after the immediate close")
+	assert.ErrorIs(t, err, io.EOF, "client must see EOF once the survivor is closed")
+
+	assert.Equal(t, int64(0), connTimeoutCount()-before,
+		"an immediate close with zero close-timeout must not count as a timeout")
+	mu.Lock()
+	defer mu.Unlock()
+	for _, f := range logs {
+		assert.NotContains(t, f, "closed by timeout",
+			"an immediate close with zero close-timeout must not be logged as a timeout")
+	}
+}
+
+// TestCleanCloseNeverCountsAsTimeout verifies that a pair whose directions both
+// finish on their own is never reaped or counted under conn.timeout, for both a
+// zero and a non-zero close-timeout.
+func TestCleanCloseNeverCountsAsTimeout(t *testing.T) {
+	for _, closeTimeout := range []time.Duration{0, 200 * time.Millisecond} {
+		t.Run(closeTimeout.String(), func(t *testing.T) {
+			p := rollingProxy(closeTimeout, 0, &testLogger{}, LogEverything)
+			before := connTimeoutCount()
+
+			for range 20 {
+				clientConn, proxyClient := tcpConnPair(t)
+				proxyBackend, backendConn := tcpConnPair(t)
+
+				done := make(chan struct{})
+				go func() {
+					p.fuse(proxyClient, proxyBackend)
+					close(done)
+				}()
+
+				// Both peers close together: both directions finish on their
+				// own, racing halfClosedC against doneC in the watchdog.
+				require.NoError(t, clientConn.Close())
+				require.NoError(t, backendConn.Close())
+
+				select {
+				case <-done:
+				case <-time.After(3 * time.Second):
+					t.Fatal("fuse did not return after both peers closed")
+				}
+			}
+
+			assert.Equal(t, int64(0), connTimeoutCount()-before,
+				"clean closes must never count as timeouts")
+		})
+	}
+}
+
+// TestWatchdogNeverReapsFinishedPair pins the watchdog's finished check: with a
+// zero close-timeout, a pair whose directions have both finished (so both
+// halfClosedC and doneC are ready) must exit without reaping or counting.
+func TestWatchdogNeverReapsFinishedPair(t *testing.T) {
+	p := rollingProxy(0, 0, &testLogger{}, LogEverything)
+	client, backend := net.Pipe()
+	defer client.Close()
+	defer backend.Close()
+
+	w := p.newPairWatchdog(client, backend)
+	w.directionFinished()
+	w.directionFinished()
+
+	before := connTimeoutCount()
+	p.runWatchdog(w)
+	assert.Equal(t, int64(0), connTimeoutCount()-before,
+		"a finished pair must never be counted as a timeout")
+
+	// The watchdog must not have closed the conns either.
+	go func() { _, _ = backend.Write([]byte{'x'}) }()
+	_ = client.SetReadDeadline(time.Now().Add(time.Second))
+	_, err := client.Read(make([]byte, 1))
+	assert.NoError(t, err, "a finished pair must never be reaped")
 }
 
 // TestAbortiveCloseReapsPeerAfterCloseTimeout verifies that when one end aborts
@@ -2471,10 +2557,11 @@ func TestIdleTimeoutZeroNeverReaps(t *testing.T) {
 // and logs at the connection level, NOT as "error during copy".
 func TestIdleTimeoutReapLoggedNotErrored(t *testing.T) {
 	var mu sync.Mutex
-	var logs []string
+	var logs, rendered []string
 	lg := &callbackLogger{callback: func(format string, v ...any) {
 		mu.Lock()
 		logs = append(logs, format)
+		rendered = append(rendered, fmt.Sprintf(format, v...))
 		mu.Unlock()
 	}}
 	p := idleProxy(60*time.Second, 200*time.Millisecond, 0, lg, LogEverything)
@@ -2500,9 +2587,11 @@ func TestIdleTimeoutReapLoggedNotErrored(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 	timeoutCount, sawError := 0, false
-	for _, f := range logs {
-		if strings.HasPrefix(f, "connection closed by timeout:") {
+	for i, f := range logs {
+		if strings.Contains(f, "closed by timeout:") {
 			timeoutCount++
+			assert.Contains(t, rendered[i], "connection from "+proxyClient.RemoteAddr().String(),
+				"reap log must name the client's remote address")
 		}
 		if strings.HasPrefix(f, "error during copy:") {
 			sawError = true

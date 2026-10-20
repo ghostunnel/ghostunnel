@@ -75,11 +75,11 @@ func proxyProtoHeader(c net.Conn, tlsState *tls.ConnectionState, mode ProxyProto
 	if tlsState != nil && mode >= ProxyProtocolTLS {
 		tlvs, err := buildTLVs(tlsState, mode)
 		if err != nil {
-			return nil, fmt.Errorf("building PROXY protocol TLVs: %w", err)
+			return nil, fmt.Errorf("building TLVs: %w", err)
 		}
 		if len(tlvs) > 0 {
 			if err := h.SetTLVs(tlvs); err != nil {
-				return nil, fmt.Errorf("setting PROXY protocol TLVs: %w", err)
+				return nil, fmt.Errorf("setting TLVs: %w", err)
 			}
 		}
 	}

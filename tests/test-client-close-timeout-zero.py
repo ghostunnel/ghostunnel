@@ -3,11 +3,12 @@
 """
 Pins the --close-timeout=0 flag contract: "Zero means immediate closure."
 
-With --close-timeout=0, a half-close arms an already-expired window
-(reapDeadline returns now+0), so the watchdog reaps the surviving direction
-immediately rather than after any residual window (unit:
-TestZeroCloseTimeoutPromptClosure). A zero close-timeout must not affect
-fully-open connections -- only the survivor of a half-close.
+With --close-timeout=0, the watchdog closes the surviving direction of a
+half-close immediately rather than after any residual window (unit:
+TestZeroCloseTimeoutPromptClosure). That immediate close is the configured
+teardown, not a timeout, so it must not count under conn.timeout. A zero
+close-timeout must not affect fully-open connections -- only the survivor of
+a half-close.
 
 Client mode, plaintext local client + TLS backend, mirroring the other
 half-close tests: the plaintext side initiates the half-close because Python's
@@ -34,25 +35,24 @@ try:
     print_ok("half-closing client write side")
     pair.client.get_socket().shutdown(socket.SHUT_WR)
 
-    # With --close-timeout=0 the half-close arms an already-expired window, so
-    # the reap is immediate. EOF must arrive promptly (milliseconds); the 3s
+    # With --close-timeout=0 the survivor is closed immediately on half-close. EOF must arrive promptly (milliseconds); the 3s
     # bound is the "immediate" assertion -- any accidental default (60s) or
     # residual window would blow it. No sub-second bound (CI jitter).
     pair.client.get_socket().settimeout(3)
     data = pair.client.get_socket().recv(16)
     if data != b'':
         raise Exception("expected prompt EOF with --close-timeout=0, got {0!r}".format(data))
-    print_ok("survivor reaped immediately on half-close")
+    print_ok("survivor closed immediately on half-close")
 
-    # Even an immediate reap is a counted policy close: conn.timeout bumps,
-    # conn.error stays 0, conn.open returns to 0.
-    wait_for_metric('ghostunnel.conn.timeout', lambda v: v == 1)
+    # An immediate close is not a timeout: conn.timeout and conn.error stay 0,
+    # conn.open returns to 0.
     wait_for_metric('ghostunnel.conn.open', lambda v: v == 0)
     metrics = get_metrics()
-    if metrics.get('ghostunnel.conn.error') != 0:
-        raise Exception("expected conn.error == 0 after reap, got {0}".format(
-            metrics.get('ghostunnel.conn.error')))
-    print_ok("immediate reap counted (timeout=1, error=0, open=0)")
+    for name in ('ghostunnel.conn.timeout', 'ghostunnel.conn.error'):
+        if metrics.get(name) != 0:
+            raise Exception("expected {0} == 0 after immediate close, got {1}".format(
+                name, metrics.get(name)))
+    print_ok("immediate close not counted (timeout=0, error=0, open=0)")
 
     pair.client.get_socket().close()
     print_ok("OK")

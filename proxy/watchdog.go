@@ -23,10 +23,10 @@ import (
 )
 
 // pairWatchdog reaps a fused connection pair when no data moves for the
-// current window, or when the pair outlives MaxConnLifetime. It is the only
-// code that decides "this pair timed out": it closes both conns (unblocking
-// any in-flight Read/Write), logs, and counts the metric. Because a third
-// party does the reaping, the two copyData directions never coordinate
+// current window, or when the pair outlives Timeouts.MaxLifetime. It is the
+// only code that decides "this pair timed out": it closes both conns
+// (unblocking any in-flight Read/Write), logs, and counts the metric. Because
+// a third party does the reaping, the two copyData directions never coordinate
 // teardown between themselves and never need to reconstruct *why* a copy
 // ended from error types. A reap surfaces to them as an ordinary
 // closed-connection error.
@@ -34,24 +34,25 @@ import (
 // The pair moves through three phases. The copyData defers signal each
 // transition via directionFinished.
 //
-//   - Open: both directions copying. The idle window is IdleTimeout
+//   - Open: both directions copying. The idle window is Timeouts.Idle
 //     (0 = none). Activity anywhere on the pair resets the clock. Idle is
 //     deliberately a property of the connection, not a direction, so an
 //     active but asymmetric transfer (e.g. a long download the client is
 //     silently receiving) is never reaped mid-stream.
 //   - Half-closed: the first direction has returned (one value sent on
-//     halfClosedC). The surviving direction is reaped after CloseTimeout of
-//     silence.
+//     halfClosedC). The surviving direction is reaped after Timeouts.Close
+//     of silence, or immediately if Timeouts.Close is zero.
 //   - Finished: the second direction has returned (doneC closed). The
 //     watchdog, which runs inline on the fuse goroutine, exits.
 //
-// MaxConnLifetime, when set, caps every deadline in every phase.
+// Timeouts.MaxLifetime, when set, caps every deadline in every phase. A pair
+// whose directions have both finished is never reaped or counted.
 type pairWatchdog struct {
 	lastActivity     atomic.Int64  // UnixNano of last successful transfer either direction
 	finished         atomic.Int32  // count of copyData directions that have returned (0..2)
 	idleTimeout      time.Duration // 0 = no idle timeout while fully open
 	closeTimeout     time.Duration
-	lifetimeDeadline time.Time // start + MaxConnLifetime; zero if unset
+	lifetimeDeadline time.Time // start + Timeouts.MaxLifetime; zero if unset
 	client           net.Conn
 	backend          net.Conn
 	halfClosedC      chan struct{} // buffered(1); receives one value when the pair half-closes
@@ -101,7 +102,7 @@ func (w *pairWatchdog) halfClosed() bool {
 // The first call moves the pair to the half-closed phase; the second marks it
 // finished so the inline watchdog exits promptly. Without that second signal,
 // every cleanly-closed connection would hold fuse and the accept handler's
-// semaphore slot for a full CloseTimeout.
+// semaphore slot for a full Timeouts.Close.
 //
 // The atomic Add serializes the two calls even when both directions finish at
 // the same instant, which is routine (near-simultaneous FINs). Exactly one
@@ -109,8 +110,8 @@ func (w *pairWatchdog) halfClosed() bool {
 // happens exactly once.
 //
 // recordActivity() MUST come first. If lastActivity were stale, the survivor
-// would be reaped instantly instead of after CloseTimeout. A stale value is
-// possible when IdleTimeout == 0, where a pair may sit silent indefinitely
+// would be reaped instantly instead of after Timeouts.Close. A stale value is
+// possible when Timeouts.Idle == 0, where a pair may sit silent indefinitely
 // before the half-close.
 func (w *pairWatchdog) directionFinished() {
 	w.recordActivity()
@@ -128,29 +129,36 @@ func (w *pairWatchdog) directionFinished() {
 type reapCause int
 
 const (
-	// reapNone means no policy currently applies (fully open, IdleTimeout == 0,
-	// no MaxConnLifetime): there is no reap deadline.
+	// reapNone means no policy currently applies (fully open, Timeouts.Idle
+	// == 0, no Timeouts.MaxLifetime): there is no reap deadline.
 	reapNone reapCause = iota
-	// reapIdle is IdleTimeout of silence while both directions are open.
+	// reapIdle is Timeouts.Idle of silence while both directions are open.
 	reapIdle
-	// reapHalfClosed is CloseTimeout of silence after a half-close: the
+	// reapHalfClosed is Timeouts.Close of silence after a half-close: the
 	// surviving peer neither transferred data nor closed within the window.
 	reapHalfClosed
-	// reapLifetime is the MaxConnLifetime hard cap.
+	// reapHalfClosedImmediate is a half-close with a zero Timeouts.Close. The
+	// surviving direction is closed right away; this is not a timeout, so it
+	// is not logged or counted.
+	reapHalfClosedImmediate
+	// reapLifetime is the Timeouts.MaxLifetime hard cap.
 	reapLifetime
 )
 
 // reapDeadline returns when the pair should be reaped absent further activity,
 // and the policy that deadline belongs to (reapNone => no deadline). Two
 // candidate deadlines compete and the earlier one wins. The first is the
-// activity-based deadline: CloseTimeout of silence once half-closed (zero =>
-// immediate), or IdleTimeout of silence while fully open (zero => none). The
+// activity-based deadline: Timeouts.Close of silence once half-closed (zero =>
+// immediate), or Timeouts.Idle of silence while fully open (zero => none). The
 // second is the fixed lifetime cap, if set. The cause follows the winner and
 // selects the reap's log message.
 func (w *pairWatchdog) reapDeadline() (time.Time, reapCause) {
 	var at time.Time
 	cause := reapNone
 	switch {
+	case w.halfClosed() && w.closeTimeout == 0:
+		at = w.lastActivityTime()
+		cause = reapHalfClosedImmediate
 	case w.halfClosed():
 		at = w.lastActivityTime().Add(w.closeTimeout)
 		cause = reapHalfClosed
@@ -170,7 +178,10 @@ func (w *pairWatchdog) reapDeadline() (time.Time, reapCause) {
 // Waking with nothing to do is harmless, so the sleep only needs to be an
 // upper bound: the armed deadline passing does not by itself mean the pair is
 // stale, since activity may have pushed the deadline forward after the timer
-// was armed. It exits when the pair finishes or after it reaps.
+// was armed. It exits when the pair finishes or after it reaps. A pair whose
+// directions have both finished is never reaped: the finished check runs
+// before every deadline evaluation, since halfClosedC and doneC can both be
+// ready when the two directions end together and select picks at random.
 func (p *Proxy) runWatchdog(w *pairWatchdog) {
 	// One timer reused across iterations: time.After would allocate a fresh
 	// runtime timer on every wakeup. It starts stopped and is only ever armed
@@ -184,6 +195,9 @@ func (p *Proxy) runWatchdog(w *pairWatchdog) {
 	timer.Stop()
 	defer timer.Stop()
 	for {
+		if w.finished.Load() >= 2 {
+			return
+		}
 		reapAt, cause := w.reapDeadline()
 		if cause != reapNone && !time.Now().Before(reapAt) {
 			p.reapPair(w, cause)
@@ -194,26 +208,30 @@ func (p *Proxy) runWatchdog(w *pairWatchdog) {
 		}
 		select {
 		case <-timer.C: // Wait until we need to re-check deadline
-		case <-w.halfClosedC: // State change: deadline shrunk to CloseTimeout
-		case <-w.doneC: // Both connections are done; exit
+		case <-w.halfClosedC: // Phase change: recompute deadline for half-close
+		case <-w.doneC: // Both directions are done; exit
 			return
 		}
 	}
 }
 
 // reapPair closes both conns, unblocking any blocked copy direction; the reap
-// surfaces there as an ordinary closed-connection error. Every reap counts
-// under conn.timeout; the cause picks the log message.
+// surfaces there as an ordinary closed-connection error. Timeout reaps count
+// under conn.timeout, and the cause picks the log message.
 func (p *Proxy) reapPair(w *pairWatchdog, cause reapCause) {
 	_ = w.client.Close()
 	_ = w.backend.Close()
+	if cause == reapHalfClosedImmediate {
+		return
+	}
 	p.metrics.ConnTimeoutCounter.Inc(1)
+	from := w.client.RemoteAddr()
 	switch cause {
 	case reapIdle:
-		p.logConditional(LogConnections, "connection closed by timeout: no activity for %s", w.idleTimeout)
+		p.logConditional(LogConnections, "connection from %s closed by timeout: no activity for %s", from, w.idleTimeout)
 	case reapHalfClosed:
-		p.logConditional(LogConnections, "connection closed by timeout: no activity for %s after half-close", w.closeTimeout)
+		p.logConditional(LogConnections, "connection from %s closed by timeout: no activity for %s after half-close", from, w.closeTimeout)
 	case reapLifetime:
-		p.logConditional(LogConnections, "connection closed by timeout: max connection lifetime reached")
+		p.logConditional(LogConnections, "connection from %s closed by timeout: max connection lifetime reached", from)
 	}
 }
