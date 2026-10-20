@@ -41,6 +41,7 @@ linters:
     # depguard bans importing math/rand — this is a TLS proxy, so randomness
     # must come from crypto/rand (see settings.depguard for the rationale).
     - depguard
+    - gosec
   # Enable human-readable exclusion presets including std-error-handling
   # which excludes common error handling patterns like Close()
   exclusions:
@@ -68,6 +69,16 @@ linters:
           - forcetypeassert
           - unparam
         path: "_test\\.go"
+      # Ignore gosec in test files and the jcekstest fixture builders - test
+      # code deliberately builds insecure configs and fixtures.
+      - linters:
+          - gosec
+        path: "(_test\\.go|/jcekstest/)"
+      # The JCEKS format mandates MD5, DES and SHA-1, so allow them there.
+      - linters:
+          - gosec
+        path: "certloader/jceks/"
+        text: "G401|G405|G501|G502|G505"
   settings:
     depguard:
       rules:
@@ -80,6 +91,10 @@ linters:
               desc: use crypto/rand; math/rand is not cryptographically secure
             - pkg: math/rand/v2
               desc: use crypto/rand; math/rand/v2 is not cryptographically secure
+    gosec:
+      excludes:
+        # Unchecked errors are already covered by errcheck.
+        - G104
     errcheck:
       # Additional functions to exclude from checking
       exclude-functions:

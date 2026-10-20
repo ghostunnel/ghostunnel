@@ -103,7 +103,7 @@ func (rc *runtimeCollector) collectOnce() {
 		start = mem.NumGC - 256
 	}
 	for i := start; i < mem.NumGC; i++ {
-		rc.gcDuration.observeNanos(int64(mem.PauseNs[i%256]))
+		rc.gcDuration.observeNanos(int64(mem.PauseNs[i%256])) //nolint:gosec // G115: a GC pause cannot reach MaxInt64 nanoseconds.
 	}
 	rc.observedPauses = mem.NumGC
 }

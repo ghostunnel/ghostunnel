@@ -106,6 +106,13 @@ type spiffeTLSConfig struct {
 	// Cached configs. SPIFFE has no reloadable trust store (the X509Source
 	// maintains itself via the Workload API and certificates are served through
 	// a callback), so the built config never changes: build once, cache forever.
+	//
+	// That means a reload never rebuilds these configs, and with them never
+	// rotates the session ticket keys, so nothing here invalidates outstanding
+	// sessions. Session invalidation is not this type's job: the server
+	// listener wraps whatever config it gets in
+	// BindSessionsToGeneration, which drops sessions on every reload
+	// regardless of what the source underneath it did.
 	cachedClient atomic.Pointer[tls.Config]
 	cachedServer atomic.Pointer[tls.Config]
 }
@@ -129,7 +136,7 @@ func (c *spiffeTLSConfig) buildClientConfig() *tls.Config {
 	// callback provided by the SPIFFE library will perform SPIFFE
 	// authentication against the raw certificates.
 	config.InsecureSkipVerify = true
-	config.VerifyPeerCertificate = spiffeConfig.WrapVerifyPeerCertificate(config.VerifyPeerCertificate, c.source, spiffeConfig.AuthorizeAny())
+	config.VerifyPeerCertificate = spiffeConfig.WrapVerifyPeerCertificate(config.VerifyPeerCertificate, c.source, spiffeConfig.AuthorizeAny()) //nolint:gosec // G123: client configs set no ClientSessionCache, so these connections never resume and the check always runs.
 	if !c.clientDisableAuth {
 		// If auth is disabled on the client side we need to not set
 		// the GetCertificate callback, because if we do it'll cause
@@ -165,7 +172,7 @@ func (c *spiffeTLSConfig) buildServerConfig() *tls.Config {
 	// callback provided by the SPIFFE library will perform SPIFFE
 	// authentication against the raw certificates.
 	config.InsecureSkipVerify = true
-	config.VerifyPeerCertificate = spiffeConfig.WrapVerifyPeerCertificate(config.VerifyPeerCertificate, c.source, spiffeConfig.AuthorizeAny())
+	config.VerifyPeerCertificate = spiffeConfig.WrapVerifyPeerCertificate(config.VerifyPeerCertificate, c.source, spiffeConfig.AuthorizeAny()) //nolint:gosec // G123: intentional. A resumed connection reuses the access control decision from its original full handshake; certloader.BindSessionsToGeneration bounds that by invalidating every session on reload.
 	config.GetCertificate = spiffeConfig.GetCertificate(c.source)
 	return config
 }

@@ -350,7 +350,7 @@ func readTimer(d *descriptor, fam *dto.MetricFamily) timerReading {
 	}
 	h := fam.GetMetric()[0].GetHistogram()
 	count := h.GetSampleCount()
-	tr.count = int64(count)
+	tr.count = int64(count) //nolint:gosec // G115: a sample count cannot reach MaxInt64.
 	if count == 0 {
 		return tr
 	}
