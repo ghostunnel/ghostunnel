@@ -16,7 +16,7 @@ or modify the tunneled traffic.
 
 | Scheme | Connection to proxy | Notes |
 |--------|---------------------|-------|
-| `http://host:port` | Plaintext | HTTP `CONNECT` tunnel. Port defaults to `8080`. |
+| `http://host:port` | Plaintext | HTTP `CONNECT` tunnel. Port defaults to `80`. |
 | `https://host:port` | TLS | HTTP `CONNECT` tunnel over TLS. Port defaults to `443`. Supports client certificate authentication to the proxy (see below). |
 | `socks5://host:port` | Plaintext | SOCKS5 tunnel. |
 
@@ -34,9 +34,11 @@ resolving `--target` on startup whenever `--proxy` is set, as if
 `--skip-resolve` were given. Hostname verification of the target still uses
 the hostname from `--target` (or `--override-server-name`).
 
-Credentials embedded in the proxy URL (`http://user:pass@proxy`) are only
-honored for SOCKS5 proxies. HTTP CONNECT proxies that require
-authentication must use client certificates over `https://` as described
+Credentials embedded in the proxy URL (`http://user:pass@proxy`) are sent
+to HTTP CONNECT proxies as basic authentication (`Proxy-Authorization`) and
+to SOCKS5 proxies as username/password authentication. With `http://` and
+`socks5://` proxies they cross the network in plaintext; an `https://` proxy
+protects them, or can replace them with a client certificate as described
 below.
 
 ## HTTPS Proxies

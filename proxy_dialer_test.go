@@ -19,6 +19,8 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/base64"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -108,6 +110,100 @@ func echoSOCKS5Proxy(conn net.Conn) {
 		return
 	}
 	_, _ = io.Copy(conn, conn)
+}
+
+// addrRecordingDialer records the address it was asked to dial and fails,
+// so tests can see where a dialer would connect without a network.
+type addrRecordingDialer struct {
+	addr string
+}
+
+func (d *addrRecordingDialer) DialContext(_ context.Context, _, addr string) (net.Conn, error) {
+	d.addr = addr
+	return nil, errors.New("not dialing")
+}
+
+func TestConnectDialerDefaultPort(t *testing.T) {
+	for _, tc := range []struct {
+		proxyURL string
+		expected string
+	}{
+		{"http://proxy.example.com", "proxy.example.com:80"},
+		{"https://proxy.example.com", "proxy.example.com:443"},
+		{"http://proxy.example.com:3128", "proxy.example.com:3128"},
+		{"http://[::1]", "[::1]:80"},
+	} {
+		t.Run(tc.proxyURL, func(t *testing.T) {
+			u, err := url.Parse(tc.proxyURL)
+			require.NoError(t, err)
+
+			fwd := &addrRecordingDialer{}
+			_, err = newConnectDialer(u, fwd).DialContext(context.Background(), "tcp", "target.example:443")
+			require.Error(t, err)
+			assert.Equal(t, tc.expected, fwd.addr)
+		})
+	}
+}
+
+func TestConnectDialerRejectsNonTCP(t *testing.T) {
+	fwd := &addrRecordingDialer{}
+	_, err := newConnectDialer(&url.URL{Scheme: "http", Host: "proxy.example.com"}, fwd).
+		DialContext(context.Background(), "udp", "target.example:443")
+	require.Error(t, err)
+	assert.Empty(t, fwd.addr, "must not dial the proxy for a non-TCP network")
+}
+
+func TestConnectDialerProxyAuthorization(t *testing.T) {
+	headers := make(chan http.Header, 1)
+	proxyURL := fakeProxy(t, "http", func(conn net.Conn) {
+		req, err := http.ReadRequest(bufio.NewReader(conn))
+		if err != nil {
+			return
+		}
+		headers <- req.Header
+		_, _ = io.WriteString(conn, "HTTP/1.1 200 OK\r\n\r\n")
+	})
+	proxyURL.User = url.UserPassword("alice", "s3cret")
+
+	conn, err := newConnectDialer(proxyURL, &net.Dialer{}).DialContext(context.Background(), "tcp", "target.example:443")
+	require.NoError(t, err)
+	conn.Close()
+
+	want := "Basic " + base64.StdEncoding.EncodeToString([]byte("alice:s3cret"))
+	assert.Equal(t, want, (<-headers).Get("Proxy-Authorization"))
+}
+
+func TestConnectDialerRefused(t *testing.T) {
+	proxyURL := fakeProxy(t, "http", func(conn net.Conn) {
+		if _, err := http.ReadRequest(bufio.NewReader(conn)); err != nil {
+			return
+		}
+		_, _ = io.WriteString(conn, "HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n")
+	})
+
+	_, err := newConnectDialer(proxyURL, &net.Dialer{}).DialContext(context.Background(), "tcp", "target.example:443")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "403 Forbidden")
+}
+
+// Data the proxy sends in the same write as its CONNECT response belongs to
+// the tunnel and must not be lost.
+func TestConnectDialerKeepsDataAfterResponse(t *testing.T) {
+	proxyURL := fakeProxy(t, "http", func(conn net.Conn) {
+		if _, err := http.ReadRequest(bufio.NewReader(conn)); err != nil {
+			return
+		}
+		_, _ = io.WriteString(conn, "HTTP/1.1 200 OK\r\n\r\nearly")
+	})
+
+	conn, err := newConnectDialer(proxyURL, &net.Dialer{}).DialContext(context.Background(), "tcp", "target.example:443")
+	require.NoError(t, err)
+	defer conn.Close()
+
+	buf := make([]byte, 5)
+	_, err = io.ReadFull(conn, buf)
+	require.NoError(t, err)
+	assert.Equal(t, "early", string(buf))
 }
 
 func setConnectTimeout(t *testing.T, d time.Duration) {

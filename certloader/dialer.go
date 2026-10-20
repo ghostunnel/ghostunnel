@@ -25,12 +25,6 @@ import (
 	netproxy "golang.org/x/net/proxy"
 )
 
-// ContextDialer is a netproxy.Dialer that also implements netproxy.ContextDialer.
-type ContextDialer interface {
-	netproxy.Dialer
-	netproxy.ContextDialer
-}
-
 type mtlsDialer struct {
 	config  TLSClientConfig
 	timeout time.Duration
@@ -39,16 +33,12 @@ type mtlsDialer struct {
 
 // DialerWithCertificate creates a dialer that reloads its certificate (if set) before dialing new connections.
 // If the certificate is nil, the dialer will still work, but it won't supply client certificates on connections.
-func DialerWithCertificate(config TLSClientConfig, timeout time.Duration, dialer netproxy.ContextDialer) ContextDialer {
+func DialerWithCertificate(config TLSClientConfig, timeout time.Duration, dialer netproxy.ContextDialer) netproxy.ContextDialer {
 	return &mtlsDialer{
 		config:  config,
 		timeout: timeout,
 		dialer:  dialer,
 	}
-}
-
-func (d *mtlsDialer) Dial(network, address string) (net.Conn, error) {
-	return d.DialContext(context.Background(), network, address)
 }
 
 func (d *mtlsDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {

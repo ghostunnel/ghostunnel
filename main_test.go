@@ -2023,13 +2023,13 @@ func TestClientProxyFlagValidation(t *testing.T) {
 		{name: "cert/key with http proxy", proxy: httpURL, flags: func() {
 			*clientProxyCertPath = "cert.pem"
 			*clientProxyKeyPath = "key.pem"
-		}, wantErr: "require an HTTPS proxy, but --proxy scheme is http"},
+		}, wantErr: "require an HTTPS proxy, but --proxy scheme is \"http\""},
 		{name: "keystore with socks5 proxy", proxy: socksURL, flags: func() {
 			*clientProxyKeystorePath = "keystore.p12"
-		}, wantErr: "require an HTTPS proxy, but --proxy scheme is socks5"},
+		}, wantErr: "require an HTTPS proxy, but --proxy scheme is \"socks5\""},
 		{name: "cacert with http proxy", proxy: httpURL, flags: func() {
 			*clientProxyCABundlePath = "proxy-ca.pem"
-		}, wantErr: "require an HTTPS proxy, but --proxy scheme is http"},
+		}, wantErr: "require an HTTPS proxy, but --proxy scheme is \"http\""},
 	}
 
 	for _, tt := range tests {

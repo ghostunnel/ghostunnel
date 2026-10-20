@@ -17,97 +17,132 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"encoding/base64"
+	"fmt"
 	"net"
+	"net/http"
+	"net/url"
 	"time"
 
-	"github.com/ghostunnel/ghostunnel/certloader"
 	netproxy "golang.org/x/net/proxy"
 )
-
-// The HTTP CONNECT dialer (go.connect-proxy-scheme) ignores the context while
-// it writes the CONNECT request and reads the response, so a proxy that
-// accepts the connection but never answers would hang the dial forever,
-// regardless of --connect-timeout. The two wrappers below bound that exchange
-// for every proxy scheme:
-//
-//   - boundedForwardDialer dials the proxy itself. It puts the context
-//     deadline on the proxy connection and arranges for blocked I/O on it to
-//     fail if the context is cancelled.
-//   - boundedProxyDialer wraps the whole proxy dialer. Once the tunnel is up
-//     it removes the deadline again, so it does not apply to the established
-//     connection.
-//
-// The two find each other through a value on the dial context, which is
-// passed from the proxy dialer down to the forward dialer.
 
 // aLongTimeAgo is a deadline in the past, used to unblock pending I/O.
 var aLongTimeAgo = time.Unix(1, 0)
 
-type proxyConnKey struct{}
-
-// proxyConn records the connection to the proxy made during one dial.
-type proxyConn struct {
-	conn net.Conn
-	stop func() bool
+// connectDialer opens tunnels through an HTTP CONNECT proxy. The connection
+// to the proxy is made by forward, which wraps it in TLS for https:// proxies.
+// The dial context bounds the whole exchange with the proxy, so a proxy that
+// accepts the connection but never answers cannot hang the dial.
+type connectDialer struct {
+	proxyAddr string
+	auth      string // Proxy-Authorization value, empty if none
+	forward   netproxy.ContextDialer
 }
 
-type boundedForwardDialer struct {
-	certloader.ContextDialer
+// newConnectDialer returns a dialer for the http:// or https:// proxy URL u.
+// Without an explicit port, the proxy is reached on 80 for http and 443 for
+// https. Credentials in the URL are sent as basic proxy authentication.
+func newConnectDialer(u *url.URL, forward netproxy.ContextDialer) *connectDialer {
+	port := u.Port()
+	if port == "" {
+		port = "80"
+		if u.Scheme == "https" {
+			port = "443"
+		}
+	}
+	d := &connectDialer{
+		proxyAddr: net.JoinHostPort(u.Hostname(), port),
+		forward:   forward,
+	}
+	if u.User != nil {
+		password, _ := u.User.Password()
+		credentials := u.User.Username() + ":" + password
+		d.auth = "Basic " + base64.StdEncoding.EncodeToString([]byte(credentials))
+	}
+	return d
 }
 
-func (d boundedForwardDialer) Dial(network, address string) (net.Conn, error) {
-	return d.DialContext(context.Background(), network, address)
-}
-
-func (d boundedForwardDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	conn, err := d.ContextDialer.DialContext(ctx, network, address)
+func (d *connectDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	switch network {
+	case "tcp", "tcp4", "tcp6":
+	default:
+		return nil, fmt.Errorf("unsupported network %q for HTTP CONNECT proxy", network)
+	}
+	conn, err := d.forward.DialContext(ctx, "tcp", d.proxyAddr)
 	if err != nil {
+		return nil, fmt.Errorf("unable to dial proxy %q: %w", d.proxyAddr, err)
+	}
+	tunnel, err := d.connect(ctx, conn, address)
+	if err != nil {
+		conn.Close()
 		return nil, err
 	}
-	pc, ok := ctx.Value(proxyConnKey{}).(*proxyConn)
-	if !ok || pc.conn != nil {
-		return conn, nil
-	}
+	return tunnel, nil
+}
+
+// connect asks the proxy on conn for a tunnel to address. The context
+// deadline applies to the CONNECT exchange only and is removed once the
+// tunnel is up.
+func (d *connectDialer) connect(ctx context.Context, conn net.Conn, address string) (net.Conn, error) {
 	if deadline, ok := ctx.Deadline(); ok {
 		if err := conn.SetDeadline(deadline); err != nil {
-			conn.Close()
 			return nil, err
 		}
 	}
-	pc.conn = conn
-	pc.stop = context.AfterFunc(ctx, func() {
+	stop := context.AfterFunc(ctx, func() {
 		_ = conn.SetDeadline(aLongTimeAgo)
 	})
-	return conn, nil
-}
 
-type boundedProxyDialer struct {
-	netproxy.ContextDialer
-}
+	req := &http.Request{
+		Method: http.MethodConnect,
+		URL:    &url.URL{Opaque: address},
+		Host:   address,
+		Header: make(http.Header),
+	}
+	if d.auth != "" {
+		req.Header.Set("Proxy-Authorization", d.auth)
+	}
 
-func (d boundedProxyDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	pc := &proxyConn{}
-	conn, err := d.ContextDialer.DialContext(context.WithValue(ctx, proxyConnKey{}, pc), network, address)
-	if pc.stop != nil && !pc.stop() {
-		// The context was cancelled while dialing: the deadline is now in
-		// the past, so the connection is unusable even if the dial returned.
-		if conn != nil {
-			conn.Close()
-		}
-		if err == nil {
-			err = ctx.Err()
-		}
-		return nil, err
+	br := bufio.NewReader(conn)
+	var resp *http.Response
+	err := req.Write(conn)
+	if err == nil {
+		resp, err = http.ReadResponse(br, req)
+	}
+	if !stop() && err == nil {
+		// The context ended just as the exchange finished. Its deadline is
+		// now in the past, so the connection is unusable.
+		err = ctx.Err()
 	}
 	if err != nil {
+		return nil, fmt.Errorf("unable to complete CONNECT to %q via proxy: %w", address, err)
+	}
+	// After a 2xx response the connection is the tunnel, so there is no body
+	// to read; closing it does not consume tunnel data.
+	resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return nil, fmt.Errorf("proxy refused CONNECT to %q: %s", address, resp.Status)
+	}
+	if err := conn.SetDeadline(time.Time{}); err != nil {
 		return nil, err
 	}
-	if pc.conn != nil {
-		if err := pc.conn.SetDeadline(time.Time{}); err != nil {
-			conn.Close()
-			return nil, err
-		}
+	if br.Buffered() > 0 {
+		// The proxy sent tunnel data right behind its response; keep it.
+		return &bufferedConn{Conn: conn, r: br}, nil
 	}
 	return conn, nil
+}
+
+// bufferedConn is a net.Conn whose first reads are served from r, which holds
+// data read past the end of the proxy's CONNECT response.
+type bufferedConn struct {
+	net.Conn
+	r *bufio.Reader
+}
+
+func (c *bufferedConn) Read(p []byte) (int, error) {
+	return c.r.Read(p)
 }

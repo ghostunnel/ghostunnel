@@ -438,8 +438,8 @@ certificate and the policy.
 certificate will be provided to the server.
 
 **--proxy-keystore=PATH** Path to keystore with client certificate for
-authenticating to an HTTPS proxy (combined PEM with cert/key, or PKCS12
-keystore).
+authenticating to an HTTPS proxy (combined PEM with cert/key, PKCS12
+keystore, or JCEKS keystore).
 
 **--proxy-cert=PATH** Path to client certificate for authenticating to
 an HTTPS proxy (PEM with certificate chain).
