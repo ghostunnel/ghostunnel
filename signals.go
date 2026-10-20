@@ -112,13 +112,14 @@ func (env *Environment) reloadHandler(interval time.Duration) {
 	}
 }
 
-// reload re-reads the certificate, trust store and OPA policy, then starts a
-// new session generation so that no client can resume into the configuration
-// we just replaced.
+// reload re-reads the certificate and trust store, the proxy client
+// certificate and trust store (if an HTTPS proxy is configured), and the OPA
+// policy, then starts a new session generation so that no client can resume
+// into the configuration we just replaced.
 //
 // The ordering matters in both directions:
 //
-//   - The generation is advanced after both reloads, so a connection accepted
+//   - The generation is advanced after all reloads, so a connection accepted
 //     on the new generation is guaranteed to have been evaluated against the
 //     reloaded policy. A connection accepted while a reload is in flight may
 //     still be evaluated against the old policy, but its ticket then belongs to
@@ -127,7 +128,7 @@ func (env *Environment) reloadHandler(interval time.Duration) {
 //     operators can treat a listening status as "the new generation is in
 //     effect".
 //
-// It is advanced whether or not either reload succeeded. A reload that fails
+// It is advanced whether or not any reload succeeded. A reload that fails
 // leaves the old certificate and trust store in place, which is the point of
 // failing softly, but it must not also leave clients resuming sessions whose
 // access decision predates a policy that did reload.
@@ -138,7 +139,7 @@ func (env *Environment) reload() {
 	}
 	if env.proxyTLSConfigSource != nil {
 		if err := env.proxyTLSConfigSource.Reload(); err != nil {
-			logger.Printf("error: unable to reload proxy TLS configuration: %v", err)
+			logger.Printf("error reloading proxy TLS configuration: %v", err)
 		}
 	}
 	if env.regoPolicy != nil {

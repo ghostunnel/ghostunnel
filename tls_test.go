@@ -253,6 +253,8 @@ func TestBuildConfig(t *testing.T) {
 	_, err = buildConfig("AES,CHACHA", "invalid", false, "")
 	assert.Error(t, err, "should fail to build config with invalid TLS version")
 	assert.Contains(t, err.Error(), "invalid max TLS version", "error should mention invalid TLS version")
+	assert.Equal(t, 1, strings.Count(err.Error(), "TLS version"), "error should not repeat \"TLS version\"")
+	assert.Contains(t, err.Error(), `"invalid"`, "error should quote the user-supplied version")
 
 	conf, err = buildConfig("AES,CHACHA", "", false, "h3,h2,http/1.1")
 	assert.NoError(t, err, "should be able to build TLS config with next protos")

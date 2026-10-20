@@ -116,7 +116,7 @@ func parseTLSVersion(version string) (uint16, error) {
 	case "TLS1.3":
 		return tls.VersionTLS13, nil
 	default:
-		return 0, fmt.Errorf("unsupported TLS version: %s", version)
+		return 0, fmt.Errorf("%q is not supported (expected TLS1.2 or TLS1.3)", version)
 	}
 }
 

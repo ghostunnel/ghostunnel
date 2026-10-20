@@ -203,7 +203,7 @@ func setupLandlock() error {
 	for _, u := range proxyURLsFromEnv() {
 		rule, err := ruleFromURL(u, landlock.ConnectTCP)
 		if err != nil {
-			return fmt.Errorf("processing proxy env URL %q for landlock rule: %w", u, err)
+			return fmt.Errorf("processing proxy env URL %q for landlock rule: %w", u.Redacted(), err)
 		}
 		if rule != nil {
 			netRules = append(netRules, rule)
@@ -218,7 +218,7 @@ func setupLandlock() error {
 
 		rule, err := ruleFromURL(*url, landlock.ConnectTCP)
 		if err != nil {
-			return fmt.Errorf("processing argument %q for landlock rule: %w", *url, err)
+			return fmt.Errorf("processing argument %q for landlock rule: %w", (*url).Redacted(), err)
 		}
 		if rule != nil {
 			netRules = append(netRules, rule)

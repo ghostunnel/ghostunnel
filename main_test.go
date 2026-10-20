@@ -58,9 +58,11 @@ func TestInitLoggerQuiet(t *testing.T) {
 
 func TestInitLoggerSystemLog(t *testing.T) {
 	originalLogger := logger
-	defer func() { logger = originalLogger }()
+	originalSystemLogActive := systemLogActive
+	defer func() { logger, systemLogActive = originalLogger, originalSystemLogActive }()
 
 	err := initLogger(true, []string{})
+	assert.Equal(t, err == nil, systemLogActive, "systemLogActive must track whether the system logger was installed")
 	if err != nil {
 		// Tests running in containers often don't have access to syslog,
 		// so we can't depend on syslog being available for testing. If we
@@ -72,6 +74,17 @@ func TestInitLoggerSystemLog(t *testing.T) {
 	}
 	assert.NotEqual(t, originalLogger, logger, "should have updated logger object")
 	assert.NotNil(t, logger, "logger should never be nil after init")
+}
+
+func TestRedactURL(t *testing.T) {
+	redacted, ok := redactURL("https://user:secret@metrics.example.com/push")
+	assert.True(t, ok)
+	assert.NotContains(t, redacted, "secret")
+	assert.Contains(t, redacted, "metrics.example.com")
+
+	redacted, ok = redactURL("http://user:secret@host:99999x/")
+	assert.False(t, ok, "unparseable URL must not be reported as redacted")
+	assert.Empty(t, redacted)
 }
 
 func TestPanicOnError(t *testing.T) {
@@ -2029,6 +2042,21 @@ func TestClientProxyFlagValidation(t *testing.T) {
 		}, wantErr: "require an HTTPS proxy, but --proxy scheme is \"socks5\""},
 		{name: "cacert with http proxy", proxy: httpURL, flags: func() {
 			*clientProxyCABundlePath = "proxy-ca.pem"
+		}, wantErr: "require an HTTPS proxy, but --proxy scheme is \"http\""},
+		{name: "storepass without keystore", proxy: httpsURL, flags: func() {
+			*clientProxyStorePass = "secret"
+		}, wantErr: "--proxy-storepass requires --proxy-keystore"},
+		{name: "storepass with cert/key", proxy: httpsURL, flags: func() {
+			*clientProxyCertPath = "cert.pem"
+			*clientProxyKeyPath = "key.pem"
+			*clientProxyStorePass = "secret"
+		}, wantErr: "--proxy-storepass requires --proxy-keystore"},
+		{name: "storepass without proxy", proxy: nil, flags: func() {
+			*clientProxyStorePass = "secret"
+		}, wantErr: "--proxy-storepass requires --proxy-keystore"},
+		{name: "keystore and storepass with http proxy", proxy: httpURL, flags: func() {
+			*clientProxyKeystorePath = "keystore.p12"
+			*clientProxyStorePass = "secret"
 		}, wantErr: "require an HTTPS proxy, but --proxy scheme is \"http\""},
 	}
 

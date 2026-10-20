@@ -31,9 +31,9 @@ import (
 	"golang.org/x/sys/windows/svc/mgr"
 )
 
-// errServiceNotStarted is returned when a service was installed successfully
-// but the SCM failed to start it.
-var errServiceNotStarted = errors.New("service installed but unable to be started")
+// errServiceNotStarted is returned by 'service install' and 'service start'
+// when the SCM fails to start the service or it does not reach Running.
+var errServiceNotStarted = errors.New("unable to start service")
 
 const (
 	serviceNameFlagName = "service-name"
@@ -63,7 +63,7 @@ const (
 	// failedToStartMsg is the format string used whenever a service does not
 	// reach Running, regardless of which terminal state was observed. The
 	// Event Log is the source of truth for the underlying cause.
-	failedToStartMsg = "service %q unable to reach running state; check the Windows Event Log for details"
+	failedToStartMsg = "service %q did not reach running state; check the Windows Event Log for details"
 )
 
 var (
@@ -484,18 +484,24 @@ func doInstallService(name string, proxyArgs []string) error {
 	}
 	regKey.Close()
 
-	if err := s.Start(); err != nil {
-		return fmt.Errorf("service %q: %w: %w", name, errServiceNotStarted, err)
-	}
-
-	if err := waitForServiceRunning(s, name); err != nil {
-		err = fmt.Errorf("%w: %w", errServiceNotStarted, err)
+	// If the service cannot be started, undo the install so the user can fix
+	// the problem and run 'service install' again. This removes the service
+	// (and its registry marker) and the event source, if we created it.
+	rollback := func(err error) error {
 		writeEventLogError(name, fmt.Sprintf("ghostunnel service install failed: %v", err))
 		_ = s.Delete()
 		if eventSourceCreated {
 			_ = eventlog.Remove(name)
 		}
 		return fmt.Errorf("%w; service registration has been removed, fix the issue and re-run 'service install'", err)
+	}
+
+	if err := s.Start(); err != nil {
+		return rollback(fmt.Errorf("%w %q: %w", errServiceNotStarted, name, err))
+	}
+
+	if err := waitForServiceRunning(s, name); err != nil {
+		return rollback(fmt.Errorf("%w: %w", errServiceNotStarted, err))
 	}
 
 	fmt.Printf("Service %q installed and started successfully.\n", name)
@@ -560,7 +566,7 @@ func doStartService(name string) error {
 	}
 
 	if err := s.Start(); err != nil {
-		return fmt.Errorf("service %q: %w: %w", name, errServiceNotStarted, err)
+		return fmt.Errorf("%w %q: %w", errServiceNotStarted, name, err)
 	}
 
 	if err := waitForServiceRunning(s, name); err != nil {

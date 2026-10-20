@@ -171,19 +171,19 @@ func TestWaitForServiceRunningPoll(t *testing.T) {
 			name:      "stopped immediately",
 			steps:     []pollStep{{state: svc.Stopped}},
 			wantErr:   true,
-			errSubstr: "unable to reach running state",
+			errSubstr: "did not reach running state",
 		},
 		{
 			name:      "stop pending fails fast",
 			steps:     []pollStep{{state: svc.StopPending}},
 			wantErr:   true,
-			errSubstr: "unable to reach running state",
+			errSubstr: "did not reach running state",
 		},
 		{
 			name:      "paused fails fast",
 			steps:     []pollStep{{state: svc.Paused}},
 			wantErr:   true,
-			errSubstr: "unable to reach running state",
+			errSubstr: "did not reach running state",
 		},
 		{
 			name:      "query error",
