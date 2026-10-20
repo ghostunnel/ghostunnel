@@ -103,6 +103,16 @@ short-lived proxy certificate can be rotated without restarting Ghostunnel.
 Existing tunnels are not affected; new connections use the reloaded
 certificate. See [Certificate Reloading]({{< ref "reloading.md" >}}).
 
+## Timeouts
+
+`--connect-timeout` is a single budget for the whole connection setup, not
+a separate limit for each step. The TCP connection to the proxy, the TLS
+handshake with an `https://` proxy, and the TLS handshake with the target
+through the tunnel must all complete within it. Once the tunnel is
+established, `--idle-timeout`, `--close-timeout`, and `--max-conn-lifetime`
+apply just as they do to a direct connection. See
+[Timeouts & Connection Lifecycle]({{< ref "timeouts.md" >}}).
+
 ## Landlock
 
 On Linux, the [Landlock sandbox]({{< ref "general.md#landlock-sandboxing" >}})
