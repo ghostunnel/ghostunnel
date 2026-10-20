@@ -221,8 +221,8 @@ verification flags (**--verify-cn**, **--verify-ou**, **--verify-dns**,
 **--help** Show context-sensitive help (also try --help-long and
 --help-man).
 
-**--keystore=PATH** Path to keystore (combined PEM with cert/key, or
-PKCS12 keystore).
+**--keystore=PATH** Path to keystore (combined PEM with cert/key,
+PKCS#12 keystore, or JCEKS keystore).
 
 **--cert=PATH** Path to certificate (PEM with certificate chain).
 
@@ -257,11 +257,8 @@ timeout even if connections still open.
 **--connect-timeout=10s** Timeout for establishing connections,
 handshakes.
 
-**--close-timeout=60s** Inactivity timeout for closing connections when
-one side terminates: once a connection is half-closed, the surviving
-direction is closed after this much time passes with no data
-transferred. Active transfers are never cut off. Zero means immediate
-closure.
+**--close-timeout=60s** Close a half-closed connection after this long
+with no data transferred. Zero closes it immediately.
 
 **--idle-timeout=0s** Close a connection when no data is transferred in
 either direction for this long. Any byte transferred in either direction
@@ -438,7 +435,7 @@ certificate and the policy.
 certificate will be provided to the server.
 
 **--proxy-keystore=PATH** Path to keystore with client certificate for
-authenticating to an HTTPS proxy (combined PEM with cert/key, PKCS12
+authenticating to an HTTPS proxy (combined PEM with cert/key, PKCS#12
 keystore, or JCEKS keystore).
 
 **--proxy-cert=PATH** Path to client certificate for authenticating to

@@ -53,29 +53,29 @@ proxy CA bundle (`--proxy-keystore` or `--proxy-cert`/`--proxy-key`, and
 
 ## Session Resumption
 
-Ghostunnel supports TLS session resumption. A client that resumes a session
-skips the full handshake and reuses the access control decision made when
-the session was first established: `--allow-*` flags and `--allow-policy`
-are not re-evaluated on a resumed connection. This is what makes resumption
-cheap.
-
-A reload, whether triggered by a signal or by `--timed-reload`, invalidates
-existing sessions. Each client's next connection is therefore a full handshake
-against the reloaded certificate, CA bundle and policy, and a policy change
-takes effect for resuming clients as soon as the reload completes (the
-`/_status` endpoint reports `listening` again). Connections already
-established are unaffected.
+In server mode, Ghostunnel supports TLS session resumption. A client that
+resumes a session skips the full handshake and reuses the access control
+decision made when the session was first established: `--allow-*` flags and
+`--allow-policy` are not re-evaluated on a resumed connection. This is what
+makes resumption cheap. Resumption is refused once the client certificate in
+the session has expired.
 
 {{% since "v1.12.0" %}}
+A reload, whether triggered by a signal or by `--timed-reload`, invalidates
+existing sessions, even if the reload fails. Each client's next connection is
+then a full handshake against the current certificate, CA bundle and policy,
+so a policy change reaches resuming clients as soon as the reload completes
+(`/_status` reports `listening` again).
+Connections already established are unaffected.
+
 This also holds for the SPIFFE Workload API. Certificates and trust bundles
 pushed by the SPIFFE provider take effect for new full handshakes without a
 reload, but a client that resumes a session keeps the decision from its
 original handshake until the next reload invalidates the session.
-{{% /since %}}
 
 The cost is one extra full handshake per client per reload, so a short
-`--timed-reload` interval reduces the benefit of resumption. Resumption is
-also refused once the client certificate in the session has expired.
+`--timed-reload` interval reduces the benefit of resumption.
+{{% /since %}}
 
 ## Zero-Downtime Binary Replacement
 

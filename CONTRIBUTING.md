@@ -81,11 +81,13 @@ cd tools && go get -tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint@
 
 ### Benchmarks
 
-To run benchmarks, you can use the test:bench target in mage:
+To run benchmarks, use the test:bench target in mage on your branch and on
+the commit it is based on, then compare with
+[benchstat](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat):
 
 ```bash
 go tool mage test:bench > /tmp/bench-head.txt        # on your branch
-git checkout master
+git checkout <base-commit>
 go tool mage test:bench > /tmp/bench-base.txt        # on the base
 benchstat /tmp/bench-base.txt /tmp/bench-head.txt
 ```
@@ -153,7 +155,7 @@ unit-test profile.
 - Use lowercase (proper nouns such as Windows and SPIFFE are excepted).
 - No trailing `\n` in messages, as `log.Logger` appends one automatically.
 - Severity prefixes: only `error:`, `warning:`, or `note:`; message text after prefix stays lowercase.
-- Format error values with `%v`, not `%s`. This applies only for logging, fmt.Errorf should use `%w`.
+- Format error values with `%v`, not `%s`. This applies only to logging; `fmt.Errorf` should use `%w`.
 
 ### Returned errors
 

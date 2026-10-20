@@ -221,8 +221,8 @@ verification flags (**--verify-cn**, **--verify-ou**, **--verify-dns**,
 **--help** Show context-sensitive help (also try --help-long and
 --help-man).
 
-**--keystore=PATH** Path to keystore (combined PEM with cert/key, or
-PKCS12 keystore).
+**--keystore=PATH** Path to keystore (combined PEM with cert/key,
+PKCS#12 keystore, or JCEKS keystore).
 
 **--cert=PATH** Path to certificate (PEM with certificate chain).
 
@@ -257,11 +257,8 @@ timeout even if connections still open.
 **--connect-timeout=10s** Timeout for establishing connections,
 handshakes.
 
-**--close-timeout=60s** Inactivity timeout for closing connections when
-one side terminates: once a connection is half-closed, the surviving
-direction is closed after this much time passes with no data
-transferred. Active transfers are never cut off. Zero means immediate
-closure.
+**--close-timeout=60s** Close a half-closed connection after this long
+with no data transferred. Zero closes it immediately.
 
 **--idle-timeout=0s** Close a connection when no data is transferred in
 either direction for this long. Any byte transferred in either direction
@@ -401,8 +398,8 @@ unix:PATH).
 **--override-server-name=NAME** If set, overrides the server name used
 for hostname verification.
 
-**--proxy=URL** If set, connect to target over given proxy (HTTP CONNECT
-or SOCKS5). Must be a proxy URL.
+**--proxy=URL** If set, connect to target over given proxy (HTTP
+CONNECT, HTTPS CONNECT or SOCKS5). Must be a proxy URL.
 
 **--verify-cn=CN** Allow servers with given common name (can be
 repeated).
@@ -429,6 +426,22 @@ certificate and the policy.
 
 **--disable-authentication** Disable client authentication, no
 certificate will be provided to the server.
+
+**--proxy-keystore=PATH** Path to keystore with client certificate for
+authenticating to an HTTPS proxy (combined PEM with cert/key, PKCS#12
+keystore, or JCEKS keystore).
+
+**--proxy-cert=PATH** Path to client certificate for authenticating to
+an HTTPS proxy (PEM with certificate chain).
+
+**--proxy-key=PATH** Path to private key for the proxy client
+certificate (PEM with private key).
+
+**--proxy-storepass=PASS** Password for proxy keystore (PKCS#12 or
+JCEKS; optional for PKCS#12).
+
+**--proxy-cacert=PATH** Path to CA bundle file (PEM/X509) for verifying
+an HTTPS proxy. Uses --cacert by default.
 
 # SIGNALS
 

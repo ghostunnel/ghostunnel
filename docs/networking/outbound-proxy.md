@@ -18,7 +18,7 @@ or modify the tunneled traffic.
 |--------|---------------------|-------|
 | `http://host:port` | Plaintext | HTTP `CONNECT` tunnel. Port defaults to `80`. |
 | `https://host:port` | TLS | HTTP `CONNECT` tunnel over TLS. Port defaults to `443`. Supports client certificate authentication to the proxy (see below). |
-| `socks5://host:port` | Plaintext | SOCKS5 tunnel. |
+| `socks5://host:port` | Plaintext | SOCKS5 tunnel. Port defaults to `1080`. `socks5h://` is accepted as an alias; with either scheme, the proxy resolves the target hostname. |
 
 ```bash
 ghostunnel client \
@@ -45,13 +45,16 @@ below.
 
 With an `https://` proxy URL, Ghostunnel first performs a TLS handshake with
 the proxy and then sends the `CONNECT` request inside that session. The
-proxy's certificate is verified against `--proxy-cacert`, or against
-`--cacert` when `--proxy-cacert` is not set, using the hostname from the
-proxy URL. Set `--proxy-cacert` when the proxy and the target are issued by
-different CAs, for example a proxy with a publicly trusted certificate in
-front of a private PKI. If neither flag is set, which can be the case with
-SPIFFE or keychain credentials, the proxy is verified against the system
-trust store.
+proxy's certificate is checked against the hostname in the proxy URL and
+verified against the first of these that is set:
+
+1. `--proxy-cacert`
+2. `--cacert`
+3. the system trust store
+
+Set `--proxy-cacert` when the proxy and the target use different CAs, for
+example a proxy with a publicly trusted certificate in front of a private
+PKI.
 
 Only the proxy's certificate chain and hostname are verified. The
 `--verify-*` flags, `--verify-policy`, and `--override-server-name` apply to
@@ -74,7 +77,8 @@ their own credential. It is independent of the `--keystore` or
 | `--proxy-cacert PATH` | CA bundle for verifying the proxy. Defaults to `--cacert`. |
 
 `--proxy-keystore` and `--proxy-cert`/`--proxy-key` are mutually exclusive,
-and all of these flags require an `https://` proxy URL. The proxy credential
+and `--proxy-storepass` can only be used with `--proxy-keystore`. All of these
+flags require an `https://` proxy URL. The proxy credential
 must be a file on disk: PKCS#11, keychain, and SPIFFE Workload API sources
 are only supported for the target credential. See
 [Certificate Formats]({{< ref "formats.md" >}}) for the accepted file

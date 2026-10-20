@@ -93,10 +93,10 @@ updates the trust bundle, Ghostunnel picks up the changes without requiring
 a manual reload or restart.
 
 {{% since "v1.12.0" %}}
-Updates apply to new full handshakes. A client that resumes a TLS session
-keeps the decision made during its original handshake, so what invalidates
-outstanding sessions here is still a reload (`SIGHUP` or `--timed-reload`),
-even though no reload is needed to pick up new credentials. See
+Updates apply to new full handshakes. A client that resumes a TLS session is
+not re-checked against an updated trust bundle until the next reload. If
+removing a CA from the trust bundle must also cut off clients that resume
+sessions, set `--timed-reload`. See
 [Session Resumption]({{< ref "reloading.md#session-resumption" >}}).
 {{% /since %}}
 
