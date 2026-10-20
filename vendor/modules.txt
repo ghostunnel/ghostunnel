@@ -37,16 +37,6 @@ github.com/coreos/go-systemd/v22/daemon
 github.com/decred/dcrd/dcrec/secp256k1/v4
 # github.com/dgraph-io/ristretto/v2 v2.4.0
 ## explicit; go 1.24.0
-# github.com/dsnet/compress v0.0.1
-## explicit; go 1.9
-github.com/dsnet/compress
-github.com/dsnet/compress/bzip2
-github.com/dsnet/compress/bzip2/internal/sais
-github.com/dsnet/compress/internal
-github.com/dsnet/compress/internal/errors
-github.com/dsnet/compress/internal/prefix
-# github.com/frankban/quicktest v1.14.6
-## explicit; go 1.13
 # github.com/go-jose/go-jose/v4 v4.1.5
 ## explicit; go 1.24.0
 github.com/go-jose/go-jose/v4
@@ -69,9 +59,6 @@ github.com/goccy/go-json/internal/encoder/vm_color_indent
 github.com/goccy/go-json/internal/encoder/vm_indent
 github.com/goccy/go-json/internal/errors
 github.com/goccy/go-json/internal/runtime
-# github.com/golang/snappy v1.0.0
-## explicit
-github.com/golang/snappy
 # github.com/google/flatbuffers v25.12.19+incompatible
 ## explicit
 # github.com/google/uuid v1.6.0
@@ -80,9 +67,6 @@ github.com/google/uuid
 # github.com/hashicorp/go-syslog v1.0.1
 ## explicit; go 1.23.0
 github.com/hashicorp/go-syslog
-# github.com/integralist/go-findroot v0.0.0-20160518114804-ac90681525dc
-## explicit
-github.com/integralist/go-findroot/find
 # github.com/kavu/go_reuseport v1.5.0
 ## explicit
 github.com/kavu/go_reuseport
@@ -162,14 +146,10 @@ github.com/magefile/mage/mage
 github.com/magefile/mage/mg
 github.com/magefile/mage/parse
 github.com/magefile/mage/sh
-github.com/magefile/mage/target
 # github.com/mholt/acmez/v3 v3.1.7
 ## explicit; go 1.26.0
 github.com/mholt/acmez/v3
 github.com/mholt/acmez/v3/acme
-# github.com/mholt/archiver v3.1.1+incompatible
-## explicit
-github.com/mholt/archiver
 # github.com/miekg/dns v1.1.73
 ## explicit; go 1.25.0
 github.com/miekg/dns
@@ -179,9 +159,6 @@ github.com/miekg/pkcs11
 # github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822
 ## explicit
 github.com/munnerz/goautoneg
-# github.com/nwaples/rardecode v1.1.3
-## explicit
-github.com/nwaples/rardecode
 # github.com/open-policy-agent/opa v1.21.2
 ## explicit; go 1.26.0
 github.com/open-policy-agent/opa/capabilities
@@ -262,16 +239,9 @@ github.com/open-policy-agent/opa/v1/types
 github.com/open-policy-agent/opa/v1/util
 github.com/open-policy-agent/opa/v1/util/decoding
 github.com/open-policy-agent/opa/v1/version
-# github.com/pierrec/lz4 v2.6.1+incompatible
-## explicit
-github.com/pierrec/lz4
-github.com/pierrec/lz4/internal/xxh32
 # github.com/pires/go-proxyproto v0.15.0
 ## explicit; go 1.25.0
 github.com/pires/go-proxyproto
-# github.com/pkg/errors v0.9.1
-## explicit
-github.com/pkg/errors
 # github.com/prometheus/client_golang v1.25.0
 ## explicit; go 1.26.0
 github.com/prometheus/client_golang/internal/github.com/golang/gddo/httputil
@@ -342,12 +312,6 @@ github.com/stretchr/testify/require
 # github.com/tchap/go-patricia/v2 v2.3.3
 ## explicit; go 1.16
 github.com/tchap/go-patricia/v2/patricia
-# github.com/ulikunitz/xz v0.5.17
-## explicit; go 1.20
-github.com/ulikunitz/xz
-github.com/ulikunitz/xz/internal/hash
-github.com/ulikunitz/xz/internal/xlog
-github.com/ulikunitz/xz/lzma
 # github.com/valyala/fastjson v1.6.10
 ## explicit; go 1.24
 github.com/valyala/fastjson
@@ -361,9 +325,6 @@ github.com/vektah/gqlparser/v2/parser
 github.com/vektah/gqlparser/v2/validator
 github.com/vektah/gqlparser/v2/validator/core
 github.com/vektah/gqlparser/v2/validator/rules
-# github.com/wrouesnel/go.connect-proxy-scheme v0.0.0-20240822095422-f6d0c8f327b9
-## explicit; go 1.23
-github.com/wrouesnel/go.connect-proxy-scheme
 # github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb
 ## explicit
 github.com/xeipuuv/gojsonpointer
@@ -373,9 +334,6 @@ github.com/xeipuuv/gojsonreference
 # github.com/xhit/go-str2duration/v2 v2.2.0
 ## explicit; go 1.13
 github.com/xhit/go-str2duration/v2
-# github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
-## explicit
-github.com/xi2/xz
 # github.com/yashtewari/glob-intersection v0.2.0
 ## explicit; go 1.17
 github.com/yashtewari/glob-intersection
@@ -417,8 +375,6 @@ golang.org/x/crypto/cryptobyte
 golang.org/x/crypto/cryptobyte/asn1
 golang.org/x/crypto/ocsp
 golang.org/x/crypto/pbkdf2
-# golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b
-## explicit; go 1.23.0
 # golang.org/x/mod v0.42.0
 ## explicit; go 1.26.0
 golang.org/x/mod/semver
@@ -564,9 +520,6 @@ google.golang.org/protobuf/types/known/anypb
 google.golang.org/protobuf/types/known/durationpb
 google.golang.org/protobuf/types/known/structpb
 google.golang.org/protobuf/types/known/timestamppb
-# gopkg.in/yaml.v3 v3.0.1
-## explicit
-gopkg.in/yaml.v3
 # kernel.org/pub/linux/libs/security/libcap/psx v1.2.78
 ## explicit; go 1.11
 kernel.org/pub/linux/libs/security/libcap/psx

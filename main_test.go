@@ -17,9 +17,16 @@
 package main
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/base64"
+	"encoding/pem"
 	"errors"
+	"math/big"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -307,6 +314,12 @@ func TestClientFlagValidation(t *testing.T) {
 		*clientAllowQuery = ""
 		*clientVerifySpkiPin = nil
 		decodedClientPins = nil
+		*clientProxy = nil
+		*clientProxyKeystorePath = ""
+		*clientProxyStorePass = ""
+		*clientProxyCertPath = ""
+		*clientProxyKeyPath = ""
+		*clientProxyCABundlePath = ""
 	}
 	defer reset()
 
@@ -1174,7 +1187,7 @@ default allow := true
 	source, err := getTLSConfigSource(false)
 	assert.NoError(t, err, "should create TLS config source")
 
-	dial, regoPolicy, err := clientBackendDialer(source, "tcp", "localhost:8443", "localhost")
+	dial, regoPolicy, _, err := clientBackendDialer(source, "tcp", "localhost:8443", "localhost")
 	assert.NoError(t, err, "should create client backend dialer with OPA")
 	assert.NotNil(t, dial, "dialer should not be nil")
 	assert.NotNil(t, regoPolicy, "rego policy should not be nil")
@@ -1225,7 +1238,7 @@ func TestClientBackendDialerWithServerNameOverride(t *testing.T) {
 	source, err := getTLSConfigSource(false)
 	assert.NoError(t, err, "should create TLS config source")
 
-	dial, regoPolicy, err := clientBackendDialer(source, "tcp", "localhost:8443", "localhost")
+	dial, regoPolicy, _, err := clientBackendDialer(source, "tcp", "localhost:8443", "localhost")
 	assert.NoError(t, err, "should create client backend dialer with server name override")
 	assert.NotNil(t, dial, "dialer should not be nil")
 	assert.Nil(t, regoPolicy, "rego policy should be nil when not configured")
@@ -1277,7 +1290,7 @@ func TestClientBackendDialerInvalidURI(t *testing.T) {
 	source, err := getTLSConfigSource(false)
 	assert.NoError(t, err, "should create TLS config source")
 
-	_, _, err = clientBackendDialer(source, "tcp", "localhost:8443", "localhost")
+	_, _, _, err = clientBackendDialer(source, "tcp", "localhost:8443", "localhost")
 	assert.Error(t, err, "should fail with empty URI pattern")
 }
 
@@ -1326,7 +1339,7 @@ func TestClientBackendDialerInvalidOPAPolicy(t *testing.T) {
 	source, err := getTLSConfigSource(false)
 	assert.NoError(t, err, "should create TLS config source")
 
-	_, _, err = clientBackendDialer(source, "tcp", "localhost:8443", "localhost")
+	_, _, _, err = clientBackendDialer(source, "tcp", "localhost:8443", "localhost")
 	assert.Error(t, err, "should fail with invalid OPA policy path")
 }
 
@@ -1620,7 +1633,7 @@ func TestClientBackendDialerProxyNotContextDialer(t *testing.T) {
 	src, err := getTLSConfigSource(false)
 	assert.NoError(t, err, "should create TLS config source")
 
-	_, _, err = clientBackendDialer(src, "tcp", "localhost:8443", "localhost")
+	_, _, _, err = clientBackendDialer(src, "tcp", "localhost:8443", "localhost")
 	assert.Error(t, err, "should error when proxy dialer is not a ContextDialer")
 	if err != nil {
 		assert.Contains(t, err.Error(), "did not implement context dialing")
@@ -1922,4 +1935,313 @@ func TestNewMetricsPostClientHasTimeout(t *testing.T) {
 	if assert.True(t, ok, "expected an *http.Transport") {
 		assert.Equal(t, uint16(tls.VersionTLS12), transport.TLSClientConfig.MinVersion)
 	}
+}
+
+func TestClientProxyFlagValidation(t *testing.T) {
+	// reset establishes a fully valid client config (see TestClientFlagValidation)
+	// with no proxy, so each case toggles only the proxy-related flags.
+	reset := func() {
+		*keystorePath = "file"
+		*certPath = ""
+		*keyPath = ""
+		keychainIdentity = nil
+		keychainIssuer = nil
+		*clientDisableAuth = false
+		*useWorkloadAPI = false
+		*clientUnsafeListen = false
+		*clientListenAddress = "127.0.0.1:8080"
+		*clientForwardAddress = "localhost:8443"
+		*enabledCipherSuites = "AES,CHACHA"
+		*clientAllowPolicy = ""
+		*clientAllowQuery = ""
+		*clientVerifySpkiPin = nil
+		decodedClientPins = nil
+		*clientProxy = nil
+		*clientProxyKeystorePath = ""
+		*clientProxyStorePass = ""
+		*clientProxyCertPath = ""
+		*clientProxyKeyPath = ""
+		*clientProxyCABundlePath = ""
+	}
+	defer reset()
+
+	httpsURL, _ := url.Parse("https://proxy.example.com:8443")
+	httpURL, _ := url.Parse("http://proxy.example.com:8080")
+	socksURL, _ := url.Parse("socks5://proxy.example.com:1080")
+
+	tests := []struct {
+		name    string
+		proxy   *url.URL
+		flags   func()
+		wantErr string
+	}{
+		{name: "no proxy", proxy: nil, flags: func() {}},
+		{name: "http proxy without proxy TLS flags", proxy: httpURL, flags: func() {}},
+		{name: "https proxy without proxy TLS flags", proxy: httpsURL, flags: func() {}},
+		{name: "https proxy with cert/key", proxy: httpsURL, flags: func() {
+			*clientProxyCertPath = "cert.pem"
+			*clientProxyKeyPath = "key.pem"
+		}},
+		{name: "https proxy with keystore", proxy: httpsURL, flags: func() {
+			*clientProxyKeystorePath = "keystore.p12"
+		}},
+		{name: "https proxy with keystore and password", proxy: httpsURL, flags: func() {
+			*clientProxyKeystorePath = "keystore.p12"
+			*clientProxyStorePass = "secret"
+		}},
+		{name: "https proxy with cacert only", proxy: httpsURL, flags: func() {
+			*clientProxyCABundlePath = "proxy-ca.pem"
+		}},
+		{name: "https proxy with keystore and cacert", proxy: httpsURL, flags: func() {
+			*clientProxyKeystorePath = "keystore.p12"
+			*clientProxyCABundlePath = "proxy-ca.pem"
+		}},
+		{name: "cert without key", proxy: httpsURL, flags: func() {
+			*clientProxyCertPath = "cert.pem"
+		}, wantErr: "--proxy-cert and --proxy-key must be set together"},
+		{name: "key without cert", proxy: httpsURL, flags: func() {
+			*clientProxyKeyPath = "key.pem"
+		}, wantErr: "--proxy-cert and --proxy-key must be set together"},
+		{name: "keystore with cert", proxy: httpsURL, flags: func() {
+			*clientProxyKeystorePath = "keystore.p12"
+			*clientProxyCertPath = "cert.pem"
+		}, wantErr: "--proxy-keystore and --proxy-cert/--proxy-key are mutually exclusive"},
+		{name: "keystore with key", proxy: httpsURL, flags: func() {
+			*clientProxyKeystorePath = "keystore.p12"
+			*clientProxyKeyPath = "key.pem"
+		}, wantErr: "--proxy-keystore and --proxy-cert/--proxy-key are mutually exclusive"},
+		{name: "cert/key without proxy", proxy: nil, flags: func() {
+			*clientProxyCertPath = "cert.pem"
+			*clientProxyKeyPath = "key.pem"
+		}, wantErr: "require --proxy"},
+		{name: "keystore without proxy", proxy: nil, flags: func() {
+			*clientProxyKeystorePath = "keystore.p12"
+		}, wantErr: "require --proxy"},
+		{name: "cacert without proxy", proxy: nil, flags: func() {
+			*clientProxyCABundlePath = "proxy-ca.pem"
+		}, wantErr: "require --proxy"},
+		{name: "cert/key with http proxy", proxy: httpURL, flags: func() {
+			*clientProxyCertPath = "cert.pem"
+			*clientProxyKeyPath = "key.pem"
+		}, wantErr: "require an HTTPS proxy, but --proxy scheme is \"http\""},
+		{name: "keystore with socks5 proxy", proxy: socksURL, flags: func() {
+			*clientProxyKeystorePath = "keystore.p12"
+		}, wantErr: "require an HTTPS proxy, but --proxy scheme is \"socks5\""},
+		{name: "cacert with http proxy", proxy: httpURL, flags: func() {
+			*clientProxyCABundlePath = "proxy-ca.pem"
+		}, wantErr: "require an HTTPS proxy, but --proxy scheme is \"http\""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reset()
+			*clientProxy = tt.proxy
+			tt.flags()
+			err := clientValidateFlags()
+			if tt.wantErr == "" {
+				assert.NoError(t, err)
+				return
+			}
+			assert.Error(t, err)
+			if err != nil {
+				assert.Contains(t, err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestBuildProxyCertificate(t *testing.T) {
+	certFile := writeTempFile(t, "test-proxy-cert-*.pem", []byte(testKeystoreCertOnly))
+	defer os.Remove(certFile)
+	keyFile := writeTempFile(t, "test-proxy-key-*.pem", []byte(testKeystoreKeyPath))
+	defer os.Remove(keyFile)
+	ksFile := writeTempFile(t, "test-proxy-ks-*.p12", testKeystore)
+	defer os.Remove(ksFile)
+	combinedFile := writeTempFile(t, "test-proxy-combined-*.pem", []byte(testKeystoreCertOnly+"\n"+testKeystoreKeyPath))
+	defer os.Remove(combinedFile)
+	caFile := writeTempFile(t, "test-proxy-ca-*.pem", []byte(testCertificate))
+	defer os.Remove(caFile)
+
+	// Neither cert nor keystore: trust bundle only, no client certificate
+	cert, err := buildProxyCertificate("", "", "", "", caFile, logger)
+	assert.NoError(t, err)
+	assert.NotNil(t, cert)
+	assert.Empty(t, cert.GetIdentifier())
+	assert.NotNil(t, cert.GetTrustStore())
+
+	// Neither cert nor keystore, with an unreadable CA bundle
+	_, err = buildProxyCertificate("", "", "", "", "/nonexistent/ca.pem", logger)
+	assert.Error(t, err)
+
+	// Cert and key PEM files
+	cert, err = buildProxyCertificate("", certFile, keyFile, "", caFile, logger)
+	assert.NoError(t, err)
+	assert.NotNil(t, cert)
+	id := cert.GetIdentifier()
+	assert.Equal(t, "CN=fluent-bit-forward-ca,O=cert-manager", id)
+
+	// PKCS#12 keystore
+	cert, err = buildProxyCertificate(ksFile, "", "", testKeystorePassword, caFile, logger)
+	assert.NoError(t, err)
+	assert.NotNil(t, cert)
+	assert.Equal(t, "CN=localhost,OU=test", cert.GetIdentifier())
+
+	// Combined PEM keystore
+	cert, err = buildProxyCertificate(combinedFile, "", "", "", caFile, logger)
+	assert.NoError(t, err)
+	assert.NotNil(t, cert)
+	assert.Equal(t, "CN=fluent-bit-forward-ca,O=cert-manager", cert.GetIdentifier())
+}
+
+func TestClientBackendDialerWithHTTPSProxy(t *testing.T) {
+	origKeystorePath := *keystorePath
+	origCertPath := *certPath
+	origKeyPath := *keyPath
+	origCaBundlePath := *caBundlePath
+	origClientProxy := *clientProxy
+	origClientProxyKeystorePath := *clientProxyKeystorePath
+	origClientProxyStorePass := *clientProxyStorePass
+	origClientProxyCertPath := *clientProxyCertPath
+	origClientProxyKeyPath := *clientProxyKeyPath
+	origClientProxyCABundlePath := *clientProxyCABundlePath
+	origConnectTimeout := *connectTimeout
+	origEnabledCipherSuites := *enabledCipherSuites
+	t.Cleanup(func() {
+		*keystorePath = origKeystorePath
+		*certPath = origCertPath
+		*keyPath = origKeyPath
+		*caBundlePath = origCaBundlePath
+		*clientProxy = origClientProxy
+		*clientProxyKeystorePath = origClientProxyKeystorePath
+		*clientProxyStorePass = origClientProxyStorePass
+		*clientProxyCertPath = origClientProxyCertPath
+		*clientProxyKeyPath = origClientProxyKeyPath
+		*clientProxyCABundlePath = origClientProxyCABundlePath
+		*connectTimeout = origConnectTimeout
+		*enabledCipherSuites = origEnabledCipherSuites
+	})
+
+	certFile := writeTempFile(t, "test-cert-*.pem", []byte(testKeystoreCertOnly))
+	keyFile := writeTempFile(t, "test-key-*.pem", []byte(testKeystoreKeyPath))
+	ksFile := writeTempFile(t, "test-ks-*.p12", testKeystore)
+	caFile := writeTempFile(t, "test-ca-*.pem", []byte(testCertificate))
+
+	*keystorePath = ""
+	*certPath = certFile
+	*keyPath = keyFile
+	*caBundlePath = caFile
+	*connectTimeout = 5 * time.Second
+	*enabledCipherSuites = "AES,CHACHA"
+
+	proxyURL, err := url.Parse("https://127.0.0.1:8443")
+	assert.NoError(t, err)
+	*clientProxy = proxyURL
+
+	source, err := getTLSConfigSource(false)
+	assert.NoError(t, err)
+
+	// HTTPS proxy with a keystore credential
+	*clientProxyKeystorePath = ksFile
+	*clientProxyStorePass = testKeystorePassword
+	*clientProxyCABundlePath = ""
+
+	dial, policy, proxySource, err := clientBackendDialer(source, "tcp", "localhost:8443", "localhost")
+	assert.NoError(t, err)
+	assert.NotNil(t, dial)
+	assert.Nil(t, policy)
+	assert.NotNil(t, proxySource)
+	assert.NoError(t, proxySource.Reload())
+
+	// HTTPS proxy without a credential still gets a reloadable trust bundle
+	*clientProxyKeystorePath = ""
+	*clientProxyStorePass = ""
+
+	_, _, proxySource, err = clientBackendDialer(source, "tcp", "localhost:8443", "localhost")
+	assert.NoError(t, err)
+	assert.NotNil(t, proxySource)
+	assert.False(t, proxySource.CanServe(), "trust bundle only source should not be able to serve")
+
+	// A separate --proxy-cacert is honored, and a bad one fails at startup
+	*clientProxyCABundlePath = caFile
+	_, _, proxySource, err = clientBackendDialer(source, "tcp", "localhost:8443", "localhost")
+	assert.NoError(t, err)
+	assert.NotNil(t, proxySource)
+
+	*clientProxyCABundlePath = "/nonexistent/proxy-ca.pem"
+	_, _, _, err = clientBackendDialer(source, "tcp", "localhost:8443", "localhost")
+	assert.Error(t, err)
+
+	// Plain HTTP proxy: no TLS to the proxy, so no proxy TLS config source
+	*clientProxyCABundlePath = ""
+	httpProxyURL, err := url.Parse("http://127.0.0.1:8080")
+	assert.NoError(t, err)
+	*clientProxy = httpProxyURL
+
+	_, _, proxySource, err = clientBackendDialer(source, "tcp", "localhost:8443", "localhost")
+	assert.NoError(t, err)
+	assert.Nil(t, proxySource)
+}
+
+// writeSelfSignedPEM generates a self-signed certificate with the given
+// common name and writes it and its private key to temporary PEM files.
+func writeSelfSignedPEM(t *testing.T, cn string) (certFile, keyFile string) {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	assert.NoError(t, err)
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: cn},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+	}
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	assert.NoError(t, err)
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	assert.NoError(t, err)
+	certFile = writeTempFile(t, "test-cert-*.pem", pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}))
+	keyFile = writeTempFile(t, "test-key-*.pem", pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}))
+	return certFile, keyFile
+}
+
+func TestEnvironmentReloadProxyTLSConfigSource(t *testing.T) {
+	caFile := writeTempFile(t, "test-ca-*.pem", []byte(testCertificate))
+	mainCertFile := writeTempFile(t, "test-cert-*.pem", []byte(testKeystoreCertOnly))
+	mainKeyFile := writeTempFile(t, "test-key-*.pem", []byte(testKeystoreKeyPath))
+
+	mainCert, err := certloader.CertificateFromPEMFiles(mainCertFile, mainKeyFile, caFile)
+	assert.NoError(t, err)
+	mainSource := certloader.TLSConfigSourceFromCertificate(mainCert, logger)
+
+	proxyCertFile, proxyKeyFile := writeSelfSignedPEM(t, "proxy-client-1")
+	proxyCert, err := certloader.CertificateFromPEMFiles(proxyCertFile, proxyKeyFile, caFile)
+	assert.NoError(t, err)
+	assert.Equal(t, "CN=proxy-client-1", proxyCert.GetIdentifier())
+	proxySource := certloader.TLSConfigSourceFromCertificate(proxyCert, logger)
+
+	status := newStatusHandler(nil, "client", "localhost:8080", "localhost:8443", "")
+	env := &Environment{
+		status:               status,
+		tlsConfigSource:      mainSource,
+		proxyTLSConfigSource: proxySource,
+	}
+
+	// Replace the proxy credential on disk: reload() must pick it up.
+	newCertFile, newKeyFile := writeSelfSignedPEM(t, "proxy-client-2")
+	for _, f := range [][2]string{{newCertFile, proxyCertFile}, {newKeyFile, proxyKeyFile}} {
+		content, err := os.ReadFile(f[0])
+		assert.NoError(t, err)
+		assert.NoError(t, os.WriteFile(f[1], content, 0600))
+	}
+	env.reload()
+	assert.Equal(t, "CN=proxy-client-2", proxyCert.GetIdentifier())
+	assert.Equal(t, "CN=fluent-bit-forward-ca,O=cert-manager", mainCert.GetIdentifier())
+
+	// A broken proxy credential on disk must not replace the loaded one, and
+	// must not prevent the rest of the reload from completing.
+	assert.NoError(t, os.WriteFile(proxyCertFile, []byte("not a certificate"), 0600))
+	env.reload()
+	assert.Equal(t, "CN=proxy-client-2", proxyCert.GetIdentifier())
+	assert.True(t, status.listening, "status should be back to listening after reload")
+	assert.False(t, status.reloading, "status should not be stuck in reloading")
 }

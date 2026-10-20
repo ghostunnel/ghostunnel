@@ -30,6 +30,13 @@ A reload re-reads from disk:
 * OPA policy bundles (`--allow-policy` / `--verify-policy`), if configured.
   See [Access Control Flags]({{< ref "access-flags.md" >}}).
 
+{{% since "v1.12.0" %}}
+In client mode, a reload also re-reads the proxy client certificate and
+proxy CA bundle (`--proxy-keystore` or `--proxy-cert`/`--proxy-key`, and
+`--proxy-cacert`), if configured. See
+[Outbound Proxies](../../networking/outbound-proxy/).
+{{% /since %}}
+
 ## Source-Specific Behavior
 
 * **PKCS#11 / HSM**: only the certificate is reloaded from disk; the private
