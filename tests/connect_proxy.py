@@ -139,3 +139,61 @@ class FakeConnectProxy:
                 handler.connection.close()
             except Exception:
                 pass  # best-effort cleanup of proxy sockets
+
+
+class SilentProxy:
+    """A proxy on a free localhost port that accepts connections (and, with
+    certfile/keyfile, completes the TLS handshake) but never answers the
+    CONNECT request. Used to check that --connect-timeout bounds the CONNECT
+    exchange."""
+
+    def __init__(self, certfile=None, keyfile=None):
+        self.tls = certfile is not None
+        self.port = get_free_port(release=True)
+        self.listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.listener.bind((LOCALHOST, self.port))
+        self.listener.listen(16)
+        self.ctx = None
+        if self.tls:
+            self.ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+            self.ctx.load_cert_chain(certfile=certfile, keyfile=keyfile)
+        self.conns = []
+        self.closed = False
+        thread = threading.Thread(target=self._serve)
+        thread.daemon = True
+        thread.start()
+        print_ok("silent {0} proxy listening on {1}".format(
+            'https' if self.tls else 'http', self.url()))
+
+    def url(self):
+        return '{0}://{1}:{2}'.format(
+            'https' if self.tls else 'http', LOCALHOST, self.port)
+
+    def _serve(self):
+        while not self.closed:
+            try:
+                conn, _ = self.listener.accept()
+            except OSError:
+                return
+            # Hold on to the connection without ever replying.
+            self.conns.append(conn)
+            if self.ctx:
+                thread = threading.Thread(target=self._handshake, args=(conn,))
+                thread.daemon = True
+                thread.start()
+
+    def _handshake(self, conn):
+        try:
+            self.conns.append(self.ctx.wrap_socket(conn, server_side=True))
+        except (OSError, ssl.SSLError):
+            pass  # ghostunnel gave up first; nothing to hold on to
+
+    def shutdown(self):
+        self.closed = True
+        self.listener.close()
+        for conn in self.conns:
+            try:
+                conn.close()
+            except OSError:
+                pass  # best-effort cleanup of proxy sockets

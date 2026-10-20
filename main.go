@@ -1315,7 +1315,7 @@ func clientProxyDialer(proxyURL *url.URL) (netproxy.ContextDialer, certloader.TL
 		forward = certloader.DialerWithCertificate(clientConfig, *connectTimeout, &net.Dialer{Timeout: *connectTimeout})
 	}
 
-	proxyDialer, err := netproxy.FromURL(proxyURL, forward)
+	proxyDialer, err := netproxy.FromURL(proxyURL, boundedForwardDialer{forward})
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to configure proxy: %w", err)
 	}
@@ -1324,7 +1324,7 @@ func clientProxyDialer(proxyURL *url.URL) (netproxy.ContextDialer, certloader.TL
 	if !ok {
 		return nil, nil, errors.New("unexpected: proxy dialer scheme did not implement context dialing, aborting")
 	}
-	return dialer, proxyTLSConfigSource, nil
+	return boundedProxyDialer{dialer}, proxyTLSConfigSource, nil
 }
 
 func proxyLoggerFlags(flags []string) int {

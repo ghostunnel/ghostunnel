@@ -107,8 +107,10 @@ certificate. See [Certificate Reloading]({{< ref "reloading.md" >}}).
 
 `--connect-timeout` is a single budget for the whole connection setup, not
 a separate limit for each step. The TCP connection to the proxy, the TLS
-handshake with an `https://` proxy, and the TLS handshake with the target
-through the tunnel must all complete within it. Once the tunnel is
+handshake with an `https://` proxy, the `CONNECT` or SOCKS5 exchange with the
+proxy, and the TLS handshake with the target through the tunnel must all
+complete within it. A proxy that accepts the connection but never answers
+makes the connection fail once the timeout expires. Once the tunnel is
 established, `--idle-timeout`, `--close-timeout`, and `--max-conn-lifetime`
 apply just as they do to a direct connection. See
 [Timeouts & Connection Lifecycle]({{< ref "timeouts.md" >}}).
