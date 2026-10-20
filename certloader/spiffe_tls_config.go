@@ -106,6 +106,13 @@ type spiffeTLSConfig struct {
 	// Cached configs. SPIFFE has no reloadable trust store (the X509Source
 	// maintains itself via the Workload API and certificates are served through
 	// a callback), so the built config never changes: build once, cache forever.
+	//
+	// That means a reload never rebuilds these configs, and with them never
+	// rotates the session ticket keys, so nothing here invalidates outstanding
+	// sessions. Session invalidation is not this type's job: the server
+	// listener wraps whatever config it gets in
+	// BindSessionsToGeneration, which drops sessions on every reload
+	// regardless of what the source underneath it did.
 	cachedClient atomic.Pointer[tls.Config]
 	cachedServer atomic.Pointer[tls.Config]
 }
