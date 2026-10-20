@@ -369,7 +369,7 @@ func TestHistogramQuantileInfBucketCap(t *testing.T) {
 	// When the rank lands in the implicit +Inf bucket (observations above the top
 	// finite bound), report the highest finite bound rather than +Inf.
 	buckets := []*dto.Bucket{mkBucket(10, 1), mkBucket(20, 2)}
-	got := histogramQuantile(0.99, buckets, 10) // ranks >0.2 land in +Inf
+	got := histogramQuantile(0.99, buckets, 10) // q > 0.2 (rank > 2) lands in +Inf
 	assert.Equal(t, 20.0, got, "ranks above the top finite bucket cap at that bound")
 	assert.False(t, math.IsInf(got, 1), "must never return +Inf")
 }

@@ -16,8 +16,9 @@
 
 // Package metrics is Ghostunnel's single metrics backend. It owns one
 // *prometheus.Registry and exposes the instrument handles the connection hot
-// path updates, plus the three export sinks (JSON, Graphite, native
-// Prometheus) built directly on top of that registry.
+// path updates, plus the three export sinks built directly on top of that
+// registry: JSON (pull at /_metrics/json and POST via --metrics-url), Graphite
+// (push), and Prometheus (pull).
 //
 // It exists to keep the prometheus/client_golang dependency out of the proxy
 // package and to give the two legacy wire-format adapters (JSON and Graphite)
@@ -90,10 +91,10 @@ var (
 // the native representation on every timer, so modern Prometheus scrapers get an
 // auto-scaling histogram regardless of the classic bucket layout above.
 //
-// conn.lifetime durations are driven by external input (connections can live
-// from microseconds to hours), so the native bucket count is capped and the
-// schema is periodically reset to keep memory bounded, as client_golang
-// recommends for externally-influenced observations.
+// Every timer caps its native bucket count to keep memory bounded, since
+// durations like conn.lifetime can range from microseconds to hours. When the
+// cap is hit, client_golang resets the histogram (at most once per
+// nativeHistogramMinResetDuration) or lowers its resolution.
 const (
 	nativeHistogramBucketFactor     = 1.1
 	nativeHistogramMaxBucketNumber  = 160
@@ -300,12 +301,15 @@ type snap struct {
 	timers  []timerReading
 }
 
-// snapshot reads every registered metric once, in canonical descriptor order.
-// Counter/gauge/histogram values all come from a single Gather() of the
+// snapshot reads every registered metric once, from a single Gather() of the
 // prometheus registry. Interpolated percentiles for an empty timer are NaN;
 // nz() clamps NaN/Inf to zero so the JSON encoder never fails and Graphite
 // never emits "NaN".
 func (r *Registry) snapshot() snap {
+	// Gather returns whatever families it could collect alongside any error.
+	// The partial result is used deliberately: a failing collector (e.g. the
+	// process collector on an unsupported platform) must not blank out the
+	// legacy sinks, and a metric missing from the result reads as zero below.
 	families, _ := r.prom.Gather()
 	byName := make(map[string]*dto.MetricFamily, len(families))
 	for _, f := range families {

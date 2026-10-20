@@ -682,11 +682,11 @@ func TestAuthorizePinMismatch(t *testing.T) {
 
 	err := testACL.VerifyPeerCertificateServer([][]byte{certDER}, nil)
 	assert.Error(t, err, "mismatched pin should reject connection")
-	assert.Contains(t, err.Error(), "unable to verify pin")
+	assert.Contains(t, err.Error(), "pin verification failed")
 
 	err = testACL.VerifyPeerCertificateClient([][]byte{certDER}, nil)
 	assert.Error(t, err, "mismatched pin should reject connection")
-	assert.Contains(t, err.Error(), "unable to verify pin")
+	assert.Contains(t, err.Error(), "pin verification failed")
 }
 
 func TestAuthorizePinNoRawCerts(t *testing.T) {

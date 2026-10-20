@@ -55,26 +55,26 @@ type ACL struct {
 	// will be allowed no matter the subject.
 	AllowAll bool
 
-	// AllowCNs lists common names that should be allowed access. If a principal
+	// AllowedCNs lists common names that should be allowed access. If a principal
 	// has a valid certificate with at least one of these CNs, we grant access.
 	AllowedCNs []string
 
-	// AllowOUs lists organizational units that should be allowed access. If a
+	// AllowedOUs lists organizational units that should be allowed access. If a
 	// principal has a valid certificate with at least one of these OUs, we grant
 	// access.
 	AllowedOUs []string
 
-	// AllowDNSs lists DNS SANs that should be allowed access. If a principal
+	// AllowedDNSs lists DNS SANs that should be allowed access. If a principal
 	// has a valid certificate with at least one of these DNS SANs, we grant
 	// access.
 	AllowedDNSs []string
 
-	// AllowIPs lists IP SANs that should be allowed access. If a principal
+	// AllowedIPs lists IP SANs that should be allowed access. If a principal
 	// has a valid certificate with at least one of these IP SANs, we grant
 	// access.
 	AllowedIPs []net.IP
 
-	// AllowURIs lists URI SANs that should be allowed access. If a principal
+	// AllowedURIs lists URI SANs that should be allowed access. If a principal
 	// has a valid certificate with at least one of these URI SANs, we grant
 	// access.
 	AllowedURIs []wildcard.Matcher
@@ -202,7 +202,7 @@ func (a ACL) verifySPKIPin(rawCerts [][]byte) error {
 		}
 	}
 
-	return errors.New("unauthorized: unable to verify pin")
+	return errors.New("unauthorized: pin verification failed")
 }
 
 // VerifyPeerCertificateServer is an implementation of VerifyPeerCertificate

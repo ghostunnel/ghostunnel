@@ -22,11 +22,11 @@ import (
 
 // Policy wraps an OPA policy and supports reloading at runtime.
 type Policy interface {
-	// Reload will reload the policy. Subsequent calls to Evaluate will run
+	// Reload will reload the policy. Subsequent calls to Eval will run
 	// the newly loaded policy, if reloading was successful. If reloading fails,
 	// the old state is kept.
 	Reload() error
 
-	// Evaluate the underlying policy. See rego docs for more info.
+	// Eval evaluates the underlying policy. See rego docs for more info.
 	Eval(ctx context.Context, options ...rego.EvalOption) (rego.ResultSet, error)
 }
