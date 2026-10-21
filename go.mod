@@ -6,7 +6,6 @@ require (
 	github.com/coreos/go-systemd/v22 v22.7.0
 	github.com/cyberdelia/go-metrics-graphite v0.0.0-20260729042415-662a311ee21f
 	github.com/deathowl/go-metrics-prometheus v0.0.0-20221009205350-f2a1482ba35b
-	github.com/go-jose/go-jose/v4 v4.1.5
 	github.com/hashicorp/go-syslog v1.0.1
 	github.com/kavu/go_reuseport v1.5.0
 	github.com/landlock-lsm/go-landlock v0.10.1
@@ -42,6 +41,7 @@ require (
 	github.com/dgraph-io/ristretto/v2 v2.4.0 // indirect
 	github.com/dsnet/compress v0.0.1 // indirect
 	github.com/frankban/quicktest v1.14.6 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.5 // indirect
 	github.com/gobwas/glob v1.0.0 // indirect
 	github.com/goccy/go-json v0.11.2 // indirect
 	github.com/golang/snappy v1.0.0 // indirect

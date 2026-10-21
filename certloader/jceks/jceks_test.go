@@ -735,6 +735,28 @@ func TestEncodeIntegrityPasswordEmpty(t *testing.T) {
 	assert.ErrorIs(t, err, errInvalidPassword)
 }
 
+// --- parse options used by the size-limit tests ---
+
+type simpleParseOptionFunc func(cfg *parseConfig)
+
+func (f simpleParseOptionFunc) applyParseOption(cfg *parseConfig) error {
+	f(cfg)
+
+	return nil
+}
+
+func withMaxCertificateBytes(maxBytes uint) parseOption {
+	return simpleParseOptionFunc(func(cfg *parseConfig) {
+		cfg.maxCertBytes = maxBytes
+	})
+}
+
+func withMaxPrivateKeyBytes(maxBytes uint) parseOption {
+	return simpleParseOptionFunc(func(cfg *parseConfig) {
+		cfg.maxPrivateKeyBytes = maxBytes
+	})
+}
+
 // --- makeParseConfig / parseWithOptions config error ---
 
 type errOption struct{}
