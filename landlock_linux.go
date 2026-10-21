@@ -300,7 +300,7 @@ func ruleFromStringAddress(addr string, ruleFromPort portRuleFunc) (landlock.Rul
 // --metrics-graphite) into a port-based landlock rule. ruleFromPort selects
 // bind vs connect semantics.
 func ruleFromTCPAddress(addr *net.TCPAddr, ruleFromPort portRuleFunc) (landlock.Rule, error) {
-	if addr.Port == 0 {
+	if addr.Port <= 0 || addr.Port > 65535 {
 		return nil, errors.New("unable to extract port number from address")
 	}
 	return ruleFromPort(uint16(addr.Port)), nil

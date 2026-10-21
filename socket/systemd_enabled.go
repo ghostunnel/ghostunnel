@@ -34,15 +34,15 @@ import (
 var (
 	systemdListenersOnce sync.Once
 	systemdListeners     map[string][]net.Listener
-	systemdListenersErr  error
+	errSystemdListeners  error
 )
 
 func systemdSocket(name string) (net.Listener, error) {
 	systemdListenersOnce.Do(func() {
-		systemdListeners, systemdListenersErr = activation.ListenersWithNames()
+		systemdListeners, errSystemdListeners = activation.ListenersWithNames()
 	})
-	if systemdListenersErr != nil {
-		return nil, systemdListenersErr
+	if errSystemdListeners != nil {
+		return nil, errSystemdListeners
 	}
 
 	return systemdSocketFromMap(name, systemdListeners)
