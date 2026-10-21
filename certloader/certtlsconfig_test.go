@@ -92,7 +92,7 @@ func TestCertTLSConfigSourceGetServerConfigCannotServe(t *testing.T) {
 	source := TLSConfigSourceFromCertificate(cert, log.New(io.Discard, "", 0))
 
 	_, err := source.GetServerConfig(nil)
-	assert.NotNil(t, err, "should fail when certificate cannot serve (no private key)")
+	assert.Error(t, err, "should fail when certificate cannot serve (no private key)")
 	assert.Contains(t, err.Error(), "cannot be used as a server")
 }
 
@@ -115,7 +115,7 @@ func TestCertTLSConfigSourceGetClientConfig(t *testing.T) {
 	source := TLSConfigSourceFromCertificate(cert, log.New(io.Discard, "", 0))
 
 	config, err := source.GetClientConfig(nil)
-	assert.Nil(t, err, "should succeed getting client config")
+	assert.NoError(t, err, "should succeed getting client config")
 	assert.NotNil(t, config, "client config should not be nil")
 
 	tlsConfig := config.GetClientConfig()
@@ -127,7 +127,7 @@ func TestCertTLSConfigSourceGetServerConfig(t *testing.T) {
 	source := TLSConfigSourceFromCertificate(cert, log.New(io.Discard, "", 0))
 
 	config, err := source.GetServerConfig(nil)
-	assert.Nil(t, err, "should succeed getting server config with private key")
+	assert.NoError(t, err, "should succeed getting server config with private key")
 	assert.NotNil(t, config, "server config should not be nil")
 
 	tlsConfig := config.GetServerConfig()
@@ -141,7 +141,7 @@ func TestCertTLSConfigServerConfigClientCAsDefault(t *testing.T) {
 	source := TLSConfigSourceFromCertificate(cert, log.New(io.Discard, "", 0))
 
 	config, err := source.GetServerConfig(&tls.Config{ClientAuth: tls.RequireAndVerifyClientCert})
-	assert.Nil(t, err, "should succeed getting server config")
+	assert.NoError(t, err, "should succeed getting server config")
 
 	tlsConfig := config.GetServerConfig()
 	assert.NotNil(t, tlsConfig.ClientCAs, "ClientCAs should carry the trust store when not in pin mode")
@@ -155,7 +155,7 @@ func TestCertTLSConfigServerConfigClientCAsPinMode(t *testing.T) {
 	source := TLSConfigSourceFromCertificate(cert, log.New(io.Discard, "", 0))
 
 	config, err := source.GetServerConfig(&tls.Config{ClientAuth: tls.RequireAnyClientCert})
-	assert.Nil(t, err, "should succeed getting server config")
+	assert.NoError(t, err, "should succeed getting server config")
 
 	tlsConfig := config.GetServerConfig()
 	assert.Nil(t, tlsConfig.ClientCAs, "ClientCAs should be nil in pin mode to avoid the CA hint")
@@ -184,5 +184,5 @@ func TestCertTLSConfigSourceReload(t *testing.T) {
 	source := TLSConfigSourceFromCertificate(cert, log.New(io.Discard, "", 0))
 
 	err := source.Reload()
-	assert.Nil(t, err, "reload should succeed")
+	assert.NoError(t, err, "reload should succeed")
 }

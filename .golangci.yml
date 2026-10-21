@@ -5,8 +5,43 @@ linters:
   default: standard
   # forbidigo bans a couple of project-specific footgun calls; see the
   # per-pattern messages under settings.forbidigo for the rationale.
+  # errorlint enforces errors.Is comparisons and %w wrapping — the core
+  # rules from the logging/error-message conventions.
+  # perfsprint catches fmt.Errorf with no format args (use errors.New instead).
+  # errname reinforces the sentinel-error naming convention (errXxx / XxxError).
+  # The remaining linters are correctness guards (nilerr, bodyclose,
+  # durationcheck, makezero, reassign, predeclared, wastedassign) and small
+  # modernization/cleanup checks (usestdlibvars, unconvert, whitespace,
+  # intrange, copyloopvar, misspell), most of which are currently clean.
   enable:
     - forbidigo
+    - errorlint
+    - perfsprint
+    - errname
+    - usestdlibvars
+    - nilerr
+    - bodyclose
+    - durationcheck
+    - makezero
+    - reassign
+    - predeclared
+    - wastedassign
+    - unconvert
+    - whitespace
+    - intrange
+    - copyloopvar
+    - misspell
+    # testifylint catches misused testify assertions; thelper flags test
+    # helpers missing t.Helper(); forcetypeassert flags unchecked x.(T)
+    # assertions; unparam flags unused/constant function parameters.
+    - testifylint
+    - thelper
+    - forcetypeassert
+    - unparam
+    # depguard bans importing math/rand — this is a TLS proxy, so randomness
+    # must come from crypto/rand (see settings.depguard for the rationale).
+    - depguard
+    - gosec
   # Enable human-readable exclusion presets including std-error-handling
   # which excludes common error handling patterns like Close()
   exclusions:
@@ -19,16 +54,82 @@ linters:
           - errcheck
         path: "_test\\.go"
       # Ignore forbidigo in test files - tests legitimately call os.Exit (e.g.
-      # TestMain) and may tune runtime.GOMAXPROCS; the footguns the rules guard
-      # against only matter in the production binary.
+      # TestMain), may tune runtime.GOMAXPROCS, and use t/tb.Fatal; the footguns
+      # the rules guard against only matter in the production binary. The
+      # internal/test packages are test-only helpers (not _test.go suffixed), so
+      # they get the same treatment.
       - linters:
           - forbidigo
+        path: "(_test\\.go|/internal/test/)"
+      # Ignore forcetypeassert and unparam in test files - both deliver their
+      # value in the production binary. In tests an unchecked assertion that
+      # panics is an acceptable loud failure, and fixture/builder helpers
+      # legitimately carry constant params and unused return values.
+      - linters:
+          - forcetypeassert
+          - unparam
         path: "_test\\.go"
+      # Ignore gosec in test files and the jcekstest fixture builders - test
+      # code deliberately builds insecure configs and fixtures.
+      - linters:
+          - gosec
+        path: "(_test\\.go|/jcekstest/)"
+      # The JCEKS format mandates MD5, DES and SHA-1, so allow them there.
+      - linters:
+          - gosec
+        path: "certloader/jceks/"
+        text: "G401|G405|G501|G502|G505"
   settings:
+    depguard:
+      rules:
+        # Applies to all Go files (tests included): ghostunnel is a TLS proxy,
+        # so all randomness must come from crypto/rand. math/rand is not
+        # cryptographically secure and must never be used.
+        all:
+          deny:
+            - pkg: math/rand
+              desc: use crypto/rand; math/rand is not cryptographically secure
+            - pkg: math/rand/v2
+              desc: use crypto/rand; math/rand/v2 is not cryptographically secure
+    gosec:
+      excludes:
+        # Unchecked errors are already covered by errcheck.
+        - G104
     errcheck:
       # Additional functions to exclude from checking
       exclude-functions:
         - (*github.com/ghostunnel/ghostunnel/certloader.spiffeTLSConfigSource).Close
+    testifylint:
+      # All testifylint checks stay enabled except these two, which fire
+      # inconsistently on this codebase's test patterns:
+      #   - float-compare: the metrics tests compare integer-valued float64
+      #     metrics (nanosecond counts/means) against exact expected values,
+      #     where exact comparison is correct; the check also fires on only some
+      #     of these identical assertions, so InDelta rewrites add noise.
+      #   - require-error: fires on only some of several structurally identical
+      #     "assert then use the result" error checks (e.g. two of three in one
+      #     helper), so enforcing it yields inconsistent files rather than a
+      #     clean rule. Error assertions that must be fatal already use require.
+      disable:
+        - float-compare
+        - require-error
+    errorlint:
+      # Flag fmt.Errorf with %v (or %s) wrapping an error — must use %w.
+      errorf: true
+      errorf-multi: true
+      # Flag == / != comparisons against sentinel errors — must use errors.Is.
+      comparison: true
+      # Assertion checks add noise on legitimately-typed error values; keep off.
+      asserts: false
+    perfsprint:
+      # Only flag fmt.Errorf with no format args — errors.New is preferred.
+      # All other perfsprint checks (sprintf1, strconcat, int-conversion,
+      # err-error) are disabled to avoid unrelated churn.
+      errorf: true
+      sprintf1: false
+      strconcat: false
+      int-conversion: false
+      err-error: false
     forbidigo:
       forbid:
         - pattern: '^runtime\.GOMAXPROCS$'
@@ -43,3 +144,10 @@ linters:
             wrapped (see coverage_enabled.go) to flush coverage counters before
             the process exits, and routing exits through it keeps shutdown
             graceful. A raw os.Exit bypasses both.
+        - pattern: '\.(Fatal|Fatalf|Fatalln|Panic|Panicf|Panicln)$'
+          msg: >-
+            Do not use Fatal/Panic logging calls. log.Fatal* and
+            (*log.Logger).Fatal* call os.Exit directly, bypassing exitFunc
+            (coverage counters are lost and shutdown is not graceful), and
+            Panic* aborts the process. Return an error and let main() report it
+            once instead.

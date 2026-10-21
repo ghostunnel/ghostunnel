@@ -21,9 +21,9 @@ import (
 	"net"
 )
 
-// Listener holds a *net.Listener, wrapping incoming connections in TLS,
-// overriding Accept() to make sure we reload the trust bundle on new incoming
-// connections. This allows for reloading the CA bundle at runtime without
+// Listener embeds a net.Listener and wraps each accepted connection in TLS.
+// Accept fetches the current server config for every connection, so a reload
+// of the certificate or trust store takes effect for new connections without
 // restarting the listener.
 type Listener struct {
 	net.Listener

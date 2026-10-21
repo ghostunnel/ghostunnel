@@ -178,8 +178,8 @@ func TestACMEConfigDefaultProdCABranch(t *testing.T) {
 		TOSAgreed: true,
 	}
 
-	assert.Equal(t, "", config.ProdCAURL, "ProdCAURL should be empty")
-	assert.Equal(t, "", config.TestCAURL, "TestCAURL should be empty")
+	assert.Empty(t, config.ProdCAURL, "ProdCAURL should be empty")
+	assert.Empty(t, config.TestCAURL, "TestCAURL should be empty")
 	assert.False(t, config.UseTestCA, "UseTestCA should default to false")
 
 	// When UseTestCA is false and ProdCAURL is empty, the default should be

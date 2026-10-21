@@ -368,7 +368,7 @@ func TestFormatDetectionUnknownMagic(t *testing.T) {
 func TestReadPKCS12BlocksInvalidData(t *testing.T) {
 	_, err := readPKCS12Blocks(bytes.NewReader([]byte("not-valid-pkcs12")), "password")
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "unable to read keystore")
+	assert.Contains(t, err.Error(), "unable to parse keystore")
 }
 
 func TestReadPKCS12BlocksWithCACerts(t *testing.T) {
@@ -524,7 +524,7 @@ func TestReadJCEKSBlocksCorruptCipher(t *testing.T) {
 
 	_, err = readJCEKSBlocks(bytes.NewReader(jceksData), password)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "unable to recover private key 'corruptkey'")
+	assert.Contains(t, err.Error(), `unable to recover private key "corruptkey"`)
 }
 
 // TestReadJCEKSBlocksIterationErrorMidStore builds a JCEKS keystore containing two private-key
@@ -565,9 +565,9 @@ func TestReadJCEKSBlocksIterationErrorMidStore(t *testing.T) {
 
 	_, err = readJCEKSBlocks(bytes.NewReader(jceksData), password)
 	require.Error(t, err, "should error on corrupt second entry")
-	assert.Contains(t, err.Error(), "unable to recover private key 'z-bad'",
+	assert.Contains(t, err.Error(), `unable to recover private key "z-bad"`,
 		"error should reference the second alias, proving iteration reached the corrupt entry")
-	assert.NotContains(t, err.Error(), "'a-good'",
+	assert.NotContains(t, err.Error(), `"a-good"`,
 		"error should not reference the first (valid) alias")
 }
 
@@ -592,7 +592,7 @@ func TestReadJCEKSBlocksGetPrivateKeyError(t *testing.T) {
 
 	_, err = readJCEKSBlocks(bytes.NewReader(jceksData), password)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "unable to recover private key 'badkey'")
+	assert.Contains(t, err.Error(), `unable to recover private key "badkey"`)
 }
 
 func TestFormatDetectionP7bExtension(t *testing.T) {
@@ -724,5 +724,5 @@ func TestReadPKCS12BlocksRSA(t *testing.T) {
 func TestReadPEMBlocksIOError(t *testing.T) {
 	_, err := readPEMBlocks(&errReader{errors.New("disk failure")})
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "error reading PEM data")
+	assert.Contains(t, err.Error(), "unable to read PEM data")
 }

@@ -92,6 +92,14 @@ bundle. When the SPIFFE provider (e.g. SPIRE) rotates certificates or
 updates the trust bundle, Ghostunnel picks up the changes without requiring
 a manual reload or restart.
 
+{{% since "v1.12.0" %}}
+Updates apply to new full handshakes. A client that resumes a TLS session is
+not re-checked against an updated trust bundle until the next reload. If
+removing a CA from the trust bundle must also cut off clients that resume
+sessions, set `--timed-reload`. See
+[Session Resumption]({{< ref "reloading.md#session-resumption" >}}).
+{{% /since %}}
+
 ## Demo
 
 See the [end-to-end demo](https://github.com/ghostunnel/ghostunnel/tree/master/docs/spiffe-workload-api-demo) for an example

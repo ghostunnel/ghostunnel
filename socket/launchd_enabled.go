@@ -39,12 +39,12 @@ func launchdSocket(address string) (net.Listener, error) {
 
 	err := C.launch_activate_socket(c_name, &c_fds, &c_cnt)
 	if err != 0 {
-		return nil, fmt.Errorf("couldn't activate launchd socket: %v", err)
+		return nil, fmt.Errorf("unable to activate launchd socket: %v", err)
 	}
 
 	length := int(c_cnt)
 	if length != 1 {
-		return nil, fmt.Errorf("expected exactly one socket to be configured in launchd for '%s', found %d", address, length)
+		return nil, fmt.Errorf("expected exactly one socket to be configured in launchd for %q, found %d", address, length)
 	}
 	ptr := unsafe.Pointer(c_fds)
 	defer C.free(ptr)

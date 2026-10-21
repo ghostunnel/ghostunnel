@@ -24,13 +24,14 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"errors"
 	"io"
 	"math/big"
 	"net"
 	"testing"
 	"time"
 
-	metrics "github.com/rcrowley/go-metrics"
+	"github.com/ghostunnel/ghostunnel/metrics"
 )
 
 // benchSelfSignedCert generates a self-signed ECDSA P-256 certificate usable as
@@ -83,7 +84,7 @@ func benchSelfSignedCert(tb testing.TB) (tls.Certificate, *x509.Certificate) {
 // Unlike BenchmarkCopyData (which uses net.Pipe and measures only the
 // steady-state copy loop), this benchmark exercises real sockets and a
 // *tls.Conn, so it observes the real per-connection accept path (handshake,
-// metric bookkeeping, deadlines at close, the single accept goroutine). The
+// metric bookkeeping, the per-pair watchdog, the single accept goroutine). The
 // incoming listener uses plain tls.NewListener; the certloader per-connection
 // tls.Config clone is measured separately by BenchmarkGetServerConfig in the
 // certloader package.
@@ -104,18 +105,18 @@ func BenchmarkConnectionChurn(b *testing.B) {
 //
 // Note: each iteration performs a full ECDSA handshake, which dominates
 // per-connection CPU, so the metric delta is small relative to total time and
-// is clearest under contention (-cpu=4,8), where the two shared go-metrics
-// timers' mutex is hottest. A mutex/block profile remains the most direct way
-// to see the timer contention.
+// is clearest under contention (-cpu=4,8), where the two shared timers'
+// (prometheus.Histogram) native-histogram Observe lock is hottest. A
+// mutex/block profile remains the most direct way to see the timer contention.
 func BenchmarkConnectionChurnNoSink(b *testing.B) {
-	benchmarkConnectionChurn(b, NilMetrics())
+	benchmarkConnectionChurn(b, metrics.NilMetrics())
 }
 
 // BenchmarkConnMetricsBookkeeping isolates the per-connection metric updates the
 // accept path performs (the two timers plus the open/total/success counters),
 // with no handshake or network in the loop. This is the measurement that
 // isolates that cost directly: the metrics=live column records to real
-// go-metrics handles, metrics=nosink uses proxy.NilMetrics, and the gap is the
+// prometheus-backed handles, metrics=nosink uses metrics.NilMetrics, and the gap is the
 // CPU — and, under -cpu=4,8, the lock contention — removed when no metrics sink
 // is configured. The end-to-end BenchmarkConnectionChurn cannot show this
 // because the ~1ms ECDSA handshake dwarfs this sub-microsecond bookkeeping.
@@ -127,7 +128,8 @@ func BenchmarkConnectionChurnNoSink(b *testing.B) {
 func BenchmarkConnMetricsBookkeeping(b *testing.B) {
 	// A fresh registry for the live case so it never touches the package
 	// default registry (and so repeated runs don't accumulate state).
-	run := func(b *testing.B, m *Metrics) {
+	run := func(b *testing.B, m *metrics.Metrics) {
+		b.Helper()
 		b.ReportAllocs()
 		b.ResetTimer()
 		b.RunParallel(func(pb *testing.PB) {
@@ -143,14 +145,15 @@ func BenchmarkConnMetricsBookkeeping(b *testing.B) {
 			}
 		})
 	}
-	b.Run("metrics=live", func(b *testing.B) { run(b, LiveMetrics(metrics.NewRegistry())) })
-	b.Run("metrics=nosink", func(b *testing.B) { run(b, NilMetrics()) })
+	b.Run("metrics=live", func(b *testing.B) { run(b, metrics.LiveMetrics(metrics.NewRegistry("ghostunnel"))) })
+	b.Run("metrics=nosink", func(b *testing.B) { run(b, metrics.NilMetrics()) })
 }
 
 // benchmarkConnectionChurn is the shared body for the live and no-sink churn
 // benchmarks; connMetrics selects which metric handles the proxy records to
 // (nil → default registry, NilMetrics → no-op).
-func benchmarkConnectionChurn(b *testing.B, connMetrics *Metrics) {
+func benchmarkConnectionChurn(b *testing.B, connMetrics *metrics.Metrics) {
+	b.Helper()
 	serverCert, leaf := benchSelfSignedCert(b)
 
 	pool := x509.NewCertPool()
@@ -213,7 +216,7 @@ func benchmarkConnectionChurn(b *testing.B, connMetrics *Metrics) {
 
 	// Unlimited semaphore (0) so concurrency isn't capped — proxyForTest pins
 	// it at 1, which would serialize the churn we want to measure. No logging.
-	p := New(incoming, 5*time.Second, 5*time.Second, 0, 0, dialer, &testLogger{}, 0, ProxyProtocolOff, connMetrics)
+	p := New(incoming, Timeouts{Connect: 5 * time.Second, Close: 5 * time.Second}, 0, dialer, &testLogger{}, 0, ProxyProtocolOff, connMetrics)
 	go p.Accept()
 	defer func() {
 		p.Shutdown()
@@ -244,7 +247,7 @@ func benchmarkConnectionChurn(b *testing.B, connMetrics *Metrics) {
 				n, err := conn.Read(buf)
 				got += n
 				if err != nil {
-					if err != io.EOF {
+					if !errors.Is(err, io.EOF) {
 						b.Error(err)
 					}
 					break

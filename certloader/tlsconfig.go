@@ -55,5 +55,13 @@ type TLSClientConfig interface {
 type TLSServerConfig interface {
 	// GetServerConfig returns a TLS configuration for use as a TLS server. It
 	// is safe to call concurrently.
+	//
+	// Implementations must never mutate a config they have already returned:
+	// callers fetch a config per connection (see Listener) and may still be
+	// handshaking with an earlier one. They should return the same pointer
+	// until the configuration changes, because BindSessionsToGeneration
+	// compares pointers to avoid cloning on every connection.
+	// WithoutACMEChallenge returns a new clone on every call, so it must not
+	// be wrapped by BindSessionsToGeneration.
 	GetServerConfig() *tls.Config
 }
