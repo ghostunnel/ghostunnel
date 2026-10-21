@@ -25,18 +25,18 @@ BASE_ARGS = ['client',
              '--status={0}:{1}'.format(LOCALHOST, STATUS_PORT)]
 
 
-def expect_proxy_rejected(proxy, extra_args, expected_error, msg):
+def expect_proxy_rejected(proxy, extra_args, expected_errors, msg):
     """Start ghostunnel against proxy and check that dialing through it
-    fails with expected_error, as reported by the status endpoint, which
-    dials the target through the proxy on every request."""
+    fails with one of expected_errors, as reported by the status endpoint,
+    which dials the target through the proxy on every request."""
     ghostunnel = run_ghostunnel(BASE_ARGS + ['--proxy=' + proxy.url()] + extra_args)
     try:
         info = wait_for_status(lambda info: info.get('backend_error'))
         if info['backend_ok']:
             raise Exception('backend check should have failed: ' + str(info))
-        if expected_error not in info['backend_error']:
-            raise Exception('expected backend error containing "{0}", got: {1}'.format(
-                expected_error, info['backend_error']))
+        if not any(e in info['backend_error'] for e in expected_errors):
+            raise Exception('expected backend error containing one of {0}, got: {1}'.format(
+                expected_errors, info['backend_error']))
         print_ok("backend check failed as expected: " + info['backend_error'])
 
         # a tunnel connection must not make it to the target either
@@ -72,22 +72,25 @@ try:
     proxy = FakeConnectProxy(certfile='rogue_proxy.crt', keyfile='rogue_proxy.key')
     proxies.append(proxy)
     expect_proxy_rejected(proxy, ['--proxy-cacert=proxy_root.crt'],
-                          'certificate signed by unknown authority',
+                          ['certificate signed by unknown authority'],
                           'proxy with untrusted certificate rejected')
 
     # proxy certificate that does not match the proxy address
     proxy = FakeConnectProxy(certfile='proxy_wrong_name.crt', keyfile='proxy_wrong_name.key')
     proxies.append(proxy)
     expect_proxy_rejected(proxy, ['--proxy-cacert=proxy_root.crt'],
-                          'not {0}'.format(LOCALHOST),
+                          ['not {0}'.format(LOCALHOST)],
                           'proxy with mismatched certificate name rejected')
 
-    # proxy demands a client certificate, but none is configured
+    # proxy demands a client certificate, but none is configured. With TLS 1.3
+    # the client handshake completes before the proxy checks the certificate,
+    # so the CONNECT write can race the proxy's alert and see a reset instead.
     proxy = FakeConnectProxy(certfile='proxy.crt', keyfile='proxy.key',
                              cafile='proxy_root.crt', require_client_cert=True)
     proxies.append(proxy)
     expect_proxy_rejected(proxy, ['--proxy-cacert=proxy_root.crt'],
-                          'certificate required',
+                          ['certificate required', 'connection reset by peer',
+                           'forcibly closed by the remote host'],
                           'proxy requiring a client certificate fails without one')
 
     print_ok("OK")
