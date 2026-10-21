@@ -91,6 +91,6 @@ require (
 	kernel.org/pub/linux/libs/security/libcap/psx v1.2.78 // indirect
 )
 
-go 1.27.0
+go 1.27.3
 
 tool github.com/magefile/mage
