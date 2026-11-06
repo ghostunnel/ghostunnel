@@ -37,7 +37,7 @@ github.com/coreos/go-systemd/v22/daemon
 github.com/decred/dcrd/dcrec/secp256k1/v4
 # github.com/dgraph-io/ristretto/v2 v2.4.0
 ## explicit; go 1.24.0
-# github.com/go-jose/go-jose/v4 v4.1.5
+# github.com/go-jose/go-jose/v4 v4.1.6
 ## explicit; go 1.24.0
 github.com/go-jose/go-jose/v4
 github.com/go-jose/go-jose/v4/cipher
