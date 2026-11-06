@@ -19,6 +19,7 @@ import (
 	"github.com/open-policy-agent/opa/v1/ast"
 	"github.com/open-policy-agent/opa/v1/topdown/builtins"
 	"github.com/open-policy-agent/opa/v1/topdown/durationparser"
+	"github.com/open-policy-agent/opa/v1/util"
 )
 
 var (
@@ -51,7 +52,7 @@ func parseExtendedDuration(s string) (int64, error) {
 		return int64(v), err
 	}
 
-	result, err := durationparser.Parse("", []byte(s))
+	result, err := durationparser.Parse("", util.StringToByteSlice(s))
 	if err != nil {
 		return 0, fmt.Errorf("time: invalid duration %q", s)
 	}
@@ -311,7 +312,7 @@ func builtinDiff(_ BuiltinContext, operands []*ast.Term, iter func(*ast.Term) er
 	}
 	if day < 0 {
 		// Days in month:
-		t := time.Date(y1, M1, 32, 0, 0, 0, 0, time.UTC)
+		t := time.Date(y1, M1, 32, 0, 0, 0, 0, time.UTC) //nolint:revive // 'day argument should be between 1 and 31'
 		day += 32 - t.Day()
 		month--
 	}

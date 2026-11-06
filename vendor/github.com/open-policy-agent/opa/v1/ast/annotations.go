@@ -70,6 +70,7 @@ type (
 		byPackage map[int]*Annotations
 		byPath    *annotationTreeNode
 		modules   []*Module // Modules this set was constructed from
+		hasLabels bool
 	}
 
 	annotationTreeNode struct {
@@ -92,7 +93,7 @@ type (
 
 func (a *Annotations) String() string {
 	bs, _ := a.MarshalJSON()
-	return string(bs)
+	return util.ByteSliceToString(bs)
 }
 
 func (a *Annotations) AppendText(buf []byte) ([]byte, error) {
@@ -343,8 +344,87 @@ func (a *Annotations) toTerm() (*Term, *Error) {
 	return ObjectTerm(items...), nil
 }
 
+// attachRuleAnnotations gives each rule copies of the document-scoped
+// annotations for its path, and of the rule-scoped ones for its path above it
+// that no earlier rule has claimed. Each rule claims the last of those.
 func attachRuleAnnotations(mod *Module) {
-	// make a copy of the annotations
+	if len(mod.Annotations) == 0 {
+		return
+	}
+	if !slices.IsSortedFunc(mod.Rules, func(x, y *Rule) int { return x.Loc().Row - y.Loc().Row }) {
+		attachRuleAnnotationsUnsorted(mod)
+		return
+	}
+
+	type group struct {
+		doc     []int // document-scoped annotations, by index
+		byRow   []int // rule-scoped annotations, by row
+		next    int   // first entry of byRow not yet above the current rule
+		pending []int // rule-scoped annotations above the current rule, unclaimed, by index
+	}
+
+	cpy := make([]*Annotations, len(mod.Annotations))
+	groups := map[string]*group{}
+	for i, a := range mod.Annotations {
+		cpy[i] = a.Copy(a.node)
+		if a.Scope != annotationScopeDocument && a.Scope != annotationScopeRule {
+			continue
+		}
+		path := a.GetTargetPath()
+		if path == nil {
+			continue
+		}
+		k := path.String()
+		g := groups[k]
+		if g == nil {
+			g = &group{}
+			groups[k] = g
+		}
+		if a.Scope == annotationScopeDocument {
+			g.doc = append(g.doc, i)
+		} else {
+			g.byRow = append(g.byRow, i)
+		}
+	}
+	if len(groups) == 0 {
+		return
+	}
+	for _, g := range groups {
+		slices.SortStableFunc(g.byRow, func(x, y int) int { return cpy[x].Location.Row - cpy[y].Location.Row })
+	}
+
+	for _, rule := range mod.Rules {
+		g := groups[rule.Ref().GroundPrefix().String()]
+		if g == nil {
+			continue
+		}
+		row := rule.Loc().Row
+		for ; g.next < len(g.byRow) && cpy[g.byRow[g.next]].Location.Row < row; g.next++ {
+			i := g.byRow[g.next]
+			at, _ := slices.BinarySearch(g.pending, i)
+			g.pending = slices.Insert(g.pending, at, i)
+		}
+
+		// Merge both lists to keep the annotations in module order.
+		d, p := 0, 0
+		for d < len(g.doc) || p < len(g.pending) {
+			if p == len(g.pending) || (d < len(g.doc) && g.doc[d] < g.pending[p]) {
+				rule.Annotations = append(rule.Annotations, cpy[g.doc[d]])
+				d++
+			} else {
+				rule.Annotations = append(rule.Annotations, cpy[g.pending[p]])
+				p++
+			}
+		}
+		if len(g.pending) > 0 {
+			g.pending = g.pending[:len(g.pending)-1]
+		}
+	}
+}
+
+// attachRuleAnnotationsUnsorted does what attachRuleAnnotations does, in
+// quadratic time, for rules not in source order.
+func attachRuleAnnotationsUnsorted(mod *Module) {
 	cpy := make([]*Annotations, len(mod.Annotations))
 	for i, a := range mod.Annotations {
 		cpy[i] = a.Copy(a.node)
@@ -372,17 +452,16 @@ func attachRuleAnnotations(mod *Module) {
 }
 
 func attachAnnotationsNodes(mod *Module) Errors {
+	if len(mod.Annotations) == 0 {
+		return nil
+	}
 	var errs Errors
 	// Find first non-annotation statement following each annotation and attach
 	// the annotation to that statement.
+	next := statementBelow(mod)
 	for _, a := range mod.Annotations {
-		for _, stmt := range mod.stmts {
-			if _, ok := stmt.(*Annotations); !ok {
-				if stmt.Loc().Row > a.Location.Row {
-					a.node = stmt
-					break
-				}
-			}
+		if stmt := next(a.Location.Row); stmt != nil {
+			a.node = stmt
 		}
 
 		if a.Scope == "" {
@@ -413,6 +492,36 @@ func attachAnnotationsNodes(mod *Module) Errors {
 	}
 
 	return errs
+}
+
+// statementBelow returns a function finding the module's top-most package,
+// import or rule below row, leaving out those without a location.
+func statementBelow(mod *Module) func(row int) Statement {
+	others := make([]Statement, 0, 1+len(mod.Imports)+len(mod.Rules))
+	add := func(stmt Statement) {
+		if stmt.Loc() != nil {
+			others = append(others, stmt)
+		}
+	}
+	add(mod.Package)
+	for _, imp := range mod.Imports {
+		add(imp)
+	}
+	for _, r := range mod.Rules {
+		add(r)
+	}
+	byRow := func(x, y Statement) int { return x.Loc().Row - y.Loc().Row }
+	if !slices.IsSortedFunc(others, byRow) { // the parser's are in source order
+		slices.SortStableFunc(others, byRow)
+	}
+	return func(row int) Statement {
+		// The first statement past row, or len(others) if there is none.
+		i, _ := slices.BinarySearchFunc(others, row+1, func(stmt Statement, row int) int { return stmt.Loc().Row - row })
+		if i < len(others) {
+			return others[i]
+		}
+		return nil
+	}
 }
 
 func validateAnnotationScopeAttachment(a *Annotations) *Error {
@@ -493,7 +602,40 @@ func (rr *RelatedResourceAnnotation) Compare(other *RelatedResourceAnnotation) i
 
 func (rr *RelatedResourceAnnotation) String() string {
 	bs, _ := json.Marshal(rr)
-	return string(bs)
+	return util.ByteSliceToString(bs)
+}
+
+// UnmarshalJSON decodes a related resource whose ref is a URI string.
+func (rr *RelatedResourceAnnotation) UnmarshalJSON(bs []byte) error {
+	data := struct {
+		Ref         json.RawMessage `json:"ref"`
+		Description string          `json:"description,omitempty"`
+	}{Description: rr.Description}
+	if err := util.UnmarshalJSON(bs, &data); err != nil {
+		return err
+	}
+
+	ref := rr.Ref
+	if len(data.Ref) > 0 && data.Ref[0] == '"' {
+		var value string
+		if err := util.UnmarshalJSON(data.Ref, &value); err != nil {
+			return err
+		}
+		parsed, err := url.Parse(value)
+		if err != nil {
+			return err
+		}
+		ref = *parsed
+	} else if len(data.Ref) > 0 {
+		// Preserve support for the URL object accepted before URI decoding.
+		if err := util.UnmarshalJSON(data.Ref, &ref); err != nil {
+			return err
+		}
+	}
+
+	rr.Ref = ref
+	rr.Description = data.Description
+	return nil
 }
 
 func (rr *RelatedResourceAnnotation) toTerm() *Term {
@@ -537,7 +679,7 @@ func (s *SchemaAnnotation) Compare(other *SchemaAnnotation) int {
 
 func (s *SchemaAnnotation) String() string {
 	bs, _ := json.Marshal(s)
-	return string(bs)
+	return util.ByteSliceToString(bs)
 }
 
 func (s *SchemaAnnotation) toTerm() (*Term, error) {
@@ -588,7 +730,7 @@ func (c *CompileAnnotation) Compare(other *CompileAnnotation) int {
 
 func (c *CompileAnnotation) String() string {
 	bs, _ := json.Marshal(c)
-	return string(bs)
+	return util.ByteSliceToString(bs)
 }
 
 func newAnnotationSet() *AnnotationSet {
@@ -620,6 +762,10 @@ func BuildAnnotationSet(modules []*Module) (*AnnotationSet, Errors) {
 // stripped away from the annotations, leading to nil deref panics. We
 // silently ignore these cases for now, as a workaround.
 func (as *AnnotationSet) add(a *Annotations) *Error {
+	// Only ever set, never cleared: it may already be true from an earlier annotation.
+	if len(a.Labels) > 0 {
+		as.hasLabels = true
+	}
 	switch a.Scope {
 	case annotationScopeRule:
 		if rule, ok := a.node.(*Rule); ok {
@@ -756,6 +902,11 @@ func (as *AnnotationSet) Chain(rule *Rule) AnnotationsRefSet {
 	return refs
 }
 
+// HasLabels reports whether any annotation in the set declares labels.
+func (as *AnnotationSet) HasLabels() bool {
+	return as != nil && as.hasLabels
+}
+
 // MergedLabels returns the inner-scope-wins merged labels for the given rule
 // along with a stable JSON string suitable for content-based deduplication.
 // labels is nil when the rule has no labels anywhere in its annotation chain.
@@ -763,10 +914,14 @@ func (as *AnnotationSet) MergedLabels(rule *Rule) (labels map[string]any, key st
 	if as == nil {
 		return nil, ""
 	}
+	// Rules from an ExternalRuleSource carry annotations the set doesn't track.
+	if !as.hasLabels && !slices.ContainsFunc(rule.Annotations, func(a *Annotations) bool { return len(a.Labels) > 0 }) {
+		return nil, ""
+	}
 	labels = mergeChainLabels(as.Chain(rule))
 	if len(labels) > 0 {
 		b, _ := json.Marshal(labels)
-		key = string(b)
+		key = util.ByteSliceToString(b)
 	}
 	return labels, key
 }

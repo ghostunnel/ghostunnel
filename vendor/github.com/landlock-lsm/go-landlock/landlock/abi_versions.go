@@ -73,6 +73,14 @@ var abiInfos = []abiInfo{
 		supportedRestrictFlags: (1 << 4) - 1,
 		supportsQuiet:          true,
 	},
+	{
+		version:                11,
+		supportedAccessFS:      (1 << 17) - 1,
+		supportedAccessNet:     (1 << 4) - 1,
+		supportedScoped:        (1 << 2) - 1,
+		supportedRestrictFlags: (1 << 5) - 1,
+		supportsQuiet:          true,
+	},
 }
 
 func (a abiInfo) asConfig() Config {
@@ -84,12 +92,12 @@ func (a abiInfo) asConfig() Config {
 	}
 }
 
-// getSupportedABIVersion returns the kernel-supported ABI version.
+// supportedABIVersion returns the kernel-supported ABI version.
 //
 // If the ABI version supported by the kernel is higher than the
 // newest one known to go-landlock, the highest ABI version known to
 // go-landlock is returned.
-func getSupportedABIVersion() abiInfo {
+func supportedABIVersion() abiInfo {
 	v := internal.DetectedABIVersion()
 	if v >= len(abiInfos) {
 		v = len(abiInfos) - 1

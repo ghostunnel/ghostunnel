@@ -49,8 +49,8 @@ const (
 // LandlockAddPathBeneathRule adds a rule of type "path beneath" to
 // the given ruleset fd. attr defines the rule parameters. flags must
 // currently be 0.
-func LandlockAddPathBeneathRule(rulesetFd int, attr *PathBeneathAttr, flags int) error {
-	return LandlockAddRule(rulesetFd, RuleTypePathBeneath, unsafe.Pointer(attr), flags)
+func LandlockAddPathBeneathRule(rulesetFD int, attr *PathBeneathAttr, flags int) error {
+	return LandlockAddRule(rulesetFD, RuleTypePathBeneath, unsafe.Pointer(attr), flags)
 }
 
 // LandlockAddNetPortRule adds a rule of type "net port" to the given ruleset FD.
@@ -60,8 +60,8 @@ func LandlockAddNetPortRule(rulesetFD int, attr *NetPortAttr, flags int) error {
 }
 
 // LandlockAddRule is the generic landlock_add_rule syscall.
-func LandlockAddRule(rulesetFd int, ruleType int, ruleAttr unsafe.Pointer, flags int) (err error) {
-	_, _, e1 := syscall.Syscall6(unix.SYS_LANDLOCK_ADD_RULE, uintptr(rulesetFd), uintptr(ruleType), uintptr(ruleAttr), uintptr(flags), 0, 0)
+func LandlockAddRule(rulesetFD int, ruleType int, ruleAttr unsafe.Pointer, flags int) (err error) {
+	_, _, e1 := syscall.Syscall6(unix.SYS_LANDLOCK_ADD_RULE, uintptr(rulesetFD), uintptr(ruleType), uintptr(ruleAttr), uintptr(flags), 0, 0)
 	if e1 != 0 {
 		err = syscall.Errno(e1)
 	}
@@ -77,9 +77,13 @@ func LandlockAddRule(rulesetFd int, ruleType int, ruleAttr unsafe.Pointer, flags
 //
 // Without this flag, the policy is only applied to the current OS thread.
 //
+// If the [FlagRestrictSelfNoNewPrivs] flag is provided in flags, the
+// no_new_privs attribute is set by this system call (if and only if
+// it succeeds), and does not need to be set with prctl(2) beforehand.
+//
 // See https://docs.kernel.org/userspace-api/landlock.html#c.sys_landlock_restrict_self
-func LandlockRestrictSelf(rulesetFd int, flags uint32) (err error) {
-	_, _, e1 := syscall.Syscall(unix.SYS_LANDLOCK_RESTRICT_SELF, uintptr(rulesetFd), uintptr(flags), 0)
+func LandlockRestrictSelf(rulesetFD int, flags uint32) (err error) {
+	_, _, e1 := syscall.Syscall(unix.SYS_LANDLOCK_RESTRICT_SELF, uintptr(rulesetFD), uintptr(flags), 0)
 	if e1 != 0 {
 		err = syscall.Errno(e1)
 	}

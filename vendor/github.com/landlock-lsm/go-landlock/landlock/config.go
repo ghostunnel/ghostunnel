@@ -3,6 +3,7 @@ package landlock
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	ll "github.com/landlock-lsm/go-landlock/landlock/syscall"
 )
@@ -149,6 +150,11 @@ const (
 // [QuietPaths] and [QuietPorts] rules.  Upgrading to V10 does not
 // enable any quieting by itself.
 //
+// # Upgrading to V11
+//
+// Upgrading from V10 to V11 is always safe: V11 does not restrict any
+// additional operations.
+//
 // [Kernel Documentation about Access Rights]: https://www.kernel.org/doc/html/latest/userspace-api/landlock.html#access-rights
 var (
 	// Landlock V1 support (basic file operations).
@@ -174,17 +180,18 @@ var (
 	// Landlock V10 support (V9 + restricting bind(2), connect(2) and
 	// send*(2) on UDP sockets, + quieting audit logs)
 	V10 = abiInfos[10].asConfig()
+	// Landlock V11 support (same access rights as V10)
+	V11 = abiInfos[11].asConfig()
 )
 
 // v0 denotes "no Landlock support". Only used internally.
 var v0 = Config{}
 
-// The Landlock configuration describes the desired set of
-// landlockable operations to be restricted and the constraints on it
-// (e.g., best effort mode).
+// Config describes the desired set of landlockable operations to be
+// restricted and the constraints on it (e.g., best effort mode).
 //
 // It is recommended to use one of the preset configurations such as
-// [landlock.V10], which restrict the full set of access rights
+// [landlock.V11], which restrict the full set of access rights
 // available at this Landlock ABI version.
 type Config struct {
 	// HandledAccessFS is the set of filesystem access rights to restrict.
@@ -244,7 +251,7 @@ func NewConfig(args ...any) (*Config, error) {
 			}
 			c.Scoped = arg
 		default:
-			return nil, fmt.Errorf("unknown argument %v; only AccessFSSet-type argument is supported", arg)
+			return nil, fmt.Errorf("unsupported argument %v", arg)
 		}
 	}
 	return &c, nil
@@ -262,8 +269,8 @@ func MustConfig(args ...any) Config {
 // String builds a human-readable representation of the Config.
 func (c Config) String() string {
 	abi := abiInfo{version: -1} // invalid
-	for i := len(abiInfos) - 1; i >= 0; i-- {
-		a := abiInfos[i]
+	for _, a := range slices.Backward(abiInfos) {
+
 		if c.compatibleWithABI(a) {
 			abi = a
 		}
@@ -409,12 +416,12 @@ func (c Config) QuietAll() Config {
 // that they can only read from /usr, /bin and /tmp, and only write to
 // /tmp:
 //
-//	err := landlock.V10.RestrictPaths(
+//	err := landlock.V11.RestrictPaths(
 //	    landlock.RODirs("/usr", "/bin"),
 //	    landlock.RWDirs("/tmp"),
 //	)
 //	if err != nil {
-//	    log.Fatalf("landlock.V10.RestrictPaths(): %v", err)
+//	    log.Fatalf("landlock.V11.RestrictPaths(): %v", err)
 //	}
 //
 // RestrictPaths returns an error if any of the given paths does not
@@ -529,7 +536,7 @@ func (c Config) RestrictPaths(rules ...Rule) error {
 // the package-level documentation.
 //
 // Landlock's network sandboxing support is still incomplete as of
-// Landlock ABI v10 and we recommend using additional sandboxing
+// Landlock ABI v11 and we recommend using additional sandboxing
 // mechanisms to augment it.
 //
 // To restrict multiple types of access rights at the same time, use
@@ -569,7 +576,7 @@ func (c Config) RestrictScoped() error {
 // Restrict restricts all types of access rights which are
 // restrictable with the Config.
 //
-// Using Landlock V10, this is equivalent to calling all of
+// Using Landlock V11, this is equivalent to calling all of
 // [Config.RestrictPaths], [Config.RestrictNet] and
 // [Config.RestrictScoped] with the respective subset of rule
 // arguments that apply to them.
@@ -591,7 +598,7 @@ func (c Config) valid() bool {
 	return c.HandledAccessFS.valid() && c.HandledAccessNet.valid() && c.Scoped.valid()
 }
 
-// compatibleWith is true if c is compatible to work at the given Landlock ABI level.
+// compatibleWithABI is true if c is compatible to work at the given Landlock ABI level.
 func (c Config) compatibleWithABI(abi abiInfo) bool {
 	return (c.HandledAccessFS.isSubset(abi.supportedAccessFS) &&
 		c.HandledAccessNet.isSubset(abi.supportedAccessNet) &&

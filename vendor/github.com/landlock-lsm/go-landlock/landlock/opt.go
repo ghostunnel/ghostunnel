@@ -27,9 +27,9 @@ type Rule interface {
 
 	// addToRuleset applies the rule to the given rulesetFD.
 	//
-	// This operation may be a no-op if the given rule requires
-	// not access rights for the object that it refers to,
-	// which can happen during downgrade().
+	// This operation may be a no-op if the given rule requires no
+	// access rights for the object that it refers to, which can
+	// happen during downgrade().
 	//
 	// This may return errors such as "file not found" depending
 	// on the rule type.

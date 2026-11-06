@@ -186,6 +186,14 @@ func Sign(payload []byte, options ...SignOption) ([]byte, error) {
 		return sc.signStreaming()
 	}
 
+	if sc.format == fmtCompact {
+		buf, err := sc.SignCompact()
+		if err != nil {
+			return nil, makeSignError(prefixJwsSign, `failed to populate message: %w`, err)
+		}
+		return buf, nil
+	}
+
 	// Create a Message object with all the bits and bobs, and we'll
 	// serialize it in the end
 	var result Message
@@ -198,19 +206,6 @@ func Sign(payload []byte, options ...SignOption) ([]byte, error) {
 		return json.Marshal(result)
 	case fmtJSONPretty:
 		return json.MarshalIndent(result, "", "  ")
-	case fmtCompact:
-		// Take the only signature object, and convert it into a Compact
-		// serialization format
-		var compactOpts []CompactOption
-		if sc.detached {
-			compactOpts = append(compactOpts, WithDetached(true))
-		}
-		for _, option := range options {
-			if copt, ok := option.(CompactOption); ok {
-				compactOpts = append(compactOpts, copt)
-			}
-		}
-		return Compact(&result, compactOpts...)
 	default:
 		return nil, makeSignError(prefixJwsSign, `invalid serialization format`)
 	}
@@ -236,6 +231,12 @@ var allowNoneWhitelist = jwk.WhitelistFunc(func(string) bool {
 // it _verified_ something when in fact it did no such thing). If you want to
 // accept messages with "none" signature algorithm, use `jws.Parse` to get the
 // raw JWS message.
+//
+// Verify resolves the verification algorithm from the key or provider you
+// supply (jws.WithKey, jws.WithKeySet, jws.WithVerifyAuto, or a custom
+// jws.WithKeyProvider). By default it does not compare that algorithm with
+// the protected header's "alg". Pass jws.WithAlgorithmMatch(true) to reject a
+// JWS whose protected header advertises a different "alg".
 //
 // The error returned by this function is of type can be checked against
 // `jws.VerifyError()` and `jws.VerificationError()`. The latter is returned
