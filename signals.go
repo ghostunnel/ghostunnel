@@ -112,16 +112,42 @@ func (env *Environment) reloadHandler(interval time.Duration) {
 	}
 }
 
+// reload re-reads the certificate and trust store, the proxy client
+// certificate and trust store (if an HTTPS proxy is configured), and the OPA
+// policy, then starts a new session generation so that no client can resume
+// into the configuration we just replaced.
+//
+// The ordering matters in both directions:
+//
+//   - The generation is advanced after all reloads, so a connection accepted
+//     on the new generation is guaranteed to have been evaluated against the
+//     reloaded policy. A connection accepted while a reload is in flight may
+//     still be evaluated against the old policy, but its ticket then belongs to
+//     the old generation and stops resuming as soon as this returns.
+//   - It is advanced before the status goes back to listening, so tests and
+//     operators can treat a listening status as "the new generation is in
+//     effect".
+//
+// It is advanced whether or not any reload succeeded. A reload that fails
+// leaves the old certificate and trust store in place, which is the point of
+// failing softly, but it must not also leave clients resuming sessions whose
+// access decision predates a policy that did reload.
 func (env *Environment) reload() {
 	env.status.Reloading()
 	if err := env.tlsConfigSource.Reload(); err != nil {
-		logger.Printf("error reloading TLS configuration: %s", err)
+		logger.Printf("error reloading TLS configuration: %v", err)
+	}
+	if env.proxyTLSConfigSource != nil {
+		if err := env.proxyTLSConfigSource.Reload(); err != nil {
+			logger.Printf("error reloading proxy TLS configuration: %v", err)
+		}
 	}
 	if env.regoPolicy != nil {
 		if err := env.regoPolicy.Reload(); err != nil {
-			logger.Printf("error reloading OPA policy: %s", err)
+			logger.Printf("error reloading OPA policy: %v", err)
 		}
 	}
+	env.sessionGeneration.Advance()
 	logger.Printf("reloading configuration complete")
 	env.status.Listening()
 }

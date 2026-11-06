@@ -85,7 +85,7 @@ func EncodeIntegrityPassword(password string) ([]byte, error) {
 
 	var integrityPassword []byte
 	for _, r := range password {
-		integrityPassword = binary.BigEndian.AppendUint16(integrityPassword, uint16(r))
+		integrityPassword = binary.BigEndian.AppendUint16(integrityPassword, uint16(r)) //nolint:gosec // G115: range checked above.
 	}
 
 	return integrityPassword, nil

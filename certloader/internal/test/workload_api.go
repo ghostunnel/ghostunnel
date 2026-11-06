@@ -15,7 +15,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -25,7 +24,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-var noIdentityError = status.Error(codes.PermissionDenied, "no identity issued")
+var errNoIdentity = status.Error(codes.PermissionDenied, "no identity issued")
 
 type WorkloadAPI struct {
 	tb               testing.TB
@@ -43,7 +42,9 @@ type WorkloadAPI struct {
 }
 
 func New(tb testing.TB) *WorkloadAPI {
+	tb.Helper()
 	w := &WorkloadAPI{
+		tb:               tb,
 		x509Chans:        make(map[chan *workload.X509SVIDResponse]struct{}),
 		jwtBundlesChans:  make(map[chan *workload.JWTBundlesResponse]struct{}),
 		x509BundlesChans: make(map[chan *workload.X509BundlesResponse]struct{}),
@@ -108,7 +109,7 @@ func (w *WorkloadAPI) SetJWTBundles(jwtBundles ...*jwtbundle.Bundle) {
 	}
 	for _, bundle := range jwtBundles {
 		bundleBytes, err := bundle.Marshal()
-		assert.NoError(w.tb, err)
+		require.NoError(w.tb, err)
 		resp.Bundles[bundle.TrustDomain().String()] = bundleBytes
 	}
 
@@ -132,9 +133,9 @@ func (w *WorkloadAPI) SetX509Bundles(x509Bundles ...*x509bundle.Bundle) {
 	}
 	for _, bundle := range x509Bundles {
 		bundleBytes, err := bundle.Marshal()
-		assert.NoError(w.tb, err)
+		require.NoError(w.tb, err)
 		bundlePem, err := ParseCertificates(bundleBytes)
-		assert.NoError(w.tb, err)
+		require.NoError(w.tb, err)
 
 		var rawBytes []byte
 		for _, c := range bundlePem {
@@ -190,6 +191,7 @@ type X509SVIDResponse struct {
 }
 
 func (r *X509SVIDResponse) ToProto(tb testing.TB) *workload.X509SVIDResponse {
+	tb.Helper()
 	var bundle []byte
 	if r.Bundle != nil {
 		bundle = ConcatRawCertsFromCerts(r.Bundle.X509Authorities())
@@ -237,7 +239,7 @@ func (w *WorkloadAPI) fetchX509SVID(_ *workload.X509SVIDRequest, stream workload
 
 	sendResp := func(resp *workload.X509SVIDResponse) error {
 		if resp == nil {
-			return noIdentityError
+			return errNoIdentity
 		}
 		return stream.Send(resp)
 	}
@@ -275,7 +277,7 @@ func (w *WorkloadAPI) fetchX509Bundles(_ *workload.X509BundlesRequest, stream wo
 
 	sendResp := func(resp *workload.X509BundlesResponse) error {
 		if resp == nil {
-			return noIdentityError
+			return errNoIdentity
 		}
 		return stream.Send(resp)
 	}
@@ -303,7 +305,7 @@ func (w *WorkloadAPI) fetchJWTSVID(ctx context.Context, req *workload.JWTSVIDReq
 		return nil, errors.New("no audience")
 	}
 	if w.jwtResp == nil {
-		return nil, noIdentityError
+		return nil, errNoIdentity
 	}
 
 	return w.jwtResp, nil
@@ -327,7 +329,7 @@ func (w *WorkloadAPI) fetchJWTBundles(_ *workload.JWTBundlesRequest, stream work
 
 	sendResp := func(resp *workload.JWTBundlesResponse) error {
 		if resp == nil {
-			return noIdentityError
+			return errNoIdentity
 		}
 		return stream.Send(resp)
 	}

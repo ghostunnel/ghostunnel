@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -26,6 +27,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"net/url"
 	"os"
 	"runtime"
 	"slices"
@@ -34,22 +36,14 @@ import (
 
 	"github.com/ghostunnel/ghostunnel/auth"
 	"github.com/ghostunnel/ghostunnel/certloader"
+	"github.com/ghostunnel/ghostunnel/metrics"
 	"github.com/ghostunnel/ghostunnel/policy"
 	"github.com/ghostunnel/ghostunnel/proxy"
 	"github.com/ghostunnel/ghostunnel/socket"
 	"github.com/ghostunnel/ghostunnel/wildcard"
 
 	kingpin "github.com/alecthomas/kingpin/v2"
-	graphite "github.com/cyberdelia/go-metrics-graphite"
-
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	metrics "github.com/rcrowley/go-metrics"
-	sqmetrics "github.com/square/go-sq-metrics"
-	connectproxy "github.com/wrouesnel/go.connect-proxy-scheme"
 	netproxy "golang.org/x/net/proxy"
-
-	prometheusmetrics "github.com/deathowl/go-metrics-prometheus"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 var (
@@ -110,7 +104,7 @@ var (
 	clientForwardAddress = clientCommand.Flag("target", "Address to forward connections to (can be HOST:PORT or unix:PATH).").PlaceHolder("ADDR").Required().String()
 	clientUnsafeListen   = clientCommand.Flag("unsafe-listen", "If set, does not limit listen to localhost, 127.0.0.1, [::1], or UNIX sockets.").Bool()
 	clientServerName     = clientCommand.Flag("override-server-name", "If set, overrides the server name used for hostname verification.").PlaceHolder("NAME").String()
-	clientProxy          = clientCommand.Flag("proxy", "If set, connect to target over given proxy (HTTP CONNECT or SOCKS5). Must be a proxy URL.").PlaceHolder("URL").URL()
+	clientProxy          = clientCommand.Flag("proxy", "If set, connect to target over given proxy (HTTP CONNECT, HTTPS CONNECT or SOCKS5). Must be a proxy URL.").PlaceHolder("URL").URL()
 	clientAllowedCNs     = clientCommand.Flag("verify-cn", "Allow servers with given common name (can be repeated).").PlaceHolder("CN").Strings()
 	clientAllowedOUs     = clientCommand.Flag("verify-ou", "Allow servers with given organizational unit name (can be repeated).").PlaceHolder("OU").Strings()
 	clientAllowedDNSs    = clientCommand.Flag("verify-dns", "Allow servers with given DNS subject alternative name (can be repeated).").PlaceHolder("DNS").Strings()
@@ -121,8 +115,17 @@ var (
 	clientAllowQuery     = clientCommand.Flag("verify-query", "Rego query to evaluate against the server certificate and the policy.").PlaceHolder("QUERY").String()
 	clientDisableAuth    = clientCommand.Flag("disable-authentication", "Disable client authentication, no certificate will be provided to the server.").Default("false").Bool()
 
+	// Proxy TLS options (HTTPS CONNECT proxies only). These mirror the global
+	// --keystore/--cert/--key/--storepass/--cacert flags, but apply to the TLS
+	// connection to the proxy rather than to the target.
+	clientProxyKeystorePath = clientCommand.Flag("proxy-keystore", "Path to keystore with client certificate for authenticating to an HTTPS proxy (combined PEM with cert/key, PKCS#12 keystore, or JCEKS keystore).").PlaceHolder("PATH").Envar("PROXY_KEYSTORE_PATH").String()
+	clientProxyCertPath     = clientCommand.Flag("proxy-cert", "Path to client certificate for authenticating to an HTTPS proxy (PEM with certificate chain).").PlaceHolder("PATH").Envar("PROXY_CERT_PATH").String()
+	clientProxyKeyPath      = clientCommand.Flag("proxy-key", "Path to private key for the proxy client certificate (PEM with private key).").PlaceHolder("PATH").Envar("PROXY_KEY_PATH").String()
+	clientProxyStorePass    = clientCommand.Flag("proxy-storepass", "Password for proxy keystore (PKCS#12 or JCEKS; optional for PKCS#12).").PlaceHolder("PASS").Envar("PROXY_KEYSTORE_PASS").String()
+	clientProxyCABundlePath = clientCommand.Flag("proxy-cacert", "Path to CA bundle file (PEM/X509) for verifying an HTTPS proxy. Uses --cacert by default.").PlaceHolder("PATH").Envar("PROXY_CACERT_PATH").String()
+
 	// TLS options
-	keystorePath          = app.Flag("keystore", "Path to keystore (combined PEM with cert/key, or PKCS12 keystore).").PlaceHolder("PATH").Envar("KEYSTORE_PATH").String()
+	keystorePath          = app.Flag("keystore", "Path to keystore (combined PEM with cert/key, PKCS#12 keystore, or JCEKS keystore).").PlaceHolder("PATH").Envar("KEYSTORE_PATH").String()
 	certPath              = app.Flag("cert", "Path to certificate (PEM with certificate chain).").PlaceHolder("PATH").Envar("CERT_PATH").String()
 	keyPath               = app.Flag("key", "Path to certificate private key (PEM with private key).").PlaceHolder("PATH").Envar("KEY_PATH").String()
 	keystorePass          = app.Flag("storepass", "Password for keystore (PKCS#12 or JCEKS; optional for PKCS#12).").PlaceHolder("PASS").Envar("KEYSTORE_PASS").String()
@@ -141,7 +144,8 @@ var (
 	timedReload            = app.Flag("timed-reload", "Reload keystores every given interval (e.g. 300s), refresh listener/client on changes.").PlaceHolder("DURATION").Duration()
 	processShutdownTimeout = app.Flag("shutdown-timeout", "Process shutdown timeout. Terminates after timeout even if connections still open.").Default("5m").Duration()
 	connectTimeout         = app.Flag("connect-timeout", "Timeout for establishing connections, handshakes.").Default("10s").Duration()
-	closeTimeout           = app.Flag("close-timeout", "Timeout for closing connections when one side terminates. Zero means immediate closure.").Default("60s").Duration()
+	closeTimeout           = app.Flag("close-timeout", "Close a half-closed connection after this long with no data transferred. Zero closes it immediately.").Default("60s").Duration()
+	idleTimeout            = app.Flag("idle-timeout", "Close a connection when no data is transferred in either direction for this long. Any byte transferred in either direction resets the clock. Zero means no idle timeout.").Default("0s").Duration()
 	maxConnLifetime        = app.Flag("max-conn-lifetime", "Maximum lifetime for connections post handshake, no matter what. Zero means infinite.").Default("0s").Duration()
 	maxConcurrentConns     = app.Flag("max-concurrent-conns", "Maximum number of concurrent connections to handle in the proxy. Zero means infinite.").Default("0").Uint32()
 
@@ -199,9 +203,6 @@ func init() {
 	clientCommand.Flag("verify-ip-san", "").Hidden().IPListVar(clientAllowedIPs)
 	clientCommand.Flag("verify-uri-san", "").Hidden().StringsVar(clientAllowedURIs)
 	clientCommand.Flag("connect-proxy", "").Hidden().URLVar(clientProxy)
-
-	// Register HTTP CONNECT proxy scheme for golang.org/x/net/proxy
-	netproxy.RegisterDialerType("http", connectproxy.ConnectProxy)
 }
 
 // exitFunc is the single sanctioned reference to os.Exit; all process exits go
@@ -218,19 +219,32 @@ var extraRWPaths []string //nolint:unused
 
 // Environment groups listening context data together.
 type Environment struct {
-	status          *statusHandler
-	statusHTTP      *http.Server
-	shutdownChannel chan bool
-	shutdownTimeout time.Duration
-	dial            proxy.DialFunc
-	metrics         *sqmetrics.SquareMetrics
-	proxyMetrics    *proxy.Metrics
-	tlsConfigSource certloader.TLSConfigSource
-	regoPolicy      policy.Policy
+	status               *statusHandler
+	statusHTTP           *http.Server
+	shutdownChannel      chan bool
+	shutdownTimeout      time.Duration
+	dial                 proxy.DialFunc
+	metrics              *metrics.Registry
+	proxyMetrics         *metrics.Metrics
+	tlsConfigSource      certloader.TLSConfigSource
+	proxyTLSConfigSource certloader.TLSConfigSource
+	regoPolicy           policy.Policy
+	// sessionGeneration bounds how long a resumed TLS connection may keep
+	// reusing the access control decision from its original full handshake. It
+	// is advanced on every reload, which invalidates all outstanding sessions.
+	// A value rather than a pointer so it cannot be left uninitialized: an
+	// Environment built without it would silently never invalidate anything.
+	// Only the server listener reads it; client mode advances it harmlessly.
+	sessionGeneration certloader.SessionGeneration
 }
 
 // Global logger instance
 var logger = log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
+
+// systemLogActive records whether logger was redirected to the platform system
+// logger (syslog or the Windows event log). main() uses it to decide whether a
+// fatal error must be sent to the logger in addition to stderr.
+var systemLogActive bool
 
 func initLogger(systemLog bool, flags []string) (err error) {
 	// If user has indicated request for system log (syslog on Unix, event
@@ -244,6 +258,7 @@ func initLogger(systemLog bool, flags []string) (err error) {
 	}
 	if systemLog {
 		err = initSystemLogger()
+		systemLogActive = err == nil
 	}
 	return
 }
@@ -259,26 +274,26 @@ func panicOnError(err error) {
 func validateFlags(app *kingpin.Application) error {
 	if *statusAddress == "" {
 		if *enableProf {
-			return fmt.Errorf("--enable-pprof requires --status to be set")
+			return errors.New("--enable-pprof requires --status to be set")
 		}
 		if *enableShutdown {
-			return fmt.Errorf("--enable-shutdown requires --status to be set")
+			return errors.New("--enable-shutdown requires --status to be set")
 		}
 	}
 	if *metricsURL != "" && !strings.HasPrefix(*metricsURL, "http://") && !strings.HasPrefix(*metricsURL, "https://") {
-		return fmt.Errorf("--metrics-url should start with http:// or https://")
+		return errors.New("--metrics-url should start with http:// or https://")
 	}
 	if *serverStatusTargetAddress != "" && !strings.HasPrefix(*serverStatusTargetAddress, "http://") && !strings.HasPrefix(*serverStatusTargetAddress, "https://") {
-		return fmt.Errorf("--target-status should start with http:// or https://")
+		return errors.New("--target-status should start with http:// or https://")
 	}
 	if err := validateStatusAddress(); err != nil {
 		return err
 	}
 	if *connectTimeout == 0 {
-		return fmt.Errorf("--connect-timeout duration must not be zero")
+		return errors.New("--connect-timeout duration must not be zero")
 	}
 	if *useWorkloadAPITimeout < 0 {
-		return fmt.Errorf("--use-workload-api-timeout duration must not be negative (use 0 to wait indefinitely)")
+		return errors.New("--use-workload-api-timeout duration must not be negative (use 0 to wait indefinitely)")
 	}
 	if err := validateALPN(); err != nil {
 		return err
@@ -535,7 +550,7 @@ func validateClientCredentials() error {
 
 func validateClientListen() error {
 	if !*clientUnsafeListen && !consideredSafe(*clientListenAddress) {
-		return fmt.Errorf("--listen must be unix:PATH, localhost:PORT, systemd:NAME or launchd:NAME (unless --unsafe-listen is set)")
+		return errors.New("--listen must be unix:PATH, localhost:PORT, systemd:NAME or launchd:NAME (unless --unsafe-listen is set)")
 	}
 	return nil
 }
@@ -596,9 +611,49 @@ func validateClientPin() error {
 	return nil
 }
 
+// hasProxyAuth returns true if a client certificate for authenticating to the
+// proxy (--proxy-keystore or --proxy-cert/--proxy-key) was configured.
+func hasProxyAuth() bool {
+	return *clientProxyKeystorePath != "" || *clientProxyCertPath != "" || *clientProxyKeyPath != ""
+}
+
+// Validate proxy TLS flags: a proxy client certificate and a proxy CA bundle
+// only apply to the TLS connection to an HTTPS proxy.
+func validateClientProxyFlags() error {
+	hasCert := *clientProxyCertPath != ""
+	hasKey := *clientProxyKeyPath != ""
+	hasKeystore := *clientProxyKeystorePath != ""
+	hasCABundle := *clientProxyCABundlePath != ""
+
+	if hasKeystore && (hasCert || hasKey) {
+		return errors.New("--proxy-keystore and --proxy-cert/--proxy-key are mutually exclusive")
+	}
+	if hasCert != hasKey {
+		return errors.New("--proxy-cert and --proxy-key must be set together")
+	}
+	// --proxy-storepass only unlocks --proxy-keystore; requiring the keystore
+	// also routes it through the HTTPS proxy checks below.
+	if *clientProxyStorePass != "" && !hasKeystore {
+		return errors.New("--proxy-storepass requires --proxy-keystore")
+	}
+	if !hasProxyAuth() && !hasCABundle {
+		return nil
+	}
+	if *clientProxy == nil {
+		return errors.New("--proxy-keystore, --proxy-cert/--proxy-key and --proxy-cacert require --proxy")
+	}
+	if (*clientProxy).Scheme != "https" {
+		return fmt.Errorf("--proxy-keystore, --proxy-cert/--proxy-key and --proxy-cacert require an HTTPS proxy, but --proxy scheme is %q", (*clientProxy).Scheme)
+	}
+	return nil
+}
+
 // Validate flags for client mode
 func clientValidateFlags() error {
 	if err := validateClientCredentials(); err != nil {
+		return err
+	}
+	if err := validateClientProxyFlags(); err != nil {
 		return err
 	}
 	if err := validateClientListen(); err != nil {
@@ -635,6 +690,94 @@ func serverProxyProtoMode() proxy.ProxyProtocolMode {
 	return proxy.ProxyProtocolOff
 }
 
+// setupMetrics decides whether metrics are collected at all and wires up the
+// configured sinks.
+//
+// Metrics are read through --status, --metrics-url or --metrics-graphite (see
+// the metrics package for the formats). When none is set, nothing can
+// observe the registry, so we skip metrics collection entirely: the proxy
+// gets no-op handles (see metrics.NilMetrics) and no metrics background
+// goroutine is started. The returned registry is nil in that case.
+//
+// NOTE: these flags are start-time-only; nothing reconfigures them at
+// runtime (cert hot-reload does not touch them), so this predicate is
+// decided once here and stays valid for the process lifetime. If that ever
+// changes, this gate must be re-evaluated.
+func setupMetrics() (*metrics.Metrics, *metrics.Registry, error) {
+	metricsConsumed := *statusAddress != "" || *metricsGraphite != nil || *metricsURL != ""
+	if !metricsConsumed {
+		return metrics.NilMetrics(), nil, nil
+	}
+
+	// The interval drives time.NewTicker in the runtime collector and push
+	// loops, which panics on a non-positive duration. Reject it here with a
+	// clear error rather than crashing at startup.
+	if *metricsInterval <= 0 {
+		return nil, nil, fmt.Errorf("--metrics-interval must be positive, got %s", *metricsInterval)
+	}
+
+	// The returned Metrics give the connection hot path live handles on the
+	// registry.
+	registry := metrics.NewRegistry(*metricsPrefix)
+	proxyMetrics := metrics.LiveMetrics(registry)
+
+	// Background collector for runtime/GC gauges, refreshed at the
+	// configured metrics interval.
+	registry.StartRuntimeCollector(*metricsInterval)
+
+	if *metricsGraphite != nil {
+		logger.Printf("metrics enabled; reporting metrics via TCP to %s", *metricsGraphite)
+		registry.StartGraphitePush(*metricsGraphite, *metricsInterval, logger)
+	}
+
+	if *metricsURL != "" {
+		// The URL may carry credentials (user:password@), so only log a
+		// redacted form, and omit it entirely if it does not parse.
+		if redacted, ok := redactURL(*metricsURL); ok {
+			logger.Printf("metrics enabled; reporting metrics via POST to %s", redacted)
+		} else {
+			logger.Printf("metrics enabled; reporting metrics via POST")
+		}
+
+		// Read CA bundle for the HTTP client used to POST metrics.
+		ca, err := certloader.LoadTrustStore(*caBundlePath)
+		if err != nil {
+			return nil, nil, fmt.Errorf("unable to build TLS config for metrics POST client: %w", err)
+		}
+
+		client := newMetricsPostClient(ca, *metricsInterval)
+		registry.StartPostLoop(*metricsURL, client, *metricsInterval, logger)
+	}
+	return proxyMetrics, registry, nil
+}
+
+// redactURL parses raw as a URL and returns it with any password replaced by
+// "xxxxx" (see url.URL.Redacted). ok is false if raw does not parse, in which
+// case callers should not log raw since it may still contain credentials.
+func redactURL(raw string) (redacted string, ok bool) {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "", false
+	}
+	return u.Redacted(), true
+}
+
+// newMetricsPostClient builds the HTTP client used to POST metrics to
+// --metrics-url. The timeout bounds each POST to a single interval so a hung
+// receiver can't stall the push loop indefinitely (a request that outlives its
+// cycle is already stalling).
+func newMetricsPostClient(ca *x509.CertPool, timeout time.Duration) *http.Client {
+	return &http.Client{
+		Timeout: timeout,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				MinVersion: tls.VersionTLS12,
+				RootCAs:    ca,
+			},
+		},
+	}
+}
+
 func main() {
 	if isRunningAsService() {
 		runAsService()
@@ -642,7 +785,16 @@ func main() {
 	}
 	err := run(os.Args[1:])
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %s\n", err)
+		// Report fatal startup errors once, here. Failure sites and the
+		// helpers run() calls wrap errors with context but do not log. The
+		// error always goes to stderr so the invoking user sees it (even with
+		// --quiet=all). When logs were redirected to syslog/eventlog it is
+		// also sent there so operators see it; otherwise logger writes to
+		// stdout, and logging it as well would print it twice on a terminal.
+		if systemLogActive {
+			logger.Printf("error: %v", err)
+		}
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		exitFunc(1)
 	}
 	exitFunc(0)
@@ -699,70 +851,14 @@ func run(args []string) error {
 		}
 	}
 
-	// Metrics
-	//
-	// Metrics leave the process through exactly three sinks: the pull surface
-	// (/_metrics*, served only when --status is set) and the two push reporters
-	// (--metrics-graphite, --metrics-url). When none is configured, nothing can
-	// observe the registry, so we skip metrics collection entirely: the proxy
-	// gets no-op handles (see proxy.NilMetrics) and neither metrics background
-	// goroutine is started.
-	//
-	// NOTE: these flags are start-time-only; nothing reconfigures them at
-	// runtime (cert hot-reload does not touch them), so this predicate is
-	// decided once here and stays valid for the process lifetime. If that ever
-	// changes, this gate must be re-evaluated.
-	metricsConsumed := *statusAddress != "" || *metricsGraphite != nil || *metricsURL != ""
-
-	// proxyMetrics drives the connection hot path: live handles on the default
-	// registry when metrics are consumed, no-op handles otherwise.
-	var proxyMetrics *proxy.Metrics
-	if metricsConsumed {
-		proxyMetrics = proxy.LiveMetrics(metrics.DefaultRegistry)
-	} else {
-		proxyMetrics = proxy.NilMetrics()
-	}
-
-	// metricsSink is the sq-metrics collector; left nil when metrics are not
-	// consumed (its only readers live in serveStatus, which is not registered
-	// unless --status is set, in which case metrics are consumed).
-	var metricsSink *sqmetrics.SquareMetrics
-	if metricsConsumed {
-		if *metricsGraphite != nil {
-			logger.Printf("metrics enabled; reporting metrics via TCP to %s", *metricsGraphite)
-			go graphite.Graphite(metrics.DefaultRegistry, 1*time.Second, *metricsPrefix, *metricsGraphite)
-		}
-		if *metricsURL != "" {
-			logger.Printf("metrics enabled; reporting metrics via POST to %s", *metricsURL)
-		}
-
-		// Bridge go-metrics into the prometheus registry for /_metrics/prometheus.
-		// The overhead is minimal (an in-mem map is updated with the values).
-		pClient := prometheusmetrics.NewPrometheusProvider(metrics.DefaultRegistry, *metricsPrefix, "", prometheus.DefaultRegisterer, 1*time.Second)
-		go pClient.UpdatePrometheusMetrics()
-
-		// Read CA bundle for passing to metrics library
-		ca, err := certloader.LoadTrustStore(*caBundlePath)
-		if err != nil {
-			logger.Printf("error: unable to build TLS config: %s\n", err)
-			return err
-		}
-
-		client := &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					MinVersion: tls.VersionTLS12,
-					RootCAs:    ca,
-				},
-			},
-		}
-		metricsSink = sqmetrics.NewMetrics(*metricsURL, *metricsPrefix, client, *metricsInterval, metrics.DefaultRegistry, logger)
+	proxyMetrics, metricsRegistry, err := setupMetrics()
+	if err != nil {
+		return err
 	}
 
 	switch command {
 	case serverCommand.FullCommand():
 		if err := serverValidateFlags(); err != nil {
-			logger.Printf("error: %s\n", err)
 			return err
 		}
 
@@ -775,8 +871,7 @@ func run(args []string) error {
 
 		dial, err := serverBackendDialer()
 		if err != nil {
-			logger.Printf("error: invalid target address: %s\n", err)
-			return err
+			return fmt.Errorf("invalid target address: %w", err)
 		}
 		logger.Printf("using target address %s", *serverForwardAddress)
 
@@ -794,7 +889,7 @@ func run(args []string) error {
 			shutdownChannel: make(chan bool, 1),
 			shutdownTimeout: *processShutdownTimeout,
 			dial:            dial,
-			metrics:         metricsSink,
+			metrics:         metricsRegistry,
 			proxyMetrics:    proxyMetrics,
 			tlsConfigSource: tlsConfigSource,
 			regoPolicy:      regoPolicy,
@@ -802,15 +897,10 @@ func run(args []string) error {
 		go env.reloadHandler(*timedReload)
 
 		// Start listening
-		err = serverListen(env, regoPolicy)
-		if err != nil {
-			logger.Printf("error from server listen: %s\n", err)
-		}
-		return err
+		return serverListen(env, regoPolicy)
 
 	case clientCommand.FullCommand():
 		if err := clientValidateFlags(); err != nil {
-			logger.Printf("error: %s\n", err)
 			return err
 		}
 
@@ -828,15 +918,13 @@ func run(args []string) error {
 		skipRes := *skipResolve || *clientProxy != nil
 		network, address, host, err := socket.ParseAddress(*clientForwardAddress, skipRes)
 		if err != nil {
-			logger.Printf("error: invalid target address: %s\n", err)
-			return err
+			return fmt.Errorf("invalid target address: %w", err)
 		}
 		logger.Printf("using target address %s", *clientForwardAddress)
 
-		dial, policy, err := clientBackendDialer(tlsConfigSource, network, address, host)
+		dial, policy, proxySource, err := clientBackendDialer(tlsConfigSource, network, address, host)
 		if err != nil {
-			logger.Printf("error: unable to build dialer: %s\n", err)
-			return err
+			return fmt.Errorf("unable to build dialer: %w", err)
 		}
 
 		// NOTE: We don't provide a target status address here because this handler
@@ -845,23 +933,20 @@ func run(args []string) error {
 		// backend dialer (which handles both tcp and unix targets).
 		status := newStatusHandler(dial, command, *clientListenAddress, *clientForwardAddress, "")
 		env := &Environment{
-			status:          status,
-			shutdownChannel: make(chan bool, 1),
-			shutdownTimeout: *processShutdownTimeout,
-			dial:            dial,
-			metrics:         metricsSink,
-			proxyMetrics:    proxyMetrics,
-			tlsConfigSource: tlsConfigSource,
-			regoPolicy:      policy,
+			status:               status,
+			shutdownChannel:      make(chan bool, 1),
+			shutdownTimeout:      *processShutdownTimeout,
+			dial:                 dial,
+			metrics:              metricsRegistry,
+			proxyMetrics:         proxyMetrics,
+			tlsConfigSource:      tlsConfigSource,
+			proxyTLSConfigSource: proxySource,
+			regoPolicy:           policy,
 		}
 		go env.reloadHandler(*timedReload)
 
 		// Start listening
-		err = clientListen(env)
-		if err != nil {
-			logger.Printf("error from client listen: %s\n", err)
-		}
-		return err
+		return clientListen(env)
 	}
 
 	return errors.New("unknown command")
@@ -876,8 +961,7 @@ func loadOPAPolicy(allowPolicy, allowQuery string) (policy.Policy, error) {
 	}
 	p, err := policy.LoadFromPath(allowPolicy, allowQuery)
 	if err != nil {
-		logger.Printf("Invalid rego policy or query: %s", err)
-		return nil, err
+		return nil, fmt.Errorf("invalid rego policy or query: %w", err)
 	}
 	return p, nil
 }
@@ -890,14 +974,12 @@ func loadOPAPolicy(allowPolicy, allowQuery string) (policy.Policy, error) {
 func serverListen(env *Environment, regoPolicy policy.Policy) error {
 	config, err := buildServerConfig(*enabledCipherSuites, *maxTLSVersion, *allowUnsafeCipherSuites, *alpn)
 	if err != nil {
-		logger.Printf("error trying to read CA bundle: %s", err)
-		return err
+		return fmt.Errorf("unable to build server TLS config: %w", err)
 	}
 
 	allowedURIs, err := wildcard.CompileList(*serverAllowedURIs)
 	if err != nil {
-		logger.Printf("invalid URI pattern in --allow-uri flag (%s)", err)
-		return err
+		return fmt.Errorf("invalid URI pattern in --allow-uri flag: %w", err)
 	}
 
 	serverACL := auth.ACL{
@@ -920,27 +1002,40 @@ func serverListen(env *Environment, regoPolicy policy.Policy) error {
 			// validation. The ACL callback verifies the SPKI hash instead.
 			config.ClientAuth = tls.RequireAnyClientCert
 		}
-		config.VerifyPeerCertificate = serverACL.VerifyPeerCertificateServer
+		config.VerifyPeerCertificate = serverACL.VerifyPeerCertificateServer //nolint:gosec // G123: intentional. A resumed connection reuses the access control decision from its original full handshake; certloader.BindSessionsToGeneration bounds that by invalidating every session on reload.
 	}
 
 	listener, err := socket.ParseAndOpen(*serverListenAddress)
 	if err != nil {
-		logger.Printf("error trying to listen: %s", err)
-		return err
+		return fmt.Errorf("unable to listen: %w", err)
 	}
 
 	serverConfig, err := getServerConfig(env.tlsConfigSource, config)
 	if err != nil {
 		listener.Close()
-		logger.Printf("error: unable to get server TLS config: %s", err)
-		return err
+		return fmt.Errorf("unable to get server TLS config: %w", err)
 	}
 
+	// crypto/tls skips VerifyPeerCertificate, and with it the ACL above, on a
+	// resumed connection. Bind sessions to the reload generation so that a
+	// reload is the outer bound on how long a client can keep resuming into a
+	// decision made against configuration we have since replaced. This covers
+	// every certificate source, including the SPIFFE Workload API, whose
+	// configuration is otherwise built once and never rebuilt.
+	//
+	// The status listener is deliberately left unwrapped: it uses NoClientCert
+	// and has no ACL, and in ACME mode WithoutACMEChallenge clones on every
+	// call, which would defeat the wrapper's per-generation cache.
+	tunnelConfig := certloader.BindSessionsToGeneration(serverConfig, &env.sessionGeneration)
+
 	p := proxy.New(
-		certloader.NewListener(listener, serverConfig),
-		*connectTimeout,
-		*closeTimeout,
-		*maxConnLifetime,
+		certloader.NewListener(listener, tunnelConfig),
+		proxy.Timeouts{
+			Connect:     *connectTimeout,
+			Close:       *closeTimeout,
+			Idle:        *idleTimeout,
+			MaxLifetime: *maxConnLifetime,
+		},
 		int64(*maxConcurrentConns),
 		env.dial,
 		logger,
@@ -953,7 +1048,6 @@ func serverListen(env *Environment, regoPolicy policy.Policy) error {
 		err := env.serveStatus()
 		if err != nil {
 			listener.Close()
-			logger.Printf("error serving /_status: %s", err)
 			return err
 		}
 	}
@@ -974,15 +1068,17 @@ func serverListen(env *Environment, regoPolicy policy.Policy) error {
 func clientListen(env *Environment) error {
 	listener, err := socket.ParseAndOpen(*clientListenAddress)
 	if err != nil {
-		logger.Printf("error opening socket: %s", err)
-		return err
+		return fmt.Errorf("unable to open socket: %w", err)
 	}
 
 	p := proxy.New(
 		listener,
-		*connectTimeout,
-		*closeTimeout,
-		*maxConnLifetime,
+		proxy.Timeouts{
+			Connect:     *connectTimeout,
+			Close:       *closeTimeout,
+			Idle:        *idleTimeout,
+			MaxLifetime: *maxConnLifetime,
+		},
 		int64(*maxConcurrentConns),
 		env.dial,
 		logger,
@@ -995,7 +1091,6 @@ func clientListen(env *Environment) error {
 		err := env.serveStatus()
 		if err != nil {
 			listener.Close()
-			logger.Printf("error serving /_status: %s", err)
 			return err
 		}
 	}
@@ -1037,7 +1132,8 @@ func (env *Environment) shutdownHandler(w http.ResponseWriter, r *http.Request) 
 
 // Serve /_status (if configured)
 func (env *Environment) serveStatus() error {
-	promHandler := promhttp.Handler()
+	// Native Prometheus exposition served straight off our registry.
+	promHandler := env.metrics.PrometheusHandler()
 
 	mux := http.NewServeMux()
 	mux.Handle("/_status", env.status)
@@ -1073,13 +1169,12 @@ func (env *Environment) serveStatus() error {
 
 	network, address, _, err := socket.ParseAddress(addr, true)
 	if err != nil {
-		return err
+		return fmt.Errorf("invalid status address: %w", err)
 	}
 
 	listener, err := socket.Open(network, address)
 	if err != nil {
-		logger.Printf("error: unable to bind on status port: %s\n", err)
-		return err
+		return fmt.Errorf("unable to bind on status port: %w", err)
 	}
 
 	if network == "tcp" && https && env.tlsConfigSource.CanServe() {
@@ -1088,13 +1183,15 @@ func (env *Environment) serveStatus() error {
 		// --alpn=postgresql) would otherwise lock out monitoring clients.
 		config, err := buildServerConfig(*enabledCipherSuites, *maxTLSVersion, *allowUnsafeCipherSuites, "")
 		if err != nil {
-			return err
+			listener.Close()
+			return fmt.Errorf("unable to build status TLS config: %w", err)
 		}
 		config.ClientAuth = tls.NoClientCert
 
 		serverConfig, err := getServerConfig(env.tlsConfigSource, config)
 		if err != nil {
-			return err
+			listener.Close()
+			return fmt.Errorf("unable to get status TLS config: %w", err)
 		}
 		if *serverAutoACMEFQDN != "" {
 			// The ACME source appends acme-tls/1 to every listener it serves,
@@ -1118,7 +1215,7 @@ func (env *Environment) serveStatus() error {
 	go func() {
 		err := env.statusHTTP.Serve(listener)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.Printf("error serving status port: %s", err)
+			logger.Printf("error serving status port: %v", err)
 		}
 	}()
 
@@ -1142,11 +1239,10 @@ func serverBackendDialer() (proxy.DialFunc, error) {
 func clientBackendDialer(
 	tlsConfigSource certloader.TLSConfigSource,
 	network, address, host string,
-) (proxy.DialFunc, policy.Policy, error) {
-
+) (proxy.DialFunc, policy.Policy, certloader.TLSConfigSource, error) {
 	config, err := buildClientConfig(*enabledCipherSuites, *maxTLSVersion, *allowUnsafeCipherSuites, *alpn)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, fmt.Errorf("unable to build client TLS config: %w", err)
 	}
 
 	if *clientServerName == "" {
@@ -1157,13 +1253,12 @@ func clientBackendDialer(
 
 	allowedURIs, err := wildcard.CompileList(*clientAllowedURIs)
 	if err != nil {
-		logger.Printf("invalid URI pattern in --verify-uri flag (%s)", err)
-		return nil, nil, err
+		return nil, nil, nil, fmt.Errorf("invalid URI pattern in --verify-uri flag: %w", err)
 	}
 
 	regoPolicy, err := loadOPAPolicy(*clientAllowPolicy, *clientAllowQuery)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	clientACL := auth.ACL{
@@ -1183,35 +1278,82 @@ func clientBackendDialer(
 		config.InsecureSkipVerify = true
 	}
 
-	config.VerifyPeerCertificate = clientACL.VerifyPeerCertificateClient
+	config.VerifyPeerCertificate = clientACL.VerifyPeerCertificateClient //nolint:gosec // G123: client configs set no ClientSessionCache, so these connections never resume and the check always runs.
 
 	var dialer netproxy.ContextDialer = &net.Dialer{Timeout: *connectTimeout}
+	var proxyTLSConfigSource certloader.TLSConfigSource
 
 	if *clientProxy != nil {
-		logger.Printf("using proxy %s", (*clientProxy).String())
-		proxyDialer, err := netproxy.FromURL(*clientProxy, &net.Dialer{Timeout: *connectTimeout})
+		logger.Printf("using proxy %s", (*clientProxy).Redacted())
+		dialer, proxyTLSConfigSource, err = clientProxyDialer(*clientProxy)
 		if err != nil {
-			logger.Printf("error: error configuring proxy: %s\n", err)
-			return nil, nil, err
-		}
-
-		var ok bool
-		dialer, ok = proxyDialer.(netproxy.ContextDialer)
-		if !ok {
-			logger.Printf("unexpected: proxy dialer scheme did not implement context dialing, aborting")
-			return nil, nil, errors.New("unexpected: proxy dialer scheme did not implement context dialing, aborting")
+			return nil, nil, nil, err
 		}
 	}
 
 	clientConfig, err := getClientConfig(tlsConfigSource, config)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to get client TLS config: %w", err)
+		return nil, nil, nil, fmt.Errorf("unable to get client TLS config: %w", err)
 	}
 	d := certloader.DialerWithCertificate(clientConfig, *connectTimeout, dialer)
 	return func(ctx context.Context) (net.Conn, error) {
 			return d.DialContext(ctx, network, address)
 		},
-		regoPolicy, nil
+		regoPolicy,
+		proxyTLSConfigSource,
+		nil
+}
+
+// clientProxyDialer builds the dialer that reaches the target through the
+// proxy given by --proxy. http:// and https:// proxies are reached with HTTP
+// CONNECT (see connectDialer); other schemes, such as socks5://, go through
+// golang.org/x/net/proxy. For https:// proxies the connection to the proxy is
+// wrapped in TLS: the proxy is verified against --proxy-cacert (falling back
+// to --cacert) and, if configured, the proxy client certificate is presented.
+// The returned TLSConfigSource is nil unless the proxy connection uses TLS;
+// the caller must reload it alongside the main certificate so proxy
+// credentials can rotate.
+func clientProxyDialer(proxyURL *url.URL) (netproxy.ContextDialer, certloader.TLSConfigSource, error) {
+	switch proxyURL.Scheme {
+	case "http":
+		return newConnectDialer(proxyURL, &net.Dialer{Timeout: *connectTimeout}), nil, nil
+	case "https":
+		// ALPN is deliberately left unset here: --alpn is negotiated with
+		// the target inside the tunnel, not with the proxy.
+		config, err := buildClientConfig(*enabledCipherSuites, *maxTLSVersion, *allowUnsafeCipherSuites, "")
+		if err != nil {
+			return nil, nil, fmt.Errorf("unable to build proxy client TLS config: %w", err)
+		}
+		config.ServerName = proxyURL.Hostname()
+
+		caBundle := *clientProxyCABundlePath
+		if caBundle == "" {
+			caBundle = *caBundlePath
+		}
+		cert, err := buildProxyCertificate(*clientProxyKeystorePath, *clientProxyCertPath, *clientProxyKeyPath, *clientProxyStorePass, caBundle, logger)
+		if err != nil {
+			return nil, nil, fmt.Errorf("unable to load proxy certificates: %w", err)
+		}
+		proxyTLSConfigSource := certloader.TLSConfigSourceFromCertificate(cert, logger)
+
+		clientConfig, err := getClientConfig(proxyTLSConfigSource, config)
+		if err != nil {
+			return nil, nil, fmt.Errorf("unable to get proxy client TLS config: %w", err)
+		}
+		forward := certloader.DialerWithCertificate(clientConfig, *connectTimeout, &net.Dialer{Timeout: *connectTimeout})
+		return newConnectDialer(proxyURL, forward), proxyTLSConfigSource, nil
+	}
+
+	proxyDialer, err := netproxy.FromURL(proxyURL, &net.Dialer{Timeout: *connectTimeout})
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to configure proxy: %w", err)
+	}
+
+	dialer, ok := proxyDialer.(netproxy.ContextDialer)
+	if !ok {
+		return nil, nil, errors.New("unexpected: proxy dialer scheme did not implement context dialing, aborting")
+	}
+	return dialer, nil, nil
 }
 
 func proxyLoggerFlags(flags []string) int {
@@ -1240,8 +1382,7 @@ func getTLSConfigSource(disableAuth bool) (certloader.TLSConfigSource, error) {
 		logger.Printf("using SPIFFE Workload API as certificate source")
 		source, err := certloader.TLSConfigSourceFromWorkloadAPI(*useWorkloadAPIAddr, disableAuth, *useWorkloadAPITimeout, logger)
 		if err != nil {
-			logger.Printf("error: unable to create workload API TLS source: %s\n", err)
-			return nil, err
+			return nil, fmt.Errorf("unable to create workload API TLS source: %w", err)
 		}
 		return source, nil
 	}
@@ -1257,19 +1398,18 @@ func getTLSConfigSource(disableAuth bool) (certloader.TLSConfigSource, error) {
 			CABundlePath:       *caBundlePath,
 			RenewCheckInterval: *serverAutoACMERenewCheckInterval,
 			AltTLSALPNPort:     *serverAutoACMEAltTLSALPNPort,
+			Logger:             logger,
 		}
 		source, err := certloader.TLSConfigSourceFromACME(&acmeConfig)
 		if err != nil {
-			logger.Printf("error: Unable to load or obtain ACME cert: %s\n", err)
-			return nil, err
+			return nil, fmt.Errorf("unable to load or obtain ACME cert: %w", err)
 		}
 		return source, nil
 	}
 
 	cert, err := buildCertificate(*keystorePath, *certPath, *keyPath, *keystorePass, *caBundlePath, logger)
 	if err != nil {
-		logger.Printf("error: unable to load certificates: %s\n", err)
-		return nil, err
+		return nil, fmt.Errorf("unable to load certificates: %w", err)
 	}
 	return certloader.TLSConfigSourceFromCertificate(cert, logger), nil
 }

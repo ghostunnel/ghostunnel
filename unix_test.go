@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -54,18 +53,6 @@ func TestInitSystemLoggerError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, sentinel, err)
 	assert.Equal(t, originalLogger, logger, "logger must not be mutated on failure")
-}
-
-// countingTLSConfigSource extends the failingTLSConfigSource with a counter
-// for tracking Reload() invocations.
-type countingTLSConfigSource struct {
-	failingTLSConfigSource
-	reloadCalls atomic.Int32
-}
-
-func (c *countingTLSConfigSource) Reload() error {
-	c.reloadCalls.Add(1)
-	return nil
 }
 
 // nopListener is a net.Listener whose Accept always errors, allowing a real
@@ -121,7 +108,7 @@ func TestSignalHandlerReloadAndShutdown(t *testing.T) {
 	lis := &nopListener{closed: make(chan struct{})}
 	p := proxy.New(
 		lis,
-		time.Second, time.Second, time.Second,
+		proxy.Timeouts{Connect: time.Second, Close: time.Second, MaxLifetime: time.Second},
 		1,
 		func(ctx context.Context) (net.Conn, error) {
 			return nil, errors.New("nope")

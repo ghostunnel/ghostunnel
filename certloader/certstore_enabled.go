@@ -21,6 +21,7 @@ package certloader
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"log"
 	"sort"
@@ -145,7 +146,7 @@ func (c *certstoreCertificate) Reload() error {
 	}
 
 	if len(candidates) == 0 {
-		return fmt.Errorf("unable to find identity in keychain, check requested name/issuer")
+		return errors.New("unable to find identity in keychain, check requested name/issuer")
 	}
 
 	// sort the candidates by descending NotAfter
@@ -183,7 +184,7 @@ func (c *certstoreCertificate) Reload() error {
 
 	bundle, err := LoadTrustStore(c.caBundlePath)
 	if err != nil {
-		return err
+		return fmt.Errorf("loading trust store: %w", err)
 	}
 
 	// Retain the chosen identity so the deferred cleanup does not close it.

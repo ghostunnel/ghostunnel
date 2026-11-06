@@ -10,18 +10,18 @@ import (
 )
 
 func TestOSStatusErrorType(t *testing.T) {
-	// Test the Error() method on osStatus type
+	// Test the Error() method on osStatusError type
 	s := errSecItemNotFound
 	errStr := s.Error()
 	assert.Contains(t, errStr, "OSStatus", "error string should contain OSStatus")
 }
 
 // TestOsStatusErrorFunctionNonZero exercises the non-zero branch of
-// osStatusError() itself (not just the osStatus.Error() method) by passing
+// newOSStatusError() itself (not just the osStatusError.Error() method) by passing
 // a known non-success OSStatus value through a thin cgo wrapper.
 func TestOsStatusErrorFunctionNonZero(t *testing.T) {
 	err := osStatusErrorFromOSStatus(errSecItemNotFound)
-	require.Error(t, err, "osStatusError should return non-nil for non-zero status")
+	require.Error(t, err, "newOSStatusError should return non-nil for non-zero status")
 
 	msg := err.Error()
 	assert.Contains(t, msg, "OSStatus")

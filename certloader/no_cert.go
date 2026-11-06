@@ -19,6 +19,7 @@ package certloader
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"sync/atomic"
 )
 
@@ -45,7 +46,7 @@ func NoCertificate(caBundlePath string) (Certificate, error) {
 func (c *trustBundle) Reload() error {
 	bundle, err := LoadTrustStore(c.caBundlePath)
 	if err != nil {
-		return err
+		return fmt.Errorf("loading trust store: %w", err)
 	}
 
 	c.cachedCertPool.Store(bundle)

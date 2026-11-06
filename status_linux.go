@@ -36,7 +36,7 @@ func getMonotonicUsec() (int64, error) {
 	var ts syscall.Timespec
 	_, _, errno := syscall.Syscall(syscall.SYS_CLOCK_GETTIME, clock_monotonic_clkid, uintptr(unsafe.Pointer(&ts)), 0)
 	if errno != 0 {
-		return 0, fmt.Errorf("SYS_CLOCK_GETTIME failed: %w", errno)
+		return 0, fmt.Errorf("unable to call SYS_CLOCK_GETTIME: %w", errno)
 	}
 	sec, nsec := ts.Unix()
 	// 1s is 1e6µs, 1ns is 1/1000µs

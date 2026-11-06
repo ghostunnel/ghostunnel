@@ -32,7 +32,7 @@ func TestSystemdSocketMultipleNames(t *testing.T) {
 	}
 
 	result, err := systemdSocketFromMap("web", listeners)
-	assert.Nil(t, err, "requesting 'web' with 1 socket should succeed even when other names exist")
+	assert.NoError(t, err, "requesting 'web' with 1 socket should succeed even when other names exist")
 	assert.Equal(t, webListener, result)
 }
 
@@ -56,7 +56,7 @@ func TestSystemdSocketMultipleSocketsSameName(t *testing.T) {
 	}
 
 	_, err = systemdSocketFromMap("web", listeners)
-	assert.NotNil(t, err, "should fail when a name has multiple sockets")
+	assert.Error(t, err, "should fail when a name has multiple sockets")
 }
 
 // TestSystemdInheritedUnixSocketNotUnlinkedOnClose documents the contract that
@@ -99,11 +99,11 @@ func TestSystemdInheritedUnixSocketNotUnlinkedOnClose(t *testing.T) {
 	result, err := systemdSocketFromMap("test", map[string][]net.Listener{
 		"test": {inherited},
 	})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	// Closing the inherited listener (as graceful shutdown does) must leave
 	// the path in place.
-	assert.Nil(t, result.Close())
+	assert.NoError(t, result.Close())
 
 	_, err = os.Stat(sockPath)
 	assert.NoError(t, err, "systemd-inherited UNIX socket must not be unlinked on Close")

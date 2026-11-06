@@ -42,6 +42,51 @@ try:
     if not isinstance(metrics, list):
         raise Exception("ghostunnel metrics expected to be JSON list")
 
+    # The metric names are part of Ghostunnel's exported contract; assert that
+    # representative counter, gauge-like, and expanded-timer names are present.
+    def metric_names(entries):
+        return {entry['metric'] for entry in entries}
+
+    def assert_metrics_present(entries):
+        names = metric_names(entries)
+        for expected in ['ghostunnel.conn.open', 'ghostunnel.accept.total',
+                         'ghostunnel.conn.handshake.count',
+                         'ghostunnel.conn.handshake.99-percentile']:
+            if expected not in names:
+                raise Exception(
+                    "expected metric {0} missing from /_metrics".format(expected))
+        # Deprecated/removed timer fields must not reappear in JSON (min/max were
+        # dropped in the histogram migration).
+        for banned_suffix in ['.min', '.max', '.std-dev', '.std_dev', '.variance',
+                              '.999-percentile', '.count_ps', '.mean-rate', '.rate1']:
+            for name in names:
+                if name.endswith(banned_suffix):
+                    raise Exception(
+                        "unexpected deprecated metric {0} present".format(name))
+
+    assert_metrics_present(metrics)
+
+    # Prometheus endpoint should expose the native histogram and standard
+    # collectors.
+    prometheus = str(urlopen(
+        "https://{0}:{1}/_metrics/prometheus".format(LOCALHOST, STATUS_PORT)).read(), 'utf-8')
+    for expected in ['ghostunnel_conn_open', 'ghostunnel_conn_handshake_bucket',
+                     'ghostunnel_conn_handshake_count', 'go_goroutines']:
+        if expected not in prometheus:
+            raise Exception(
+                "expected prometheus metric {0} missing".format(expected))
+    # The Ghostunnel timer must no longer be a summary (its quantile series is
+    # gone) and the old go-metrics timer fields must be absent. Note the standard
+    # go_gc_duration_seconds summary legitimately uses quantile labels, and the
+    # new histogram's own "_bucket" series is expected, so both are matched
+    # narrowly against the ghostunnel timer name here.
+    for banned in ['ghostunnel_conn_handshake{quantile=', 'ghostunnel_conn_handshake_std_dev',
+                   'ghostunnel_conn_handshake_variance', '_timer_bucket',
+                   'ghostunnel_conn_handshake_rate1']:
+        if banned in prometheus:
+            raise Exception(
+                "unexpected deprecated prometheus metric containing {0}".format(banned))
+
     # reload, check we get the new cert on /_status
     os.replace('new_server.p12', 'server.p12')
     trigger_reload(ghostunnel)
@@ -59,6 +104,8 @@ try:
 
     if not isinstance(metrics, list):
         raise Exception("ghostunnel metrics expected to be JSON list")
+
+    assert_metrics_present(metrics)
 
     print_ok("OK")
 finally:

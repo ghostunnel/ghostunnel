@@ -32,7 +32,7 @@ import (
 func TestInvalidPKCS11Module(t *testing.T) {
 	logger := log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
 	_, err := CertificateFromPKCS11Module("", "", "", "", "", logger)
-	assert.NotNil(t, err, "should not load invalid PKCS11 certificate/key")
+	assert.Error(t, err, "should not load invalid PKCS11 certificate/key")
 }
 
 func TestPKCS11GetTrustStore(t *testing.T) {
@@ -66,10 +66,10 @@ func TestGetCachedCertificatePKCS11(t *testing.T) {
 	assert.Equal(t, "CN=test", id, "cert should not have empty id")
 
 	c, err := p11cert.GetCertificate(nil)
-	assert.Nil(t, err, "should be able to read certificate")
+	assert.NoError(t, err, "should be able to read certificate")
 	assert.Equal(t, tlscert, c)
 
 	c, err = p11cert.GetClientCertificate(nil)
-	assert.Nil(t, err, "should be able to read certificate")
+	assert.NoError(t, err, "should be able to read certificate")
 	assert.Equal(t, tlscert, c)
 }

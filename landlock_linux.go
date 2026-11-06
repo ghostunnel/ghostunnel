@@ -128,7 +128,7 @@ func setupLandlock() error {
 
 		fsRule, netRule, err := ruleFromStringAddress(*addr, landlock.BindTCP)
 		if err != nil {
-			return fmt.Errorf("error processing argument '%s' for landlock rule: %w", *addr, err)
+			return fmt.Errorf("processing argument %q for landlock rule: %w", *addr, err)
 		}
 		if fsRule != nil {
 			fsRules = append(fsRules, fsRule)
@@ -153,7 +153,7 @@ func setupLandlock() error {
 
 		fsRule, netRule, err := ruleFromStringAddress(*addr, landlock.ConnectTCP)
 		if err != nil {
-			return fmt.Errorf("error processing argument '%s' for landlock rule: %w", *addr, err)
+			return fmt.Errorf("processing argument %q for landlock rule: %w", *addr, err)
 		}
 		if fsRule != nil {
 			fsRules = append(fsRules, fsRule)
@@ -171,6 +171,10 @@ func setupLandlock() error {
 		certPath,
 		keyPath,
 		caBundlePath,
+		clientProxyKeystorePath,
+		clientProxyCertPath,
+		clientProxyKeyPath,
+		clientProxyCABundlePath,
 	} {
 		if path == nil || len(*path) == 0 {
 			continue
@@ -186,7 +190,7 @@ func setupLandlock() error {
 
 		rule, err := ruleFromTCPAddress(*addr, landlock.ConnectTCP)
 		if err != nil {
-			return fmt.Errorf("error processing argument '%s' for landlock rule: %w", *addr, err)
+			return fmt.Errorf("processing argument %q for landlock rule: %w", *addr, err)
 		}
 		if rule != nil {
 			netRules = append(netRules, rule)
@@ -199,7 +203,7 @@ func setupLandlock() error {
 	for _, u := range proxyURLsFromEnv() {
 		rule, err := ruleFromURL(u, landlock.ConnectTCP)
 		if err != nil {
-			return fmt.Errorf("error processing proxy env URL '%s' for landlock rule: %w", u, err)
+			return fmt.Errorf("processing proxy env URL %q for landlock rule: %w", u.Redacted(), err)
 		}
 		if rule != nil {
 			netRules = append(netRules, rule)
@@ -214,7 +218,7 @@ func setupLandlock() error {
 
 		rule, err := ruleFromURL(*url, landlock.ConnectTCP)
 		if err != nil {
-			return fmt.Errorf("error processing argument '%s' for landlock rule: %w", *url, err)
+			return fmt.Errorf("processing argument %q for landlock rule: %w", (*url).Redacted(), err)
 		}
 		if rule != nil {
 			netRules = append(netRules, rule)
@@ -296,7 +300,7 @@ func ruleFromStringAddress(addr string, ruleFromPort portRuleFunc) (landlock.Rul
 // --metrics-graphite) into a port-based landlock rule. ruleFromPort selects
 // bind vs connect semantics.
 func ruleFromTCPAddress(addr *net.TCPAddr, ruleFromPort portRuleFunc) (landlock.Rule, error) {
-	if addr.Port == 0 {
+	if addr.Port <= 0 || addr.Port > 65535 {
 		return nil, errors.New("unable to extract port number from address")
 	}
 	return ruleFromPort(uint16(addr.Port)), nil

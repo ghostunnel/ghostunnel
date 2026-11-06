@@ -89,7 +89,7 @@ func readCertificate(r io.Reader, maxLen uint) (*x509.Certificate, error) {
 		return nil, err
 	}
 	if certType != x509CertTag {
-		return nil, fmt.Errorf("%w: unable to handle certificate type: %s", errUnsupportedJCEKSData, certType)
+		return nil, fmt.Errorf("%w: unable to handle certificate type: %q", errUnsupportedJCEKSData, certType)
 	}
 	certDER, err := readBytes(r, maxLen)
 	if err != nil {
@@ -97,7 +97,7 @@ func readCertificate(r io.Reader, maxLen uint) (*x509.Certificate, error) {
 	}
 	cert, err := x509.ParseCertificate(certDER)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse certificate: %w", err)
+		return nil, fmt.Errorf("unable to parse certificate: %w", err)
 	}
 
 	return cert, nil

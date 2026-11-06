@@ -106,50 +106,97 @@ Ghostunnel exports the following base metrics:
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `conn.open` | Counter (gauge-like) | Number of currently open connections |
-| `conn.timeout` | Counter | Connections that timed out during data transfer |
+| `conn.open` | Gauge | Number of currently open connections |
+| `conn.timeout` | Counter | Connections closed by a timeout during data transfer{{% since "v1.12.0" %}}: idle (`--idle-timeout`), maximum lifetime (`--max-conn-lifetime`), or a half-closed connection that stayed silent for `--close-timeout`{{% /since %}} |
 | `accept.total` | Counter | Total connection attempts accepted |
 | `accept.success` | Counter | Connections successfully established |
 | `accept.error` | Counter | Failed connection attempts |
-| `accept.timeout` | Counter | TLS handshake timeouts |
-| `conn.handshake` | Timer | TLS handshake duration |
+| `accept.timeout` | Counter | TLS handshake timeouts (server mode only) |
+| `conn.handshake` | Timer | TLS handshake duration (server mode only) |
 | `conn.lifetime` | Timer | Total connection lifetime |
+{{% since "v1.12.0" %}}| `conn.error` | Counter | I/O errors during data transfer (counted per direction, so one connection can add up to two) |{{% /since %}}
 
-Note that `conn.open` is registered as a counter that is incremented and
-decremented as connections open and close, so it behaves like a gauge of
-currently open connections.
+All durations are in nanoseconds.
 
-The `--metrics-prefix` flag (default: `ghostunnel`) is prepended to all metric
-names. How the prefix and metric names are formatted depends on the output
-format (see below).
+{{% since "v1.12.0" %}}
+`conn.handshake` covers resumed handshakes as well as full ones. A resumed
+handshake is considerably cheaper, since it skips certificate verification and
+access control, so a reload (which invalidates outstanding sessions, see
+[Session Resumption]({{< ref "reloading.md#session-resumption" >}})) shows up
+as a burst of slower handshakes.
+{{% /since %}}
+
+Ghostunnel also exports Go runtime metrics under `runtime.*`: gauges for
+memory usage, goroutines, and garbage collection (refreshed every
+`--metrics-interval`), and a `runtime.mem.gc.duration` timer of GC pause
+durations.
+
+The `--metrics-prefix` flag (default: `ghostunnel`) is prepended to all of
+Ghostunnel's own metric names. It does not apply to the standard `go_*` and
+`process_*` metrics on the Prometheus endpoint. How the prefix and metric
+names are formatted depends on the output format (see below).
 
 ## JSON format (`/_metrics/json`)
 
 JSON output uses dot-separated names. Counters and gauges are emitted as a
-single value. Timers are expanded into count, min/max/mean, and percentile
+single value. Timers are expanded into count, mean, and percentile
 sub-metrics:
 
 | JSON metric name | Description |
 |------------------|-------------|
 | `ghostunnel.conn.open` | Gauge value |
 | `ghostunnel.conn.handshake.count` | Number of observations |
-| `ghostunnel.conn.handshake.min` | Minimum value |
-| `ghostunnel.conn.handshake.max` | Maximum value |
 | `ghostunnel.conn.handshake.mean` | Mean value |
 | `ghostunnel.conn.handshake.50-percentile` | 50th percentile (median) |
 | `ghostunnel.conn.handshake.75-percentile` | 75th percentile |
 | `ghostunnel.conn.handshake.95-percentile` | 95th percentile |
 | `ghostunnel.conn.handshake.99-percentile` | 99th percentile |
 
+Ghostunnel v1.11.x and earlier also emit `min` and `max` for each
+timer.{{% since "v1.12.0" %}} See [Migrating from v1.11.x](#migrating-from-v111x).{{% /since %}}
+
 Each metric is returned as a JSON object with `timestamp`, `metric`, `value`,
 and `hostname` fields.
 
 ## Prometheus format (`/_metrics/prometheus`)
 
-Prometheus output replaces dots, dashes, and other special characters with
-underscores to comply with Prometheus naming conventions. All metrics are
-exposed as Prometheus gauges. Timers additionally include rate gauges,
-statistical gauges, and a histogram:
+Prometheus output replaces spaces, dots, dashes, `=`, and `/` in metric names
+with underscores to comply with Prometheus naming conventions. The standard
+`go_*` and `process_*` collectors from
+[`client_golang`](https://github.com/prometheus/client_golang) are also
+exported.
+
+{{% since "v1.12.0" %}}
+> **Changed in v1.12.0.** Metric types and timer series changed; see
+> [Migrating from v1.11.x](#migrating-from-v111x).
+
+### Ghostunnel v1.12.0 and later
+
+Counters are exposed as Prometheus counters, `conn.open` and the `runtime.*`
+gauges as gauges, and timers as
+[histograms](https://prometheus.io/docs/concepts/metric_types/#histogram) with
+`_bucket{le="..."}`, `_sum`, and `_count` series:
+
+| Prometheus metric name | Description |
+|------------------------|-------------|
+| `ghostunnel_conn_open` | Current open connections (gauge) |
+| `ghostunnel_accept_total` | Total connection attempts accepted (counter) |
+| `ghostunnel_conn_handshake_bucket{le="..."}` | Cumulative count of handshakes ≤ the bucket boundary (nanoseconds) |
+| `ghostunnel_conn_handshake_sum` | Sum of observed handshake durations |
+| `ghostunnel_conn_handshake_count` | Number of observations |
+
+Compute percentiles at query time with
+[`histogram_quantile`](https://prometheus.io/docs/prometheus/latest/querying/functions/#histogram_quantile),
+e.g. `histogram_quantile(0.99, rate(ghostunnel_conn_handshake_bucket[5m]))` for
+a windowed p99. Each timer is also available as a
+[native histogram](https://prometheus.io/docs/specs/native_histograms/) to
+scrapers that request one.
+{{% /since %}}
+
+### Ghostunnel v1.11.x and earlier
+
+All metrics are exposed as Prometheus gauges. Timers include statistical
+gauges, rate gauges, and a histogram:
 
 | Prometheus metric name | Description |
 |------------------------|-------------|
@@ -192,10 +239,63 @@ If the status port uses HTTP (see below), set `scheme: http` and drop the
 Metrics are always available via the status port endpoints (`/_metrics/json`,
 `/_metrics/prometheus`). Additionally, metrics can be pushed to external systems:
 
-* `--metrics-graphite=ADDR`: push to a Graphite instance via raw TCP
-  (dot-separated names, same as JSON format)
+* `--metrics-graphite=ADDR`: push to a Graphite instance via raw TCP. Names
+  are dot-separated as in JSON, with a suffix such as `.count`, `.value`, or
+  `.99-percentile`.{{% since "v1.12.0" %}} Metrics are pushed at the interval
+  set by `--metrics-interval` (default: 30s).{{% /since %}}
 * `--metrics-url=URL`: push via HTTP POST (JSON format) at the interval set by
   `--metrics-interval` (default: 30s)
+
+{{% since "v1.12.0" %}}
+## Migrating from v1.11.x
+
+Ghostunnel v1.12.0 uses a new metrics backend. Metric names are unchanged,
+but some sub-metrics and how often they are pushed changed. The tables below
+use `conn.handshake` as the example timer.
+
+**Prometheus.** Counters are now Prometheus counters instead of gauges
+(`conn.open` and the `runtime.*` metrics remain gauges). Timers are now
+histograms:
+
+| Field | v1.11.x | v1.12.0 |
+|-------|:-------:|:-------:|
+| `_count`, `_sum` | ✅ | ✅ |
+| `_bucket{le="..."}` | ❌ | ✅ |
+| native histogram | ❌ | ✅ |
+| `_min`, `_max`, `_mean` | ✅ | ❌ |
+| `_std_dev`, `_variance` | ✅ | ❌ |
+| `_rate1`, `_rate5`, `_rate15`, `_rate_mean` | ✅ | ❌ |
+| `_timer_bucket{le="..."}`, `_timer_count` | ✅ | ❌ (use `_bucket`/`_count`) |
+
+**Graphite.** Metrics are pushed every `--metrics-interval` (default: 30s)
+instead of every second. Counters no longer emit `.count_ps`. Timers keep
+count, mean, and the main percentiles:
+
+| Field | v1.11.x | v1.12.0 |
+|-------|:-------:|:-------:|
+| `count`, `mean` | ✅ | ✅ |
+| `50/75/95/99-percentile` | ✅ | ✅ (bucket-interpolated) |
+| `min`, `max` | ✅ | ❌ |
+| `std-dev`, `999-percentile` | ✅ | ❌ |
+| `count_ps`, `one-minute`, `five-minute`, `fifteen-minute`, `mean-rate` | ✅ | ❌ |
+
+**JSON** (`/_metrics/json` and `--metrics-url`). Timers no longer emit `min`
+and `max`:
+
+| Field | v1.11.x | v1.12.0 |
+|-------|:-------:|:-------:|
+| `count`, `mean` | ✅ | ✅ |
+| `50/75/95/99-percentile` | ✅ | ✅ (bucket-interpolated) |
+| `min`, `max` | ✅ | ❌ |
+
+Graphite and JSON percentile values may differ from earlier releases. They
+used to come from a random sample of recent observations; they are now
+interpolated from the histogram's buckets (the same method as PromQL's
+`histogram_quantile`). Their precision depends on the bucket layout, and an
+estimate above the highest bucket boundary is reported at that boundary. For
+accurate, aggregatable percentiles, scrape the Prometheus endpoint and use
+`histogram_quantile`.
+{{% /since %}}
 
 ## Exposing Status Port with HTTP Instead of HTTPS
 

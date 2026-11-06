@@ -210,6 +210,17 @@ In both cases we recommend expressing all access control logic in the policy
 itself. Policy bundles reload at runtime via `--timed-reload` or `SIGHUP`, just
 like certificates.
 
+In server mode, `--allow-policy` is evaluated during full handshakes only, not
+on connections that resume a TLS session; see
+[Session Resumption]({{< ref "reloading.md#session-resumption" >}}). In client
+mode, Ghostunnel never resumes sessions, so `--verify-policy` is evaluated on
+every connection.
+
+{{% since "v1.12.0" %}}
+A reload invalidates outstanding sessions, so a policy change also reaches
+clients that would otherwise resume.
+{{% /since %}}
+
 [opa]: https://www.openpolicyagent.org/
 [opa-bundles]: https://www.openpolicyagent.org/docs/latest/management-bundles/
 

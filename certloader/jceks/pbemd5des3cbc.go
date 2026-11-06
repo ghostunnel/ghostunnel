@@ -109,7 +109,7 @@ func recoverPBEWithMD5AndDES3CBC(protectedKeyInfo encryptedPrivateKeyInfo, passw
 
 	blk, err := des.NewTripleDESCipher(desKey)
 	if err != nil {
-		return privateKeyInfo{}, fmt.Errorf("failed to initialize cipher: %w", err)
+		return privateKeyInfo{}, fmt.Errorf("unable to initialize cipher: %w", err)
 	}
 	dec := cipher.NewCBCDecrypter(blk, cbcIV)
 	if (len(encryptedKey) % dec.BlockSize()) != 0 {
@@ -126,7 +126,7 @@ func recoverPBEWithMD5AndDES3CBC(protectedKeyInfo encryptedPrivateKeyInfo, passw
 
 	var privKey privateKeyInfo
 	if _, err := asn1.Unmarshal(decryptedKey, &privKey); err != nil {
-		return privateKeyInfo{}, fmt.Errorf("failed to unmarshal private key: %w", err)
+		return privateKeyInfo{}, fmt.Errorf("unable to unmarshal private key: %w", err)
 	}
 
 	return privKey, nil

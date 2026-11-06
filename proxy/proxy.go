@@ -19,9 +19,7 @@ package proxy
 import (
 	"context"
 	"crypto/tls"
-	"encoding/binary"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"strings"
@@ -29,99 +27,19 @@ import (
 	"syscall"
 	"time"
 
-	proxyproto "github.com/pires/go-proxyproto"
-	metrics "github.com/rcrowley/go-metrics"
+	"github.com/ghostunnel/ghostunnel/metrics"
 	sem "golang.org/x/sync/semaphore"
 )
 
-// ProxyProtocolMode controls PROXY protocol v2 header generation.
-type ProxyProtocolMode int
-
-const (
-	// ProxyProtocolOff disables PROXY protocol headers.
-	ProxyProtocolOff ProxyProtocolMode = iota
-	// ProxyProtocolConn sends connection info (src/dst IP+port) only, no TLVs.
-	ProxyProtocolConn
-	// ProxyProtocolTLS sends connection info + TLS metadata (version, ALPN, SNI) without client cert details.
-	ProxyProtocolTLS
-	// ProxyProtocolTLSFull sends connection info + all TLVs including client certificate.
-	ProxyProtocolTLSFull
-)
-
+// defaultRegistry/defaultMetrics provide the live handles New falls back to
+// when a caller passes nil. This preserves the historical behavior of recording
+// to a package-owned registry (formerly go-metrics' DefaultRegistry); callers
+// that want to skip collection pass metrics.NilMetrics() explicitly. Nothing
+// scrapes this registry, so it exists purely to keep New(nil) recording.
 var (
-	openCounter             = metrics.GetOrRegisterCounter("conn.open", metrics.DefaultRegistry)
-	connTimeoutCounter      = metrics.GetOrRegisterCounter("conn.timeout", metrics.DefaultRegistry)
-	totalCounter            = metrics.GetOrRegisterCounter("accept.total", metrics.DefaultRegistry)
-	successCounter          = metrics.GetOrRegisterCounter("accept.success", metrics.DefaultRegistry)
-	errorCounter            = metrics.GetOrRegisterCounter("accept.error", metrics.DefaultRegistry)
-	handshakeTimeoutCounter = metrics.GetOrRegisterCounter("accept.timeout", metrics.DefaultRegistry)
-	handshakeTimer          = metrics.GetOrRegisterTimer("conn.handshake", metrics.DefaultRegistry)
-	connTimer               = metrics.GetOrRegisterTimer("conn.lifetime", metrics.DefaultRegistry)
-
-	// defaultMetrics wraps the package-level handles registered above on the
-	// default registry. New uses it when a caller passes nil, preserving the
-	// historical behavior of reporting to metrics.DefaultRegistry.
-	defaultMetrics = &Metrics{
-		OpenCounter:             openCounter,
-		ConnTimeoutCounter:      connTimeoutCounter,
-		TotalCounter:            totalCounter,
-		SuccessCounter:          successCounter,
-		ErrorCounter:            errorCounter,
-		HandshakeTimeoutCounter: handshakeTimeoutCounter,
-		HandshakeTimer:          handshakeTimer,
-		ConnTimer:               connTimer,
-	}
+	defaultRegistry = metrics.NewRegistry("ghostunnel")
+	defaultMetrics  = metrics.LiveMetrics(defaultRegistry)
 )
-
-// Metrics holds the go-metrics handles updated on the connection hot path.
-// Injecting the handles (instead of reading package globals) lets the caller
-// decide, once at startup, whether to collect at all: pass LiveMetrics to
-// record against a registry, or NilMetrics to make every update a no-op when no
-// metrics sink is configured. The metric names are part of Ghostunnel's
-// exported surface and must not change.
-type Metrics struct {
-	OpenCounter             metrics.Counter // conn.open
-	ConnTimeoutCounter      metrics.Counter // conn.timeout
-	TotalCounter            metrics.Counter // accept.total
-	SuccessCounter          metrics.Counter // accept.success
-	ErrorCounter            metrics.Counter // accept.error
-	HandshakeTimeoutCounter metrics.Counter // accept.timeout
-	HandshakeTimer          metrics.Timer   // conn.handshake
-	ConnTimer               metrics.Timer   // conn.lifetime
-}
-
-// LiveMetrics registers the connection metrics under their canonical names on
-// the given registry and returns handles that record to it. Registration is
-// idempotent (GetOrRegister), so repeated calls with the same registry return
-// the same underlying handles.
-func LiveMetrics(registry metrics.Registry) *Metrics {
-	return &Metrics{
-		OpenCounter:             metrics.GetOrRegisterCounter("conn.open", registry),
-		ConnTimeoutCounter:      metrics.GetOrRegisterCounter("conn.timeout", registry),
-		TotalCounter:            metrics.GetOrRegisterCounter("accept.total", registry),
-		SuccessCounter:          metrics.GetOrRegisterCounter("accept.success", registry),
-		ErrorCounter:            metrics.GetOrRegisterCounter("accept.error", registry),
-		HandshakeTimeoutCounter: metrics.GetOrRegisterCounter("accept.timeout", registry),
-		HandshakeTimer:          metrics.GetOrRegisterTimer("conn.handshake", registry),
-		ConnTimer:               metrics.GetOrRegisterTimer("conn.lifetime", registry),
-	}
-}
-
-// NilMetrics returns metrics handles whose updates are all no-ops. Use it when
-// no metrics sink is configured so the connection hot path spends nothing
-// updating contended timers; nothing observes the registry in that case anyway.
-func NilMetrics() *Metrics {
-	return &Metrics{
-		OpenCounter:             metrics.NilCounter{},
-		ConnTimeoutCounter:      metrics.NilCounter{},
-		TotalCounter:            metrics.NilCounter{},
-		SuccessCounter:          metrics.NilCounter{},
-		ErrorCounter:            metrics.NilCounter{},
-		HandshakeTimeoutCounter: metrics.NilCounter{},
-		HandshakeTimer:          metrics.NilTimer{},
-		ConnTimer:               metrics.NilTimer{},
-	}
-}
 
 const (
 	// LogConnections will log messages about open/closed connections.
@@ -142,15 +60,37 @@ type Logger interface {
 // DialFunc represents a function that can dial a backend/destination for forwarding connections.
 type DialFunc func(context.Context) (net.Conn, error)
 
+// Timeouts is the timeout policy applied to proxied connections. Connect must
+// be positive. A zero Idle or MaxLifetime disables that timeout, while a zero
+// Close closes the surviving direction of a half-closed connection
+// immediately.
+type Timeouts struct {
+	// Connect limits the time to establish a connection/handshake. It must be
+	// positive: a zero value would fail every connection.
+	Connect time.Duration
+	// Close is the idle (inactivity) timeout applied to the surviving
+	// direction once a connection is half-closed: the surviving direction is
+	// reaped only after Close passes with no data transferred. Zero means
+	// immediate closure.
+	Close time.Duration
+	// Idle reaps a connection when no data moves in either direction for this
+	// long while both directions are still open (pre-teardown). Activity in
+	// either direction resets the clock for both. Zero disables it, in which
+	// case an open connection is bounded only by Close after a half-close and
+	// by MaxLifetime, if set.
+	Idle time.Duration
+	// MaxLifetime is the max lifetime for any connection, regardless of
+	// circumstances. Zero disables it.
+	MaxLifetime time.Duration
+}
+
 // Proxy will take incoming connections from a listener and forward them to
 // a backend through the given dialer.
 type Proxy struct {
 	// Listener to accept connections on.
 	Listener net.Listener
-	// ConnectTimeout, CloseTimeout limit time to execute connects/close connections.
-	ConnectTimeout, CloseTimeout time.Duration
-	// MaxConnLifetime is the max lifetime for any connection, regardless of circumstances.
-	MaxConnLifetime time.Duration
+	// Timeouts is the timeout policy for proxied connections.
+	Timeouts Timeouts
 	// Dial function to reach backend to forward connections to.
 	Dial DialFunc
 	// Logger is used to log information messages about connections, errors.
@@ -158,8 +98,8 @@ type Proxy struct {
 
 	// Logging flags
 	loggerFlags int
-	// Enable HAproxy's PROXY protocol
-	// see: https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt
+	// PROXY protocol v2 mode (HAProxy's PROXY protocol) for backend connections.
+	// See: https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt
 	proxyProtocol ProxyProtocolMode
 	// Internal wait group to keep track of outstanding handlers.
 	handlers *sync.WaitGroup
@@ -177,152 +117,19 @@ type Proxy struct {
 	pool sync.Pool
 	// Metrics handles for the connection hot path. Either live (recording to a
 	// registry) or no-op (NilMetrics) when no metrics sink is configured.
-	metrics *Metrics
-}
-
-// PROXY protocol v2 client flag constants (from spec section 2.2.5).
-const (
-	pp2ClientSSL      = 0x01
-	pp2ClientCertConn = 0x02
-	pp2ClientCertSess = 0x04
-)
-
-func transportProtocol(c net.Conn) proxyproto.AddressFamilyAndProtocol {
-	switch addr := c.RemoteAddr().(type) {
-	case *net.TCPAddr:
-		if addr.IP.To4() != nil {
-			return proxyproto.TCPv4
-		}
-		return proxyproto.TCPv6
-	case *net.UnixAddr:
-		// Unix-domain listeners are valid PROXY protocol carriers; without
-		// this case, go-proxyproto's formatVersion2 rejects the *net.UnixAddr
-		// SourceAddr/DestinationAddr as ErrInvalidAddress and every connection
-		// fails per-connection at WriteTo time.
-		return proxyproto.UnixStream
-	}
-	return proxyproto.UNSPEC
-}
-
-func proxyProtoHeader(c net.Conn, tlsState *tls.ConnectionState, mode ProxyProtocolMode) (*proxyproto.Header, error) {
-	h := &proxyproto.Header{
-		Version:           2,
-		Command:           proxyproto.PROXY,
-		TransportProtocol: transportProtocol(c),
-		SourceAddr:        c.RemoteAddr(),
-		DestinationAddr:   c.LocalAddr(),
-	}
-
-	if tlsState != nil && mode >= ProxyProtocolTLS {
-		tlvs, err := buildTLVs(tlsState, mode)
-		if err != nil {
-			return nil, fmt.Errorf("building PROXY protocol TLVs: %w", err)
-		}
-		if len(tlvs) > 0 {
-			if err := h.SetTLVs(tlvs); err != nil {
-				return nil, fmt.Errorf("setting PROXY protocol TLVs: %w", err)
-			}
-		}
-	}
-
-	return h, nil
-}
-
-// buildTLVs constructs the top-level TLV list from TLS connection state.
-func buildTLVs(state *tls.ConnectionState, mode ProxyProtocolMode) ([]proxyproto.TLV, error) {
-	var tlvs []proxyproto.TLV
-
-	// PP2_TYPE_ALPN
-	if state.NegotiatedProtocol != "" {
-		tlvs = append(tlvs, proxyproto.TLV{
-			Type:  proxyproto.PP2_TYPE_ALPN,
-			Value: []byte(state.NegotiatedProtocol),
-		})
-	}
-
-	// PP2_TYPE_AUTHORITY (SNI)
-	if state.ServerName != "" {
-		tlvs = append(tlvs, proxyproto.TLV{
-			Type:  proxyproto.PP2_TYPE_AUTHORITY,
-			Value: []byte(state.ServerName),
-		})
-	}
-
-	// PP2_TYPE_SSL with nested sub-TLVs
-	sslTLV, err := buildSSLTLV(state, mode)
-	if err != nil {
-		return nil, err
-	}
-	tlvs = append(tlvs, sslTLV)
-
-	return tlvs, nil
-}
-
-// buildSSLTLV constructs the PP2_TYPE_SSL TLV with its 5-byte sub-header
-// and nested sub-TLVs containing TLS connection metadata.
-func buildSSLTLV(state *tls.ConnectionState, mode ProxyProtocolMode) (proxyproto.TLV, error) {
-	var subTLVs []proxyproto.TLV
-
-	// Always include TLS version
-	subTLVs = append(subTLVs, proxyproto.TLV{
-		Type:  proxyproto.PP2_SUBTYPE_SSL_VERSION,
-		Value: []byte(tls.VersionName(state.Version)),
-	})
-
-	// Client certificate fields (only in TLSFull mode and if a cert was presented)
-	if mode == ProxyProtocolTLSFull && len(state.PeerCertificates) > 0 {
-		cert := state.PeerCertificates[0]
-
-		if cert.Subject.CommonName != "" {
-			subTLVs = append(subTLVs, proxyproto.TLV{
-				Type:  proxyproto.PP2_SUBTYPE_SSL_CN,
-				Value: []byte(cert.Subject.CommonName),
-			})
-		}
-
-		// Full DER-encoded client certificate (extension, not in HAProxy spec)
-		subTLVs = append(subTLVs, proxyproto.TLV{
-			Type:  proxyproto.PP2_SUBTYPE_SSL_CLIENT_CERT,
-			Value: cert.Raw,
-		})
-	}
-
-	// Build 5-byte sub-header: 1 byte flags + 4 bytes verify result
-	var flags byte = pp2ClientSSL
-	if mode == ProxyProtocolTLSFull && len(state.PeerCertificates) > 0 {
-		// Set both flags: Ghostunnel doesn't distinguish connection-level vs
-		// session-level (resumed) cert presentation — the cert was verified
-		// on this connection either way.
-		flags |= pp2ClientCertConn | pp2ClientCertSess
-	}
-	var header [5]byte
-	header[0] = flags
-	binary.BigEndian.PutUint32(header[1:5], 0) // verify=0, cert already verified by ghostunnel
-
-	// Encode sub-TLVs and append after the 5-byte header
-	subTLVBytes, err := proxyproto.JoinTLVs(subTLVs)
-	if err != nil {
-		return proxyproto.TLV{}, fmt.Errorf("encoding SSL sub-TLVs: %w", err)
-	}
-
-	value := make([]byte, len(header)+len(subTLVBytes))
-	copy(value, header[:])
-	copy(value[len(header):], subTLVBytes)
-
-	return proxyproto.TLV{Type: proxyproto.PP2_TYPE_SSL, Value: value}, nil
+	metrics *metrics.Metrics
 }
 
 // New creates a new proxy.
 func New(
 	listener net.Listener,
-	connectTimeout, closeTimeout, maxConnLifetime time.Duration,
+	timeouts Timeouts,
 	maxConcurrentConnections int64,
 	dial DialFunc,
 	logger Logger,
 	loggerFlags int,
 	proxyProtocol ProxyProtocolMode,
-	connMetrics *Metrics) *Proxy {
-
+	connMetrics *metrics.Metrics) *Proxy {
 	// A nil handle means "use the default registry" (the historical behavior);
 	// callers that want to skip collection pass NilMetrics explicitly.
 	if connMetrics == nil {
@@ -332,18 +139,16 @@ func New(
 	ctx, cancel := context.WithCancel(context.Background())
 
 	p := &Proxy{
-		Listener:        listener,
-		ConnectTimeout:  connectTimeout,
-		CloseTimeout:    closeTimeout,
-		MaxConnLifetime: maxConnLifetime,
-		Dial:            dial,
-		Logger:          logger,
-		loggerFlags:     loggerFlags,
-		proxyProtocol:   proxyProtocol,
-		handlers:        &sync.WaitGroup{},
-		context:         ctx,
-		cancel:          cancel,
-		metrics:         connMetrics,
+		Listener:      listener,
+		Timeouts:      timeouts,
+		Dial:          dial,
+		Logger:        logger,
+		loggerFlags:   loggerFlags,
+		proxyProtocol: proxyProtocol,
+		handlers:      &sync.WaitGroup{},
+		context:       ctx,
+		cancel:        cancel,
+		metrics:       connMetrics,
 		pool: sync.Pool{
 			New: func() any {
 				b := make([]byte, 1<<15 /* 32 KiB */)
@@ -404,7 +209,7 @@ func (p *Proxy) Accept() {
 		// Acquire semaphore, to limit max concurrent connections
 		err := p.connSemaphore.Acquire(p.context, 1)
 		if err != nil {
-			// Context was cancelled -- we're done here
+			// Context was cancelled, we're done here
 			return
 		}
 
@@ -428,7 +233,7 @@ func (p *Proxy) Accept() {
 
 			p.metrics.ErrorCounter.Inc(1)
 			p.connSemaphore.Release(1)
-			p.logConditional(LogConnectionErrors, "error accepting connection: %s", err)
+			p.logConditional(LogConnectionErrors, "error accepting connection: %v", err)
 
 			// Back off before retrying so we don't spin at 100% CPU on
 			// persistent accept errors (e.g. fd exhaustion).
@@ -449,11 +254,9 @@ func (p *Proxy) Accept() {
 
 		// Handler slot reserved above; the handler's cleanup defer calls Done().
 		go func() {
-			// Record the connection lifetime explicitly rather than via
-			// Timer.Time: a no-op timer's Time() would not run the closure at
-			// all, which would skip connection handling when metrics are off.
-			// UpdateSince is deferred first so it fires last (after the close
-			// defer below), matching Timer.Time's "measure the whole handler".
+			// Record the connection lifetime with UpdateSince. It is deferred
+			// first so it fires last (after the close defer below), so the
+			// timer measures the whole handler, including teardown.
 			startTime := time.Now()
 			defer p.metrics.ConnTimer.UpdateSince(startTime)
 
@@ -467,13 +270,13 @@ func (p *Proxy) Accept() {
 				p.connSemaphore.Release(1)
 			}()
 
-			ctx, cancel := context.WithTimeout(p.context, p.ConnectTimeout)
+			ctx, cancel := context.WithTimeout(p.context, p.Timeouts.Connect)
 			defer cancel()
 
 			err := forceHandshake(ctx, conn, p.metrics)
 			if err != nil {
 				p.metrics.ErrorCounter.Inc(1)
-				p.logConditional(LogHandshakeErrors, "error on TLS handshake from %s: %s", conn.RemoteAddr(), err)
+				p.logConditional(LogHandshakeErrors, "error on TLS handshake from %s: %v", conn.RemoteAddr(), err)
 				return
 			}
 
@@ -490,7 +293,7 @@ func (p *Proxy) Accept() {
 			backend, err := p.Dial(ctx)
 			if err != nil {
 				p.metrics.ErrorCounter.Inc(1)
-				p.logConditional(LogConnectionErrors, "error on dial: %s", err)
+				p.logConditional(LogConnectionErrors, "error on dial: %v", err)
 				return
 			}
 
@@ -503,13 +306,13 @@ func (p *Proxy) Accept() {
 				h, err := proxyProtoHeader(conn, tlsState, p.proxyProtocol)
 				if err != nil {
 					p.metrics.ErrorCounter.Inc(1)
-					p.logConditional(LogConnectionErrors, "error building proxy header: %s", err)
+					p.logConditional(LogConnectionErrors, "error building proxy header: %v", err)
 					backend.Close()
 					return
 				}
 				if _, err = h.WriteTo(backend); err != nil {
 					p.metrics.ErrorCounter.Inc(1)
-					p.logConditional(LogConnectionErrors, "error writing proxy header: %s", err)
+					p.logConditional(LogConnectionErrors, "error writing proxy header: %v", err)
 					backend.Close()
 					return
 				}
@@ -539,7 +342,7 @@ func isACMEChallengeConn(conn net.Conn) bool {
 // unauthenticated clients would be able to open connections and leave them
 // hanging forever. Going through the handshake verifies that clients have a
 // valid client cert and are allowed to talk to us.
-func forceHandshake(ctx context.Context, conn net.Conn, m *Metrics) error {
+func forceHandshake(ctx context.Context, conn net.Conn, m *metrics.Metrics) error {
 	if tlsConn, ok := conn.(*tls.Conn); ok {
 		startTime := time.Now()
 		defer m.HandshakeTimer.UpdateSince(startTime)
@@ -563,11 +366,9 @@ func (p *Proxy) fuse(client, backend net.Conn) {
 	start := time.Now()
 	p.logConnectionMessage("opening", client, backend, -1, -1, time.Time{})
 
-	// If set by user, set max conn lifetime for client/backend.
-	if p.MaxConnLifetime > 0 {
-		setDeadline(client, p.MaxConnLifetime)
-		setDeadline(backend, p.MaxConnLifetime)
-	}
+	// The watchdog is the sole owner of timeout enforcement for this pair (see
+	// pairWatchdog).
+	w := p.newPairWatchdog(client, backend)
 
 	// For TCP and UNIX sockets, copyData calls closeRead and closeWrite for the
 	// src/dst respectively. For TCP sockets, this will call the shutdown syscall
@@ -578,76 +379,117 @@ func (p *Proxy) fuse(client, backend net.Conn) {
 		_ = backend.Close()
 	}()
 
-	returnedC := make(chan int64)
-	go func() {
-		returnedC <- p.copyData(client, backend)
-	}()
-	forwarded := p.copyData(backend, client)
+	// Copy data to/from both ends of the connection.
+	returnedC := make(chan int64, 1)
+	forwardedC := make(chan int64, 1)
+	go func() { returnedC <- p.copyData(client, backend, w) }()
+	go func() { forwardedC <- p.copyData(backend, client, w) }()
+
+	// Run the watchdog inline, then wait on results. runWatchdog returns after
+	// it reaps or once the second directionFinished signals completion, so the
+	// waits below never block on a live watchdog.
+	p.runWatchdog(w)
 	returned := <-returnedC
+	forwarded := <-forwardedC
 
 	p.logConnectionMessage("closed", client, backend, forwarded, returned, start)
 }
 
+// trackedConn wraps the connections passed to io.CopyBuffer. It serves two
+// purposes:
+//
+//  1. Hide the WriteTo/ReadFrom methods on TCPConn and UnixConn. CopyBuffer
+//     prefers WriteTo/ReadFrom when available, to use splice/sendfile for
+//     better perf. However, that fails if one side is a tls.Conn, because TLS
+//     connections must go through user space for cryptographic operations. If
+//     splice/sendfile aren't usable, the stdlib falls back to io.Copy, which
+//     allocates its own buffer and throws away the pooled buf we pass in. To
+//     keep our pooled buffer we define only Read/Write here and never embed
+//     net.Conn, so WriteTo/ReadFrom stay hidden. Note this is hard to catch in
+//     testing: net.Pipe() doesn't implement WriteTo/ReadFrom, so tests over
+//     pipes won't exercise this path.
+//
+//     See: https://github.com/golang/go/issues/16474
+//     See: https://github.com/golang/go/issues/67074
+//
+//  2. Report activity to the watchdog. After each successful read or write
+//     (n>0) the shim calls watchdog.recordActivity(), which resets the
+//     connection-wide idle clock. The watchdog, not a socket deadline, bounds
+//     an idle or half-closed pair; this shim's only job is to signal that
+//     data moved.
+type trackedConn struct {
+	conn     net.Conn
+	watchdog *pairWatchdog
+}
+
+func (tc *trackedConn) Read(p []byte) (int, error) {
+	n, err := tc.conn.Read(p)
+	if n > 0 {
+		tc.watchdog.recordActivity()
+	}
+	return n, err
+}
+
+// Write records activity too: a write can block while a slow peer drains it,
+// long after the read that fed it reset the clock, and a slow-but-progressing
+// transfer must not be reaped as stale. Progress inside a single blocked
+// Write is not observable through net.Conn, so a write that drains slower
+// than the timeout window can still be reaped, but each completed write
+// proves data moved and resets the idle clock.
+func (tc *trackedConn) Write(p []byte) (int, error) {
+	n, err := tc.conn.Write(p)
+	if n > 0 {
+		tc.watchdog.recordActivity()
+	}
+	return n, err
+}
+
 // Copy data between two connections
-func (p *Proxy) copyData(dst net.Conn, src net.Conn) (written int64) {
+func (p *Proxy) copyData(dst net.Conn, src net.Conn, w *pairWatchdog) (written int64) {
 	// When we're done copying the data, we close the read/write sides of the
 	// src/dst respectively. This uses the shutdown system call to send a FIN
 	// packet to the other end of the connection. By only closing the read/write
 	// sides specifically, we retain the ability to forward or return data in a
 	// case where a client has only half-closed the connection.
 	//
-	// We also set a deadline on the entire connection in order to avoid resource
-	// leaks. Without the deadline, a misbehaving client could keep a connection
-	// open by not reading/writing any data on their end, which would cause the
-	// other copyData Go routine to wait forever. Setting a deadline forces the
-	// other Go routine to unblock and return with an i/o timeout error. We could
-	// also solve this by by monitoring for POLLHUP but doing so would tie up an
-	// OS thread.
-	//
-	// See: https://github.com/golang/go/issues/67337#issuecomment-2123352634
+	// directionFinished then reports this direction's end to the watchdog: the
+	// first call switches it to the Timeouts.Close regime, granting the
+	// surviving direction a fresh window. The watchdog (not a socket deadline)
+	// bounds that direction from here on: it is reaped after Timeouts.Close of
+	// silence (clamped to Timeouts.MaxLifetime). An active transfer is not
+	// reaped for inactivity, but Timeouts.MaxLifetime still applies.
+	// Without this bound a misbehaving peer could keep the connection open
+	// forever, tying up the other copyData Go routine. The second call tells
+	// the watchdog the pair is done, so it stops guarding and lets fuse return.
 	defer func() {
 		closeRead(src)
 		closeWrite(dst)
-		setDeadline(src, p.CloseTimeout)
-		setDeadline(dst, p.CloseTimeout)
+		w.directionFinished()
 	}()
 
 	// Get a buffer for copy from the pool of shared buffers, to reduce allocs.
-	buf := p.pool.Get().(*[]byte)
+	// The pool's New only ever returns *[]byte; the fallback is defensive so a
+	// nil/wrong type can never reach io.CopyBuffer or be Put back.
+	buf, ok := p.pool.Get().(*[]byte)
+	if !ok {
+		b := make([]byte, 1<<15 /* 32 KiB */)
+		buf = &b
+	}
 	defer p.pool.Put(buf)
 
-	// Note: We wrap src and dst in io.Writer and io.Reader structs respectively,
-	// to hide the WriteTo and ReadFrom functions on TCPConn and UnixConn.
-	//
-	// Why do we do this? Because CopyBuffer will prefer calling WriteTo/ReadFrom
-	// if possible, in order to use splice or sendfile for better perf. However,
-	// this fails if one of the arguments is tls.Conn, because TLS connections
-	// have to go through user space to perform cryptographic operations.
-	//
-	// But this creates a problem: If splice/sendfile fail, then to still perform
-	// the copy the stdlib will recursively call io.Copy. But in doing so it
-	// can't provide the buffer we've allocated and thus it allocates a new one,
-	// throwing away the original buf we passed in. To avoid this, we hide the
-	// WriteTo and ReadFrom methods.
-	//
-	// Note that this is not easy to catch in testing: You might be tempted to
-	// use net.Pipe() for tests, but pipes don't implement WriteTo/ReadFrom and
-	// thus won't run into this issue.
-	//
-	// See: https://github.com/golang/go/issues/16474
-	// See: https://github.com/golang/go/issues/67074
+	// The trackedConn shims hide WriteTo/ReadFrom (to keep our pooled buffer)
+	// and report activity to the watchdog (see trackedConn).
 	written, err := io.CopyBuffer(
-		struct{ io.Writer }{dst},
-		struct{ io.Reader }{src},
+		&trackedConn{conn: dst, watchdog: w},
+		&trackedConn{conn: src, watchdog: w},
 		*buf)
 
+	// A watchdog reap surfaces here as a closed-connection error (silent). Only
+	// genuine peer I/O errors are counted and logged; the watchdog owns timeout
+	// counting and logging.
 	if err != nil && !isClosedConnectionError(err) {
-		// We don't log individual "read from closed connection" errors, because
-		// we already have a log statement showing that a pipe has been closed.
-		if isTimeoutError(err) {
-			p.metrics.ConnTimeoutCounter.Inc(1)
-		}
-		p.logConditional(LogConnectionErrors, "error during copy: %s", err)
+		p.metrics.ConnErrorCounter.Inc(1)
+		p.logConditional(LogConnectionErrors, "error during copy: %v", err)
 	}
 
 	return written
@@ -688,6 +530,20 @@ func isTimeoutError(err error) bool {
 const errWSAEConnReset = syscall.Errno(10054)
 
 func isClosedConnectionError(err error) bool {
+	// A nil error is not a closed-connection error. Guard here so callers can
+	// classify a copy result unconditionally (err.Error() below would panic on
+	// nil).
+	if err == nil {
+		return false
+	}
+
+	// A watchdog reap closes the conn concurrently with an in-flight Read/Write,
+	// which surfaces as net.ErrClosed (possibly wrapped). Match it structurally
+	// so classification of a reap doesn't depend on error strings.
+	if errors.Is(err, net.ErrClosed) {
+		return true
+	}
+
 	// Abrupt peer termination (RST / broken pipe) is routine for a proxy —
 	// impatient clients, health checks, and idle keep-alive resets all cause
 	// it — and is not actionable, so treat it the same as an orderly close.
@@ -699,11 +555,8 @@ func isClosedConnectionError(err error) bool {
 		return true
 	}
 
-	opErr := &net.OpError{}
-	if errors.As(err, &opErr) {
-		return (opErr.Op == "read" || opErr.Op == "readfrom" || opErr.Op == "write" || opErr.Op == "writeto") &&
-			strings.Contains(err.Error(), "closed network connection")
-	}
+	// Pipe conns (net.Pipe, used in tests) don't return net.ErrClosed and are
+	// only recognizable by their error string.
 	return strings.Contains(err.Error(), "closed pipe")
 }
 
@@ -716,9 +569,10 @@ func closeRead(conn net.Conn) {
 	case *tls.Conn:
 		// tls.Conn has no CloseRead(): we can't shut down only the read
 		// side without tearing down the whole connection. Do nothing here
-		// and let the CloseTimeout deadline (set by copyData's defer) unblock
-		// and reap the connection. Closing it here would kill the opposite
-		// (still-live) write direction, dropping in-flight return traffic.
+		// and let the watchdog reap the pair after Timeouts.Close of silence
+		// (the surviving direction's activity keeps the pair alive until then).
+		// Closing it here would kill the opposite (still-live) write direction,
+		// dropping in-flight return traffic.
 	default:
 		_ = c.Close()
 	}
@@ -738,8 +592,4 @@ func closeWrite(conn net.Conn) {
 	default:
 		_ = c.Close()
 	}
-}
-
-func setDeadline(conn net.Conn, timeout time.Duration) {
-	_ = conn.SetDeadline(time.Now().Add(timeout))
 }

@@ -52,7 +52,7 @@ func readModifiedUTF8(r io.Reader) (string, error) {
 				break
 			}
 
-			return "", fmt.Errorf("failed to read rune byte 1: %w", err)
+			return "", fmt.Errorf("unable to read rune byte 1: %w", err)
 		}
 
 		// Basic Latin
@@ -74,7 +74,7 @@ func readModifiedUTF8(r io.Reader) (string, error) {
 				err = io.ErrUnexpectedEOF
 			}
 
-			return "", fmt.Errorf("failed to read rune byte 2: %w", err)
+			return "", fmt.Errorf("unable to read rune byte 2: %w", err)
 		}
 
 		if buf[0]&0b111_00000 == 0b110_00000 {
@@ -101,7 +101,7 @@ func readModifiedUTF8(r io.Reader) (string, error) {
 				err = io.ErrUnexpectedEOF
 			}
 
-			return "", fmt.Errorf("failed to read rune byte 3: %w", err)
+			return "", fmt.Errorf("unable to read rune byte 3: %w", err)
 		}
 
 		if buf[0] != 0b1110_1101 || (buf[1]&0b111_00000 != 0b101_00000) {
@@ -118,11 +118,11 @@ func readModifiedUTF8(r io.Reader) (string, error) {
 		for i := 3; i < 6; i++ {
 			buf[i], err = br.ReadByte()
 			if err != nil {
-				if err == io.EOF {
+				if errors.Is(err, io.EOF) {
 					err = io.ErrUnexpectedEOF
 				}
 
-				return "", fmt.Errorf("failed to read rune byte %d: %w", i+1, err)
+				return "", fmt.Errorf("unable to read rune byte %d: %w", i+1, err)
 			}
 		}
 		var surrogates [2]rune

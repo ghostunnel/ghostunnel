@@ -61,7 +61,7 @@ func buildMinimalJCEKS(t *testing.T, alias string, certDER []byte, password stri
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(1)))
 
 	// Trusted cert entry tag
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(trustedCertEntryTag)))
+	require.NoError(t, binary.Write(&body, binary.BigEndian, trustedCertEntryTag))
 
 	// Alias (modified UTF-8 string with 2-byte length prefix)
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint16(len(alias))))
@@ -217,7 +217,7 @@ func buildJCEKSWithPrivateKey(t *testing.T, alias string, encryptedKeyDER []byte
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(1)))
 
 	// Private key entry tag
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(privateKeyEntryTag)))
+	require.NoError(t, binary.Write(&body, binary.BigEndian, privateKeyEntryTag))
 
 	// Alias
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint16(len(alias))))
@@ -769,7 +769,7 @@ func TestParseWithOptionsConfigError(t *testing.T) {
 	ks := new(KeyStore)
 	err := ks.parseWithOptions(bytes.NewReader([]byte{}), nil, errOption{})
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to configure parser")
+	assert.Contains(t, err.Error(), "unable to configure parser")
 }
 
 // --- parseWithOptions entry tag tests ---
@@ -826,7 +826,7 @@ func buildJCEKSWithPrivateKeyNoCerts(t *testing.T, alias string, encryptedKeyDER
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksMagic)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksVersion)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(1)))
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(privateKeyEntryTag)))
+	require.NoError(t, binary.Write(&body, binary.BigEndian, privateKeyEntryTag))
 
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint16(len(alias))))
 	_, err = body.WriteString(alias)
@@ -933,7 +933,7 @@ func TestRecoverASN1UnmarshalError(t *testing.T) {
 	_, _, err = ks.GetPrivateKeyAndCerts("badkey", []byte(password))
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, errInvalidJCEKSData)
-	assert.Contains(t, err.Error(), "failed to parse private key as DER")
+	assert.Contains(t, err.Error(), "unable to parse private key as DER")
 }
 
 func TestRecoverUnsupportedKeyAlgorithm(t *testing.T) {
@@ -972,7 +972,7 @@ func TestParsePrivateKeyTruncatedAlias(t *testing.T) {
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksMagic)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksVersion)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(1)))
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(privateKeyEntryTag)))
+	require.NoError(t, binary.Write(&body, binary.BigEndian, privateKeyEntryTag))
 	// EOF here — no alias
 
 	h := MakeIntegrityHash(encodedPassword)
@@ -993,7 +993,7 @@ func TestParsePrivateKeyTruncatedDate(t *testing.T) {
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksMagic)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksVersion)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(1)))
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(privateKeyEntryTag)))
+	require.NoError(t, binary.Write(&body, binary.BigEndian, privateKeyEntryTag))
 	// Alias
 	alias := "a"
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint16(len(alias))))
@@ -1018,7 +1018,7 @@ func TestParseTrustedCertTruncatedDate(t *testing.T) {
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksMagic)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksVersion)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(1)))
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(trustedCertEntryTag)))
+	require.NoError(t, binary.Write(&body, binary.BigEndian, trustedCertEntryTag))
 	alias := "a"
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint16(len(alias))))
 	body.WriteString(alias)
@@ -1042,7 +1042,7 @@ func TestParseTrustedCertTruncatedCert(t *testing.T) {
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksMagic)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksVersion)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(1)))
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(trustedCertEntryTag)))
+	require.NoError(t, binary.Write(&body, binary.BigEndian, trustedCertEntryTag))
 	alias := "a"
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint16(len(alias))))
 	body.WriteString(alias)
@@ -1121,7 +1121,7 @@ func TestReadCertificateParseError(t *testing.T) {
 
 	_, err := readCertificate(&buf, defaultMaxCertBytes)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to parse certificate")
+	assert.Contains(t, err.Error(), "unable to parse certificate")
 }
 
 // --- pbemd5des3cbc.go error path tests ---
@@ -1270,7 +1270,7 @@ func TestParseJKSMagic(t *testing.T) {
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jksMagic)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksVersion)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(1)))
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(trustedCertEntryTag)))
+	require.NoError(t, binary.Write(&body, binary.BigEndian, trustedCertEntryTag))
 	alias := "myalias"
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint16(len(alias))))
 	body.WriteString(alias)
@@ -1301,7 +1301,7 @@ func TestParseReadEntryCountError(t *testing.T) {
 	err := ks.Parse(&buf, nil)
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, errInvalidJCEKSData)
-	assert.Contains(t, err.Error(), "failed to read entry count")
+	assert.Contains(t, err.Error(), "unable to read entry count")
 }
 
 func TestParseReadEntryTagError(t *testing.T) {
@@ -1316,7 +1316,7 @@ func TestParseReadEntryTagError(t *testing.T) {
 	err := ks.Parse(&buf, nil)
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, errInvalidJCEKSData)
-	assert.Contains(t, err.Error(), "failed to read entry")
+	assert.Contains(t, err.Error(), "unable to read entry")
 }
 
 func TestParsePrivateKeyTruncatedProtectedKey(t *testing.T) {
@@ -1328,7 +1328,7 @@ func TestParsePrivateKeyTruncatedProtectedKey(t *testing.T) {
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksMagic)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksVersion)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(1)))
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(privateKeyEntryTag)))
+	require.NoError(t, binary.Write(&body, binary.BigEndian, privateKeyEntryTag))
 	alias := "a"
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint16(len(alias))))
 	body.WriteString(alias)
@@ -1353,7 +1353,7 @@ func TestParsePrivateKeyTruncatedCertCount(t *testing.T) {
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksMagic)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(jceksVersion)))
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(1)))
-	require.NoError(t, binary.Write(&body, binary.BigEndian, uint32(privateKeyEntryTag)))
+	require.NoError(t, binary.Write(&body, binary.BigEndian, privateKeyEntryTag))
 	alias := "a"
 	require.NoError(t, binary.Write(&body, binary.BigEndian, uint16(len(alias))))
 	body.WriteString(alias)
@@ -1471,7 +1471,7 @@ func (r *errByteReader) Read([]byte) (int, error) { return 0, r.err }
 func TestReadModifiedUTF8NonEOFError(t *testing.T) {
 	_, err := readModifiedUTF8(&errByteReader{errors.New("device error")})
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to read rune byte 1")
+	assert.Contains(t, err.Error(), "unable to read rune byte 1")
 }
 
 func TestReadBytesEmptyReader(t *testing.T) {
@@ -1484,7 +1484,7 @@ func TestParseTrustedCertTruncatedAlias(t *testing.T) {
 	require.NoError(t, binary.Write(&buf, binary.BigEndian, uint32(jceksMagic)))
 	require.NoError(t, binary.Write(&buf, binary.BigEndian, uint32(jceksVersion)))
 	require.NoError(t, binary.Write(&buf, binary.BigEndian, uint32(1)))
-	require.NoError(t, binary.Write(&buf, binary.BigEndian, uint32(trustedCertEntryTag)))
+	require.NoError(t, binary.Write(&buf, binary.BigEndian, trustedCertEntryTag))
 	// EOF — readString fails reading the 2-byte length prefix.
 
 	ks := new(KeyStore)
@@ -1499,7 +1499,7 @@ func TestParsePrivateKeyTruncatedPerCert(t *testing.T) {
 	require.NoError(t, binary.Write(&buf, binary.BigEndian, uint32(jceksMagic)))
 	require.NoError(t, binary.Write(&buf, binary.BigEndian, uint32(jceksVersion)))
 	require.NoError(t, binary.Write(&buf, binary.BigEndian, uint32(1)))
-	require.NoError(t, binary.Write(&buf, binary.BigEndian, uint32(privateKeyEntryTag)))
+	require.NoError(t, binary.Write(&buf, binary.BigEndian, privateKeyEntryTag))
 	alias := "k"
 	require.NoError(t, binary.Write(&buf, binary.BigEndian, uint16(len(alias))))
 	buf.WriteString(alias)
@@ -1528,6 +1528,7 @@ func TestRecoverPBEErrors(t *testing.T) {
 		return b
 	}
 	mkEPKI := func(t *testing.T, ct []byte) encryptedPrivateKeyInfo {
+		t.Helper()
 		return encryptedPrivateKeyInfo{
 			Algo: pkix.AlgorithmIdentifier{
 				Algorithm:  oidPBEWithMD5AndDES3CBC,
@@ -1564,7 +1565,7 @@ func TestRecoverPBEErrors(t *testing.T) {
 
 		_, err = recoverPBEWithMD5AndDES3CBC(epki, password)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to unmarshal private key")
+		assert.Contains(t, err.Error(), "unable to unmarshal private key")
 	})
 }
 
@@ -1634,11 +1635,11 @@ func TestParseTrustedCertCorruptDER(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errInvalidJCEKSData)
 	// Wrapping chain:
-	//   parseWithOptions: "...failed to parse certificate entry 0: %w"
+	//   parseWithOptions: "...unable to parse certificate entry 0: %w"
 	//   parseTrustedCert: "reading certificate: %w"
-	//   readCertificate:  "failed to parse certificate: %w"
+	//   readCertificate:  "unable to parse certificate: %w"
 	assert.Contains(t, err.Error(), "reading certificate")
-	assert.Contains(t, err.Error(), "failed to parse certificate")
+	assert.Contains(t, err.Error(), "unable to parse certificate")
 }
 
 // TestParseWithOptionsEncodeIntegrityPasswordError covers the wrapper at
@@ -1676,7 +1677,7 @@ func TestParseWithOptionsTruncatedIntegrityTrailer(t *testing.T) {
 	_, err = LoadFromReader(bytes.NewReader(truncated), []byte("password"))
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errInvalidJCEKSData)
-	assert.Contains(t, err.Error(), "failed to read integrity checksum")
+	assert.Contains(t, err.Error(), "unable to read integrity checksum")
 }
 
 func TestRecoverJKSKeyProtectorUnsupported(t *testing.T) {

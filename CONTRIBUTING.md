@@ -43,9 +43,11 @@ go tool mage go:build              # Build binary
 go tool mage go:lint               # Run golangci-lint (config: .golangci.yml)
 go tool mage test:all              # Unit + integration tests with merged coverage
 go tool mage test:unit             # Go unit tests only
+go tool mage test:race             # Go unit tests under the race detector
 go tool mage test:integration      # Python integration tests only
 go tool mage test:docker           # Full suite in Docker (includes PKCS#11/SoftHSM)
 go tool mage test:keys             # Generate test certificates in test-keys/
+go tool mage test:bench            # Go microbenchmarks with allocation stats
 go tool mage docker:build          # Build Docker images
 go tool mage sbom:generate PATH    # Generate SPDX/CycloneDX SBOMs for a binary or dist/ dir (needs syft)
 go tool mage -l                    # List all available targets
@@ -75,6 +77,19 @@ into `tools/bin/` and runs it from the repository root. To bump golangci-lint:
 
 ```bash
 cd tools && go get -tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest && go mod tidy
+```
+
+### Benchmarks
+
+To run benchmarks, use the test:bench target in mage on your branch and on
+the commit it is based on, then compare with
+[benchstat](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat):
+
+```bash
+go tool mage test:bench > /tmp/bench-head.txt        # on your branch
+git checkout <base-commit>
+go tool mage test:bench > /tmp/bench-base.txt        # on the base
+benchstat /tmp/bench-base.txt /tmp/bench-head.txt
 ```
 
 ### Viewing Coverage
@@ -132,3 +147,32 @@ unit-test profile.
 - **wildcard**: Glob-style URI pattern matching
 - **certstore**: Platform-specific keychain (macOS/Windows)
 - **Conditional compilation**: Platform-specific features use build tags (e.g., `pkcs11_enabled.go`/`pkcs11_disabled.go`, `landlock_linux.go`/`landlock_other.go`)
+
+## Logging and Error Message Conventions
+
+### Log messages
+
+- Use lowercase (proper nouns such as Windows and SPIFFE are excepted).
+- No trailing `\n` in messages, as `log.Logger` appends one automatically.
+- Severity prefixes: only `error:`, `warning:`, or `note:`; message text after prefix stays lowercase.
+- Format error values with `%v`, not `%s`. This applies only to logging; `fmt.Errorf` should use `%w`.
+
+### Returned errors
+
+- Lowercase, no trailing punctuation.
+- Never embed the word "error" in the message text (e.g. `"unable to open file"`, not `"error opening file"`).
+- Preferred verb style: **"unable to X"** — avoid "failed to X", "could not X", "couldn't X".
+- Wrap causes with `%w`; quote paths, names, and user input with `%q`.
+- Use `errors.New` when there is nothing to format.
+- Use sentinel error variables (`var ErrFoo = ...`) for errors that are repeated or compared with `errors.Is`.
+- Bare gerund context wraps are acceptable: `fmt.Errorf("reading alias: %w", err)` is idiomatic Go and does not need to be rewritten as `"unable to read alias: %w"`.
+
+### Fatal startup errors
+
+Fatal startup errors are reported once, by `main()`, not logged at each failure site.
+
+### Fixed log strings
+
+The following substrings appear in Python integration tests and **must not be reworded** without updating the corresponding tests in lockstep:
+
+- `"opening pipe"`, `"closed pipe"`, `"error during copy"`, `"error on dial"`, `"error on TLS handshake"`, `"listening"`, `"reloading"`

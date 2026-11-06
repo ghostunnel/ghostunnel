@@ -71,7 +71,7 @@ func (c *keystoreCertificate) Reload() error {
 	for _, path := range c.keystorePaths {
 		blocks, err := readCertificateFile(path, c.keystorePassword, c.format)
 		if err != nil {
-			return fmt.Errorf("reading certificate file %q: %w", path, err)
+			return fmt.Errorf("reading certificate file: %w", err)
 		}
 		pemBlocks = append(pemBlocks, blocks...)
 	}
