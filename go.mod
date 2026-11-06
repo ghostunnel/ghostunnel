@@ -11,7 +11,7 @@ require (
 	github.com/magefile/mage v1.17.2
 	github.com/mholt/acmez/v3 v3.1.7
 	github.com/open-policy-agent/opa v1.21.2
-	github.com/pires/go-proxyproto v0.15.0
+	github.com/pires/go-proxyproto v0.16.0
 	github.com/prometheus/client_golang v1.25.0
 	github.com/prometheus/client_model v0.6.3
 	github.com/smallstep/pkcs7 v0.2.3
