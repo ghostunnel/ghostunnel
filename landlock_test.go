@@ -24,6 +24,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/landlock-lsm/go-landlock/landlock"
@@ -90,6 +91,58 @@ func TestLandlockRuleFromStringAddress(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// Errors from URL-valued flags (e.g. --metrics-url) end up in the landlock
+// warning in the logs, so they must never echo a password from the URL.
+func TestLandlockAddrFlagErrorRedactsCredentials(t *testing.T) {
+	const secret = "s3cr3t-password"
+	testCases := []struct {
+		name string
+		addr string
+		want string // substring expected in the error
+	}{
+		{
+			// Parses, but port 0 is rejected: the value is shown redacted.
+			name: "unroutable port",
+			addr: "https://user:" + secret + "@metrics.example.com:0/push",
+			want: `--metrics-url "https://user:xxxxx@metrics.example.com:0/push"`,
+		},
+		{
+			// Does not parse: url.Error would embed the raw URL, so the
+			// value must be omitted and only the cause kept.
+			name: "unparseable",
+			addr: "https://user:" + secret + "@metrics.example.com:99999x/push",
+			want: `--metrics-url for landlock rule: unable to parse URL: invalid port`,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			flag := addrFlag{"--metrics-url", &tc.addr}
+			_, _, err := ruleFromStringAddress(*flag.value, landlock.ConnectTCP)
+			if err == nil {
+				t.Fatalf("want error for %q, got nil", tc.addr)
+			}
+			msg := flag.wrapErr(err).Error()
+			if strings.Contains(msg, secret) {
+				t.Errorf("error leaks password: %s", msg)
+			}
+			if !strings.Contains(msg, tc.want) {
+				t.Errorf("want error containing %q, got %q", tc.want, msg)
+			}
+		})
+	}
+
+	// Non-URL addresses carry no credentials and are reported verbatim.
+	addr := "foobar"
+	flag := addrFlag{"--target", &addr}
+	_, _, err := ruleFromStringAddress(addr, landlock.ConnectTCP)
+	if err == nil {
+		t.Fatalf("want error for %q, got nil", addr)
+	}
+	if msg := flag.wrapErr(err).Error(); !strings.Contains(msg, `--target "foobar"`) {
+		t.Errorf("want error naming flag and value, got %q", msg)
 	}
 }
 
