@@ -38,7 +38,7 @@ func restrict(c Config, rules ...Rule) error {
 		return fmt.Errorf("unsupported access rights in %v (upgrade go-landlock?): %w", c, syscall.EINVAL)
 	}
 
-	abi := getSupportedABIVersion()
+	abi := supportedABIVersion()
 	useTsync := abi.version >= 8
 	if !useTsync {
 		// Work around https://github.com/landlock-lsm/go-landlock/issues/39
@@ -90,7 +90,7 @@ func restrict(c Config, rules ...Rule) error {
 	if !useTsync {
 		if err := ll.AllThreadsPrctl(unix.PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0); err != nil {
 			// This prctl invocation should always work.
-			return bug(fmt.Errorf("prctl(PR_SET_NO_NEW_PRIVS): %v", err))
+			return bug(fmt.Errorf("prctl(PR_SET_NO_NEW_PRIVS): %w", err))
 		}
 
 		if err := ll.AllThreadsLandlockRestrictSelf(fd, uint32(c.flags)); err != nil {
@@ -103,13 +103,20 @@ func restrict(c Config, rules ...Rule) error {
 		return nil
 	}
 
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
+	flags := uint32(c.flags) | ll.FlagRestrictSelfTSync | ll.FlagRestrictSelfNoNewPrivs
+	if abi.version < 11 {
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
 
-	if err := unix.Prctl(unix.PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0); err != nil {
-		return bug(fmt.Errorf("prctl(PR_SET_NO_NEW_PRIVS): %v", err))
+		// The kernel sets no_new_privs on all threads, but
+		// only if the ruleset enforcement succeeds.
+		flags &^= ll.FlagRestrictSelfNoNewPrivs
+		if err := unix.Prctl(unix.PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0); err != nil {
+			return bug(fmt.Errorf("prctl(PR_SET_NO_NEW_PRIVS): %v", err))
+		}
 	}
-	if err := ll.LandlockRestrictSelf(fd, uint32(c.flags)|ll.FlagRestrictSelfTSync); err != nil {
+
+	if err := ll.LandlockRestrictSelf(fd, flags); err != nil {
 		if errors.Is(err, syscall.E2BIG) {
 			return fmt.Errorf("the maximum number of stacked rulesets is reached for the current thread: %w", err)
 		}
@@ -118,7 +125,8 @@ func restrict(c Config, rules ...Rule) error {
 	return nil
 }
 
-// Denotes an error that should not have happened.
+// bug constructs an error that should not have happened.
+//
 // If such an error occurs anyway, please try upgrading the library
 // and file a bug to github.com/landlock-lsm/go-landlock if the issue persists.
 func bug(err error) error {

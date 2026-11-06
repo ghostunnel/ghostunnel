@@ -14,8 +14,8 @@ import (
 //
 // For Landlock ABI V8 and higher, we recommend using
 // [LandlockRestrictSelf] with the [FlagRestrictSelfTSync] flag instead.
-func AllThreadsLandlockRestrictSelf(rulesetFd int, flags uint32) (err error) {
-	_, _, e1 := psx.Syscall3(unix.SYS_LANDLOCK_RESTRICT_SELF, uintptr(rulesetFd), uintptr(flags), 0)
+func AllThreadsLandlockRestrictSelf(rulesetFD int, flags uint32) (err error) {
+	_, _, e1 := psx.Syscall3(unix.SYS_LANDLOCK_RESTRICT_SELF, uintptr(rulesetFD), uintptr(flags), 0)
 	if e1 != 0 {
 		err = syscall.Errno(e1)
 	}
