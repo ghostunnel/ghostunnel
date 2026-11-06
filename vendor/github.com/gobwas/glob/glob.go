@@ -42,6 +42,10 @@ type Pattern struct {
 	// [Pattern.Separators].
 	sep []rune
 
+	// globstar tells whether the Pattern was compiled in the globstar mode;
+	// see [Compiler.Globstar].
+	globstar bool
+
 	// m is the root of the matcher tree; see [matcher].
 	m matcher
 
@@ -89,6 +93,12 @@ func (p *Pattern) Separators() []rune {
 	return p.sep
 }
 
+// Globstar reports whether the pattern was compiled with [Compiler.Globstar]
+// set. Like the separators, it is not part of String.
+func (p *Pattern) Globstar() bool {
+	return p.globstar
+}
+
 func init() {
 	// The matcher tree is unexported; hand its rendering to the in-module
 	// tooling (cmd/globtest -v) without widening the public API.
@@ -100,7 +110,9 @@ func init() {
 // Compile compiles the glob pattern. The separators, if given, are the
 // characters `*` and `?` do not match (`**` does); they can not be changed
 // after the compilation, see [Pattern.Separators]. A malformed pattern is
-// reported with a [*SyntaxError].
+// reported with a [*SyntaxError]. Compile is a shorthand for
+// [Compiler.Compile] with the Separators set and no other options, the way
+// [net.Dial] is for [net.Dialer.Dial].
 //
 // The pattern syntax is:
 //
@@ -127,7 +139,10 @@ func init() {
 //	    pattern { `,` pattern }
 //	                comma-separated (without spaces) patterns
 func Compile(pattern string, separators ...rune) (*Pattern, error) {
-	return compile(pattern, separators)
+	c := Compiler{
+		Separators: separators,
+	}
+	return c.Compile(pattern)
 }
 
 // MustCompile is the same as Compile, except that if Compile returns error,
@@ -140,13 +155,39 @@ func MustCompile(pattern string, separators ...rune) *Pattern {
 	return g
 }
 
-// QuoteMeta returns a copy of the s having all glob meta characters escaped.
+// Compiler holds the options a pattern is compiled with; see
+// [Compiler.Compile].
+//
+// The zero value compiles patterns the way [Compile] does with no separators.
+type Compiler struct {
+	// Separators are the characters `*` and `?` do not match; see [Compile].
+	Separators []rune
+
+	// Globstar makes `**/` match zero or more whole segments, as in bash with
+	// `shopt -s globstar` or in gitignore: `**/x` matches `x` as well as
+	// `a/b/x`, and `a/**/b` matches `a/b`.
+	//
+	// With no globstar, `**/x` requires the `/`, // and `{**/,}x` is the way
+	// to spell this.
+	//
+	// Only a `**` that is a whole segment and is followed by a separator is
+	// affected; `a**/b` and a trailing `a/**` keep their meaning.
+	//
+	// It has no effect without Separators, which define the segments.
+	Globstar bool
+}
+
+// QuoteMeta returns a string that escapes all glob meta characters inside s;
+// the returned string is a glob pattern matching the literal text.
+//
+// Characters that are special only in a particular context, such as `,` inside
+// `{...}` or `-` and `!` inside `[...]`, are not escaped.
 func QuoteMeta(s string) string {
 	// 2 is a pessimistic way of allocating an extra byte per each byte in s.
 	b := make([]byte, 2*len(s))
 	j := 0
 	// A byte loop is correct here because all meta characters are ASCII.
-	for i := 0; i < len(s); i++ {
+	for i := range len(s) {
 		if syntax.IsSpecial(s[i]) {
 			b[j] = '\\'
 			j++

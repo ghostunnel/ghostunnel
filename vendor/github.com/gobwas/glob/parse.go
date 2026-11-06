@@ -8,14 +8,25 @@ import (
 	"github.com/gobwas/glob/syntax"
 )
 
-// compile parses the pattern into a matcher tree (see below), simplifies and
-// specializes it, and computes the match-time hints and preconditions; see
-// [simplify], [specialize], [annotateStars], [needsState], [minLength] and
-// [requiredSuffix]. It is what [Compile] wraps.
-func compile(str string, sep []rune) (*Pattern, error) {
+// Compile compiles the glob pattern with the options of c; see [Compile] for
+// the pattern syntax. A malformed pattern is reported with a [*SyntaxError].
+//
+// It parses the pattern into a matcher tree (see below), simplifies and
+// specializes it, and computes the match-time hints and preconditions.
+func (c Compiler) Compile(str string) (*Pattern, error) {
+	// See:
+	//   - [simplify]
+	//   - [globstar]
+	//   - [specialize]
+	//   - [annotateStars]
+	//   - [needsState]
+	//   - [minLength]
+	//   - [requiredSuffix]
+
 	if debug.Enabled {
 		debug.Printf("compiling %#q\n", str)
 	}
+	sep := c.Separators
 	// The matchers keep sep and read it while matching, and the variadic slice
 	// may alias an array owned by the caller: give them a copy of their own.
 	//
@@ -236,16 +247,21 @@ parsing:
 		}
 	}
 	m := simplify(multiMatcher(stack))
+	if c.Globstar && len(sep) > 0 {
+		m, _ = globstar(m, sepCopy, true)
+	}
 	m = specialize(m, true)
 	annotateStars(m, true)
+	m = foldTailAlts(m, true)
 	if debug.Enabled {
 		debug.Printf("compiled %#q: %s\n", str, m)
 	}
 	p := &Pattern{
-		str:   str,
-		sep:   sep,
-		m:     m,
-		state: needsState(m),
+		str:      str,
+		sep:      sep,
+		globstar: c.Globstar,
+		m:        m,
+		state:    needsState(m),
 	}
 	if p.state {
 		p.minLen = minLength(m)
@@ -456,6 +472,114 @@ func needsNormalize(ms []matcher) bool {
 	return false
 }
 
+// globstar rewrites the simplified tree m for the globstar mode (see
+// [Compiler.Globstar]): a `**` that begins a segment and is followed by a
+// separator becomes an optional run of segments,
+//
+//	["a/"·**·"/b"]  =>  ["a/"·{[**·"/"]|void}·"b"]
+//
+// which is exactly what the `{**/,}` idiom parses into, so the matching engine
+// knows nothing about the mode.
+//
+// A `**` begins a segment when it is the first matcher of the pattern or
+// follows a separator; start tells it for the first matcher of m.
+//
+// The returned flag tells whether m itself ends at a segment start: a literal
+// does when it ends with a separator, a rewritten `**/` always does, a group
+// does only if all of its alternatives do. So:
+//
+//	[**·"/"·**·"/x"]        =>  [{[**·"/"]|void}·"x"]
+//	[{"a/"|void}·**·"/x"]   =>  [{"a/"|void}·{[**·"/"]|void}·"x"]
+//	[{"a"|"b/"}·**·"/x"]    =>  unchanged
+//	["a"·**·"/b"]           =>  unchanged
+func globstar(m matcher, sep []rune, start bool) (matcher, bool) {
+	switch v := m.(type) {
+	case altMatcher:
+		end := true
+		for i, c := range v {
+			var e bool
+			v[i], e = globstar(c, sep, start)
+			end = end && e
+		}
+		return v, end
+
+	case multiMatcher:
+		out := make(multiMatcher, 0, len(v))
+		// The separator of the `{**s,}` group out ends with, if any.
+		prev := ""
+		for i := 0; i < len(v); i++ {
+			c := v[i]
+			if sepText, rest, ok := splitGlobstar(v, i, sep); start && ok {
+				// Only the same separator merges: with `/` and `\` both
+				// being separators, `{**/,}{**\,}` matches `a/b\` while
+				// `{**/,}` alone does not.
+				if sepText != prev {
+					// Rewrite `**s`, s being any of the separators, into
+					// `{**s,}`.
+					out = append(out, altMatcher{
+						multiMatcher{c, &textMatcher{Text: sepText}},
+						&voidMatcher{},
+					})
+					prev = sepText
+				}
+				// Otherwise `{**s,}{**s,}` is `{**s,}`: drop the second one.
+				// Either way the match is left at a segment start: start
+				// stays true for the rest.
+				if rest != "" {
+					v[i+1] = &textMatcher{Text: rest}
+				} else {
+					i++
+				}
+				continue
+			}
+			prev = ""
+			c, start = globstar(c, sep, start)
+			out = append(out, c)
+		}
+		if len(out) == 1 {
+			return out[0], start
+		}
+		return out, start
+
+	case *textMatcher:
+		r, _ := utf8.DecodeLastRuneInString(v.Text)
+		return v, slices.Contains(sep, r)
+
+	case *voidMatcher:
+		// Consumes nothing: the position is where it was.
+		return v, start
+	}
+	// A star, a `?` or a class: never a separator.
+	return m, false
+}
+
+// splitGlobstar reports whether v[i] is a `**` followed by a literal
+// beginning with a separator. If so, it also returns that separator and the
+// rest of the literal, for [globstar] to split them apart. Whether the `**`
+// is at a segment start is up to the caller.
+func splitGlobstar(v []matcher, i int, sep []rune) (sepText, rest string, ok bool) {
+	if i+1 >= len(v) {
+		// Nothing follows.
+		return "", "", false
+	}
+	star, ok := v[i].(*starMatcher)
+	if !ok || len(star.Sep) > 0 {
+		// Not a star, or a `*` limited by the separators.
+		return "", "", false
+	}
+	text, ok := v[i+1].(*textMatcher)
+	if !ok {
+		// Followed by a wildcard or a group, not a literal.
+		return "", "", false
+	}
+	r, w := utf8.DecodeRuneInString(text.Text)
+	if !slices.Contains(sep, r) {
+		// The literal does not begin with a separator.
+		return "", "", false
+	}
+	return text.Text[:w], text.Text[w:], true
+}
+
 // specialize rewrites the terminal sub-sequences of the simplified matcher
 // tree into the shaped matchers -- [prefixMatcher], [suffixMatcher],
 // [prefixSuffixMatcher] and [containsMatcher]; see [foldTail] for the
@@ -580,6 +704,31 @@ func annotateStars(m matcher, tail bool) {
 	}
 }
 
+// foldTailAlts rewrites the tail alts whose branches are all stateless into
+// [tailAltMatcher]s: such a branch either matches the whole remainder or
+// fails, so the alternatives are tried with a plain loop and the alt saves
+// no checkpoints. An alt with a stateful branch (e.g. a non-terminal star
+// inside, as in `{a*b*c,d}`) is left as is.
+//
+// It must run after [annotateStars]: [needsState] reads the Terminal flag
+// it computes.
+func foldTailAlts(m matcher, tail bool) matcher {
+	switch v := m.(type) {
+	case multiMatcher:
+		for i, c := range v {
+			v[i] = foldTailAlts(c, tail && i == len(v)-1)
+		}
+	case altMatcher:
+		for i, c := range v {
+			v[i] = foldTailAlts(c, tail)
+		}
+		if tail && !slices.ContainsFunc(v, needsState) {
+			return tailAltMatcher(v)
+		}
+	}
+	return m
+}
+
 // leadingLiteral returns the literal the given matcher is guaranteed to
 // begin its match with, if any.
 func leadingLiteral(m matcher) string {
@@ -614,6 +763,8 @@ func minLength(m matcher) (n int) {
 			n += minLength(c)
 		}
 		return n
+	case tailAltMatcher:
+		return minLength(altMatcher(v))
 	case altMatcher:
 		n = minLength(v[0])
 		for _, c := range v[1:] {
@@ -635,6 +786,8 @@ func requiredSuffix(m matcher) string {
 		return v.Suffix
 	case multiMatcher:
 		return requiredSuffix(v[len(v)-1])
+	case tailAltMatcher:
+		return requiredSuffix(altMatcher(v))
 	case altMatcher:
 		s := requiredSuffix(v[0])
 		for _, c := range v[1:] {

@@ -108,6 +108,21 @@ it a `fmt.Stringer`, like `regexp.Regexp`):
 g := glob.MustCompile("*.github.com", '.')
 g.String()     // "*.github.com"
 g.Separators() // []rune{'.'}
+g.Globstar()   // false
+```
+
+`Compile` covers the common case; the full set of options lives on
+`Compiler`, of which `Compile` is a shorthand (the way `net.Dial` is for
+`net.Dialer.Dial`):
+
+```go
+c := glob.Compiler{
+    Separators: []rune{'/'},
+    Globstar:   true, // `**/` matches zero or more segments, as in the shells.
+}
+g, err := c.Compile("**/*.go")
+g.Match("main.go")        // true
+g.Match("cmd/app/main.go") // true
 ```
 
 ## Syntax
@@ -118,7 +133,8 @@ of characters *including* the separators, where `*` stops at them. Note that
 it is just that -- a `*` that crosses separators -- and not the `**/`
 "globstar" of shells and file globbers: `**/x` requires the literal `/`, so
 it does not match `x`; use `{**/,}x` for that. The same applies to a
-`**` between separators, e.g. `a/**/b` does not match `a/b`.
+`**` between separators, e.g. `a/**/b` does not match `a/b`. See
+[Globstar](#globstar) for the opt-in shell semantics.
 
 ```
 pattern:
@@ -156,7 +172,8 @@ or use `QuoteMeta` on the literal part.
 ### Separators
 
 The separators are not part of the pattern syntax -- they are configured
-once, at compilation time, as the extra arguments of `Compile`:
+once, at compilation time, as the extra arguments of `Compile` (or the
+`Separators` field of `Compiler`):
 
 ```go
 g := glob.MustCompile("api.*.com", '.', '/')
@@ -167,6 +184,30 @@ They only limit the wildcards: `*` and `?` never match a separator, while
 affected. With no separators given, `*` and `**` are equivalent. A compiled
 `*glob.Pattern` keeps its separators for all matches -- to match the same
 pattern with different separators, compile it again.
+
+### Globstar
+
+> [!WARNING]
+> By default `**` is just a `*` that crosses the separators, not the `**/` of
+> `shopt -s globstar`, gitignore or most file globbers: `**/x` requires the `/`
+> and does not match `x`, and `a/**/b` does not match `a/b`. If your patterns
+> come from users who expect the shell behaviour, enable the option below.
+
+The `Globstar` option of `Compiler` gives `**/` the semantics of the shells and
+gitignore: a `**` that is a whole segment and is followed by a separator
+matches zero or more segments.
+
+```go
+c := glob.Compiler{Separators: []rune{'/'}, Globstar: true}
+g, _ := c.Compile("a/**/b")
+g.Match("a/b")     // true (false by default)
+g.Match("a/x/y/b") // true
+```
+
+It is the same as writing `{**/,}` by hand, and only a `**` that is a whole
+segment followed by a separator is affected: `a**/b` and a trailing `a/**`
+keep their meaning (`a/**` does not match `a`, as in gitignore). It needs the
+separators, which define the segments.
 
 ## Performance
 
@@ -180,9 +221,10 @@ will be much more slower.
 
 `Match` performs zero allocations and is safe for concurrent use. Common
 pattern shapes (literals, prefixes, suffixes, substrings) are recognized at
-compile time and matched with plain string comparisons; the backtracking
-engine behind the rest is differentially fuzzed against the `regexp` package
-(see `FuzzMatchRegexp`).
+compile time and matched with plain string comparisons, and a trailing
+alternative group of such shapes (e.g. `{*.png,*.jpg}`) is tried as a plain
+loop over them; the backtracking engine behind the rest is differentially
+fuzzed against the `regexp` package (see `FuzzMatchRegexp`).
 
 Run `go test -bench=.` from source root to see the benchmarks (the numbers
 below are from an Apple M4):
@@ -193,10 +235,10 @@ Pattern | Fixture | Match | Speed (ns/op)
 `[a-z][!a-x]*cat*[h][!b]*eyes*` | `my dog has very bright eyes` | `false` | 46
 `https://*.google.*` | `https://account.google.com` | `true` | 16
 `https://*.google.*` | `https://google.com` | `false` | 13
-`{https://*.google.*,*yandex.*,*yahoo.*,*mail.ru}` | `http://yahoo.com` | `true` | 61
-`{https://*.google.*,*yandex.*,*yahoo.*,*mail.ru}` | `http://google.com` | `false` | 70
-`{https://*gobwas.com,http://exclude.gobwas.com}` | `https://safe.gobwas.com` | `true` | 24
-`{https://*gobwas.com,http://exclude.gobwas.com}` | `http://safe.gobwas.com` | `false` | 32
+`{https://*.google.*,*yandex.*,*yahoo.*,*mail.ru}` | `http://yahoo.com` | `true` | 21
+`{https://*.google.*,*yandex.*,*yahoo.*,*mail.ru}` | `http://google.com` | `false` | 22
+`{https://*gobwas.com,http://exclude.gobwas.com}` | `https://safe.gobwas.com` | `true` | 7.7
+`{https://*gobwas.com,http://exclude.gobwas.com}` | `http://safe.gobwas.com` | `false` | 8.0
 `google.com` | `google.com` | `true` | 5.0
 `google.com` | `gobwas.com` | `false` | 3.9
 `abc*` | `abcdef` | `true` | 4.1
@@ -219,10 +261,10 @@ Pattern | Fixture | Match | Speed (ns/op) | glob is
 `(?s)^[a-z][^a-x].*cat.*[h][^b].*eyes.*$` | `my dog has very bright eyes` | `false` | 221 | 4.9x faster
 `(?s)^https://.*\.google\..*$` | `https://account.google.com` | `true` | 251 | 16x faster
 `(?s)^https://.*\.google\..*$` | `https://google.com` | `false` | 128 | 9.6x faster
-`(?s)^(https://.*\.google\..*\|.*yandex\..*\|.*yahoo\..*\|.*mail\.ru)$` | `http://yahoo.com` | `true` | 396 | 6.5x faster
-`(?s)^(https://.*\.google\..*\|.*yandex\..*\|.*yahoo\..*\|.*mail\.ru)$` | `http://google.com` | `false` | 558 | 8.0x faster
-`(?s)^(https://.*gobwas\.com\|http://exclude\.gobwas\.com)$` | `https://safe.gobwas.com` | `true` | 210 | 8.8x faster
-`(?s)^(https://.*gobwas\.com\|http://exclude\.gobwas\.com)$` | `http://safe.gobwas.com` | `false` | 46 | 1.4x faster
+`(?s)^(https://.*\.google\..*\|.*yandex\..*\|.*yahoo\..*\|.*mail\.ru)$` | `http://yahoo.com` | `true` | 396 | 19x faster
+`(?s)^(https://.*\.google\..*\|.*yandex\..*\|.*yahoo\..*\|.*mail\.ru)$` | `http://google.com` | `false` | 558 | 25x faster
+`(?s)^(https://.*gobwas\.com\|http://exclude\.gobwas\.com)$` | `https://safe.gobwas.com` | `true` | 210 | 27x faster
+`(?s)^(https://.*gobwas\.com\|http://exclude\.gobwas\.com)$` | `http://safe.gobwas.com` | `false` | 46 | 5.7x faster
 `^google\.com$` | `google.com` | `true` | 25 | 5.0x faster
 `^google\.com$` | `gobwas.com` | `false` | 17 | 4.3x faster
 `(?s)^abc.*$` | `abcdef` | `true` | 43 | 10x faster

@@ -214,7 +214,9 @@ func (p *CopyPropagator) Apply(query ast.Body) ast.Body {
 	}
 
 	if p.ensureNonEmptyBody && len(result) == 0 {
-		result = append(result, ast.NewExpr(ast.BooleanTerm(true)))
+		true_ := ast.NewExpr(ast.BooleanTerm(true))
+		true_.Generated = true
+		result = append(result, true_)
 	}
 
 	return result
@@ -404,18 +406,18 @@ func (p *CopyPropagator) updateBindingsEqAsymmetric(a, b *ast.Term) (ast.Var, as
 // Not body and is bound or visible in the outer scope.
 func (p *CopyPropagator) computeNotBodyLivevars(uf *unionFind, removedEqs *ast.ValueMap, body ast.Body) ast.VarSet {
 	bodyVars := body.Vars(ast.SafetyCheckVisitorParams)
-
 	innerLive := ast.NewVarSet()
 	for v := range bodyVars {
-		if p.livevars.Contains(v) {
-			innerLive.Add(v)
-		} else if _, ok := uf.Find(v); ok {
-			innerLive.Add(v)
-		} else if removedEqs.Get(v) != nil {
+		if p.livevars.Contains(v) || ufFound(uf, v) || removedEqs.Get(v) != nil {
 			innerLive.Add(v)
 		}
 	}
 	return innerLive
+}
+
+func ufFound(uf *unionFind, v ast.Var) bool {
+	_, ok := uf.Find(v)
+	return ok
 }
 
 type plugContext struct {

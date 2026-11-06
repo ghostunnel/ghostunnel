@@ -241,6 +241,14 @@ func (vc *verifyContext) verifyStreaming(buf []byte) ([]byte, error) {
 
 	sig := msg.signatures[0]
 
+	// The streaming path does not go through verifyContext.tryKey (it talks
+	// to dsig directly for incremental hashing), so it applies the
+	// WithAlgorithmMatch check itself. The single WithKey algorithm above is
+	// the verification algorithm.
+	if err := vc.checkAlgorithmMatch(alg, sig); err != nil {
+		return nil, err
+	}
+
 	var rawHeaders []byte
 	if rbp, ok := sig.protected.(interface{ rawBuffer() []byte }); ok {
 		rawHeaders = rbp.rawBuffer()
@@ -295,6 +303,9 @@ func (vc *verifyContext) verifyStreaming(buf []byte) ([]byte, error) {
 		if err := blackmagic.AssignIfCompatible(vc.keyUsed, key); err != nil {
 			return nil, makeVerifyError(`failed to assign key to keyUsed: %w`, err)
 		}
+	}
+	if vc.verifiedSignature != nil {
+		*vc.verifiedSignature = sig
 	}
 	if vc.dst != nil {
 		*vc.dst = *msg

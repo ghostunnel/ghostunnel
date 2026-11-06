@@ -33,6 +33,12 @@ type VerificationConfig struct {
 	KeyID      string   `json:"keyid"`
 	Scope      string   `json:"scope"`
 	Exclude    []string `json:"exclude_files"`
+
+	// AllowUnsignedDeltaBundles opts out of rejecting delta bundles, which cannot
+	// carry a signature. Snapshot bundles must still be signed.
+	AllowUnsignedDeltaBundles bool `json:"allow_unsigned_delta_bundles"`
+
+	signatureOptional bool
 }
 
 // NewVerificationConfig return a new VerificationConfig
@@ -45,20 +51,41 @@ func NewVerificationConfig(keys map[string]*KeyConfig, id, scope string, exclude
 	}
 }
 
+// WithOptionalSignature marks vc as not requiring a .signatures.json file. A
+// signature that IS present is still fully verified.
+func (vc *VerificationConfig) WithOptionalSignature() *VerificationConfig {
+	vc.signatureOptional = true
+	return vc
+}
+
+// SignatureRequired reports whether a bundle must carry a .signatures.json file.
+// A nil config means no verification is configured, so no signature is required.
+func (vc *VerificationConfig) SignatureRequired() bool {
+	return vc != nil && !vc.signatureOptional
+}
+
+// UnsignedDeltaBundlesAllowed reports whether a delta bundle, which cannot carry a
+// signature, may be activated under this config. Delta bundles are rejected when a
+// signature is required, unless the `allow_unsigned_delta_bundles` opt-out is set.
+// A nil config means no verification is configured, so delta bundles are allowed.
+func (vc *VerificationConfig) UnsignedDeltaBundlesAllowed() bool {
+	return !vc.SignatureRequired() || vc.AllowUnsignedDeltaBundles
+}
+
 // ValidateAndInjectDefaults validates the config and inserts default values
 func (vc *VerificationConfig) ValidateAndInjectDefaults(keys map[string]*KeyConfig) error {
+	// This is only reachable from an explicit `signing` block. Such a block with
+	// no keys to verify against can never load a signed bundle, so reject it here
+	// rather than starting up with a config that cannot work. A block naming a
+	// key id falls through to the lookup below, which reports the missing key.
+	if len(keys) == 0 && vc.KeyID == "" {
+		return errors.New("no verification keys configured")
+	}
+
 	vc.PublicKeys = keys
 
 	if vc.KeyID != "" {
-		found := false
-		for key := range keys {
-			if key == vc.KeyID {
-				found = true
-				break
-			}
-		}
-
-		if !found {
+		if _, found := keys[vc.KeyID]; !found {
 			return fmt.Errorf("key id %s not found", vc.KeyID)
 		}
 	}
@@ -125,7 +152,7 @@ func (s *SigningConfig) GetPrivateKey() (any, error) {
 			if err != nil {
 				return nil, err
 			}
-			keyData = string(bs)
+			keyData = util.ByteSliceToString(bs)
 		} else if os.IsNotExist(err) {
 			// Not a file, treat as raw key data
 			keyData = s.Key
@@ -136,11 +163,11 @@ func (s *SigningConfig) GetPrivateKey() (any, error) {
 
 	// For HMAC algorithms, return the key as bytes
 	if alg == jwa.HS256() || alg == jwa.HS384() || alg == jwa.HS512() {
-		return []byte(keyData), nil
+		return util.StringToByteSlice(keyData), nil
 	}
 
 	// For RSA/ECDSA algorithms, parse the PEM-encoded key
-	block, _ := pem.Decode([]byte(keyData))
+	block, _ := pem.Decode(util.StringToByteSlice(keyData))
 	if block == nil {
 		return nil, errors.New("failed to parse PEM block containing the key")
 	}

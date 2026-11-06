@@ -45,7 +45,7 @@ const (
 	PlanProtoFile         = "plan.pb"
 	ManifestExt           = ".manifest"
 	ManifestProtoExt      = ".manifest.pb"
-	SignaturesFile        = "signatures.json"
+	signaturesFilename    = ".signatures.json"
 	patchFile             = "patch.json"
 	dataFile              = "data.json"
 	yamlDataFile          = "data.yaml"
@@ -54,6 +54,10 @@ const (
 	DefaultSizeLimitBytes = (1024 * 1024 * 1024) // limit bundle reads to 1GB to protect against gzip bombs
 	DeltaBundleType       = "delta"
 	SnapshotBundleType    = "snapshot"
+
+	// Deprecated: OPA now expects the exact filename ".signatures.json".
+	// Use IsSignaturesFile to detect it.
+	SignaturesFile = "signatures.json"
 )
 
 var (
@@ -196,10 +200,7 @@ func (m *Manifest) AddRoot(r string) {
 
 func (m *Manifest) SetRegoVersion(v ast.RegoVersion) {
 	m.Init()
-	regoVersion := 0
-	if v == ast.RegoV1 {
-		regoVersion = 1
-	}
+	regoVersion := v.Int()
 	m.RegoVersion = &regoVersion
 }
 
@@ -356,6 +357,18 @@ func (m *Manifest) validateAndInjectDefaults(b *Bundle) error {
 			if RootPathsOverlap(roots[i], roots[j]) {
 				return fmt.Errorf("manifest has overlapped roots: '%s' and '%s'", roots[i], roots[j])
 			}
+		}
+	}
+
+	// Validate rego versions in bundle.
+	if m.RegoVersion != nil {
+		if _, err := ast.RegoVersionFromIntStrict(*m.RegoVersion); err != nil {
+			return fmt.Errorf("manifest has %v", err)
+		}
+	}
+	for _, pattern := range util.KeysSorted(m.FileRegoVersions) {
+		if _, err := ast.RegoVersionFromIntStrict(m.FileRegoVersions[pattern]); err != nil {
+			return fmt.Errorf("manifest has %v for file '%s'", err, pattern)
 		}
 	}
 
@@ -652,7 +665,20 @@ func (r *Reader) Read() (Bundle, error) {
 		bundle.Data = map[string]any{}
 	}
 
-	var modules []ModuleFile
+	// Delta bundles carry no signature, so a config that requires one cannot accept them unless it explicitly opts out.
+	if bundle.Type() == DeltaBundleType && !r.skipVerify && !r.verificationConfig.UnsignedDeltaBundlesAllowed() {
+		return empty, errors.New("delta bundles do not support signature verification")
+	}
+
+	preAlloc := 0
+	for _, f := range descriptors {
+		if strings.HasSuffix(f.Path(), RegoExt) {
+			preAlloc++
+		}
+	}
+
+	modules := make([]ModuleFile, 0, preAlloc)
+
 	var manifestPath string
 	for _, f := range descriptors {
 		buf, err := readFile(f, r.sizeLimitBytes)
@@ -680,6 +706,7 @@ func (r *Reader) Read() (Bundle, error) {
 
 		// Normalize the paths to use `/` separators
 		path := filepath.ToSlash(f.Path())
+		base := filepath.Base(path)
 
 		if strings.HasSuffix(path, RegoExt) { //nolint: gocritic // ifElseChain
 			fullPath := r.fullPath(path)
@@ -702,19 +729,19 @@ func (r *Reader) Read() (Bundle, error) {
 
 				bundle.Raw = append(bundle.Raw, Raw{Path: p, Value: bs, module: &mf})
 			}
-		} else if filepath.Base(path) == WasmFile {
+		} else if base == WasmFile {
 			bundle.WasmModules = append(bundle.WasmModules, WasmModuleFile{
 				URL:  f.URL(),
 				Path: r.fullPath(path),
 				Raw:  buf.Bytes(),
 			})
-		} else if filepath.Base(path) == PlanFile || filepath.Base(path) == PlanProtoFile {
+		} else if base == PlanFile || base == PlanProtoFile {
 			bundle.PlanModules = append(bundle.PlanModules, PlanModuleFile{
 				URL:  f.URL(),
 				Path: r.fullPath(path),
 				Raw:  buf.Bytes(),
 			})
-		} else if filepath.Base(path) == dataFile {
+		} else if base == dataFile {
 			if r.lazyLoadingMode {
 				bundle.Raw = append(bundle.Raw, Raw{Path: path, Value: buf.Bytes()})
 				continue
@@ -734,7 +761,7 @@ func (r *Reader) Read() (Bundle, error) {
 				return empty, err
 			}
 
-		} else if filepath.Base(path) == yamlDataFile || filepath.Base(path) == ymlDataFile {
+		} else if IsYAMLDataFile(path) {
 			if r.lazyLoadingMode {
 				bundle.Raw = append(bundle.Raw, Raw{Path: path, Value: buf.Bytes()})
 				continue
@@ -838,6 +865,8 @@ func (r *Reader) Read() (Bundle, error) {
 			"file(s) %v specified in bundle signatures but not found in the target bundle", util.Keys(r.files))
 	}
 
+	r.qualifyWasmResolverPaths(bundle)
+
 	if err := bundle.Manifest.validateAndInjectDefaults(bundle); err != nil {
 		return empty, err
 	}
@@ -896,20 +925,19 @@ func (r *Reader) checkSignaturesAndDescriptors(signatures SignaturesConfig) erro
 		return nil
 	}
 
-	if signatures.isEmpty() && r.verificationConfig != nil && r.verificationConfig.KeyID != "" {
-		return errors.New("bundle missing .signatures.json file")
-	}
-
-	if !signatures.isEmpty() {
-		if r.verificationConfig == nil {
-			return errors.New("verification key not provided")
+	if signatures.isEmpty() {
+		if r.verificationConfig.SignatureRequired() {
+			return errors.New("bundle missing .signatures.json file")
 		}
-
-		// verify the JWT signatures included in the `.signatures.json` file
-		return r.verifyBundleSignature(signatures)
+		return nil
 	}
 
-	return nil
+	if r.verificationConfig == nil {
+		return errors.New("verification key not provided")
+	}
+
+	// verify the JWT signatures included in the `.signatures.json` file
+	return r.verifyBundleSignature(signatures)
 }
 
 func (r *Reader) verifyBundleSignature(sc SignaturesConfig) error {
@@ -920,6 +948,31 @@ func (r *Reader) verifyBundleSignature(sc SignaturesConfig) error {
 
 func (r *Reader) verifyBundleFile(path string, data bytes.Buffer) error {
 	return VerifyBundleFile(path, data, r.files)
+}
+
+// qualifyWasmResolverPaths prefixes the module paths in the manifest's wasm
+// resolvers with the base dir, so they match the paths of the loaded wasm
+// modules. Manifests that already include the base dir are left untouched.
+func (r *Reader) qualifyWasmResolverPaths(bundle *Bundle) {
+	if r.baseDir == "" {
+		return
+	}
+
+	loaded := make(map[string]struct{}, len(bundle.WasmModules))
+	for _, wm := range bundle.WasmModules {
+		loaded[wm.Path] = struct{}{}
+	}
+
+	for i, wr := range bundle.Manifest.WasmResolvers {
+		if _, ok := loaded[wr.Module]; ok {
+			continue
+		}
+		if full := r.fullPath(wr.Module); full != wr.Module {
+			if _, ok := loaded[full]; ok {
+				bundle.Manifest.WasmResolvers[i].Module = full
+			}
+		}
+	}
 }
 
 func (r *Reader) fullPath(path string) string {
@@ -1068,7 +1121,7 @@ func writeSignatures(tw *archive.TarGzWriter, bundle Bundle) error {
 		return err
 	}
 
-	return tw.WriteFile(util.WithPrefix(SignaturesFile, "/."), bs)
+	return tw.WriteFile(util.WithPrefix(signaturesFilename, "/"), bs)
 }
 
 func hashBundleFiles(hash SignatureHasher, b *Bundle) ([]FileInfo, error) {
@@ -1210,13 +1263,15 @@ func (b *Bundle) FormatModulesWithOptions(opts BundleFormatOptions) error {
 		}
 
 		if module.Parsed != nil {
+			span := module.Parsed.RegoVersionSpan()
 			fmtOpts.ParserOptions = &ast.ParserOptions{
-				RegoVersion: module.Parsed.RegoVersion(),
+				RegoVersion: span.Min(),
 			}
 			if opts.PreserveModuleRegoVersion {
-				fmtOpts.RegoVersion = module.Parsed.RegoVersion()
+				// An undefined span falls back to RegoVersion, which is then undefined too.
+				fmtOpts.RegoVersion, fmtOpts.RegoVersionSpan = span.Min(), span
 			}
-			if fmtOpts.ParserOptions.RegoVersion == fmtOpts.RegoVersion {
+			if fmtOpts.ParserOptions.RegoVersion == ast.RegoVersionSpanOf(fmtOpts.RegoVersion).Min() {
 				fmtOpts.ParserOptions.Capabilities = fmtOpts.Capabilities
 			}
 		}
@@ -1300,11 +1355,8 @@ func (b *Bundle) ParsedModules(bundleName string) map[string]*ast.Module {
 
 func (b *Bundle) RegoVersion(def ast.RegoVersion) ast.RegoVersion {
 	if v := b.Manifest.RegoVersion; v != nil {
-		switch *v {
-		case 0:
-			return ast.RegoV0
-		case 1:
-			return ast.RegoV1
+		if rv, err := ast.RegoVersionFromIntStrict(*v); err == nil {
+			return rv
 		}
 	}
 	return def
@@ -1316,19 +1368,13 @@ func (b *Bundle) SetRegoVersion(v ast.RegoVersion) {
 
 // RegoVersionForFile returns the rego-version for the specified file path.
 // If there is no defined version for the given path, the default version def is returned.
-// If the version does not correspond to ast.RegoV0 or ast.RegoV1, an error is returned.
+// If the version does not correspond to ast.RegoV0, ast.RegoV1 or ast.RegoV2, an error is returned.
 func (b *Bundle) RegoVersionForFile(path string, def ast.RegoVersion) (ast.RegoVersion, error) {
-	version, err := b.Manifest.numericRegoVersionForFile(path)
-	if err != nil {
+	v, err := b.Manifest.RegoVersionForFile(path)
+	if err != nil || v == ast.RegoUndefined {
 		return def, err
-	} else if version == nil {
-		return def, nil
-	} else if *version == 0 {
-		return ast.RegoV0, nil
-	} else if *version == 1 {
-		return ast.RegoV1, nil
 	}
-	return def, fmt.Errorf("unknown bundle rego-version %d for file '%s'", *version, path)
+	return v, nil
 }
 
 func (m *Manifest) RegoVersionForFile(path string) (ast.RegoVersion, error) {
@@ -1341,7 +1387,11 @@ func (m *Manifest) RegoVersionForFile(path string) (ast.RegoVersion, error) {
 		return ast.RegoUndefined, nil
 	}
 
-	return ast.RegoVersionFromInt(*v), nil
+	rv, err := ast.RegoVersionFromIntStrict(*v)
+	if err != nil {
+		return ast.RegoUndefined, fmt.Errorf("unknown bundle rego-version %d for file '%s'", *v, path)
+	}
+	return rv, nil
 }
 
 func (m *Manifest) numericRegoVersionForFile(path string) (*int, error) {
@@ -1787,12 +1837,34 @@ func modulePathWithPrefix(bundleName string, modulePath string) string {
 // hashed as raw wire bytes on both the sign and verify paths.
 func IsStructuredDoc(name string) bool {
 	base := filepath.Base(name)
-	return base == dataFile || base == yamlDataFile || base == SignaturesFile || base == ManifestExt
+	return base == dataFile || IsYAMLDataFile(name) || base == ManifestExt
+}
+
+// IsSignaturesFile reports whether name is a bundle's signatures file, matched
+// by its exact basename ".signatures.json" so it is found regardless of any
+// directory prefix.
+func IsSignaturesFile(name string) bool {
+	return filepath.Base(name) == signaturesFilename
+}
+
+// IsYAMLFile reports whether name has a YAML extension (".yaml" or ".yml").
+func IsYAMLFile(name string) bool {
+	ext := filepath.Ext(name)
+	return ext == ".yaml" || ext == ".yml"
+}
+
+// IsYAMLDataFile reports whether name is a bundle YAML data file, matched by
+// its exact basename ("data.yaml" or "data.yml"). Other YAML files in a bundle
+// are not loaded as data.
+func IsYAMLDataFile(name string) bool {
+	base := filepath.Base(name)
+	return base == yamlDataFile || base == ymlDataFile
 }
 
 func preProcessBundle(loader DirectoryLoader, skipVerify bool, sizeLimitBytes int64) (*Bundle, []*Descriptor, error) {
 	bundle := &Bundle{}
 	descriptors := []*Descriptor{}
+	signaturesFilePath := ""
 
 	for {
 		f, err := loader.NextFile()
@@ -1803,37 +1875,38 @@ func preProcessBundle(loader DirectoryLoader, skipVerify bool, sizeLimitBytes in
 			return bundle, nil, fmt.Errorf("bundle read failed: %w", err)
 		}
 
-		isSignaturesFile := strings.HasSuffix(f.Path(), SignaturesFile)
-
-		if !skipVerify && isSignaturesFile {
-			buf, err := readFile(f, sizeLimitBytes)
-			if err != nil {
-				return bundle, nil, err
-			}
-
-			if err := util.NewJSONDecoder(&buf).Decode(&bundle.Signatures); err != nil {
-				return bundle, nil, fmt.Errorf("bundle load failed on signatures decode: %w", err)
-			}
-		} else if !isSignaturesFile {
-			descriptors = append(descriptors, f)
-
-			base := filepath.Base(f.Path())
-
-			if base == patchFile {
-				b := new(bytes.Buffer)
-				f.reader = io.TeeReader(f.reader, b)
+		if IsSignaturesFile(f.Path()) {
+			if !skipVerify {
+				if signaturesFilePath != "" {
+					return bundle, nil, fmt.Errorf("bundle contains multiple signatures files: %q and %q", signaturesFilePath, f.Path())
+				}
+				signaturesFilePath = f.Path()
 
 				buf, err := readFile(f, sizeLimitBytes)
 				if err != nil {
 					return bundle, nil, err
 				}
-
-				if err := util.NewJSONDecoder(&buf).Decode(&bundle.Patch); err != nil {
-					return bundle, nil, fmt.Errorf("bundle load failed on patch decode: %w", err)
+				if err := util.NewJSONDecoder(&buf).Decode(&bundle.Signatures); err != nil {
+					return bundle, nil, fmt.Errorf("bundle load failed on signatures decode: %w", err)
 				}
-
-				f.reader = b
 			}
+			continue
+		}
+
+		descriptors = append(descriptors, f)
+
+		if filepath.Base(f.Path()) == patchFile {
+			b := new(bytes.Buffer)
+			f.reader = io.TeeReader(f.reader, b)
+
+			buf, err := readFile(f, sizeLimitBytes)
+			if err != nil {
+				return bundle, nil, err
+			}
+			if err := util.NewJSONDecoder(&buf).Decode(&bundle.Patch); err != nil {
+				return bundle, nil, fmt.Errorf("bundle load failed on patch decode: %w", err)
+			}
+			f.reader = b
 		}
 	}
 

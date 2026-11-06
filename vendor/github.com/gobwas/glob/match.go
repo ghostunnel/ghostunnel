@@ -461,6 +461,27 @@ func (ms altMatcher) Match(x matchContext, s string) (int, bool) {
 	return n, match
 }
 
+// tailAltMatcher is a group of alternatives with nothing after it in the
+// pattern and no checkpoint-saving matchers inside: every branch either
+// matches the whole remainder or fails deterministically, so the branches
+// are tried in order with a plain loop -- no checkpoints, no state; see
+// [foldTailAlts]. Rendered with a trailing `$` to tell it from a generic
+// altMatcher in the debug output.
+type tailAltMatcher []matcher
+
+func (ms tailAltMatcher) String() string {
+	return altMatcher(ms).String() + "$"
+}
+
+func (ms tailAltMatcher) Match(x matchContext, s string) (int, bool) {
+	for _, m := range ms {
+		if n, ok := m.Match(x, s); ok && n == len(s) {
+			return n, true
+		}
+	}
+	return 0, false
+}
+
 // textMatcher is a literal, "abc".
 type textMatcher struct {
 	Text string

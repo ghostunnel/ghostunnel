@@ -365,7 +365,7 @@ reading:
 				escaped = true
 				continue
 			}
-			if slices.Index(breakers, r) != -1 {
+			if slices.Contains(breakers, r) {
 				l.unread()
 				break reading
 			}
