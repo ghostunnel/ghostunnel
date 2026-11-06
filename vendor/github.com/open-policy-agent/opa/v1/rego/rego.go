@@ -82,6 +82,22 @@ func (pr PartialResult) Rego(options ...func(*Rego)) *Rego {
 	return r
 }
 
+// evalOptions copies the options that affect evaluation, as opposed to
+// compilation, to the Rego object built from a partial result. The compiler
+// carries everything that influences compilation.
+func (r *Rego) evalOptions(dst *Rego) {
+	dst.runtime = r.runtime
+	dst.resolvers = r.resolvers
+	dst.printHook = r.printHook
+	dst.strictBuiltinErrors = r.strictBuiltinErrors
+	dst.builtinErrorList = r.builtinErrorList
+	dst.stackTraces = r.stackTraces
+	dst.distributedTracingOpts = r.distributedTracingOpts
+	dst.evaluated = r.evaluated
+	dst.generateJSON = r.generateJSON
+	dst.enablePrintStatements = r.enablePrintStatements
+}
+
 // preparedQuery is a wrapper around a Rego object which has pre-processed
 // state stored on it. Once prepared there are a more limited number of actions
 // that can be taken with it. It will, however, be able to evaluate faster since
@@ -1551,9 +1567,7 @@ func (r *Rego) Eval(ctx context.Context) (ResultSet, error) {
 		evalArgs = append(evalArgs, EvalNDBuiltinCache(r.ndBuiltinCache))
 	}
 
-	for _, qt := range r.queryTracers {
-		evalArgs = append(evalArgs, EvalQueryTracer(qt))
-	}
+	evalArgs = util.MapAppend(evalArgs, r.queryTracers, EvalQueryTracer)
 
 	for i := range r.resolvers {
 		evalArgs = append(evalArgs, EvalResolver(r.resolvers[i].ref, r.resolvers[i].r))
@@ -1630,9 +1644,7 @@ func (r *Rego) Partial(ctx context.Context) (*PartialQueries, error) {
 		evalArgs = append(evalArgs, EvalNDBuiltinCache(r.ndBuiltinCache))
 	}
 
-	for _, t := range r.queryTracers {
-		evalArgs = append(evalArgs, EvalQueryTracer(t))
-	}
+	evalArgs = util.MapAppend(evalArgs, r.queryTracers, EvalQueryTracer)
 
 	for i := range r.resolvers {
 		evalArgs = append(evalArgs, EvalResolver(r.resolvers[i].ref, r.resolvers[i].r))
@@ -1837,7 +1849,7 @@ func (r *Rego) PrepareForEval(ctx context.Context, opts ...PrepareOption) (Prepa
 		}
 
 		// Prepare the new query using the result of partial evaluation
-		pq, err := pr.Rego(Transaction(r.txn)).PrepareForEval(ctx)
+		pq, err := pr.Rego(Transaction(r.txn), r.evalOptions).PrepareForEval(ctx)
 		txnErr := txnClose(ctx, err)
 		if err != nil {
 			return pq, err
@@ -2042,7 +2054,7 @@ func (r *Rego) parseModules(ctx context.Context, txn storage.Transaction, m metr
 			return err
 		}
 
-		parsed, err := ast.ParseModuleWithOpts(id, string(bs), popts)
+		parsed, err := ast.ParseModuleWithOpts(id, util.ByteSliceToString(bs), popts)
 		if err != nil {
 			errs = append(errs, err)
 		}
@@ -2171,21 +2183,11 @@ func (r *Rego) parseQuery(queryImports []*ast.Import, m metrics.Metrics) (ast.Bo
 		return nil, err
 	}
 	popts.RegoVersion = r.regoVersion
-	popts = parserOptionsFromRegoVersionImport(queryImports, popts)
+	popts = future.ParserOptionsWithRegoVersionImports(queryImports, popts)
 	popts.SkipRules = true
 	popts.Capabilities = r.capabilities
 
 	return ast.ParseBodyWithOpts(r.query, popts)
-}
-
-func parserOptionsFromRegoVersionImport(imports []*ast.Import, popts ast.ParserOptions) ast.ParserOptions {
-	for _, imp := range imports {
-		if ast.RegoV1CompatibleRef.Equal(imp.Path.Value) {
-			popts.RegoVersion = ast.RegoV1
-			return popts
-		}
-	}
-	return popts
 }
 
 func (r *Rego) compileModules(ctx context.Context, txn storage.Transaction, m metrics.Metrics) error {
@@ -2735,15 +2737,15 @@ func (r *Rego) partial(ctx context.Context, ectx *EvalContext) (*PartialQueries,
 			}
 
 			if applyCompatRegoVersion {
-				support[i].SetRegoVersion(ast.RegoV0CompatV1)
+				support[i].SetRegoVersionSpan(ast.RegoVersionSpanOf(ast.RegoV0CompatV1))
 			} else {
-				support[i].SetRegoVersion(r.regoVersion)
+				support[i].SetRegoVersionSpan(ast.RegoVersionSpanOf(r.regoVersion))
 			}
 		}
 	} else {
 		// If the target rego-version is not v0, then we apply the target rego-version to the support modules.
 		for i := range support {
-			support[i].SetRegoVersion(r.regoVersion)
+			support[i].SetRegoVersionSpan(ast.RegoVersionSpanOf(r.regoVersion))
 		}
 	}
 

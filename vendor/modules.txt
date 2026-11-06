@@ -159,7 +159,7 @@ github.com/miekg/pkcs11
 # github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822
 ## explicit
 github.com/munnerz/goautoneg
-# github.com/open-policy-agent/opa v1.21.2
+# github.com/open-policy-agent/opa v1.22.0
 ## explicit; go 1.26.0
 github.com/open-policy-agent/opa/capabilities
 github.com/open-policy-agent/opa/internal/bundle
@@ -183,6 +183,7 @@ github.com/open-policy-agent/opa/internal/merge
 github.com/open-policy-agent/opa/internal/methodlesstemplate
 github.com/open-policy-agent/opa/internal/methodlesstemplate/internal/fmtsort
 github.com/open-policy-agent/opa/internal/planner
+github.com/open-policy-agent/opa/internal/prefixtrie
 github.com/open-policy-agent/opa/internal/providers/aws
 github.com/open-policy-agent/opa/internal/providers/aws/crypto
 github.com/open-policy-agent/opa/internal/providers/aws/v4
@@ -263,9 +264,6 @@ github.com/prometheus/common/model
 github.com/prometheus/procfs
 github.com/prometheus/procfs/internal/fs
 github.com/prometheus/procfs/internal/parsers
-# github.com/rcrowley/go-metrics v0.0.0-20250401214520-65e299d6c5c9
-## explicit
-github.com/rcrowley/go-metrics
 # github.com/segmentio/asm v1.2.1
 ## explicit; go 1.18
 github.com/segmentio/asm/base64
@@ -309,9 +307,6 @@ github.com/stretchr/testify/assert/yaml
 github.com/stretchr/testify/internal/difflib
 github.com/stretchr/testify/internal/spew
 github.com/stretchr/testify/require
-# github.com/tchap/go-patricia/v2 v2.3.3
-## explicit; go 1.16
-github.com/tchap/go-patricia/v2/patricia
 # github.com/valyala/fastjson v1.6.10
 ## explicit; go 1.24
 github.com/valyala/fastjson

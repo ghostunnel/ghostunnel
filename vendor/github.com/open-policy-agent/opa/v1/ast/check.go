@@ -880,7 +880,7 @@ func unify1Array(env *TypeEnv, val *Array, tpe *types.Array, union bool) bool {
 }
 
 func unify1Object(env *TypeEnv, val Object, tpe *types.Object, union bool) bool {
-	if val.Len() != len(tpe.Keys()) && tpe.DynamicValue() == nil {
+	if val.Len() != tpe.Len() && tpe.DynamicValue() == nil {
 		return false
 	}
 	stop := val.Until(func(k, v *Term) bool {
@@ -1343,12 +1343,41 @@ func (a *UnificationErrDetail) Lines() []string {
 	leftLine := "left  : " + types.Sprint(a.Left)
 	rightLine := "right : " + types.Sprint(a.Right)
 
-	if !tooWideForTypeErr(leftLine, rightLine) {
-		return []string{leftLine, rightLine}
+	if tooWideForTypeErr(leftLine, rightLine) {
+		left, right := sprintDiff(a.Left, a.Right)
+		leftLine, rightLine = "left  : "+left, "right : "+right
 	}
 
-	left, right := sprintDiff(a.Left, a.Right)
-	return []string{"left  : " + left, "right : " + right}
+	if kind := sharedCompositeKind(a.Left, a.Right); kind != "" {
+		return []string{leftLine, rightLine, "hint  : both sides are " + kind +
+			" but their types differ, so they can never be equal (see " + matchErrorDocsURL + ")"}
+	}
+
+	return []string{leftLine, rightLine}
+}
+
+const matchErrorDocsURL = "https://www.openpolicyagent.org/docs/errors/rego-type-error/match-error"
+
+// sharedCompositeKind returns the plural kind name when a and b are both
+// objects, arrays, or sets. A mismatch between two values of the same kind is
+// the one users most often read as "== cannot compare these", so it gets a hint.
+func sharedCompositeKind(a, b types.Type) string {
+	a, b = unwrapNamedType(a), unwrapNamedType(b)
+	switch a.(type) {
+	case *types.Object:
+		if _, ok := b.(*types.Object); ok {
+			return "objects"
+		}
+	case *types.Array:
+		if _, ok := b.(*types.Array); ok {
+			return "arrays"
+		}
+	case *types.Set:
+		if _, ok := b.(*types.Set); ok {
+			return "sets"
+		}
+	}
+	return ""
 }
 
 // RefErrUnsupportedDetail describes an undefined reference error where the
@@ -1466,19 +1495,9 @@ func getOneOfForNode(node *typeTreeNode) []Value {
 func getOneOfForType(tpe types.Type) (result []Value) {
 	switch tpe := tpe.(type) {
 	case *types.Object:
-		keys := tpe.Keys()
-		result = slices.Grow(result, len(keys))
-		for _, k := range keys {
-			v, err := InterfaceToValue(k)
-			if err != nil {
-				panic(err)
-			}
-			result = append(result, v)
-		}
-
+		result = util.Map(tpe.Keys(), MustInterfaceToValue)
 	case *types.Recursive:
 		return getOneOfForType(tpe.Unwrap())
-
 	case types.Any:
 		result = slices.Grow(result, len(tpe))
 		for _, object := range tpe {

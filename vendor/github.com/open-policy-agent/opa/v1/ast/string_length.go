@@ -40,10 +40,8 @@ func (str String) StringLength() int {
 	for i := 0; i < len(bs); {
 		r, size := utf8.DecodeRune(bs[i:])
 		switch r {
-		case '\\', '"':
-			n += 2 // escaped backslash or quote
-		case '\b', '\f', '\n', '\r', '\t':
-			n += 2 // escaped control characters
+		case '\\', '"', '\b', '\f', '\n', '\r', '\t':
+			n += 2 // escaped backslash, quote or control character
 		default:
 			if r < 0x20 {
 				n += 6 // unicode escape for other control characters
@@ -204,7 +202,7 @@ func (mod *Module) StringLength() (n int) {
 
 	if len(mod.Rules) > 0 {
 		for _, rule := range mod.Rules {
-			n += rule.stringLengthWithOpts(toStringOpts{regoVersion: mod.regoVersion}) + 1 // newline
+			n += rule.stringLengthWithOpts(toStringOpts{regoVersion: mod.regoVersion.Max()}) + 1 // newline
 		}
 	}
 
@@ -242,7 +240,7 @@ func (rule *Rule) stringLengthWithOpts(opts toStringOpts) int {
 	n += rule.Head.stringLengthWithOpts(opts)
 	if !rule.Default {
 		switch opts.RegoVersion() {
-		case RegoV1, RegoV0CompatV1:
+		case RegoV0CompatV1, RegoV1, RegoV2:
 			n += 6 // " if { "
 		default:
 			n += 3 // " { "

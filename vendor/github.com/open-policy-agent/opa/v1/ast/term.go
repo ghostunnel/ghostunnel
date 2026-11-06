@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/big"
 	"net/url"
 	"slices"
 	"strconv"
@@ -80,7 +81,7 @@ func InterfaceToValue(x any) (Value, error) {
 		if interned := InternedIntNumberTermFromString(string(x)); interned != nil {
 			return interned.Value, nil
 		}
-		return Number(x), nil
+		return NumberChecked(string(x))
 	case int:
 		return InternedValueOr(x, newIntNumberValue), nil
 	case int64:
@@ -836,6 +837,63 @@ func newInt64NumberValue(i int64) Value {
 
 func newUint64NumberValue(u uint64) Value {
 	return Number(strconv.FormatUint(u, 10))
+}
+
+// maxNumberExp is the limit on the binary exponent of a number. It is arbitrary.
+const maxNumberExp = 1e5
+
+var (
+	errInvalidFloat = errors.New("invalid float")
+	errNumberTooBig = errors.New("number too big")
+)
+
+// validateNumber checks that s is a number that can be handled when evaluating: parsed as a
+// big.Float, and with an exponent small enough to not cause non-linear cost of String() on
+// big.Float: https://github.com/golang/go/issues/11068
+func validateNumber(s string) error {
+	f, ok := new(big.Float).SetString(s)
+	if !ok {
+		return errInvalidFloat
+	}
+
+	// n == sign * mantissa * 2^exp
+	// 0.5 <= mantissa < 1.0
+	exp := f.MantExp(nil)
+	if exp > maxNumberExp || exp < -maxNumberExp || f.IsInf() { // +/- inf, exp is 0
+		return errNumberTooBig
+	}
+
+	return nil
+}
+
+// NumberChecked returns s as a Number, or an error if it is not a number that can be handled
+// when evaluating, like one with an out-of-range exponent.
+func NumberChecked(s string) (Number, error) {
+	// Only the exponent forms can be out of range. Kept inlinable: this runs for every
+	// non-interned JSON number.
+	for i := range len(s) {
+		if s[i]|0x20 == 'e' { // 'e' or 'E'
+			return Number(s), checkExponent(s, i)
+		}
+	}
+	return Number(s), nil
+}
+
+func checkExponent(s string, i int) error {
+	if !smallExponent(s, i) {
+		if err := validateNumber(s); err != nil {
+			return fmt.Errorf("invalid number: %w", err)
+		}
+	}
+	return nil
+}
+
+// smallExponent reports whether the number s, with its exponent marker at i, is certainly
+// below 2^maxNumberExp: a decimal digit takes at most 4 bits, and the digits are counted
+// with the exponent, so that leading zeros and a long mantissa are covered too.
+func smallExponent(s string, i int) bool {
+	exp, err := strconv.Atoi(s[i+1:])
+	return err == nil && i+max(exp, -exp) <= maxNumberExp/4
 }
 
 func floatNumber(f float64) Number {
@@ -1731,10 +1789,7 @@ func newset(n int) *set {
 
 // SetTerm returns a new Term representing a set containing terms t.
 func SetTerm(t ...*Term) *Term {
-	set := NewSet(t...)
-	return &Term{
-		Value: set,
-	}
+	return &Term{Value: NewSet(t...)}
 }
 
 type set struct {

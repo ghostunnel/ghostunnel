@@ -15,20 +15,20 @@ import (
 )
 
 const bom = 0xFEFF
+const nbsp = 0xA0
 
 // Scanner is used to tokenize an input stream of
 // Rego source code.
 type Scanner struct {
-	keywords         map[string]tokens.Token
-	bs               []byte
-	errors           []Error
-	tabs             []int
-	offset           int
-	row              int
-	col              int
-	width            int
-	curr             rune
-	regoV1Compatible bool
+	keywords map[string]tokens.Token
+	bs       []byte
+	errors   []Error
+	tabs     []int
+	offset   int
+	row      int
+	col      int
+	width    int
+	curr     rune
 }
 
 // Error represents a scanner error.
@@ -119,14 +119,6 @@ func (s *Scanner) HasKeyword(keywords map[string]tokens.Token) bool {
 func (s *Scanner) IsKeyword(str string) bool {
 	_, ok := s.keywords[str]
 	return ok
-}
-
-func (s *Scanner) SetRegoV1Compatible() {
-	s.regoV1Compatible = true
-}
-
-func (s *Scanner) RegoV1Compatible() bool {
-	return s.regoV1Compatible
 }
 
 // WithKeywords returns a new copy of the Scanner struct `s`, with the set
@@ -295,6 +287,8 @@ func (s *Scanner) Scan(opts ...ScanOption) (tokens.Token, Position, string, []Er
 			} else {
 				s.error("illegal ! character")
 			}
+		case nbsp:
+			s.error("illegal non-breaking space character, use a regular space instead")
 		case ';':
 			tok = tokens.Semicolon
 		case '.':
@@ -545,7 +539,7 @@ func (s *Scanner) scanComment() string {
 	end := s.offset - 1
 	// Trim carriage returns that precede the newline
 	if s.offset > 1 && s.bs[s.offset-2] == '\r' {
-		end -= 1
+		end--
 	}
 
 	return util.ByteSliceToString(s.bs[start:end])
