@@ -128,7 +128,7 @@ func setupLandlock() error {
 
 		fsRule, netRule, err := ruleFromStringAddress(*addr, landlock.BindTCP)
 		if err != nil {
-			return fmt.Errorf("processing argument %q for landlock rule: %w", *addr, err)
+			return wrapAddrErr(*addr, err)
 		}
 		if fsRule != nil {
 			fsRules = append(fsRules, fsRule)
@@ -153,7 +153,7 @@ func setupLandlock() error {
 
 		fsRule, netRule, err := ruleFromStringAddress(*addr, landlock.ConnectTCP)
 		if err != nil {
-			return fmt.Errorf("processing argument %q for landlock rule: %w", *addr, err)
+			return wrapAddrErr(*addr, err)
 		}
 		if fsRule != nil {
 			fsRules = append(fsRules, fsRule)
@@ -190,7 +190,7 @@ func setupLandlock() error {
 
 		rule, err := ruleFromTCPAddress(*addr, landlock.ConnectTCP)
 		if err != nil {
-			return fmt.Errorf("processing argument %q for landlock rule: %w", *addr, err)
+			return fmt.Errorf("processing argument %q for landlock rule: %w", (*addr).String(), err)
 		}
 		if rule != nil {
 			netRules = append(netRules, rule)
@@ -244,6 +244,42 @@ func setupLandlock() error {
 	return config.RestrictNet(netRules...)
 }
 
+// wrapAddrErr wraps err with a loggable form of the flag value addr. HTTP(S)
+// URLs are shown with the password redacted; if the value looks like a URL but
+// does not parse, it is omitted entirely, since credentials may still be
+// present in it and the wrapped err already describes the parse failure.
+func wrapAddrErr(addr string, err error) error {
+	if value, ok := redactAddr(addr); ok {
+		return fmt.Errorf("processing argument %q for landlock rule: %w", value, err)
+	}
+	return fmt.Errorf("processing URL argument for landlock rule: %w", err)
+}
+
+// redactAddr returns addr in a form safe to log. Non-URL addresses (host:port,
+// unix:PATH, systemd:NAME, launchd:NAME) carry no credentials and are returned
+// as-is. HTTP(S) URLs are returned with any password replaced by "xxxxx". ok is
+// false if addr looks like a URL but does not parse, in which case callers
+// must not log it.
+func redactAddr(addr string) (redacted string, ok bool) {
+	if !isHTTPURL(addr) {
+		return addr, true
+	}
+	return redactURL(addr)
+}
+
+// isHTTPURL reports whether addr has an http or https scheme. URL schemes are
+// case-insensitive, so this must match "HTTPS://" as well as "https://", or a
+// credential-bearing URL could fall through to the host:port path and be
+// logged verbatim.
+func isHTTPURL(addr string) bool {
+	return hasPrefixFold(addr, "http://") || hasPrefixFold(addr, "https://")
+}
+
+// hasPrefixFold is a case-insensitive strings.HasPrefix.
+func hasPrefixFold(s, prefix string) bool {
+	return len(s) >= len(prefix) && strings.EqualFold(s[:len(prefix)], prefix)
+}
+
 // ruleFromStringAddress turns a flag-supplied address string into a landlock
 // rule. Handles unix sockets (RW on the socket's parent dir), systemd/launchd
 // socket activation (no rule needed; the FD is inherited), HTTP/HTTPS URLs,
@@ -274,10 +310,16 @@ func ruleFromStringAddress(addr string, ruleFromPort portRuleFunc) (landlock.Rul
 		// Socket activation - no rule needed
 		return nil, nil, nil
 	}
-	if strings.HasPrefix(addr, "http://") || strings.HasPrefix(addr, "https://") {
+	if isHTTPURL(addr) {
 		u, err := url.Parse(addr)
 		if err != nil {
-			return nil, nil, err
+			// A *url.Error embeds the full raw URL, credentials included,
+			// in its message. Only keep the underlying cause.
+			var urlErr *url.Error
+			if errors.As(err, &urlErr) {
+				err = urlErr.Err
+			}
+			return nil, nil, fmt.Errorf("unable to parse URL: %w", err)
 		}
 		rule, err := ruleFromURL(u, ruleFromPort)
 		return nil, rule, err
