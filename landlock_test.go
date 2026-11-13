@@ -24,6 +24,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/landlock-lsm/go-landlock/landlock"
@@ -61,6 +62,8 @@ func TestLandlockRuleFromStringAddress(t *testing.T) {
 		{"https://[1fff:0:a88:85a3::ac1f]:8001/something", netOnly},
 		{"http://localhost", netOnly},
 		{"https://localhost", netOnly},
+		{"HTTP://127.0.0.1:8001/something", netOnly}, // schemes are case-insensitive
+		{"HTTPS://localhost", netOnly},
 		{"http://_:_!", invalid},
 		{"https://_:_!", invalid},
 		{"http://127.0.0.1:0/something", invalid},
@@ -90,6 +93,63 @@ func TestLandlockRuleFromStringAddress(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// Errors from URL-valued flags (e.g. --metrics-url) end up in the landlock
+// warning in the logs, so they must never echo a password from the URL.
+func TestLandlockAddrFlagErrorRedactsCredentials(t *testing.T) {
+	const secret = "s3cr3t-password"
+	testCases := []struct {
+		name string
+		addr string
+		want string // substring expected in the error
+	}{
+		{
+			// Parses, but port 0 is rejected: the value is shown redacted.
+			name: "unroutable port",
+			addr: "https://user:" + secret + "@metrics.example.com:0/push",
+			want: `argument "https://user:xxxxx@metrics.example.com:0/push"`,
+		},
+		{
+			// Schemes are case-insensitive: an uppercase scheme must not
+			// bypass redaction by falling through to the host:port path.
+			name: "uppercase scheme",
+			addr: "HTTPS://user:" + secret + "@metrics.example.com:0/push",
+			want: `argument "https://user:xxxxx@metrics.example.com:0/push"`,
+		},
+		{
+			// Does not parse: url.Error would embed the raw URL, so the
+			// value must be omitted and only the cause kept.
+			name: "unparseable",
+			addr: "https://user:" + secret + "@metrics.example.com:99999x/push",
+			want: `URL argument for landlock rule: unable to parse URL: invalid port`,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, _, err := ruleFromStringAddress(tc.addr, landlock.ConnectTCP)
+			if err == nil {
+				t.Fatalf("want error for %q, got nil", tc.addr)
+			}
+			msg := wrapAddrErr(tc.addr, err).Error()
+			if strings.Contains(msg, secret) {
+				t.Errorf("error leaks password: %s", msg)
+			}
+			if !strings.Contains(msg, tc.want) {
+				t.Errorf("want error containing %q, got %q", tc.want, msg)
+			}
+		})
+	}
+
+	// Non-URL addresses carry no credentials and are reported verbatim.
+	addr := "foobar"
+	_, _, err := ruleFromStringAddress(addr, landlock.ConnectTCP)
+	if err == nil {
+		t.Fatalf("want error for %q, got nil", addr)
+	}
+	if msg := wrapAddrErr(addr, err).Error(); !strings.Contains(msg, `argument "foobar"`) {
+		t.Errorf("want error showing value verbatim, got %q", msg)
 	}
 }
 
